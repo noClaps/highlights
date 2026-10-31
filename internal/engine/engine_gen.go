@@ -1054,8 +1054,10 @@ func (m *Machine) SetSpan(hl uint32) {
 	}
 	rt.StV(mem[m.Out:], rt.LdV(mem[slot+1:]))
 	rt.StV(mem[m.Out+16:], rt.LdV(mem[slot+17:]))
-	rt.StV(mem[m.Out+32:], rt.LdV(mem[slot+33:]))
-	rt.StV(mem[m.Out+48:], rt.LdV(mem[slot+49:]))
+	if length > 32 {
+		rt.StV(mem[m.Out+32:], rt.LdV(mem[slot+33:]))
+		rt.StV(mem[m.Out+48:], rt.LdV(mem[slot+49:]))
+	}
 	m.Out += length
 }
 
@@ -1293,6 +1295,7 @@ func (m *Machine) EmitTok(hl, lhs, rhs uint32) {
 
 // emitTokSlow is EmitTok past its first check.
 func (m *Machine) emitTokSlow(hl, lhs, rhs uint32) {
+	var c uint32
 	if m.Tokens {
 		m.RecTok(hl, rhs)
 		return
@@ -1304,6 +1307,14 @@ func (m *Machine) emitTokSlow(hl, lhs, rhs uint32) {
 	m.EnsureCap(length*5 + m.SpanReserve)
 	if hl != m.SpanHl {
 		m.SetSpan(hl)
+	}
+	if length == 1 {
+		c = uint32(m.Mem[lhs])
+		if c&253 != 60 && c != '&' {
+			m.Mem[m.Out] = byte(c)
+			m.Out++
+			return
+		}
 	}
 	m.EscCopy(lhs, rhs)
 }

@@ -62,14 +62,14 @@ theme (`-list-themes`) or reads a theme JSON file.
 
 ## Performance
 
-On an Apple M2, HTML highlighting runs at about 100–370 MB/s depending on
-the language: 256 KB of Go takes about 2.5 ms, and of Markdown about
+On an Apple M2, HTML highlighting runs at about 110–390 MB/s depending on
+the language: 256 KB of Go takes about 2.2 ms, and of Markdown about
 0.7 ms (`go test -bench . .` measures one input per language).
 
 The lexers scan 16 bytes at a time. By default those 16-byte vectors are
 emulated with 64-bit arithmetic. Built with Go's SIMD experiment on arm64,
-they use NEON instead, which makes HTML highlighting 6–25% faster (about
-110–500 MB/s; 2.2 ms for the Go input, 0.53 ms for Markdown):
+they use NEON instead, which makes HTML highlighting 6–26% faster (about
+115–520 MB/s; 2.0 ms for the Go input, 0.5 ms for Markdown):
 
 ```sh
 GOEXPERIMENT=simd go install ./cmd/highlights
@@ -168,9 +168,21 @@ The port matches the original's output except where a lexer bug was fixed:
 - Python highlights `as` as a keyword (`import numpy as np`,
   `with open(p) as f`, `except E as e`); the original colored it as a name.
 
+The emitter also departs from the original's engine memory, though not its
+output: it copies a one-byte token without the 16-byte escape scan, and a
+cached span opener of at most 32 bytes with two 16-byte stores instead of
+four. Both write fewer bytes past the end of the output, which the next
+output overwrites, so the memory snapshots of 279 recorded tests were
+re-recorded. Before that, 22,800 calls (every language, five theme setups,
+ten input sizes) were run through one instance with the engine before and
+after the change. Their HTML and their memory matched, apart from the bytes
+past the input and output and one 16-byte lowercase copy in scratch memory
+that reads past an identifier into them.
+
 A fix changes the output of recorded tests, so their recordings are
-rewritten from this port's results. `GOLDEN_UPDATE` names the subtests, comma
-separated, as `<file>/<test name>`:
+rewritten from this port's results. `GOLDEN_UPDATE` names the subtests as
+`<file>/<test name>`, comma separated, or one per line when a name has a
+comma:
 
 ```sh
 GOLDEN_UPDATE="conformance_test/python: malformed runs leave no state behind" go test -run 'TestGolden$' .

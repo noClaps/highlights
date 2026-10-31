@@ -256,8 +256,11 @@
         (return)))
     (v128.store (global.get $out) (v128.load offset=1 (local.get $slot)))
     (v128.store offset=16 (global.get $out) (v128.load offset=17 (local.get $slot)))
-    (v128.store offset=32 (global.get $out) (v128.load offset=33 (local.get $slot)))
-    (v128.store offset=48 (global.get $out) (v128.load offset=49 (local.get $slot)))
+    ;; most openers fit in 32 bytes
+    (if (i32.gt_u (local.get $len) (i32.const 32))
+      (then
+        (v128.store offset=32 (global.get $out) (v128.load offset=33 (local.get $slot)))
+        (v128.store offset=48 (global.get $out) (v128.load offset=49 (local.get $slot)))))
     (global.set $out (i32.add (global.get $out) (local.get $len))))
 
   ;; Copy [$lhs,$rhs) to $out, escaping & < >, 16 bytes per step.
@@ -549,6 +552,7 @@
   ;; emit the token bytes [$lhs,$rhs) styled as $hl
   (func $emitTok (param $hl i32) (param $lhs i32) (param $rhs i32)
     (local $len i32)
+    (local $c i32)
     (if (i32.ge_u (local.get $lhs) (local.get $rhs))
       (then (return)))
     (if (global.get $tokens)
@@ -565,6 +569,17 @@
         (global.get $spanReserve)))
     (if (i32.ne (local.get $hl) (global.get $spanHl))
       (then (call $setSpan (local.get $hl))))
+    ;; most tokens are one byte of punctuation, which needs no escape scan
+    (if (i32.eq (local.get $len) (i32.const 1))
+      (then
+        (local.set $c (i32.load8_u (local.get $lhs)))
+        (if (i32.and
+              (i32.ne (i32.and (local.get $c) (i32.const 0xfd)) (i32.const "<"))
+              (i32.ne (local.get $c) (i32.const "&")))
+          (then
+            (i32.store8 (global.get $out) (local.get $c))
+            (global.set $out (i32.add (global.get $out) (i32.const 1)))
+            (return)))))
     (call $escCopy (local.get $lhs) (local.get $rhs)))
 
   ;; Copy whitespace or leading UTF-8 continuation bytes without changing

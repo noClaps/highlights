@@ -142,10 +142,16 @@ type replayer struct {
 // GOLDEN_UPDATE names subtests, such as
 // "conformance_test/python: malformed runs leave no state behind", whose
 // recordings are rewritten from this port's results. It is for a
-// deliberate change of behavior; the README lists each one.
+// deliberate change of behavior; the README lists each one. Names are
+// comma separated, or one per line when the value has a newline, for names
+// that contain a comma.
 var goldenUpdate = func() map[string]bool {
 	names := map[string]bool{}
-	for _, n := range strings.Split(os.Getenv("GOLDEN_UPDATE"), ",") {
+	list, sep := os.Getenv("GOLDEN_UPDATE"), ","
+	if strings.Contains(list, "\n") {
+		sep = "\n"
+	}
+	for _, n := range strings.Split(list, sep) {
 		if n = strings.TrimSpace(n); n != "" {
 			names[n] = true
 		}
