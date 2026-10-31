@@ -81,7 +81,12 @@ package gets NEON when it is built with `GOEXPERIMENT=simd`. Other
 architectures use the emulation either way; the amd64 and wasm vectors of
 `simd/archsimd` would work too, but are untested here. The command is also
 built with a profile (`cmd/highlights/default.pgo`), which Go applies
-automatically.
+automatically. A profile recorded against an older engine can make the
+command slower than none, so record it again after changing the engine:
+
+```sh
+go test -run '^$' -bench 'BenchmarkCodeToHTML$' -benchtime 3s -cpuprofile cmd/highlights/default.pgo .
+```
 
 ## How the port is built
 
