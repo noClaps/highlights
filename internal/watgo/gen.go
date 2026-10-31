@@ -92,7 +92,7 @@ type fgen struct {
 	conts [][]*wat.Sexpr
 	// childCont is the continuation of the statement being written
 	childCont []*wat.Sexpr
-	consts        *enumConsts
+	consts    *enumConsts
 }
 
 func generate(mod *Module, opts Options) (string, []byte) {

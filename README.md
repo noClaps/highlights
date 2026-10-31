@@ -58,9 +58,9 @@ describe them). Rather than run Wasm, the Go port translates the WAT to Go:
   becomes a method on `engine.Machine`, which owns the linear memory. The
   output reads like hand-written Go: WAT names and enum members become Go
   names, loops become labeled `for` loops, byte switches become `switch`
-  statements with rune literals, tail branches become `if`/`else` arms, and
-  expressions print with Go precedence. A few join points of the token
-  scanners stay forward `goto`s (158 in about 53,000 lines).
+  statements with rune literals, tail branches become `if`/`else` arms,
+  constant conditions fold away, and expressions print with Go precedence.
+  The generated engine has no `goto`s; a test keeps it that way.
 - `internal/engine` is the generated engine (`go generate ./internal/engine`
   regenerates it and `tables_gen.go`).
 - The root package ports the TypeScript host, whose original is in

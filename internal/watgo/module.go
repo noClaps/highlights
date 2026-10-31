@@ -10,11 +10,16 @@
 //   - A branch to a block's end in tail position becomes if/else arms, and
 //     one followed by a short tail runs that tail in place.
 //   - A block whose result is stored to a local stores it at each exit.
+//   - A block that only one branch leaves moves its continuation to that
+//     branch, and a loop that ends a block breaks out of it.
+//   - Conditions on constants keep only the arm they take.
+//   - A loop that ends `if c { continue }` is written `if !c { break }`.
 //   - Expressions print with Go precedence; stores nobody reads disappear.
 //
-// A branch to a block whose continuation holds control flow of its own
-// stays a forward goto: these are the join points of the token scanners,
-// and a goto states them more plainly than flags or duplicated code would.
+// The generator still writes a forward goto for a branch none of these
+// shapes covers, so a new lexer can use any WAT control flow. The
+// lexers in internal/engine/wat are written so that none remains, which
+// golden output and the engine's goto check hold them to.
 package watgo
 
 import (
@@ -323,6 +328,7 @@ func parseFunc(f *wat.Sexpr) *Func {
 		rest = rest[1:]
 	}
 	i := 0
+header:
 	for ; i < len(rest); i++ {
 		part := rest[i]
 		if !part.IsList {
@@ -353,10 +359,9 @@ func parseFunc(f *wat.Sexpr) *Func {
 		case "type":
 			failf("type uses are unsupported")
 		default:
-			goto body
+			break header
 		}
 	}
-body:
 	fn.Body = rest[i:]
 	if len(fn.Results) > 1 {
 		failf("multi-value results are unsupported")
