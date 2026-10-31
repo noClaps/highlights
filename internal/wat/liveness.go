@@ -29,6 +29,8 @@ func union(a, b strSet) strSet {
 // target. Loops repeat until the set stops changing.
 type localLiveness struct {
 	labels map[string]strSet
+	// dead records each local.set and local.tee whose value no path reads
+	dead map[*Sexpr]bool
 }
 
 func newLocalLiveness() *localLiveness {
@@ -62,6 +64,10 @@ func (l *localLiveness) node(node *Sexpr, after strSet) strSet {
 		out[rest[0].Atom] = true
 		return out
 	case "local.set", "local.tee":
+		if l.dead != nil {
+			// a loop body runs until a fixed point; the last pass decides
+			l.dead[node] = !after[rest[0].Atom]
+		}
 		before := after.clone()
 		delete(before, rest[0].Atom)
 		return l.seq(rest[1:], before)
@@ -202,4 +208,18 @@ func liveLocalsAtCheckpoint(inner string) strSet {
 		panic(fmt.Errorf("the checkpoint call must be a top-level statement"))
 	}
 	return newLocalLiveness().seq(body[at+1:], strSet{})
+}
+
+// DeadSets returns the local.set and local.tee forms of a function body
+// whose stored value is never read.
+func DeadSets(body []*Sexpr) map[*Sexpr]bool {
+	l := newLocalLiveness()
+	l.dead = map[*Sexpr]bool{}
+	l.seq(body, strSet{})
+	for n, dead := range l.dead {
+		if !dead {
+			delete(l.dead, n)
+		}
+	}
+	return l.dead
 }
