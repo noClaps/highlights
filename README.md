@@ -1,6 +1,8 @@
 # highlights (Go)
 
-A Go port of [`@pierre/highlights`](vendor/pierre-highlights/README.md), a
+A Go port of
+[`@pierre/highlights`](https://github.com/pierrecomputer/pierre/tree/main/packages/highlights)
+(vendored in [`vendor/pierre-highlights`](vendor/pierre-highlights/README.md)), a
 syntax highlighter with 151 built-in languages and Zed-compatible themes. It
 produces HTML or Shiki-compatible themed tokens from complete input, input
 chunks, or document edits.
