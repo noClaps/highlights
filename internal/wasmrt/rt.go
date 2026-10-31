@@ -58,44 +58,6 @@ func SelV(c bool, a, b V128) V128 {
 	return b
 }
 
-// Ld16 implements i32.load16_u.
-func Ld16(mem []byte, i uint32) uint32 { return uint32(binary.LittleEndian.Uint16(mem[i:])) }
-
-// Ld16s implements i32.load16_s.
-func Ld16s(mem []byte, i uint32) uint32 {
-	return uint32(int32(int16(binary.LittleEndian.Uint16(mem[i:]))))
-}
-
-// Ld8s implements i32.load8_s.
-func Ld8s(mem []byte, i uint32) uint32 { return uint32(int32(int8(mem[i]))) }
-
-// Ld32 implements i32.load.
-func Ld32(mem []byte, i uint32) uint32 { return binary.LittleEndian.Uint32(mem[i:]) }
-
-// Ld64 implements i64.load.
-func Ld64(mem []byte, i uint32) uint64 { return binary.LittleEndian.Uint64(mem[i:]) }
-
-// Ld64_16 implements i64.load16_u.
-func Ld64_16(mem []byte, i uint32) uint64 { return uint64(binary.LittleEndian.Uint16(mem[i:])) }
-
-// Ld64_32 implements i64.load32_u.
-func Ld64_32(mem []byte, i uint32) uint64 { return uint64(binary.LittleEndian.Uint32(mem[i:])) }
-
-// St16 implements i32.store16.
-func St16(mem []byte, i uint32, v uint32) { binary.LittleEndian.PutUint16(mem[i:], uint16(v)) }
-
-// St32 implements i32.store.
-func St32(mem []byte, i uint32, v uint32) { binary.LittleEndian.PutUint32(mem[i:], v) }
-
-// St64 implements i64.store.
-func St64(mem []byte, i uint32, v uint64) { binary.LittleEndian.PutUint64(mem[i:], v) }
-
-// St64_16 implements i64.store16.
-func St64_16(mem []byte, i uint32, v uint64) { binary.LittleEndian.PutUint16(mem[i:], uint16(v)) }
-
-// St64_32 implements i64.store32.
-func St64_32(mem []byte, i uint32, v uint64) { binary.LittleEndian.PutUint32(mem[i:], uint32(v)) }
-
 // Copy implements memory.copy.
 func Copy(mem []byte, dst, src, n uint32) {
 	if uint64(src)+uint64(n) > uint64(len(mem)) || uint64(dst)+uint64(n) > uint64(len(mem)) {
@@ -151,17 +113,17 @@ const (
 	low7 = 0x7f7f7f7f7f7f7f7f
 )
 
-// LdV implements v128.load.
-func LdV(mem []byte, i uint32) V128 {
-	_ = mem[i+15]
-	return V128{binary.LittleEndian.Uint64(mem[i:]), binary.LittleEndian.Uint64(mem[i+8:])}
+// LdV implements v128.load from the first 16 bytes of b.
+func LdV(b []byte) V128 {
+	_ = b[15]
+	return V128{binary.LittleEndian.Uint64(b), binary.LittleEndian.Uint64(b[8:])}
 }
 
-// StV implements v128.store.
-func StV(mem []byte, i uint32, v V128) {
-	_ = mem[i+15]
-	binary.LittleEndian.PutUint64(mem[i:], v.Lo)
-	binary.LittleEndian.PutUint64(mem[i+8:], v.Hi)
+// StV implements v128.store to the first 16 bytes of b.
+func StV(b []byte, v V128) {
+	_ = b[15]
+	binary.LittleEndian.PutUint64(b, v.Lo)
+	binary.LittleEndian.PutUint64(b[8:], v.Hi)
 }
 
 // Splat8 implements i8x16.splat.

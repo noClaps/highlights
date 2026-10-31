@@ -17,8 +17,9 @@ type expr struct {
 	leaf string // identifier, number, or rune literal
 	fn   string // callee of a call or conversion, or the indexed slice
 	args []*expr
-	// index is set when fn[args[0]] indexes a slice rather than calling
-	index bool
+	// index is set when fn[args[0]] indexes a slice rather than calling,
+	// and slice when it is fn[args[0]:]
+	index, slice bool
 }
 
 var errUnparsed = errors.New("unparsed")
@@ -139,11 +140,16 @@ func (p *exprParser) unary() (*expr, error) {
 			return nil, err
 		}
 		p.space()
+		slice := false
+		if p.pos < len(p.s) && p.s[p.pos] == ':' {
+			slice = true
+			p.pos++
+		}
 		if p.pos >= len(p.s) || p.s[p.pos] != ']' {
 			return nil, errUnparsed
 		}
 		p.pos++
-		return &expr{fn: m, args: []*expr{i}, index: true}, nil
+		return &expr{fn: m, args: []*expr{i}, index: true, slice: slice}, nil
 	}
 	if p.pos < len(p.s) && p.s[p.pos] == '(' {
 		p.pos++
@@ -183,6 +189,8 @@ func (e *expr) print() string {
 	switch {
 	case e.leaf != "":
 		return e.leaf
+	case e.index && e.slice:
+		return e.fn + "[" + e.args[0].print() + ":]"
 	case e.index:
 		return e.fn + "[" + e.args[0].print() + "]"
 	case e.fn != "":

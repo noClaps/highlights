@@ -6,7 +6,7 @@ import (
 )
 
 func toBytes(v V128) (b [16]byte) {
-	StV(b[:], 0, v)
+	StV(b[:], v)
 	return
 }
 

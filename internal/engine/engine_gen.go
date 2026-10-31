@@ -4,6 +4,7 @@ package engine
 
 import (
 	_ "embed"
+	"encoding/binary"
 	rt "highlights/internal/wasmrt"
 	"math/bits"
 )
@@ -640,7 +641,7 @@ func (m *Machine) ScanToLineEnd() {
 		if m.Ptr >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem, m.Ptr)
+		w = rt.LdV(m.Mem[m.Ptr:])
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, rt.Splat8(13))))
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
@@ -661,9 +662,9 @@ func (m *Machine) ScanBlockCommentEnd() {
 		if m.Ptr >= m.End {
 			break
 		}
-		stars = rt.Eq8(rt.LdV(m.Mem, m.Ptr), rt.Splat8(42))
+		stars = rt.Eq8(rt.LdV(m.Mem[m.Ptr:]), rt.Splat8(42))
 		if rt.AnyTrue(stars) {
-			mask = rt.Bitmask8(rt.And(stars, rt.Eq8(rt.LdV(m.Mem, m.Ptr+1), rt.Splat8(47))))
+			mask = rt.Bitmask8(rt.And(stars, rt.Eq8(rt.LdV(m.Mem[m.Ptr+1:]), rt.Splat8(47))))
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask)) + 2
 				break
@@ -688,7 +689,7 @@ func (m *Machine) ScanFindSpecial(p, stop, q, esc, nl uint32) uint32 {
 	nv = rt.Splat8(rt.Sel32(nl != 0, 10, q))
 	rv = rt.Splat8(rt.Sel32(nl != 0, 13, q))
 	for {
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, qv), rt.Eq8(w, ev)), rt.Or(rt.Eq8(w, nv), rt.Eq8(w, rv))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -728,7 +729,7 @@ func (m *Machine) ScanWhitespace() {
 		if m.Ptr >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem, m.Ptr)
+		w = rt.LdV(m.Mem[m.Ptr:])
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(32)), rt.LeU8(rt.Sub8(w, rt.Splat8(9)), rt.Splat8(4)))) ^ 65535
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
@@ -749,7 +750,7 @@ func (m *Machine) ScanIdentRun(x uint32) {
 		return
 	}
 	for {
-		w = rt.LdV(m.Mem, m.Ptr)
+		w = rt.LdV(m.Mem[m.Ptr:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), w), rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9)), rt.Or(rt.Eq8(w, rt.Splat8(95)), rt.Eq8(w, rt.Splat8(x)))))) ^ 65535
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
@@ -773,7 +774,7 @@ func (m *Machine) ScanFind3(p, a, b, c uint32) uint32 {
 		return m.End
 	}
 	for {
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(a)), rt.Eq8(w, rt.Splat8(b))), rt.Eq8(w, rt.Splat8(c))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -855,18 +856,18 @@ func (m *Machine) EmitRgba(v uint32) {
 
 // EmitColor is $emitColor.
 func (m *Machine) EmitColor(rec uint32) {
-	m.EmitRgba(rt.Ld32(m.Mem, rec))
+	m.EmitRgba(binary.LittleEndian.Uint32(m.Mem[rec:]))
 }
 
 // EmitCSSVariable is $emitCssVariable.
 func (m *Machine) EmitCSSVariable(hl, prefixLength uint32) {
 	rt.Copy(m.Mem, m.Out, 8706, 4)
 	m.Out += 4
-	rt.Copy(m.Mem, m.Out, rt.Ld32(m.Mem, 14), prefixLength)
+	rt.Copy(m.Mem, m.Out, binary.LittleEndian.Uint32(m.Mem[14:]), prefixLength)
 	m.Out += prefixLength
 	entry := 448 + hl*3
 	n := uint32(m.Mem[entry+2])
-	rt.Copy(m.Mem, m.Out, rt.Ld16(m.Mem, entry), n)
+	rt.Copy(m.Mem, m.Out, uint32(binary.LittleEndian.Uint16(m.Mem[entry:])), n)
 	m.Out += n
 	m.Mem[m.Out] = ')'
 	m.Out++
@@ -883,7 +884,7 @@ func (m *Machine) EmitFont(style uint32) {
 		rt.Copy(m.Mem, m.Out, 8693, 13)
 		m.Out += 13
 		m.Mem[m.Out] = byte(48 + w)
-		rt.St16(m.Mem, m.Out+1, 12336)
+		binary.LittleEndian.PutUint16(m.Mem[m.Out+1:], uint16(12336))
 		m.Out += 3
 	}
 }
@@ -905,7 +906,7 @@ func (m *Machine) EnsureCap(n uint32) {
 func (m *Machine) CloseSpan() {
 	if m.SpanVal != 0 {
 		m.EnsureCap(16)
-		rt.St64(m.Mem, m.Out, 0x3e6e6170732f3c)
+		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
 		m.Out += 7
 	}
 	m.SpanVal = 0
@@ -926,34 +927,34 @@ func (m *Machine) EmitSpanOpen(hl uint32) {
 			m.EmitCSSVariable(hl, 0)
 		} else {
 			rec = m.ThemeRec(hl)
-			if rt.Ld32(m.Mem, rec) != 0 {
+			if binary.LittleEndian.Uint32(m.Mem[rec:]) != 0 {
 				m.EmitColor(rec)
 			} else {
-				rt.St64(m.Mem, m.Out, 0x74697265686e69)
+				binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x74697265686e69)
 				m.Out += 7
 			}
 			m.EmitFont(uint32(m.Mem[rec+4]))
 		}
-		rt.St16(m.Mem, m.Out, 15906)
+		binary.LittleEndian.PutUint16(m.Mem[m.Out:], uint16(15906))
 		m.Out += 2
 		length = m.Out - (slot + 1)
 		m.Mem[slot] = byte(length)
 		m.Out = save
 	}
 	if m.CSSVariables {
-		prefixLength = rt.Ld32(m.Mem, 18)
+		prefixLength = binary.LittleEndian.Uint32(m.Mem[18:])
 		rt.Copy(m.Mem, m.Out, slot+1, 23)
 		m.Out += 23
-		rt.Copy(m.Mem, m.Out, rt.Ld32(m.Mem, 14), prefixLength)
+		rt.Copy(m.Mem, m.Out, binary.LittleEndian.Uint32(m.Mem[14:]), prefixLength)
 		m.Out += prefixLength
 		rt.Copy(m.Mem, m.Out, slot+24, length-23)
 		m.Out += length - 23
 		return
 	}
-	rt.StV(m.Mem, m.Out, rt.LdV(m.Mem, slot+1))
-	rt.StV(m.Mem, m.Out+16, rt.LdV(m.Mem, slot+17))
-	rt.StV(m.Mem, m.Out+32, rt.LdV(m.Mem, slot+33))
-	rt.StV(m.Mem, m.Out+48, rt.LdV(m.Mem, slot+49))
+	rt.StV(m.Mem[m.Out:], rt.LdV(m.Mem[slot+1:]))
+	rt.StV(m.Mem[m.Out+16:], rt.LdV(m.Mem[slot+17:]))
+	rt.StV(m.Mem[m.Out+32:], rt.LdV(m.Mem[slot+33:]))
+	rt.StV(m.Mem[m.Out+48:], rt.LdV(m.Mem[slot+49:]))
 	m.Out += length
 }
 
@@ -964,7 +965,7 @@ func (m *Machine) SetSpan(hl uint32) {
 	if m.ThemeBlob != 0 {
 		if m.HTMLOpeners != 0 {
 			if m.SpanVal != 0 {
-				rt.St64(m.Mem, m.Out, 0x3e6e6170732f3c)
+				binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
 				m.Out += 7
 			}
 			m.SpanVal = uint64(hl)
@@ -979,14 +980,14 @@ func (m *Machine) SetSpan(hl uint32) {
 	if m.CSSVariables {
 		t0 = uint64(hl)
 	} else {
-		t0 = rt.Ld64(m.Mem, m.ThemeRec(hl)) & 0xffffffffff
+		t0 = binary.LittleEndian.Uint64(m.Mem[m.ThemeRec(hl):]) & 0xffffffffff
 	}
 	val := t0
 	if val == m.SpanVal {
 		return
 	}
 	if m.SpanVal != 0 {
-		rt.St64(m.Mem, m.Out, 0x3e6e6170732f3c)
+		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
 		m.Out += 7
 	}
 	m.SpanVal = val
@@ -999,10 +1000,10 @@ func (m *Machine) SetSpan(hl uint32) {
 		m.EmitSpanOpen(hl)
 		return
 	}
-	rt.StV(m.Mem, m.Out, rt.LdV(m.Mem, slot+1))
-	rt.StV(m.Mem, m.Out+16, rt.LdV(m.Mem, slot+17))
-	rt.StV(m.Mem, m.Out+32, rt.LdV(m.Mem, slot+33))
-	rt.StV(m.Mem, m.Out+48, rt.LdV(m.Mem, slot+49))
+	rt.StV(m.Mem[m.Out:], rt.LdV(m.Mem[slot+1:]))
+	rt.StV(m.Mem[m.Out+16:], rt.LdV(m.Mem[slot+17:]))
+	rt.StV(m.Mem[m.Out+32:], rt.LdV(m.Mem[slot+33:]))
+	rt.StV(m.Mem[m.Out+48:], rt.LdV(m.Mem[slot+49:]))
 	m.Out += length
 }
 
@@ -1031,8 +1032,8 @@ outer:
 			m.EnsureCap((limit-lhs)*5 + 16)
 		}
 		for {
-			w = rt.LdV(m.Mem, lhs)
-			rt.StV(m.Mem, dst, w)
+			w = rt.LdV(m.Mem[lhs:])
+			rt.StV(m.Mem[dst:], w)
 			mask = rt.Bitmask8(rt.Or(rt.Eq8(rt.And(w, rt.Splat8(253)), rt.Splat8(60)), rt.Eq8(w, rt.Splat8(38))))
 			rem = limit - lhs
 			if mask != 0 {
@@ -1054,13 +1055,13 @@ outer:
 		c = uint32(m.Mem[lhs])
 		switch {
 		case c == '&':
-			rt.St64(m.Mem, dst, 0x3b706d6126)
+			binary.LittleEndian.PutUint64(m.Mem[dst:], 0x3b706d6126)
 			dst += 5
 		case c == '<':
-			rt.St32(m.Mem, dst, 0x3b746c26)
+			binary.LittleEndian.PutUint32(m.Mem[dst:], 0x3b746c26)
 			dst += 4
 		default:
-			rt.St32(m.Mem, dst, 0x3b746726)
+			binary.LittleEndian.PutUint32(m.Mem[dst:], 0x3b746726)
 			dst += 4
 		}
 		lhs++
@@ -1070,13 +1071,13 @@ outer:
 
 // RecTok is $recTok.
 func (m *Machine) RecTok(hl, rhs uint32) {
-	if m.Out > rt.Ld32(m.Mem, 6) && rt.Ld32(m.Mem, m.Out-4) == hl {
-		rt.St32(m.Mem, m.Out-8, rhs-m.SrcBase)
+	if m.Out > binary.LittleEndian.Uint32(m.Mem[6:]) && binary.LittleEndian.Uint32(m.Mem[m.Out-4:]) == hl {
+		binary.LittleEndian.PutUint32(m.Mem[m.Out-8:], rhs-m.SrcBase)
 		return
 	}
 	m.EnsureCap(16)
-	rt.St32(m.Mem, m.Out, rhs-m.SrcBase)
-	rt.St32(m.Mem, m.Out+4, hl)
+	binary.LittleEndian.PutUint32(m.Mem[m.Out:], rhs-m.SrcBase)
+	binary.LittleEndian.PutUint32(m.Mem[m.Out+4:], hl)
 	m.Out += 8
 }
 
@@ -1088,16 +1089,16 @@ func (m *Machine) RecStreamBegin(reset uint32) {
 	}
 	if int32(m.RecCarryHl) >= 0 {
 		m.EnsureCap(16)
-		rt.St32(m.Mem, m.Out, 0)
-		rt.St32(m.Mem, m.Out+4, m.RecCarryHl)
+		binary.LittleEndian.PutUint32(m.Mem[m.Out:], 0)
+		binary.LittleEndian.PutUint32(m.Mem[m.Out+4:], m.RecCarryHl)
 		m.Out += 8
 	}
 }
 
 // RecStreamEnd is $recStreamEnd.
 func (m *Machine) RecStreamEnd() {
-	if m.Out > rt.Ld32(m.Mem, 6) {
-		m.RecCarryHl = rt.Ld32(m.Mem, m.Out-4)
+	if m.Out > binary.LittleEndian.Uint32(m.Mem[6:]) {
+		m.RecCarryHl = binary.LittleEndian.Uint32(m.Mem[m.Out-4:])
 	}
 }
 
@@ -1109,7 +1110,7 @@ func (m *Machine) RecFindSpecial(p uint32) uint32 {
 		if p >= m.EOF {
 			break
 		}
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(w, rt.Eq8(w, rt.Splat8(10))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -1124,18 +1125,18 @@ func (m *Machine) RecFindSpecial(p uint32) uint32 {
 func (m *Machine) RecLinesPost() {
 	var e, hl, p, rhs, char, next, delta, b, step, cut, last, prev, lastEnd, lastHl uint32
 	var w rt.V128
-	rec := rt.Ld32(m.Mem, 6)
+	rec := binary.LittleEndian.Uint32(m.Mem[6:])
 	oldEnd := m.Out
 	m.Out = (oldEnd + 15) & 0xfffffff0
-	rt.St32(m.Mem, 6, m.Out)
+	binary.LittleEndian.PutUint32(m.Mem[6:], m.Out)
 	m.EnsureCap(oldEnd - rec + 16)
 	lastHl = 0xffffffff
 	for {
 		if rec >= oldEnd {
 			break
 		}
-		e = rt.Ld32(m.Mem, rec)
-		hl = rt.Ld32(m.Mem, rec+4)
+		e = binary.LittleEndian.Uint32(m.Mem[rec:])
+		hl = binary.LittleEndian.Uint32(m.Mem[rec+4:])
 		rec += 8
 		if e > next {
 			char = lastEnd
@@ -1158,18 +1159,18 @@ func (m *Machine) RecLinesPost() {
 						if lastEnd > cut {
 							last = m.Out - 8
 							prev = 0
-							if last > rt.Ld32(m.Mem, 6) {
-								prev = rt.Ld32(m.Mem, last-8)
+							if last > binary.LittleEndian.Uint32(m.Mem[6:]) {
+								prev = binary.LittleEndian.Uint32(m.Mem[last-8:])
 							}
 							if cut <= prev {
 								m.Out = last
 								lastEnd = prev
 								lastHl = 0xffffffff
-								if last > rt.Ld32(m.Mem, 6) {
-									lastHl = rt.Ld32(m.Mem, last-4)
+								if last > binary.LittleEndian.Uint32(m.Mem[6:]) {
+									lastHl = binary.LittleEndian.Uint32(m.Mem[last-4:])
 								}
 							} else {
-								rt.St32(m.Mem, last, cut)
+								binary.LittleEndian.PutUint32(m.Mem[last:], cut)
 								lastEnd = cut
 							}
 						}
@@ -1177,23 +1178,23 @@ func (m *Machine) RecLinesPost() {
 					m.EnsureCap(oldEnd - rec + 32)
 					if cut > lastEnd {
 						if hl == lastHl {
-							rt.St32(m.Mem, m.Out-8, cut)
+							binary.LittleEndian.PutUint32(m.Mem[m.Out-8:], cut)
 						} else {
-							rt.St32(m.Mem, m.Out, cut)
-							rt.St32(m.Mem, m.Out+4, hl)
+							binary.LittleEndian.PutUint32(m.Mem[m.Out:], cut)
+							binary.LittleEndian.PutUint32(m.Mem[m.Out+4:], hl)
 							m.Out += 8
 						}
 					}
 					char++
 					p++
-					rt.St32(m.Mem, m.Out, char)
-					rt.St32(m.Mem, m.Out+4, 0xffffffff)
+					binary.LittleEndian.PutUint32(m.Mem[m.Out:], char)
+					binary.LittleEndian.PutUint32(m.Mem[m.Out+4:], 0xffffffff)
 					m.Out += 8
 					lastEnd = char
 					lastHl = 0xffffffff
 				} else {
 					for {
-						w = rt.LdV(m.Mem, p)
+						w = rt.LdV(m.Mem[p:])
 						step = uint32(bits.TrailingZeros32(rt.Bitmask8(rt.Eq8(w, rt.Splat8(10))) | 0x10000))
 						if rhs-p < step {
 							step = rhs - p
@@ -1214,10 +1215,10 @@ func (m *Machine) RecLinesPost() {
 		e -= delta
 		if e > lastEnd {
 			if hl == lastHl {
-				rt.St32(m.Mem, m.Out-8, e)
+				binary.LittleEndian.PutUint32(m.Mem[m.Out-8:], e)
 			} else {
-				rt.St32(m.Mem, m.Out, e)
-				rt.St32(m.Mem, m.Out+4, hl)
+				binary.LittleEndian.PutUint32(m.Mem[m.Out:], e)
+				binary.LittleEndian.PutUint32(m.Mem[m.Out+4:], hl)
 				m.Out += 8
 				lastHl = hl
 			}
@@ -1252,8 +1253,8 @@ func (m *Machine) EmitGap(lhs, rhs uint32) {
 		return
 	}
 	if m.Tokens {
-		if m.Out > rt.Ld32(m.Mem, 6) {
-			rt.St32(m.Mem, m.Out-8, rhs-m.SrcBase)
+		if m.Out > binary.LittleEndian.Uint32(m.Mem[6:]) {
+			binary.LittleEndian.PutUint32(m.Mem[m.Out-8:], rhs-m.SrcBase)
 		} else {
 			m.RecTok(TokenNone, rhs)
 		}
@@ -1262,7 +1263,7 @@ func (m *Machine) EmitGap(lhs, rhs uint32) {
 	length := rhs - lhs
 	m.EnsureCap(length + 16)
 	if length <= 16 {
-		rt.StV(m.Mem, m.Out, rt.LdV(m.Mem, lhs))
+		rt.StV(m.Mem[m.Out:], rt.LdV(m.Mem[lhs:]))
 	} else {
 		rt.Copy(m.Mem, m.Out, lhs, length)
 	}
@@ -1289,18 +1290,18 @@ func (m *Machine) MultiSlot(i uint32) uint32 {
 // MultiName is $multiName.
 func (m *Machine) MultiName(i uint32) {
 	slot := m.MultiSlot(i)
-	n := rt.Ld32(m.Mem, slot+4)
-	rt.Copy(m.Mem, m.Out, m.MultiBlob+rt.Ld32(m.Mem, slot), n)
+	n := binary.LittleEndian.Uint32(m.Mem[slot+4:])
+	rt.Copy(m.Mem, m.Out, m.MultiBlob+binary.LittleEndian.Uint32(m.Mem[slot:]), n)
 	m.Out += n
 }
 
 // MultiColorDecl is $multiColorDecl.
 func (m *Machine) MultiColorDecl(i, rec uint32) {
-	v := rt.Ld32(m.Mem, rec)
+	v := binary.LittleEndian.Uint32(m.Mem[rec:])
 	if v == 0 {
 		return
 	}
-	if rt.Ld32(m.Mem, m.MultiSlot(i)+8) != 0 {
+	if binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) != 0 {
 		rt.Copy(m.Mem, m.Out, 8652, 6)
 		m.Out += 6
 	} else {
@@ -1334,7 +1335,7 @@ func (m *Machine) MultiFontDecls(i, style uint32, named bool) {
 		}
 		rt.Copy(m.Mem, m.Out, 8694, 12)
 		m.Mem[m.Out+12] = byte(48 + w)
-		rt.St16(m.Mem, m.Out+13, 12336)
+		binary.LittleEndian.PutUint16(m.Mem[m.Out+13:], uint16(12336))
 		m.Mem[m.Out+15] = ';'
 		m.Out += 16
 	}
@@ -1347,12 +1348,12 @@ func (m *Machine) EmitLightDarkSide(v uint32, kw bool) {
 		return
 	}
 	if kw {
-		rt.St64(m.Mem, m.Out, 0x726170736e617274)
-		rt.St32(m.Mem, m.Out+8, 0x746e65)
+		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x726170736e617274)
+		binary.LittleEndian.PutUint32(m.Mem[m.Out+8:], 0x746e65)
 		m.Out += 11
 	} else {
-		rt.St64(m.Mem, m.Out, 0x63746e6572727563)
-		rt.St32(m.Mem, m.Out+8, 0x726f6c6f)
+		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x63746e6572727563)
+		binary.LittleEndian.PutUint32(m.Mem[m.Out+8:], 0x726f6c6f)
 		m.Out += 12
 	}
 }
@@ -1366,7 +1367,7 @@ func (m *Machine) EmitLightDark(a, b uint32, kw bool) {
 	rt.Copy(m.Mem, m.Out, 8731, 11)
 	m.Out += 11
 	m.EmitLightDarkSide(a, kw)
-	rt.St16(m.Mem, m.Out, 8236)
+	binary.LittleEndian.PutUint16(m.Mem[m.Out:], uint16(8236))
 	m.Out += 2
 	m.EmitLightDarkSide(b, kw)
 	m.Mem[m.Out] = ')'
@@ -1377,14 +1378,14 @@ func (m *Machine) EmitLightDark(a, b uint32, kw bool) {
 func (m *Machine) MultiLightDarkDecls(hl uint32) {
 	recA := m.MultiRec(0, hl)
 	recB := m.MultiRec(1, hl)
-	a := rt.Ld32(m.Mem, recA)
-	b := rt.Ld32(m.Mem, recB)
+	a := binary.LittleEndian.Uint32(m.Mem[recA:])
+	b := binary.LittleEndian.Uint32(m.Mem[recB:])
 	if a|b != 0 {
 		if a == 0 {
-			a = rt.Ld32(m.Mem, m.MultiRec(0, TokenForeground))
+			a = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(0, TokenForeground):])
 		}
 		if b == 0 {
-			b = rt.Ld32(m.Mem, m.MultiRec(1, TokenForeground))
+			b = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(1, TokenForeground):])
 		}
 		rt.Copy(m.Mem, m.Out, 8652, 6)
 		m.Out += 6
@@ -1406,22 +1407,22 @@ func (m *Machine) MultiLightDarkDecls(hl uint32) {
 // MultiSpanOpen is $multiSpanOpen.
 func (m *Machine) MultiSpanOpen(hl uint32) {
 	var save uint32
-	length := rt.Ld16(m.Mem, 8752+hl<<1)
+	length := uint32(binary.LittleEndian.Uint16(m.Mem[8752+hl<<1:]))
 	if length != 0 {
-		m.CopyWide(9048+rt.Ld16(m.Mem, 8898+hl<<1), length)
+		m.CopyWide(9048+uint32(binary.LittleEndian.Uint16(m.Mem[8898+hl<<1:])), length)
 		return
 	}
-	at := 9048 + rt.Ld32(m.Mem, 8748)
-	if rt.Ld32(m.Mem, 8748)+m.SpanReserve <= 4520 {
+	at := 9048 + binary.LittleEndian.Uint32(m.Mem[8748:])
+	if binary.LittleEndian.Uint32(m.Mem[8748:])+m.SpanReserve <= 4520 {
 		save = m.Out
 		m.Out = at
 	}
 	m.MultiRenderOpen(hl)
 	if save != 0 {
 		length = m.Out - at
-		rt.St16(m.Mem, 8752+hl<<1, length)
-		rt.St16(m.Mem, 8898+hl<<1, at-9048)
-		rt.St32(m.Mem, 8748, rt.Ld32(m.Mem, 8748)+length)
+		binary.LittleEndian.PutUint16(m.Mem[8752+hl<<1:], uint16(length))
+		binary.LittleEndian.PutUint16(m.Mem[8898+hl<<1:], uint16(at-9048))
+		binary.LittleEndian.PutUint32(m.Mem[8748:], binary.LittleEndian.Uint32(m.Mem[8748:])+length)
 		m.Out = save
 		m.CopyWide(at, length)
 	}
@@ -1431,7 +1432,7 @@ func (m *Machine) MultiSpanOpen(hl uint32) {
 func (m *Machine) CopyWide(src, length uint32) {
 	var i uint32
 	for {
-		rt.StV(m.Mem, m.Out+i, rt.LdV(m.Mem, src+i))
+		rt.StV(m.Mem[m.Out+i:], rt.LdV(m.Mem[src+i:]))
 		i += 16
 		if i >= length {
 			break
@@ -1451,14 +1452,14 @@ func (m *Machine) MultiRenderOpen(hl uint32) {
 		for {
 			rec = m.MultiRec(i, hl)
 			m.MultiColorDecl(i, rec)
-			m.MultiFontDecls(i, uint32(m.Mem[rec+4]), rt.Ld32(m.Mem, m.MultiSlot(i)+8) == 0)
+			m.MultiFontDecls(i, uint32(m.Mem[rec+4]), binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) == 0)
 			i++
 			if i >= m.MultiSlots {
 				break
 			}
 		}
 	}
-	rt.St16(m.Mem, m.Out-1, 15906)
+	binary.LittleEndian.PutUint16(m.Mem[m.Out-1:], uint16(15906))
 	m.Out++
 }
 
@@ -1469,10 +1470,10 @@ func (m *Machine) MultiSetSpan(hl uint32) {
 	open := uint32(m.SpanVal)
 	same := true
 	for {
-		rec = rt.Ld64(m.Mem, m.MultiRec(i, hl)) & 0xffffffffff
+		rec = binary.LittleEndian.Uint64(m.Mem[m.MultiRec(i, hl):]) & 0xffffffffff
 		anyRec |= rec
 		if open != 0 {
-			same = same && rec == rt.Ld64(m.Mem, m.MultiRec(i, open))&0xffffffffff
+			same = same && rec == binary.LittleEndian.Uint64(m.Mem[m.MultiRec(i, open):])&0xffffffffff
 		}
 		i++
 		if i >= m.MultiSlots {
@@ -1483,7 +1484,7 @@ func (m *Machine) MultiSetSpan(hl uint32) {
 		if same && anyRec != 0 {
 			return
 		}
-		rt.St64(m.Mem, m.Out, 0x3e6e6170732f3c)
+		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
 		m.Out += 7
 	}
 	if anyRec == 0 {
@@ -1500,13 +1501,13 @@ func (m *Machine) MultiRootDecls(bg bool) {
 	for {
 		if bg {
 			rec = m.MultiRec(i, TokenBackground)
-			if rt.Ld32(m.Mem, rec) != 0 {
-				if rt.Ld32(m.Mem, m.MultiSlot(i)+8) != 0 {
+			if binary.LittleEndian.Uint32(m.Mem[rec:]) != 0 {
+				if binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) != 0 {
 					rt.Copy(m.Mem, m.Out, 8658, 17)
 					m.Out += 17
 				} else {
 					m.MultiName(i)
-					rt.St32(m.Mem, m.Out, 0x3a67622d)
+					binary.LittleEndian.PutUint32(m.Mem[m.Out:], 0x3a67622d)
 					m.Out += 4
 				}
 				m.EmitColor(rec)
@@ -1526,13 +1527,13 @@ func (m *Machine) MultiRootDecls(bg bool) {
 // MultiPrologue is $multiPrologue.
 func (m *Machine) MultiPrologue() {
 	var a, b uint32
-	m.EnsureCap(rt.Ld32(m.Mem, m.MultiBlob+12))
+	m.EnsureCap(binary.LittleEndian.Uint32(m.Mem[m.MultiBlob+12:]))
 	rt.Copy(m.Mem, m.Out, 8608, 31)
 	m.Out += 31
 	switch {
 	case m.Mem[m.MultiBlob+1] != 0:
-		a = rt.Ld32(m.Mem, m.MultiRec(0, TokenBackground))
-		b = rt.Ld32(m.Mem, m.MultiRec(1, TokenBackground))
+		a = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(0, TokenBackground):])
+		b = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(1, TokenBackground):])
 		if a|b != 0 {
 			rt.Copy(m.Mem, m.Out, 8658, 17)
 			m.Out += 17
@@ -1540,8 +1541,8 @@ func (m *Machine) MultiPrologue() {
 			m.Mem[m.Out] = ';'
 			m.Out++
 		}
-		a = rt.Ld32(m.Mem, m.MultiRec(0, TokenForeground))
-		b = rt.Ld32(m.Mem, m.MultiRec(1, TokenForeground))
+		a = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(0, TokenForeground):])
+		b = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(1, TokenForeground):])
 		if a|b != 0 {
 			rt.Copy(m.Mem, m.Out, 8652, 6)
 			m.Out += 6
@@ -1549,7 +1550,7 @@ func (m *Machine) MultiPrologue() {
 			m.Mem[m.Out] = ';'
 			m.Out++
 		}
-	case rt.Ld32(m.Mem, m.MultiSlot(0)+8) != 0:
+	case binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(0)+8:]) != 0:
 		m.MultiRootDecls(true)
 		m.MultiRootDecls(false)
 	default:
@@ -1567,16 +1568,16 @@ func (m *Machine) MultiPrologue() {
 func (m *Machine) Prologue() {
 	m.EnsureCap(128)
 	if m.CSSVariables {
-		m.EnsureCap(128 + rt.Ld32(m.Mem, 18)*2)
+		m.EnsureCap(128 + binary.LittleEndian.Uint32(m.Mem[18:])*2)
 	}
 	rt.Copy(m.Mem, m.Out, 8608, 31)
 	m.Out += 31
 	rec := m.ThemeRec(TokenBackground)
-	if m.CSSVariables || rt.Ld32(m.Mem, rec) != 0 {
+	if m.CSSVariables || binary.LittleEndian.Uint32(m.Mem[rec:]) != 0 {
 		rt.Copy(m.Mem, m.Out, 8658, 17)
 		m.Out += 17
 		if m.CSSVariables {
-			m.EmitCSSVariable(TokenBackground, rt.Ld32(m.Mem, 18))
+			m.EmitCSSVariable(TokenBackground, binary.LittleEndian.Uint32(m.Mem[18:]))
 		} else {
 			m.EmitColor(rec)
 		}
@@ -1584,11 +1585,11 @@ func (m *Machine) Prologue() {
 		m.Out++
 	}
 	rec = m.ThemeRec(TokenForeground)
-	if m.CSSVariables || rt.Ld32(m.Mem, rec) != 0 {
-		rt.St64(m.Mem, m.Out, 0x3a726f6c6f63)
+	if m.CSSVariables || binary.LittleEndian.Uint32(m.Mem[rec:]) != 0 {
+		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3a726f6c6f63)
 		m.Out += 6
 		if m.CSSVariables {
-			m.EmitCSSVariable(TokenForeground, rt.Ld32(m.Mem, 18))
+			m.EmitCSSVariable(TokenForeground, binary.LittleEndian.Uint32(m.Mem[18:]))
 			m.Mem[m.Out] = ';'
 			m.Out++
 		} else {
@@ -1614,45 +1615,45 @@ func (m *Machine) HlBegin() {
 	m.CSSVariables = m.Mem[1] == 1
 	m.Tokens = m.Mem[1] == 3
 	if m.Mem[1] == 4 {
-		m.HTMLOpeners = rt.Ld32(m.Mem, 14)
+		m.HTMLOpeners = binary.LittleEndian.Uint32(m.Mem[14:])
 	} else {
 		m.HTMLOpeners = 0
 	}
 	m.ThemeBlob = m.HTMLOpeners | rt.B2u(m.Mem[1] == 2)
-	m.EOF = m.SrcBase + rt.Ld32(m.Mem, 2)
+	m.EOF = m.SrcBase + binary.LittleEndian.Uint32(m.Mem[2:])
 	m.End = m.EOF
 	m.Ptr = m.SrcBase
 	m.Out = (m.EOF + 47) & 0xfffffff0
 	if m.CSSVariables || m.ThemeBlob != 0 {
-		m.Out += rt.Ld32(m.Mem, 18)
+		m.Out += binary.LittleEndian.Uint32(m.Mem[18:])
 	}
-	rt.St32(m.Mem, 6, m.Out)
+	binary.LittleEndian.PutUint32(m.Mem[6:], m.Out)
 	m.Cap = uint32(len(m.Mem)/rt.PageSize)*0x10000 - 16
 	m.SpanHl = 0xffffffff
 	m.SpanVal = 0
-	m.SpanReserve = 96 + rt.Sel32(m.CSSVariables, rt.Ld32(m.Mem, 18), 0)
+	m.SpanReserve = 96 + rt.Sel32(m.CSSVariables, binary.LittleEndian.Uint32(m.Mem[18:]), 0)
 	if m.HTMLOpeners != 0 {
-		m.SpanReserve = rt.Ld32(m.Mem, m.HTMLOpeners)
-		m.EnsureCap(rt.Ld32(m.Mem, m.HTMLOpeners+8))
+		m.SpanReserve = binary.LittleEndian.Uint32(m.Mem[m.HTMLOpeners:])
+		m.EnsureCap(binary.LittleEndian.Uint32(m.Mem[m.HTMLOpeners+8:]))
 		m.CopyHTMLOpener(0)
 		return
 	}
 	if m.ThemeBlob != 0 {
-		m.MultiBlob = rt.Ld32(m.Mem, 14)
+		m.MultiBlob = binary.LittleEndian.Uint32(m.Mem[14:])
 		m.MultiSlots = uint32(m.Mem[m.MultiBlob])
-		m.MultiTables = m.MultiBlob + rt.Ld32(m.Mem, m.MultiBlob+4)
-		m.SpanReserve = rt.Ld32(m.Mem, m.MultiBlob+8)
+		m.MultiTables = m.MultiBlob + binary.LittleEndian.Uint32(m.Mem[m.MultiBlob+4:])
+		m.SpanReserve = binary.LittleEndian.Uint32(m.Mem[m.MultiBlob+8:])
 		m.SpanCacheMode = 2
-		if rt.Ld32(m.Mem, 8744) != rt.Ld32(m.Mem, m.MultiBlob+16) {
+		if binary.LittleEndian.Uint32(m.Mem[8744:]) != binary.LittleEndian.Uint32(m.Mem[m.MultiBlob+16:]) {
 			rt.Fill(m.Mem, 8744, 0, 304)
-			rt.St32(m.Mem, 8744, rt.Ld32(m.Mem, m.MultiBlob+16))
+			binary.LittleEndian.PutUint32(m.Mem[8744:], binary.LittleEndian.Uint32(m.Mem[m.MultiBlob+16:]))
 		}
 		m.MultiPrologue()
 		return
 	}
 	if !m.Tokens {
 		for {
-			changed = rt.Or(changed, rt.Or(rt.Xor(rt.LdV(m.Mem, 64+offset), rt.LdV(m.Mem, 13568+offset)), rt.Xor(rt.LdV(m.Mem, 64+offset+16), rt.LdV(m.Mem, 13568+offset+16))))
+			changed = rt.Or(changed, rt.Or(rt.Xor(rt.LdV(m.Mem[64+offset:]), rt.LdV(m.Mem[13568+offset:])), rt.Xor(rt.LdV(m.Mem[64+offset+16:]), rt.LdV(m.Mem[13568+offset+16:]))))
 			offset += 32
 			if offset >= 384 {
 				break
@@ -1670,8 +1671,8 @@ func (m *Machine) HlBegin() {
 // CopyHTMLOpener is $copyHtmlOpener.
 func (m *Machine) CopyHTMLOpener(hl uint32) {
 	slot := m.HTMLOpeners + 4 + hl<<3
-	length := rt.Ld32(m.Mem, slot+4)
-	rt.Copy(m.Mem, m.Out, m.HTMLOpeners+rt.Ld32(m.Mem, slot), length)
+	length := binary.LittleEndian.Uint32(m.Mem[slot+4:])
+	rt.Copy(m.Mem, m.Out, m.HTMLOpeners+binary.LittleEndian.Uint32(m.Mem[slot:]), length)
 	m.Out += length
 }
 
@@ -1683,7 +1684,7 @@ func (m *Machine) HlEnd() {
 	if m.Tokens {
 		m.RecLinesPost()
 	}
-	rt.St32(m.Mem, 10, m.Out-rt.Ld32(m.Mem, 6))
+	binary.LittleEndian.PutUint32(m.Mem[10:], m.Out-binary.LittleEndian.Uint32(m.Mem[6:]))
 }
 
 // SigReset is $sigReset.
@@ -1800,7 +1801,7 @@ func (m *Machine) LexScanIdent() {
 
 // LexScanNumber is $lexScanNumber.
 func (m *Machine) LexScanNumber() {
-	m.LexScanNumberBody(m.Ptr+1 < m.End && rt.Ld16(m.Mem, m.Ptr)|8192 == 30768)
+	m.LexScanNumberBody(m.Ptr+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:]))|8192 == 30768)
 }
 
 // LexScanNumberBody is $lexScanNumberBody.
@@ -2113,7 +2114,7 @@ func (m *Machine) LexBlockComment(skip, hl uint32) {
 	}
 	m.ScanBlockCommentEnd()
 	m.EmitTok(hl, lhs, m.Ptr)
-	if m.Streaming && m.Ptr == m.EOF && (m.Ptr-lhs < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074) {
+	if m.Streaming && m.Ptr == m.EOF && (m.Ptr-lhs < 2 || uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr-2:])) != 12074) {
 		m.StreamMode = 1
 		m.StreamHl = hl
 	}
@@ -2132,7 +2133,7 @@ func (m *Machine) StreamSetFixed(delimiter, length, hl uint32) {
 
 // StreamSetFixed32 is $streamSetFixed32.
 func (m *Machine) StreamSetFixed32(delimiter, length, hl uint32) {
-	rt.St32(m.Mem, 13952, delimiter)
+	binary.LittleEndian.PutUint32(m.Mem[13952:], delimiter)
 	m.StreamSetFixed(13952, length, hl)
 }
 
@@ -2259,8 +2260,8 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 			if m.Ptr >= m.End {
 				break
 			}
-			w = rt.LdV(m.Mem, m.Ptr)
-			w1 = rt.LdV(m.Mem, m.Ptr+1)
+			w = rt.LdV(m.Mem[m.Ptr:])
+			w1 = rt.LdV(m.Mem[m.Ptr+1:])
 			mask = rt.Bitmask8(rt.Or(rt.And(rt.Eq8(w, o0), rt.Eq8(w1, o1)), rt.And(rt.Eq8(w, c0), rt.Eq8(w1, c1))))
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask))
@@ -2272,7 +2273,7 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 			m.Ptr = m.End
 			break
 		}
-		if rt.Ld16(m.Mem, m.Ptr) == open {
+		if uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:])) == open {
 			depth++
 			m.Ptr += 2
 			continue
@@ -2399,7 +2400,7 @@ func (m *Machine) StreamResumeCommon() bool {
 	if m.StreamMode == 1 {
 		m.ScanBlockCommentEnd()
 		m.EmitTok(m.StreamHl, lhs, m.Ptr)
-		if m.Ptr-lhs < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074 {
+		if m.Ptr-lhs < 2 || uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr-2:])) != 12074 {
 			return true
 		}
 		m.StreamMode = 0
@@ -2466,10 +2467,10 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
 	if word+6 > rhs {
 		return false
 	}
-	if rt.Ld64(m.Mem, word)&0xffffffffffffff == 0x6564756c636e69 {
+	if binary.LittleEndian.Uint64(m.Mem[word:])&0xffffffffffffff == 0x6564756c636e69 {
 		p = word + 7
 	} else {
-		if rt.Ld64(m.Mem, word)&0xffffffffffff != 0x74726f706d69 {
+		if binary.LittleEndian.Uint64(m.Mem[word:])&0xffffffffffff != 0x74726f706d69 {
 			return false
 		}
 		p = word + 6
@@ -2524,19 +2525,19 @@ func (m *Machine) LexKeywordLookup(start, end, base, bucketMask, slots uint32) u
 	if length-2 > 29 {
 		return 0
 	}
-	h := rt.Ld16(m.Mem, start) | uint32(m.Mem[end-1])<<16 | length<<24
+	h := uint32(binary.LittleEndian.Uint16(m.Mem[start:])) | uint32(m.Mem[end-1])<<16 | length<<24
 	h = (h ^ h>>16) * 0xe51fac89
 	h ^= h >> 24
-	entry := rt.Ld32(m.Mem, base+bucketMask+1+uint32((uint64(rt.Rotl32(h+uint32(m.Mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3) & 0xffffff
+	entry := binary.LittleEndian.Uint32(m.Mem[base+bucketMask+1+uint32((uint64(rt.Rotl32(h+uint32(m.Mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3:]) & 0xffffff
 	if length != entry>>19 {
 		return 0
 	}
 	rec := 0x10000 + entry&16383
-	if uint32(bits.TrailingZeros32(rt.Bitmask8(rt.Ne8(rt.LdV(m.Mem, start), rt.LdV(m.Mem, rec))))) < length {
+	if uint32(bits.TrailingZeros32(rt.Bitmask8(rt.Ne8(rt.LdV(m.Mem[start:]), rt.LdV(m.Mem[rec:]))))) < length {
 		return 0
 	}
 	if length > 16 {
-		if rt.AnyTrue(rt.Xor(rt.LdV(m.Mem, end-16), rt.LdV(m.Mem, rec+(length-16)))) {
+		if rt.AnyTrue(rt.Xor(rt.LdV(m.Mem[end-16:]), rt.LdV(m.Mem[rec+(length-16):]))) {
 			return 0
 		}
 	}
@@ -2549,7 +2550,7 @@ func (m *Machine) LexKeywordValue(start, end, base, bucketMask, slots uint32) ui
 	if g == 0 {
 		return 0xffffffff
 	}
-	return rt.Ld16s(m.Mem, base+bucketMask+1+slots*3+g<<1)
+	return uint32(int16(binary.LittleEndian.Uint16(m.Mem[base+bucketMask+1+slots*3+g<<1:])))
 }
 
 // LexLowerCopy is $lexLowerCopy.
@@ -2564,8 +2565,8 @@ func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
 		if i >= n {
 			break
 		}
-		w = rt.LdV(m.Mem, lhs+i)
-		rt.StV(m.Mem, dst+i, rt.Or(w, rt.And(rt.LeU8(rt.Sub8(w, rt.Splat8(65)), rt.Splat8(25)), rt.Splat8(32))))
+		w = rt.LdV(m.Mem[lhs+i:])
+		rt.StV(m.Mem[dst+i:], rt.Or(w, rt.And(rt.LeU8(rt.Sub8(w, rt.Splat8(65)), rt.Splat8(25)), rt.Splat8(32))))
 		i += 16
 	}
 	return n
@@ -2579,7 +2580,7 @@ func (m *Machine) LexFindEither(p, a, b uint32) uint32 {
 		return m.End
 	}
 	for {
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(a)), rt.Eq8(w, rt.Splat8(b))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -2600,7 +2601,7 @@ func (m *Machine) LexFindByte(p, a uint32) uint32 {
 		return m.End
 	}
 	for {
-		mask = rt.Bitmask8(rt.Eq8(rt.LdV(m.Mem, p), rt.Splat8(a)))
+		mask = rt.Bitmask8(rt.Eq8(rt.LdV(m.Mem[p:]), rt.Splat8(a)))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -2822,7 +2823,7 @@ func (m *Machine) CSSString(q uint32, skip bool) bool {
 // CSSIsQueryOp is $cssIsQueryOp.
 func (m *Machine) CSSIsQueryOp(lhs, rhs uint32) bool {
 	length := rhs - lhs
-	w := rt.Ld32(m.Mem, lhs)
+	w := binary.LittleEndian.Uint32(m.Mem[lhs:])
 	if length == 2 {
 		w &= 65535
 		return w == 29295 || (m.CSSDialect >= 2 && (w == 26217 || w == 28265 || w == 28532))
@@ -2835,7 +2836,7 @@ func (m *Machine) CSSIsQueryOp(lhs, rhs uint32) bool {
 		return w == 0x796c6e6f || (m.CSSDialect >= 2 && w == 0x6d6f7266)
 	}
 	if length == 7 && m.CSSDialect >= 2 {
-		return rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x6867756f726874
+		return binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6867756f726874
 	}
 	return false
 }
@@ -2853,7 +2854,7 @@ func (m *Machine) CSSDecide(depth uint32) bool {
 			m.ScanIdentRun(45)
 			p = m.Ptr
 			m.Ptr = q
-			if p+1 < stop && rt.Ld16(m.Mem, p) == 8250 {
+			if p+1 < stop && uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 8250 {
 				return false
 			}
 			p = m.Ptr
@@ -2865,7 +2866,7 @@ scan:
 			break
 		}
 		for {
-			w = rt.LdV(m.Mem, p)
+			w = rt.LdV(m.Mem[p:])
 			mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, rt.Splat8(13))), rt.Or(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(123)), rt.Eq8(w, rt.Splat8(125))), rt.Or(rt.Eq8(w, rt.Splat8(59)), rt.Eq8(w, rt.Splat8(47)))), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(34)), rt.Eq8(w, rt.Splat8(39))), rt.Eq8(w, rt.Splat8(58))))))
 			rem = stop - p
 			if rem < 16 {
@@ -3089,17 +3090,17 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		state = rt.Ld32(m.Mem, 98064)
-		streamRoot = rt.Ld32(m.Mem, 98068)
-		span = rt.Ld32(m.Mem, 98072)
-		mode = rt.Ld32(m.Mem, 98076)
-		decide = rt.Ld32(m.Mem, 98080)
-		attr = rt.Ld32(m.Mem, 98084)
-		namespace = rt.Ld32(m.Mem, 98088)
-		depth = rt.Ld32(m.Mem, 98092)
-		interp = rt.Ld32(m.Mem, 98096)
-		interpMode = rt.Ld32(m.Mem, 98100)
-		fnPrelude = rt.Ld32(m.Mem, 98104)
+		state = binary.LittleEndian.Uint32(m.Mem[98064:])
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98068:])
+		span = binary.LittleEndian.Uint32(m.Mem[98072:])
+		mode = binary.LittleEndian.Uint32(m.Mem[98076:])
+		decide = binary.LittleEndian.Uint32(m.Mem[98080:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98084:])
+		namespace = binary.LittleEndian.Uint32(m.Mem[98088:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98092:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98096:])
+		interpMode = binary.LittleEndian.Uint32(m.Mem[98100:])
+		fnPrelude = binary.LittleEndian.Uint32(m.Mem[98104:])
 	} else {
 		decide = 1
 		m.LexEmitLeadingContinuation()
@@ -3108,15 +3109,15 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				span = rt.Ld32(m.Mem, m.StreamWindow)
-				mode = rt.Ld32(m.Mem, m.StreamWindow+4)
-				decide = rt.Ld32(m.Mem, m.StreamWindow+8)
-				attr = rt.Ld32(m.Mem, m.StreamWindow+12)
-				namespace = rt.Ld32(m.Mem, m.StreamWindow+16)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+20)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+24)
-				interpMode = rt.Ld32(m.Mem, m.StreamWindow+28)
-				fnPrelude = rt.Ld32(m.Mem, m.StreamWindow+32)
+				span = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				mode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				decide = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				attr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				namespace = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				interpMode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				fnPrelude = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
 			}
 		}
 		if state != 0 {
@@ -3137,17 +3138,17 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, state)
-				rt.St32(m.Mem, 98068, streamRoot)
-				rt.St32(m.Mem, 98072, span)
-				rt.St32(m.Mem, 98076, mode)
-				rt.St32(m.Mem, 98080, decide)
-				rt.St32(m.Mem, 98084, attr)
-				rt.St32(m.Mem, 98088, namespace)
-				rt.St32(m.Mem, 98092, depth)
-				rt.St32(m.Mem, 98096, interp)
-				rt.St32(m.Mem, 98100, interpMode)
-				rt.St32(m.Mem, 98104, fnPrelude)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], state)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], span)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], mode)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], decide)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], attr)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], namespace)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], interpMode)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], fnPrelude)
 				m.LiveSuspended = true
 				return 0
 			}
@@ -3156,7 +3157,7 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 			lhs = m.Ptr
 			if span == 1 {
 				m.LexBlockComment(0, TokenComment)
-				if m.Ptr-lhs < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074 {
+				if m.Ptr-lhs < 2 || uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr-2:])) != 12074 {
 					break
 				}
 			} else if m.CSSString(rt.Sel32(span == 2, 34, 39), false) {
@@ -3184,7 +3185,7 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 		}
 		if c == '/' && c2 == '*' {
 			m.LexBlockComment(2, TokenComment)
-			if state != 0 && (m.Ptr-lhs < 4 || rt.Ld16(m.Mem, m.Ptr-2) != 12074) {
+			if state != 0 && (m.Ptr-lhs < 4 || uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr-2:])) != 12074) {
 				span = 1
 				break
 			}
@@ -3213,17 +3214,17 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 				m.CSSScanIdent()
 				if m.CSSDialect == 1 {
 					p = m.LexSkipSpaceAt(m.Ptr)
-					if (p < m.End && m.Mem[p] == ':') || (m.Ptr+1 < m.End && rt.Ld16(m.Mem, m.Ptr) == 10536) {
+					if (p < m.End && m.Mem[p] == ':') || (m.Ptr+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:])) == 10536) {
 						m.EmitTok(TokenVariable, lhs, m.Ptr)
 						mode = 2
 						continue
 					}
 				}
-				namespace = rt.B2u(m.Ptr-lhs == 10 && rt.Ld64(m.Mem, lhs+1)|0x2020202020202020 == 0x63617073656d616e && uint32(m.Mem[lhs+9])|32 == 101)
+				namespace = rt.B2u(m.Ptr-lhs == 10 && binary.LittleEndian.Uint64(m.Mem[lhs+1:])|0x2020202020202020 == 0x63617073656d616e && uint32(m.Mem[lhs+9])|32 == 101)
 				if m.CSSDialect >= 2 {
 					mid = m.Ptr - lhs
-					fnPrelude = rt.B2u((mid == 8 && rt.Ld64(m.Mem, lhs) == 0x6564756c636e6940) || (mid == 6 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x6e6978696d40) || (mid == 9 && rt.Ld64(m.Mem, lhs+1) == 0x6e6f6974636e7566))
-					if mid == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x646e6574786540 {
+					fnPrelude = rt.B2u((mid == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6564756c636e6940) || (mid == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x6e6978696d40) || (mid == 9 && binary.LittleEndian.Uint64(m.Mem[lhs+1:]) == 0x6e6f6974636e7566))
+					if mid == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x646e6574786540 {
 						mode = 0
 					}
 				}
@@ -3331,7 +3332,7 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 			}
 			if m.CSSIdentStart(c) {
 				m.CSSScanIdent()
-				if m.CSSDialect == 1 && m.Ptr-lhs == 4 && rt.Ld32(m.Mem, lhs) == 0x6e656877 {
+				if m.CSSDialect == 1 && m.Ptr-lhs == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x6e656877 {
 					m.EmitTok(TokenKeywordOperator, lhs, m.Ptr)
 					continue
 				}
@@ -3437,7 +3438,7 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 					continue
 				}
 				if m.Ptr < m.End && m.Mem[m.Ptr] == '(' {
-					if m.Ptr-lhs == 3 && rt.Ld32(m.Mem, lhs)|0x20202020 == 0x286c7275 {
+					if m.Ptr-lhs == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])|0x20202020 == 0x286c7275 {
 						m.EmitTok(TokenFunction, lhs, m.Ptr)
 						lhs = m.Ptr
 						m.Ptr++
@@ -3461,7 +3462,7 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 								if m.Ptr >= m.End {
 									break
 								}
-								urlW = rt.LdV(m.Mem, m.Ptr)
+								urlW = rt.LdV(m.Mem[m.Ptr:])
 								urlMask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(urlW, rt.Splat8(9)), rt.Splat8(4)), rt.Eq8(urlW, rt.Splat8(32))), rt.Or(rt.Or(rt.Eq8(urlW, rt.Splat8(34)), rt.Eq8(urlW, rt.Splat8(39))), rt.Eq8(urlW, rt.Splat8(41)))))
 								urlRem = m.End - m.Ptr
 								if urlRem < 16 {
@@ -3570,15 +3571,15 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46224
-		rt.St32(m.Mem, m.StreamWindow, span)
-		rt.St32(m.Mem, m.StreamWindow+4, mode)
-		rt.St32(m.Mem, m.StreamWindow+8, decide)
-		rt.St32(m.Mem, m.StreamWindow+12, attr)
-		rt.St32(m.Mem, m.StreamWindow+16, namespace)
-		rt.St32(m.Mem, m.StreamWindow+20, depth)
-		rt.St32(m.Mem, m.StreamWindow+24, interp)
-		rt.St32(m.Mem, m.StreamWindow+28, interpMode)
-		rt.St32(m.Mem, m.StreamWindow+32, fnPrelude)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], span)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], mode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], decide)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], attr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], namespace)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], interpMode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], fnPrelude)
 		if m.StreamStateLo > 0 {
 			m.StreamStateLo = 0
 		}
@@ -3599,17 +3600,17 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		state = rt.Ld32(m.Mem, 98064)
-		streamRoot = rt.Ld32(m.Mem, 98068)
-		span = rt.Ld32(m.Mem, 98072)
-		mode = rt.Ld32(m.Mem, 98076)
-		decide = rt.Ld32(m.Mem, 98080)
-		attr = rt.Ld32(m.Mem, 98084)
-		namespace = rt.Ld32(m.Mem, 98088)
-		depth = rt.Ld32(m.Mem, 98092)
-		interp = rt.Ld32(m.Mem, 98096)
-		interpMode = rt.Ld32(m.Mem, 98100)
-		fnPrelude = rt.Ld32(m.Mem, 98104)
+		state = binary.LittleEndian.Uint32(m.Mem[98064:])
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98068:])
+		span = binary.LittleEndian.Uint32(m.Mem[98072:])
+		mode = binary.LittleEndian.Uint32(m.Mem[98076:])
+		decide = binary.LittleEndian.Uint32(m.Mem[98080:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98084:])
+		namespace = binary.LittleEndian.Uint32(m.Mem[98088:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98092:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98096:])
+		interpMode = binary.LittleEndian.Uint32(m.Mem[98100:])
+		fnPrelude = binary.LittleEndian.Uint32(m.Mem[98104:])
 	} else {
 		decide = 1
 		m.LexEmitLeadingContinuation()
@@ -3618,15 +3619,15 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				span = rt.Ld32(m.Mem, m.StreamWindow)
-				mode = rt.Ld32(m.Mem, m.StreamWindow+4)
-				decide = rt.Ld32(m.Mem, m.StreamWindow+8)
-				attr = rt.Ld32(m.Mem, m.StreamWindow+12)
-				namespace = rt.Ld32(m.Mem, m.StreamWindow+16)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+20)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+24)
-				interpMode = rt.Ld32(m.Mem, m.StreamWindow+28)
-				fnPrelude = rt.Ld32(m.Mem, m.StreamWindow+32)
+				span = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				mode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				decide = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				attr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				namespace = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				interpMode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				fnPrelude = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
 			}
 		}
 		if state != 0 {
@@ -3647,17 +3648,17 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, state)
-				rt.St32(m.Mem, 98068, streamRoot)
-				rt.St32(m.Mem, 98072, span)
-				rt.St32(m.Mem, 98076, mode)
-				rt.St32(m.Mem, 98080, decide)
-				rt.St32(m.Mem, 98084, attr)
-				rt.St32(m.Mem, 98088, namespace)
-				rt.St32(m.Mem, 98092, depth)
-				rt.St32(m.Mem, 98096, interp)
-				rt.St32(m.Mem, 98100, interpMode)
-				rt.St32(m.Mem, 98104, fnPrelude)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], state)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], span)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], mode)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], decide)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], attr)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], namespace)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], interpMode)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], fnPrelude)
 				m.LiveSuspended = true
 				return 0
 			}
@@ -3666,7 +3667,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 			lhs = m.Ptr
 			if span == 1 {
 				m.LexBlockComment(0, TokenComment)
-				if m.Ptr-lhs < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074 {
+				if m.Ptr-lhs < 2 || uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr-2:])) != 12074 {
 					break
 				}
 			} else if m.CSSString(rt.Sel32(span == 2, 34, 39), false) {
@@ -3692,7 +3693,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 		}
 		if c == '/' && c2 == '*' {
 			m.LexBlockComment(2, TokenComment)
-			if state != 0 && (m.Ptr-lhs < 4 || rt.Ld16(m.Mem, m.Ptr-2) != 12074) {
+			if state != 0 && (m.Ptr-lhs < 4 || uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr-2:])) != 12074) {
 				span = 1
 				break
 			}
@@ -3712,10 +3713,10 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 				mode = 1
 				m.Ptr++
 				m.CSSScanIdent()
-				namespace = rt.B2u(m.Ptr-lhs == 10 && rt.Ld64(m.Mem, lhs+1)|0x2020202020202020 == 0x63617073656d616e && uint32(m.Mem[lhs+9])|32 == 101)
+				namespace = rt.B2u(m.Ptr-lhs == 10 && binary.LittleEndian.Uint64(m.Mem[lhs+1:])|0x2020202020202020 == 0x63617073656d616e && uint32(m.Mem[lhs+9])|32 == 101)
 				mid = m.Ptr - lhs
-				fnPrelude = rt.B2u((mid == 8 && rt.Ld64(m.Mem, lhs) == 0x6564756c636e6940) || (mid == 6 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x6e6978696d40) || (mid == 9 && rt.Ld64(m.Mem, lhs+1) == 0x6e6f6974636e7566))
-				if mid == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x646e6574786540 {
+				fnPrelude = rt.B2u((mid == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6564756c636e6940) || (mid == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x6e6978696d40) || (mid == 9 && binary.LittleEndian.Uint64(m.Mem[lhs+1:]) == 0x6e6f6974636e7566))
+				if mid == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x646e6574786540 {
 					mode = 0
 				}
 				m.EmitTok(TokenKeyword, lhs, m.Ptr)
@@ -3940,7 +3941,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 					continue
 				}
 				if m.Ptr < m.End && m.Mem[m.Ptr] == '(' {
-					if m.Ptr-lhs == 3 && rt.Ld32(m.Mem, lhs)|0x20202020 == 0x286c7275 {
+					if m.Ptr-lhs == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])|0x20202020 == 0x286c7275 {
 						m.EmitTok(TokenFunction, lhs, m.Ptr)
 						lhs = m.Ptr
 						m.Ptr++
@@ -3964,7 +3965,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 								if m.Ptr >= m.End {
 									break
 								}
-								urlW = rt.LdV(m.Mem, m.Ptr)
+								urlW = rt.LdV(m.Mem[m.Ptr:])
 								urlMask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(urlW, rt.Splat8(9)), rt.Splat8(4)), rt.Eq8(urlW, rt.Splat8(32))), rt.Or(rt.Or(rt.Eq8(urlW, rt.Splat8(34)), rt.Eq8(urlW, rt.Splat8(39))), rt.Eq8(urlW, rt.Splat8(41)))))
 								urlRem = m.End - m.Ptr
 								if urlRem < 16 {
@@ -4073,15 +4074,15 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46264
-		rt.St32(m.Mem, m.StreamWindow, span)
-		rt.St32(m.Mem, m.StreamWindow+4, mode)
-		rt.St32(m.Mem, m.StreamWindow+8, decide)
-		rt.St32(m.Mem, m.StreamWindow+12, attr)
-		rt.St32(m.Mem, m.StreamWindow+16, namespace)
-		rt.St32(m.Mem, m.StreamWindow+20, depth)
-		rt.St32(m.Mem, m.StreamWindow+24, interp)
-		rt.St32(m.Mem, m.StreamWindow+28, interpMode)
-		rt.St32(m.Mem, m.StreamWindow+32, fnPrelude)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], span)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], mode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], decide)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], attr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], namespace)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], interpMode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], fnPrelude)
 		if m.StreamStateLo > 40 {
 			m.StreamStateLo = 40
 		}
@@ -4156,7 +4157,7 @@ wide:
 			break
 		}
 		rem = m.End - m.Ptr
-		w = rt.LdV(m.Mem, m.Ptr)
+		w = rt.LdV(m.Mem[m.Ptr:])
 		mask = rt.Bitmask8(rt.Eq8(w, rt.Splat8(62)))
 		if rem < 16 {
 			mask &= uint32(1)<<(rem&31) - 1
@@ -4166,7 +4167,7 @@ wide:
 				break
 			}
 			hit = m.Ptr + uint32(bits.TrailingZeros32(mask))
-			if rt.Ld32(m.Mem, hit-closeOff)&closeMask == closeWord {
+			if binary.LittleEndian.Uint32(m.Mem[hit-closeOff:])&closeMask == closeWord {
 				m.Ptr = hit + 1
 				closed = true
 				break wide
@@ -4365,7 +4366,7 @@ func (m *Machine) HlXML() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -4377,7 +4378,7 @@ func (m *Machine) HlXML() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
 				m.LiveSuspended = true
 				return
 			}
@@ -4406,16 +4407,16 @@ func (m *Machine) HlXML() {
 			c = 0
 		}
 		if c == '!' {
-			if m.Ptr+4 <= m.End && rt.Ld32(m.Mem, m.Ptr) == 0x2d2d213c {
+			if m.Ptr+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[m.Ptr:]) == 0x2d2d213c {
 				m.XMLSection(lhs, 4, 1, TokenComment)
 				continue
 			}
 			if m.Ptr+9 <= m.End {
-				if rt.Ld64(m.Mem, m.Ptr) == 0x41544144435b213c && m.Mem[m.Ptr+8] == '[' {
+				if binary.LittleEndian.Uint64(m.Mem[m.Ptr:]) == 0x41544144435b213c && m.Mem[m.Ptr+8] == '[' {
 					m.XMLSection(lhs, 9, 2, TokenTextLiteral)
 					continue
 				}
-				if rt.Ld64(m.Mem, m.Ptr) == 0x505954434f44213c && m.Mem[m.Ptr+8] == 'E' {
+				if binary.LittleEndian.Uint64(m.Mem[m.Ptr:]) == 0x505954434f44213c && m.Mem[m.Ptr+8] == 'E' {
 					m.XMLDoctype(lhs)
 					continue
 				}
@@ -4468,7 +4469,7 @@ func (m *Machine) RawTextKind(lhs, rhs uint32) uint32 {
 	var w uint64
 	length := rhs - lhs
 	if length-5 <= 1 {
-		w = (rt.Ld64(m.Mem, lhs) | 0x202020202020) & (uint64(1)<<(uint64(length<<3)&63) - 1)
+		w = (binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x202020202020) & (uint64(1)<<(uint64(length<<3)&63) - 1)
 		return rt.B2u(w == 0x747069726373) | rt.B2u(w == 0x656c797473)<<1
 	}
 	return 0
@@ -4486,7 +4487,7 @@ func (m *Machine) IsRawTextClose(p, kind uint32) bool {
 	if tp > m.End {
 		return false
 	}
-	if (rt.Ld64(m.Mem, p+1)|0x2020202020202000)&(uint64(1)<<(uint64(n<<3)&63)-1) != rt.Sel64(kind == 1, 0x7470697263732f, 0x656c7974732f) {
+	if (binary.LittleEndian.Uint64(m.Mem[p+1:])|0x2020202020202000)&(uint64(1)<<(uint64(n<<3)&63)-1) != rt.Sel64(kind == 1, 0x7470697263732f, 0x656c7974732f) {
 		return false
 	}
 	if tp >= m.End {
@@ -4603,7 +4604,7 @@ func (m *Machine) HTMLQuotedBody(quote, lhs uint32) uint32 {
 // HTMLLangName is $htmlLangName.
 func (m *Machine) HTMLLangName(kind, lhs, rhs uint32) uint32 {
 	kind &= 63
-	if kind != 1 && rhs-lhs == 4 && rt.Ld32(m.Mem, lhs)|0x20202020 == 0x676e616c {
+	if kind != 1 && rhs-lhs == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:])|0x20202020 == 0x676e616c {
 		kind |= 64
 	}
 	return kind
@@ -4615,8 +4616,8 @@ func (m *Machine) HTMLLangValue(kind, lhs, rhs uint32) uint32 {
 		return kind
 	}
 	kind &= 63
-	w := rt.Ld32(m.Mem, lhs) | 0x20202020
-	if rhs-lhs == 6 && w == 0x6c797473 && rt.Ld16(m.Mem, lhs+4)|8224 == 29557 {
+	w := binary.LittleEndian.Uint32(m.Mem[lhs:]) | 0x20202020
+	if rhs-lhs == 6 && w == 0x6c797473 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+4:]))|8224 == 29557 {
 		return 42
 	}
 	if rhs-lhs != 4 {
@@ -4831,7 +4832,7 @@ func (m *Machine) HTMLLex(region uint32) {
 			c = 0
 		}
 		if c == '!' {
-			if m.Ptr+4 <= m.End && rt.Ld32(m.Mem, m.Ptr) == 0x2d2d213c {
+			if m.Ptr+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[m.Ptr:]) == 0x2d2d213c {
 				m.HTMLComment(lhs)
 			} else {
 				m.HTMLDecl(lhs, false, TokenTagDoctype)
@@ -4920,7 +4921,7 @@ func (m *Machine) BraceHTMLRange(from, to uint32, astro bool) {
 func (m *Machine) BraceRawKind(p uint32) uint32 {
 	var kind uint32
 	q := p + 1
-	w := rt.Ld64(m.Mem, q) | 0x202020202020
+	w := binary.LittleEndian.Uint64(m.Mem[q:]) | 0x202020202020
 	if q+6 <= m.End && w&0xffffffffffff == 0x747069726373 {
 		kind = 1
 	} else if q+5 <= m.End && w&0xffffffffff == 0x656c797473 {
@@ -4952,7 +4953,7 @@ func (m *Machine) BraceNextCut(p uint32) uint32 {
 		if m.BraceRawKind(p) != 0 {
 			break
 		}
-		if p+4 <= m.End && rt.Ld32(m.Mem, p) == 0x2d2d213c {
+		if p+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x2d2d213c {
 			break
 		}
 		p++
@@ -5292,7 +5293,7 @@ func (m *Machine) HlTemplateMarkup(state uint32, angular bool) uint32 {
 				if m.Ptr >= m.End {
 					break
 				}
-				if mode == 7 || (mode == 6 && m.Ptr-from >= 2 && rt.Ld16(m.Mem, m.Ptr-2) == 11565) || (mode == 8 && m.Ptr > from && m.Mem[m.Ptr-1] == '?') {
+				if mode == 7 || (mode == 6 && m.Ptr-from >= 2 && uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr-2:])) == 11565) || (mode == 8 && m.Ptr > from && m.Mem[m.Ptr-1] == '?') {
 					state = 1
 				}
 				m.Ptr++
@@ -5345,7 +5346,7 @@ func (m *Machine) HlTemplateMarkup(state uint32, angular bool) uint32 {
 					} else {
 						state = 7
 					}
-					if p+4 <= m.End && rt.Ld32(m.Mem, p) == 0x2d2d213c {
+					if p+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x2d2d213c {
 						state = 6
 					}
 					continue
@@ -5547,10 +5548,10 @@ func (m *Machine) IsKeyword(start, end uint32) uint32 {
 	if length-2 > 8 {
 		return LexInvalid
 	}
-	h := rt.Ld16(m.Mem, start) | uint32(m.Mem[end-1])<<16 | length<<24
+	h := uint32(binary.LittleEndian.Uint16(m.Mem[start:])) | uint32(m.Mem[end-1])<<16 | length<<24
 	h = (h ^ h>>16) * 0xe51fac89
 	h ^= h >> 24
-	entry := rt.Ld16(m.Mem, 27296+(((h>>4)&63+uint32(m.Mem[27296+h&15]))&63)<<1+16)
+	entry := uint32(binary.LittleEndian.Uint16(m.Mem[27296+(((h>>4)&63+uint32(m.Mem[27296+h&15]))&63)<<1+16:]))
 	if entry == 0 {
 		return LexInvalid
 	}
@@ -5559,14 +5560,14 @@ func (m *Machine) IsKeyword(start, end uint32) uint32 {
 	}
 	p := 27439 + entry&511
 	if length <= 8 {
-		if (rt.Ld64(m.Mem, start)^rt.Ld64(m.Mem, p+1))<<(uint64((8-length)<<3)&63) != 0 {
+		if (binary.LittleEndian.Uint64(m.Mem[start:])^binary.LittleEndian.Uint64(m.Mem[p+1:]))<<(uint64((8-length)<<3)&63) != 0 {
 			return LexInvalid
 		}
 	} else {
-		if rt.Ld64(m.Mem, start) != rt.Ld64(m.Mem, p+1) {
+		if binary.LittleEndian.Uint64(m.Mem[start:]) != binary.LittleEndian.Uint64(m.Mem[p+1:]) {
 			return LexInvalid
 		}
-		if (rt.Ld16(m.Mem, start+8)^rt.Ld16(m.Mem, p+9))<<(((12-length)<<3)&31) != 0 {
+		if (uint32(binary.LittleEndian.Uint16(m.Mem[start+8:]))^uint32(binary.LittleEndian.Uint16(m.Mem[p+9:])))<<(((12-length)<<3)&31) != 0 {
 			return LexInvalid
 		}
 	}
@@ -5579,7 +5580,7 @@ func (m *Machine) ScanIdentTail() {
 	var w, b, pass rt.V128
 	for {
 		for {
-			w = rt.LdV(m.Mem, m.Ptr)
+			w = rt.LdV(m.Mem[m.Ptr:])
 			b = rt.Or(w, rt.Splat8(32))
 			pass = rt.Or(rt.LeU8(rt.Sub8(b, rt.Splat8(97)), rt.Splat8(25)), rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9)), rt.Or(rt.Eq8(w, rt.Splat8(95)), rt.Eq8(w, rt.Splat8(36)))))
 			mask = rt.Bitmask8(pass) ^ 65535
@@ -5690,7 +5691,7 @@ func (m *Machine) ScanTemplateBody() uint32 {
 				m.Ptr += 2
 				continue
 			}
-			rt.St32(m.Mem, 38944+m.JsTemplateLexSp<<2, m.BraceDepth)
+			binary.LittleEndian.PutUint32(m.Mem[38944+m.JsTemplateLexSp<<2:], m.BraceDepth)
 			m.JsTemplateLexSp++
 			m.Ptr += 2
 			return LexDollarBrace
@@ -5837,7 +5838,7 @@ func (m *Machine) ScanToken() uint32 {
 				if m.Ptr+8 > m.End {
 					break
 				}
-				if rt.Ld64(m.Mem, m.Ptr) != 0x2020202020202020 {
+				if binary.LittleEndian.Uint64(m.Mem[m.Ptr:]) != 0x2020202020202020 {
 					break
 				}
 				m.Ptr += 8
@@ -5848,12 +5849,12 @@ func (m *Machine) ScanToken() uint32 {
 			m.Ptr += 2
 			continue
 		}
-		if rt.Ld32(m.Mem, m.Ptr)&0xfeffff == 0xa880e2 && m.Ptr+3 <= m.End {
+		if binary.LittleEndian.Uint32(m.Mem[m.Ptr:])&0xfeffff == 0xa880e2 && m.Ptr+3 <= m.End {
 			m.NlBefore = 1
 			m.Ptr += 3
 			continue
 		}
-		if rt.Ld32(m.Mem, m.Ptr)&0xffffff == 0xbfbbef && m.Ptr+3 <= m.End {
+		if binary.LittleEndian.Uint32(m.Mem[m.Ptr:])&0xffffff == 0xbfbbef && m.Ptr+3 <= m.End {
 			m.Ptr += 3
 			continue
 		}
@@ -5945,7 +5946,7 @@ func (m *Machine) ScanToken() uint32 {
 		m.Ptr += take & 7
 		return take >> 3
 	case '}':
-		if m.JsTemplateLexSp > 0 && m.BraceDepth == rt.Ld32(m.Mem, 38944+(m.JsTemplateLexSp-1)<<2) {
+		if m.JsTemplateLexSp > 0 && m.BraceDepth == binary.LittleEndian.Uint32(m.Mem[38944+(m.JsTemplateLexSp-1)<<2:]) {
 			m.JsTemplateLexSp--
 			m.Ptr++
 			return m.ScanTemplateBody()
@@ -6465,7 +6466,7 @@ func (m *Machine) TsxExpressionEnd(from, _ uint32) uint32 {
 			}
 			if t == LexRBrace {
 				if mode == 3 {
-					if int32(m.BraceDepth) <= int32(rt.Ld32(m.Mem, m.JsxTopSlot()+4)) {
+					if int32(m.BraceDepth) <= int32(binary.LittleEndian.Uint32(m.Mem[m.JsxTopSlot()+4:])) {
 						m.JsxPop()
 						continue
 					}
@@ -6580,7 +6581,7 @@ func (m *Machine) EmitTemplate(lhs, rhs uint32, dollarBrace, leadBrace, closed b
 			m.JsTemplateState = m.JsTemplateOpenState(lhs, rhs)
 		} else if m.JsTemplateEmitSp != 0 {
 			m.JsTemplateEmitSp--
-			m.JsTemplateState = rt.Ld32(m.Mem, 39968+m.JsTemplateEmitSp<<2)
+			m.JsTemplateState = binary.LittleEndian.Uint32(m.Mem[39968+m.JsTemplateEmitSp<<2:])
 		}
 	}
 	if leadBrace && c == '}' {
@@ -6613,7 +6614,7 @@ func (m *Machine) EmitTemplate(lhs, rhs uint32, dollarBrace, leadBrace, closed b
 	m.EmitTok(TokenPunctuationSpecial, e, rhs)
 	if dollarBrace {
 		if m.JsTemplateEmitSp < 256 {
-			rt.St32(m.Mem, 39968+m.JsTemplateEmitSp<<2, m.JsTemplateState)
+			binary.LittleEndian.PutUint32(m.Mem[39968+m.JsTemplateEmitSp<<2:], m.JsTemplateState)
 			m.JsTemplateEmitSp++
 		}
 	}
@@ -6628,7 +6629,7 @@ func (m *Machine) IsParamTag(lhs, rhs uint32) bool {
 	if length > 8 {
 		return false
 	}
-	w := rt.Ld64(m.Mem, lhs)
+	w := binary.LittleEndian.Uint64(m.Mem[lhs:])
 	if length < 8 {
 		w &= uint64(1)<<(uint64(length<<3)&63) - 1
 	}
@@ -6793,7 +6794,7 @@ func (m *Machine) EmitDocComment(lhs, rhs uint32) {
 
 // BlockCommentOpen is $blockCommentOpen.
 func (m *Machine) BlockCommentOpen(lhs, rhs uint32) bool {
-	return rhs-lhs < 4 || rt.Ld16(m.Mem, rhs-2) != 12074
+	return rhs-lhs < 4 || uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) != 12074
 }
 
 // IsDocComment is $isDocComment.
@@ -6814,8 +6815,8 @@ func (m *Machine) HlJsStream(reset uint32) {
 // JsxPush is $jsxPush.
 func (m *Machine) JsxPush(mode, target uint32) {
 	if m.JsxSp < 512 {
-		rt.St32(m.Mem, 40992+m.JsxSp<<3, mode)
-		rt.St32(m.Mem, 40992+m.JsxSp<<3+4, target)
+		binary.LittleEndian.PutUint32(m.Mem[40992+m.JsxSp<<3:], mode)
+		binary.LittleEndian.PutUint32(m.Mem[40992+m.JsxSp<<3+4:], target)
 	}
 	m.JsxSp++
 }
@@ -6834,7 +6835,7 @@ func (m *Machine) JsxTopMode() uint32 {
 	if m.JsxSp == 0 {
 		return 0
 	}
-	return rt.Ld32(m.Mem, m.JsxTopSlot())
+	return binary.LittleEndian.Uint32(m.Mem[m.JsxTopSlot():])
 }
 
 // JsxTopTarget is $jsxTopTarget.
@@ -6842,7 +6843,7 @@ func (m *Machine) JsxTopTarget() uint32 {
 	if m.JsxSp == 0 {
 		return 0
 	}
-	return rt.Ld32(m.Mem, m.JsxTopSlot()+4)
+	return binary.LittleEndian.Uint32(m.Mem[m.JsxTopSlot()+4:])
 }
 
 // JsxByteMode is $jsxByteMode.
@@ -6937,7 +6938,7 @@ func (m *Machine) JsxValidate(p uint32) bool {
 	name := p
 	p = m.JsxNameEndAt(p + 1)
 	if m.EcmaHasTypeScript() {
-		if p-name == 5 && rt.Ld32(m.Mem, name) == 0x736e6f63 && m.Mem[name+4] == 't' {
+		if p-name == 5 && binary.LittleEndian.Uint32(m.Mem[name:]) == 0x736e6f63 && m.Mem[name+4] == 't' {
 			c = m.JsxSpaceEndAt(p)
 			if c > p && m.JsxNameStart(m.TsxByte(c)) {
 				p = m.JsxNameEndAt(c)
@@ -6951,7 +6952,7 @@ func (m *Machine) JsxValidate(p uint32) bool {
 		if c == '<' {
 			return true
 		}
-		if p+7 <= m.End && rt.Ld64(m.Mem, p)&0xffffffffffffff == 0x73646e65747865 {
+		if p+7 <= m.End && binary.LittleEndian.Uint64(m.Mem[p:])&0xffffffffffffff == 0x73646e65747865 {
 			if m.JsxNameCont(m.TsxByte(p+7)) == 0 {
 				c = m.TsxByte(m.JsxSpaceEndAt(p + 7))
 				if !(c == '=' || c == '>' || c == '/') {
@@ -7022,21 +7023,21 @@ func (m *Machine) JsxTagStep() {
 	slot := m.JsxTopSlot()
 	if c == '>' {
 		m.Ptr++
-		q = rt.Ld32(m.Mem, slot+4)
+		q = binary.LittleEndian.Uint32(m.Mem[slot+4:])
 		if q >= 256 {
 			m.JsxEmit(TokenPunctuationBracket, from, m.Ptr)
-			rt.St32(m.Mem, slot+4, q-256)
+			binary.LittleEndian.PutUint32(m.Mem[slot+4:], q-256)
 			return
 		}
 		m.JsxEmit(TokenPunctuationBracketJsx, from, m.Ptr)
-		rt.St32(m.Mem, slot, 2)
+		binary.LittleEndian.PutUint32(m.Mem[slot:], 2)
 		if q == 2 {
-			rt.St32(m.Mem, slot, 6)
-			rt.St32(m.Mem, slot+4, 260)
+			binary.LittleEndian.PutUint32(m.Mem[slot:], 6)
+			binary.LittleEndian.PutUint32(m.Mem[slot+4:], 260)
 		}
 		if q == 1 {
-			rt.St32(m.Mem, slot, 5)
-			rt.St32(m.Mem, slot+4, 0)
+			binary.LittleEndian.PutUint32(m.Mem[slot:], 5)
+			binary.LittleEndian.PutUint32(m.Mem[slot+4:], 0)
 			m.PrevTok = LexEOF
 			m.Lto = LexEOF
 		}
@@ -7045,7 +7046,7 @@ func (m *Machine) JsxTagStep() {
 	if c == '<' && m.EcmaHasTypeScript() {
 		m.Ptr++
 		m.JsxEmit(TokenPunctuationBracket, from, m.Ptr)
-		rt.St32(m.Mem, slot+4, rt.Ld32(m.Mem, slot+4)+256)
+		binary.LittleEndian.PutUint32(m.Mem[slot+4:], binary.LittleEndian.Uint32(m.Mem[slot+4:])+256)
 		return
 	}
 	if c == '/' {
@@ -7095,7 +7096,7 @@ func (m *Machine) JsxTagStep() {
 	if c == '=' {
 		m.Ptr++
 		if m.TsxByte(m.Ptr) == '>' {
-			if rt.Ld32(m.Mem, slot+4) >= 256 {
+			if binary.LittleEndian.Uint32(m.Mem[slot+4:]) >= 256 {
 				m.Ptr++
 				m.JsxEmit(TokenOperator, from, m.Ptr)
 				return
@@ -7114,11 +7115,11 @@ func (m *Machine) JsxTagStep() {
 				break
 			}
 		}
-		m.JsxEmit(rt.Sel32(rt.Ld32(m.Mem, slot+4) >= 256, TokenType, TokenAttributeJsx), from, m.Ptr)
+		m.JsxEmit(rt.Sel32(binary.LittleEndian.Uint32(m.Mem[slot+4:]) >= 256, TokenType, TokenAttributeJsx), from, m.Ptr)
 		return
 	}
 	m.Ptr++
-	m.JsxEmit(rt.Sel32(c == ',' && rt.Ld32(m.Mem, slot+4) >= 256, TokenPunctuationDelimiter, TokenNone), from, m.Ptr)
+	m.JsxEmit(rt.Sel32(c == ',' && binary.LittleEndian.Uint32(m.Mem[slot+4:]) >= 256, TokenPunctuationDelimiter, TokenNone), from, m.Ptr)
 }
 
 // JsxCloseTagTail is $jsxCloseTagTail.
@@ -7301,7 +7302,7 @@ func (m *Machine) JsxContentStep() {
 		m.JsxEmit(TokenPunctuationBracketJsx, seg, m.Ptr)
 		m.JsxEmitName()
 		if tsrx && m.TsxByte(m.Ptr) == '{' {
-			rt.St32(m.Mem, m.JsxTopSlot(), 7)
+			binary.LittleEndian.PutUint32(m.Mem[m.JsxTopSlot():], 7)
 			m.JsxOpenContainer()
 			return
 		}
@@ -7339,13 +7340,13 @@ func (m *Machine) IsIdentish(t uint32) bool {
 func (m *Machine) IsBuiltinConst(lhs, rhs uint32) bool {
 	length := rhs - lhs
 	if length == 9 {
-		return rt.Ld64(m.Mem, lhs) == 0x656e696665646e75 && m.Mem[lhs+8] == 'd'
+		return binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x656e696665646e75 && m.Mem[lhs+8] == 'd'
 	}
 	if length == 3 {
-		return rt.Ld32(m.Mem, lhs)&0xffffff == 0x4e614e
+		return binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x4e614e
 	}
 	if length == 8 {
-		return rt.Ld64(m.Mem, lhs) == 0x7974696e69666e49
+		return binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7974696e69666e49
 	}
 	return false
 }
@@ -7353,7 +7354,7 @@ func (m *Machine) IsBuiltinConst(lhs, rhs uint32) bool {
 // IsPredefinedType is $isPredefinedType.
 func (m *Machine) IsPredefinedType(lhs, rhs uint32) bool {
 	length := rhs - lhs
-	w := rt.Ld64(m.Mem, lhs)
+	w := binary.LittleEndian.Uint64(m.Mem[lhs:])
 	if length == 3 {
 		return w&0xffffff == 0x796e61
 	}
@@ -7376,7 +7377,7 @@ func (m *Machine) IsConstructorWord(lhs, rhs uint32) bool {
 	if rhs-lhs != 11 {
 		return false
 	}
-	return rt.Ld64(m.Mem, lhs) == 0x63757274736e6f63 && rt.Ld32(m.Mem, lhs+7) == 0x726f7463
+	return binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x63757274736e6f63 && binary.LittleEndian.Uint32(m.Mem[lhs+7:]) == 0x726f7463
 }
 
 // TsBlanksBefore is $tsBlanksBefore.
@@ -7447,7 +7448,7 @@ func (m *Machine) TsNewMemberBefore(lhs uint32) bool {
 	if p-m.SrcBase < 3 {
 		return false
 	}
-	return rt.Ld32(m.Mem, p-3)&0xffffff == 0x77656e && !m.JsxNameStart(m.TsByteBefore(p-3))
+	return binary.LittleEndian.Uint32(m.Mem[p-3:])&0xffffff == 0x77656e && !m.JsxNameStart(m.TsByteBefore(p-3))
 }
 
 // TsTypeSlot is $tsTypeSlot.
@@ -7642,7 +7643,7 @@ func (m *Machine) CtxwordHl(prev, t, next uint32) uint32 {
 // CtxIdentHl is $ctxIdentHl.
 func (m *Machine) CtxIdentHl(prev, next, lhs, rhs uint32) uint32 {
 	length := rhs - lhs
-	w := rt.Ld64(m.Mem, lhs)
+	w := binary.LittleEndian.Uint64(m.Mem[lhs:])
 	if next == LexLBrace {
 		if prev == LexCtxwordDeclare && length == 6 && w&0xffffffffffff == 0x6c61626f6c67 {
 			return TokenKeyword
@@ -7763,7 +7764,7 @@ func (m *Machine) IdentHl(prev, t, next, lhs, rhs uint32) uint32 {
 			if prev == LexIdentifier {
 				c = m.TsBlanksBefore(lhs)
 				if c-m.SrcBase >= 6 {
-					if rt.Ld64(m.Mem, c-6)&0xffffffffffff == 0x657571696e75 && !m.JsxNameStart(m.TsByteBefore(c-6)) {
+					if binary.LittleEndian.Uint64(m.Mem[c-6:])&0xffffffffffff == 0x657571696e75 && !m.JsxNameStart(m.TsByteBefore(c-6)) {
 						return TokenTypeBuiltin
 					}
 				}
@@ -7862,9 +7863,9 @@ func (m *Machine) HlTsStream(reset uint32) {
 // TsrxWord is $tsrxWord.
 func (m *Machine) TsrxWord(p, length uint32) uint64 {
 	if length >= 8 {
-		return rt.Ld64(m.Mem, p)
+		return binary.LittleEndian.Uint64(m.Mem[p:])
 	}
-	return rt.Ld64(m.Mem, p) & (uint64(1)<<(uint64(length<<3)&63) - 1)
+	return binary.LittleEndian.Uint64(m.Mem[p:]) & (uint64(1)<<(uint64(length<<3)&63) - 1)
 }
 
 // TsrxIdentByte is $tsrxIdentByte.
@@ -7904,7 +7905,7 @@ func (m *Machine) TsrxDirectiveAt(p uint32) bool {
 func (m *Machine) TsrxWordKind(lhs, rhs uint32) uint32 {
 	length := rhs - lhs
 	if length == 8 {
-		if rt.Ld64(m.Mem, lhs) != 0x746e656d67617266 {
+		if binary.LittleEndian.Uint64(m.Mem[lhs:]) != 0x746e656d67617266 {
 			return LexIdentifier
 		}
 	} else {
@@ -7967,7 +7968,7 @@ func (m *Machine) TsrxRawClose(p, kind uint32) bool {
 	if p+n > m.End {
 		return false
 	}
-	if rt.Ld16(m.Mem, p) != 12092 {
+	if uint32(binary.LittleEndian.Uint16(m.Mem[p:])) != 12092 {
 		return false
 	}
 	if m.TsrxWord(p+2, n-2) != rt.Sel64(kind == 1, 0x747069726373, 0x656c797473) {
@@ -7988,7 +7989,7 @@ func (m *Machine) TsrxContentFind(p uint32) uint32 {
 		return m.End
 	}
 	for {
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(60)), rt.Eq8(w, rt.Splat8(123))), rt.Or(rt.Eq8(w, rt.Splat8(38)), rt.Eq8(w, rt.Splat8(64)))), rt.Or(rt.Eq8(w, rt.Splat8(47)), rt.Eq8(w, rt.Splat8(10)))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -8065,8 +8066,8 @@ func (m *Machine) TsrxStyleStep() {
 		m.CSSDialect = 0
 		slot = m.JsxTopSlot()
 		t0 = slot
-		hlCSSImpl = m.HlCSSImpl(rt.Ld32(m.Mem, slot+4))
-		rt.St32(m.Mem, t0+4, hlCSSImpl)
+		hlCSSImpl = m.HlCSSImpl(binary.LittleEndian.Uint32(m.Mem[slot+4:]))
+		binary.LittleEndian.PutUint32(m.Mem[t0+4:], hlCSSImpl)
 		m.CSSDialect = saveDialect
 		m.Streaming = saveStreaming
 		m.End = saveEnd
@@ -8191,7 +8192,7 @@ func (m *Machine) TsxResume() bool {
 			} else {
 				m.EmitTok(TokenComment, from, m.Ptr)
 			}
-			if m.Ptr-from < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074 {
+			if m.Ptr-from < 2 || uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr-2:])) != 12074 {
 				return true
 			}
 			m.TsxStreamMode = 0
@@ -8250,13 +8251,13 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		nxtT = rt.Ld32(m.Mem, 98064)
-		nxtLHS = rt.Ld32(m.Mem, 98068)
-		nxtRHS = rt.Ld32(m.Mem, 98072)
-		haveNext = rt.Ld32(m.Mem, 98076)
-		done = rt.Ld32(m.Mem, 98080)
-		jsx = rt.Ld32(m.Mem, 98084)
-		exprClose = rt.Ld32(m.Mem, 98088)
+		nxtT = binary.LittleEndian.Uint32(m.Mem[98064:])
+		nxtLHS = binary.LittleEndian.Uint32(m.Mem[98068:])
+		nxtRHS = binary.LittleEndian.Uint32(m.Mem[98072:])
+		haveNext = binary.LittleEndian.Uint32(m.Mem[98076:])
+		done = binary.LittleEndian.Uint32(m.Mem[98080:])
+		jsx = binary.LittleEndian.Uint32(m.Mem[98084:])
+		exprClose = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if reset != 0 {
@@ -8276,13 +8277,13 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, nxtT)
-				rt.St32(m.Mem, 98068, nxtLHS)
-				rt.St32(m.Mem, 98072, nxtRHS)
-				rt.St32(m.Mem, 98076, haveNext)
-				rt.St32(m.Mem, 98080, done)
-				rt.St32(m.Mem, 98084, jsx)
-				rt.St32(m.Mem, 98088, exprClose)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], nxtT)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], nxtLHS)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], nxtRHS)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], haveNext)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], done)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], jsx)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], exprClose)
 				m.LiveSuspended = true
 				return
 			}
@@ -8324,7 +8325,7 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 		}
 		if exprClose != 0 {
 			if curT == LexRBrace && m.TsxStreamExpressionDepth == 0 && m.JsxSp == 0 {
-				if exprClose == 1 || (curLHS+2 <= m.End && rt.Ld16(m.Mem, curLHS) == 32125) {
+				if exprClose == 1 || (curLHS+2 <= m.End && uint32(binary.LittleEndian.Uint16(m.Mem[curLHS:])) == 32125) {
 					m.Ptr = curLHS
 					m.TsxStreamExpressionClosed = 1
 					break
@@ -8343,7 +8344,7 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 			t2 = 0
 		}
 		if t2 != 0 {
-			if int32(m.BraceDepth) <= int32(rt.Ld32(m.Mem, m.JsxTopSlot()+4)) {
+			if int32(m.BraceDepth) <= int32(binary.LittleEndian.Uint32(m.Mem[m.JsxTopSlot()+4:])) {
 				m.EmitTok(TokenPunctuationBracket, curLHS, curRHS)
 				done = curRHS
 				m.JsxPop()
@@ -8385,10 +8386,10 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 				markerLHS++
 				markerRHS--
 			}
-			if markerRHS-markerLHS == 8 && rt.Ld64(m.Mem, markerLHS) == 0x6574616c706d6574 {
+			if markerRHS-markerLHS == 8 && binary.LittleEndian.Uint64(m.Mem[markerLHS:]) == 0x6574616c706d6574 {
 				metadataMarker = 0xc0000001
 			}
-			if markerRHS-markerLHS == 6 && rt.Ld64(m.Mem, markerLHS)&0xffffffffffff == 0x73656c797473 {
+			if markerRHS-markerLHS == 6 && binary.LittleEndian.Uint64(m.Mem[markerLHS:])&0xffffffffffff == 0x73656c797473 {
 				metadataMarker = 0x40000104
 			}
 		}
@@ -8430,7 +8431,7 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 		}
 		markerLen = markerRHS - markerLHS
 		if markerLen-3 <= 1 && (curT == LexIdentifier || (cut == 0 && curT == LexMultilineComment)) {
-			markerWord = rt.Ld32(m.Mem, markerLHS) | rt.Sel32(curT == LexMultilineComment, 0x20202020, 0)
+			markerWord = binary.LittleEndian.Uint32(m.Mem[markerLHS:]) | rt.Sel32(curT == LexMultilineComment, 0x20202020, 0)
 			if markerLen == 4 {
 				m.JsTemplateMarker = rt.B2u(markerWord == 0x6c6d7468)
 			} else if markerWord&0xffffff == 0x737363 {
@@ -8524,9 +8525,9 @@ func (m *Machine) YamlWordHl(lhs, rhs uint32) uint32 {
 		return rt.Sel32(m.Mem[lhs] == '~', TokenConstantBuiltin, TokenString)
 	}
 	if n == 5 {
-		return rt.Sel32((rt.Ld64(m.Mem, lhs)|0x2020202020)&0xffffffffff == 0x65736c6166, TokenBoolean, TokenString)
+		return rt.Sel32((binary.LittleEndian.Uint64(m.Mem[lhs:])|0x2020202020)&0xffffffffff == 0x65736c6166, TokenBoolean, TokenString)
 	}
-	w := rt.Ld32(m.Mem, lhs) | 0x20202020
+	w := binary.LittleEndian.Uint32(m.Mem[lhs:]) | 0x20202020
 	if n == 4 {
 		if w == 0x65757274 {
 			return TokenBoolean
@@ -8680,7 +8681,7 @@ func (m *Machine) YamlScanPlain(flow uint32) {
 		if m.Ptr >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem, m.Ptr)
+		w = rt.LdV(m.Mem[m.Ptr:])
 		v = rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, rt.Splat8(13))), rt.Or(rt.Eq8(w, rt.Splat8(58)), rt.Eq8(w, rt.Splat8(35))))
 		if flow != 0 {
 			v = rt.Or(v, rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(44)), rt.Eq8(w, rt.Splat8(91))), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(93)), rt.Eq8(w, rt.Splat8(123))), rt.Eq8(w, rt.Splat8(125)))))
@@ -8739,8 +8740,8 @@ func (m *Machine) HlYaml() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		flow = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		flow = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -8748,15 +8749,15 @@ func (m *Machine) HlYaml() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				flow = rt.Ld32(m.Mem, m.StreamWindow)
+				flow = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, flow)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], flow)
 				m.LiveSuspended = true
 				return
 			}
@@ -8831,7 +8832,7 @@ func (m *Machine) HlYaml() {
 			m.EmitTok(TokenType, lhs, m.Ptr)
 			continue
 		}
-		if m.Ptr+3 <= m.End && (rt.Ld32(m.Mem, m.Ptr)&0xffffff == 0x2d2d2d || rt.Ld32(m.Mem, m.Ptr)&0xffffff == 0x2e2e2e) {
+		if m.Ptr+3 <= m.End && (binary.LittleEndian.Uint32(m.Mem[m.Ptr:])&0xffffff == 0x2d2d2d || binary.LittleEndian.Uint32(m.Mem[m.Ptr:])&0xffffff == 0x2e2e2e) {
 			m.Ptr += 3
 			m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
 			continue
@@ -8885,7 +8886,7 @@ func (m *Machine) HlYaml() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46304
-		rt.St32(m.Mem, m.StreamWindow, flow)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], flow)
 		if m.StreamStateLo > 80 {
 			m.StreamStateLo = 80
 		}
@@ -8930,7 +8931,7 @@ func (m *Machine) AstroAfterLine(p uint32) uint32 {
 
 // FrontMatterOpen is $frontMatterOpen.
 func (m *Machine) FrontMatterOpen() uint32 {
-	if m.Ptr == m.DocStart && m.Ptr+3 <= m.End && rt.Ld32(m.Mem, m.Ptr)&0xffffff == 0x2d2d2d {
+	if m.Ptr == m.DocStart && m.Ptr+3 <= m.End && binary.LittleEndian.Uint32(m.Mem[m.Ptr:])&0xffffff == 0x2d2d2d {
 		if m.AstroLineEnd(m.Ptr) == m.Ptr+3 {
 			return m.AstroAfterLine(m.Ptr + 3)
 		}
@@ -8946,7 +8947,7 @@ func (m *Machine) FrontMatterClose(p uint32) uint32 {
 			break
 		}
 		lineEnd = m.AstroLineEnd(p)
-		if lineEnd-p == 3 && rt.Ld32(m.Mem, p)&0xffffff == 0x2d2d2d {
+		if lineEnd-p == 3 && binary.LittleEndian.Uint32(m.Mem[p:])&0xffffff == 0x2d2d2d {
 			return p
 		}
 		p = m.AstroAfterLine(lineEnd)
@@ -9025,7 +9026,7 @@ func (m *Machine) MarkdownFenceReg() uint32 {
 	if m.MarkdownDepth == 0 {
 		return m.MarkdownStreamFence
 	}
-	return rt.Ld32(m.Mem, m.MarkdownFenceSlot(m.MarkdownDepth))
+	return binary.LittleEndian.Uint32(m.Mem[m.MarkdownFenceSlot(m.MarkdownDepth):])
 }
 
 // MarkdownFenceSet is $markdownFenceSet.
@@ -9037,9 +9038,9 @@ func (m *Machine) MarkdownFenceSet(fence, length, lang uint32) {
 		return
 	}
 	slot := m.MarkdownFenceSlot(m.MarkdownDepth)
-	rt.St32(m.Mem, slot, fence)
-	rt.St32(m.Mem, slot+4, length)
-	rt.St32(m.Mem, slot+8, lang)
+	binary.LittleEndian.PutUint32(m.Mem[slot:], fence)
+	binary.LittleEndian.PutUint32(m.Mem[slot+4:], length)
+	binary.LittleEndian.PutUint32(m.Mem[slot+8:], lang)
 }
 
 // MarkdownFenceClearDeeper is $markdownFenceClearDeeper.
@@ -9451,9 +9452,9 @@ func (m *Machine) MarkdownStreamResume() bool {
 	var fence, length, reg uint32
 	if m.MarkdownDepth != 0 {
 		reg = m.MarkdownFenceSlot(m.MarkdownDepth)
-		fence = rt.Ld32(m.Mem, reg)
-		length = rt.Ld32(m.Mem, reg+4)
-		reg = rt.Ld32(m.Mem, reg+8)
+		fence = binary.LittleEndian.Uint32(m.Mem[reg:])
+		length = binary.LittleEndian.Uint32(m.Mem[reg+4:])
+		reg = binary.LittleEndian.Uint32(m.Mem[reg+8:])
 	} else {
 		fence = m.MarkdownStreamFence
 		length = m.MarkdownStreamFenceLen
@@ -9494,7 +9495,7 @@ func (m *Machine) MarkdownPlainEnd(p uint32) uint32 {
 		if m.End-p < 16 {
 			break
 		}
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		hits = rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, rt.Splat8(13)))
 		hits = rt.Or(hits, rt.Or(rt.Eq8(w, rt.Splat8(60)), rt.Eq8(w, rt.Splat8(91))))
 		hits = rt.Or(hits, rt.Or(rt.Eq8(w, rt.Splat8(96)), rt.Eq8(w, rt.Splat8(92))))
@@ -9530,14 +9531,14 @@ func (m *Machine) MarkdownHTMLEnd(lhs, lineEnd uint32) uint32 {
 	if !(c == '/' || c == '!' || c == '?' || m.LexIsIdentStart(c) || c == ':') {
 		return p
 	}
-	if lhs+4 <= m.End && rt.Ld32(m.Mem, lhs) == 0x2d2d213c {
+	if lhs+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x2d2d213c {
 		p = lhs + 4
 		for {
 			p = m.LexFindByte(p, 45)
 			if p >= m.End {
 				break
 			}
-			if p+3 <= m.End && rt.Ld32(m.Mem, p)&0xffffff == 0x3e2d2d {
+			if p+3 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:])&0xffffff == 0x3e2d2d {
 				return p + 3
 			}
 			p++
@@ -9643,7 +9644,7 @@ func (m *Machine) MarkdownAutolinkEnd(lhs, lineEnd uint32) uint32 {
 
 // MarkdownImageLink is $markdownImageLink.
 func (m *Machine) MarkdownImageLink(lhs, lineEnd, alt uint32) uint32 {
-	if lhs+3 >= lineEnd || rt.Ld16(m.Mem, lhs+1) != 23329 {
+	if lhs+3 >= lineEnd || uint32(binary.LittleEndian.Uint16(m.Mem[lhs+1:])) != 23329 {
 		return 0
 	}
 	if m.ScanFindSpecial(lhs+3, alt, 91, 0, 0) < alt {
@@ -9653,7 +9654,7 @@ func (m *Machine) MarkdownImageLink(lhs, lineEnd, alt uint32) uint32 {
 		return 0
 	}
 	src := m.ScanFindSpecial(alt+2, lineEnd, 41, 0, 0)
-	if src+2 >= lineEnd || rt.Ld16(m.Mem, src+1) != 10333 {
+	if src+2 >= lineEnd || uint32(binary.LittleEndian.Uint16(m.Mem[src+1:])) != 10333 {
 		return 0
 	}
 	href := m.ScanFindSpecial(src+3, lineEnd, 41, 0, 0)
@@ -9689,7 +9690,7 @@ func (m *Machine) MarkdownFindEither(p, stop, c uint32) uint32 {
 		return stop
 	}
 	for {
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(c)), rt.Eq8(w, rt.Splat8(96))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -9777,14 +9778,14 @@ func (m *Machine) HlMarkdown() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		listStart = rt.Ld32(m.Mem, 98068)
-		lineCache = rt.Ld32(m.Mem, 98072)
-		lineStart = rt.Ld32(m.Mem, 98076)
-		htmlNoClose = rt.Ld32(m.Mem, 98080)
-		linkNoClose = rt.Ld32(m.Mem, 98084)
-		linkClose = rt.Ld32(m.Mem, 98088)
-		quotes = rt.Ld32(m.Mem, 98092)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		listStart = binary.LittleEndian.Uint32(m.Mem[98068:])
+		lineCache = binary.LittleEndian.Uint32(m.Mem[98072:])
+		lineStart = binary.LittleEndian.Uint32(m.Mem[98076:])
+		htmlNoClose = binary.LittleEndian.Uint32(m.Mem[98080:])
+		linkNoClose = binary.LittleEndian.Uint32(m.Mem[98084:])
+		linkClose = binary.LittleEndian.Uint32(m.Mem[98088:])
+		quotes = binary.LittleEndian.Uint32(m.Mem[98092:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -9792,7 +9793,7 @@ func (m *Machine) HlMarkdown() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				listStart = rt.Ld32(m.Mem, m.StreamWindow)
+				listStart = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 		lineCache = 0
@@ -9820,14 +9821,14 @@ func (m *Machine) HlMarkdown() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, listStart)
-				rt.St32(m.Mem, 98072, lineCache)
-				rt.St32(m.Mem, 98076, lineStart)
-				rt.St32(m.Mem, 98080, htmlNoClose)
-				rt.St32(m.Mem, 98084, linkNoClose)
-				rt.St32(m.Mem, 98088, linkClose)
-				rt.St32(m.Mem, 98092, quotes)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], listStart)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], lineCache)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], lineStart)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], htmlNoClose)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], linkNoClose)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], linkClose)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], quotes)
 				m.LiveSuspended = true
 				return
 			}
@@ -10117,7 +10118,7 @@ func (m *Machine) HlMarkdown() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46312
-		rt.St32(m.Mem, m.StreamWindow, listStart)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], listStart)
 		if m.StreamStateLo > 88 {
 			m.StreamStateLo = 88
 		}
@@ -10266,7 +10267,7 @@ func (m *Machine) StreamResumeRegion() bool {
 				break
 			}
 			lineEnd = m.MarkdownLineEnd(p)
-			if lineEnd-p == 3 && rt.Ld32(m.Mem, p)&0xffffff == 0x2d2d2d {
+			if lineEnd-p == 3 && binary.LittleEndian.Uint32(m.Mem[p:])&0xffffff == 0x2d2d2d {
 				closer = p
 				found = true
 				break
@@ -10354,10 +10355,10 @@ func (m *Machine) HlAbap() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		tpl = rt.Ld32(m.Mem, 98076)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		tpl = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -10365,19 +10366,19 @@ func (m *Machine) HlAbap() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				tpl = rt.Ld32(m.Mem, m.StreamWindow+8)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				tpl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, tpl)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], tpl)
 				m.LiveSuspended = true
 				return
 			}
@@ -10447,7 +10448,7 @@ func (m *Machine) HlAbap() {
 				c = v
 				v = m.LexKeywordValue(1360, 1360+c, 58704, 127, 247)
 				if int32(v) < 0 {
-					w = rt.Ld64(m.Mem, 1360)
+					w = binary.LittleEndian.Uint64(m.Mem[1360:])
 					if c == 4 && uint32(w) == 0x656b696c {
 						v = 529
 					}
@@ -10556,9 +10557,9 @@ func (m *Machine) HlAbap() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46320
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, tpl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], tpl)
 		if m.StreamStateLo > 96 {
 			m.StreamStateLo = 96
 		}
@@ -10576,9 +10577,9 @@ func (m *Machine) HlAda() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		prev = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		prev = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -10586,17 +10587,17 @@ func (m *Machine) HlAda() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				prev = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				prev = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, prev)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], prev)
 				m.LiveSuspended = true
 				return
 			}
@@ -10666,7 +10667,7 @@ func (m *Machine) HlAda() {
 			rhs = m.Ptr
 			n = m.LexLowerCopy(lhs, rhs, 1360)
 			kind = m.LexKeywordValue(1360, 1360+n, 35232, 31, 85)
-			if n == 5 && rt.Ld32(m.Mem, 1360) == 0x676e6172 && m.Mem[1364] == 'e' {
+			if n == 5 && binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x676e6172 && m.Mem[1364] == 'e' {
 				kind = TokenKeyword
 			}
 			if int32(kind) >= 0 {
@@ -10760,8 +10761,8 @@ func (m *Machine) HlAda() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46336
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, prev)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], prev)
 		if m.StreamStateLo > 112 {
 			m.StreamStateLo = 112
 		}
@@ -10785,7 +10786,7 @@ func (m *Machine) JavaWordHl(lhs, rhs uint32) uint32 {
 // ApexWordHl is $apexWordHl.
 func (m *Machine) ApexWordHl(lhs, rhs uint32) uint32 {
 	n := m.LexLowerCopy(lhs, rhs, 1360)
-	if n == 5 && rt.Ld32(m.Mem, 1360) == 0x72656877 && m.Mem[1364] == 'e' {
+	if n == 5 && binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x72656877 && m.Mem[1364] == 'e' {
 		return 2065
 	}
 	return m.LexKeywordValue(1360, 1360+n, 35648, 31, 96)
@@ -10829,12 +10830,12 @@ func (m *Machine) HlJavaImpl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		afterType = rt.Ld32(m.Mem, 98076)
-		textBlock = rt.Ld32(m.Mem, 98080)
-		soql = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		afterType = binary.LittleEndian.Uint32(m.Mem[98076:])
+		textBlock = binary.LittleEndian.Uint32(m.Mem[98080:])
+		soql = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -10842,23 +10843,23 @@ func (m *Machine) HlJavaImpl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				afterType = rt.Ld32(m.Mem, m.StreamWindow+8)
-				textBlock = rt.Ld32(m.Mem, m.StreamWindow+12)
-				soql = rt.Ld32(m.Mem, m.StreamWindow+16)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				afterType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				textBlock = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				soql = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, afterType)
-				rt.St32(m.Mem, 98080, textBlock)
-				rt.St32(m.Mem, 98084, soql)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], afterType)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], textBlock)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], soql)
 				m.LiveSuspended = true
 				return
 			}
@@ -10957,7 +10958,7 @@ func (m *Machine) HlJavaImpl() {
 							kind = 0xffffffff
 						}
 					}
-					if rhs-lhs == 3 && rt.Ld16(m.Mem, 1361) == 29797 {
+					if rhs-lhs == 3 && uint32(binary.LittleEndian.Uint16(m.Mem[1361:])) == 29797 {
 						c3 = m.JavaByte(m.LexSkipSpaceAt(rhs))
 						if member == 0 && (c|32 == 103 || c|32 == 115) && (c3 == ';' || c3 == '{') {
 							kind = TokenKeywordDeclaration
@@ -11141,11 +11142,11 @@ func (m *Machine) HlJavaImpl() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46344
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, afterType)
-		rt.St32(m.Mem, m.StreamWindow+12, textBlock)
-		rt.St32(m.Mem, m.StreamWindow+16, soql)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], afterType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], textBlock)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], soql)
 		if m.StreamStateLo > 120 {
 			m.StreamStateLo = 120
 		}
@@ -11174,7 +11175,7 @@ func (m *Machine) IniIsBoolean(lhs, rhs uint32) bool {
 	if n-2 > 3 {
 		return false
 	}
-	w := (rt.Ld64(m.Mem, lhs) | 0x2020202020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
+	w := (binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 	return w == 0x65757274 || w == 0x65736c6166 || w == 0x736579 || w == 28526 || w == 28271 || w == 0x66666f
 }
 
@@ -11316,9 +11317,9 @@ func (m *Machine) HlIni() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		line = rt.Ld32(m.Mem, 98068)
-		cont = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		line = binary.LittleEndian.Uint32(m.Mem[98068:])
+		cont = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -11326,17 +11327,17 @@ func (m *Machine) HlIni() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				line = rt.Ld32(m.Mem, m.StreamWindow)
-				cont = rt.Ld32(m.Mem, m.StreamWindow+4)
+				line = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				cont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, line)
-				rt.St32(m.Mem, 98072, cont)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], line)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], cont)
 				m.LiveSuspended = true
 				return
 			}
@@ -11432,8 +11433,8 @@ func (m *Machine) HlIni() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46368
-		rt.St32(m.Mem, m.StreamWindow, line)
-		rt.St32(m.Mem, m.StreamWindow+4, cont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], line)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], cont)
 		if m.StreamStateLo > 144 {
 			m.StreamStateLo = 144
 		}
@@ -11488,8 +11489,8 @@ func (m *Machine) HlApache() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		line = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		line = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -11497,15 +11498,15 @@ func (m *Machine) HlApache() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				line = rt.Ld32(m.Mem, m.StreamWindow)
+				line = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, line)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], line)
 				m.LiveSuspended = true
 				return
 			}
@@ -11554,7 +11555,7 @@ func (m *Machine) HlApache() {
 			}
 			if m.LexIsIdentStart(c) && c != '$' {
 				m.ScanIdentRun(0)
-				m.EmitTok(rt.Sel32(m.Ptr-lhs >= 7 && (rt.Ld64(m.Mem, lhs)|0x20202020202020)&0xffffffffffffff == 0x6564756c636e69, TokenKeywordImport, TokenKeyword), lhs, m.Ptr)
+				m.EmitTok(rt.Sel32(m.Ptr-lhs >= 7 && (binary.LittleEndian.Uint64(m.Mem[lhs:])|0x20202020202020)&0xffffffffffffff == 0x6564756c636e69, TokenKeywordImport, TokenKeyword), lhs, m.Ptr)
 				continue
 			}
 		}
@@ -11646,7 +11647,7 @@ func (m *Machine) HlApache() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46376
-		rt.St32(m.Mem, m.StreamWindow, line)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], line)
 		if m.StreamStateLo > 152 {
 			m.StreamStateLo = 152
 		}
@@ -11662,7 +11663,7 @@ func (m *Machine) ApplescriptWord(n uint32) uint32 {
 	if n > 7 {
 		return 0xffffffff
 	}
-	w := rt.Ld64(m.Mem, 1360) & (uint64(1)<<(uint64(n<<3)&63) - 1)
+	w := binary.LittleEndian.Uint64(m.Mem[1360:]) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 	if w == 0x6572656877 || w == 0x65736f6877 {
 		return TokenKeyword
 	}
@@ -11679,9 +11680,9 @@ func (m *Machine) HlApplescript() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		lineStart = rt.Ld32(m.Mem, 98068)
-		expect = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		lineStart = binary.LittleEndian.Uint32(m.Mem[98068:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		lineStart = 1
 		m.LexEmitLeadingContinuation()
@@ -11690,17 +11691,17 @@ func (m *Machine) HlApplescript() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				lineStart = rt.Ld32(m.Mem, m.StreamWindow)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+4)
+				lineStart = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, lineStart)
-				rt.St32(m.Mem, 98072, expect)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], lineStart)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], expect)
 				m.LiveSuspended = true
 				return
 			}
@@ -11738,7 +11739,7 @@ func (m *Machine) HlApplescript() {
 			continue
 		}
 		if c >= 194 && lhs+2 <= m.End {
-			v = rt.Ld16(m.Mem, lhs)
+			v = uint32(binary.LittleEndian.Uint16(m.Mem[lhs:]))
 			if v == 43970 {
 				p = lhs + 2
 				for {
@@ -11776,7 +11777,7 @@ func (m *Machine) HlApplescript() {
 				p = lhs + 2
 			}
 			if lhs+3 <= m.End {
-				v = rt.Ld32(m.Mem, lhs) & 0xffffff
+				v = binary.LittleEndian.Uint32(m.Mem[lhs:]) & 0xffffff
 				if v == 0xa089e2 || v == 0xa489e2 || v == 0xa589e2 {
 					p = lhs + 3
 				}
@@ -11826,7 +11827,7 @@ func (m *Machine) HlApplescript() {
 					hl = v & 255
 					v >>= 8
 					if expect == 5 {
-						if n == 4 && rt.Ld32(m.Mem, 1360) == 0x68746977 {
+						if n == 4 && binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x68746977 {
 							expect = 2
 						} else {
 							expect = 0
@@ -11851,7 +11852,7 @@ func (m *Machine) HlApplescript() {
 						} else {
 							n = 6
 						}
-						if p+n <= m.End && (rt.Ld64(m.Mem, p)|0x2020202020202020)&(uint64(1)<<(uint64(n<<3)&63)-1) == rt.Sel64(n == 5, 0x65756c6176, 0x747069726373) && !m.LexIsIdentContinue(m.TemplateByte(p+n)) {
+						if p+n <= m.End && (binary.LittleEndian.Uint64(m.Mem[p:])|0x2020202020202020)&(uint64(1)<<(uint64(n<<3)&63)-1) == rt.Sel64(n == 5, 0x65756c6176, 0x747069726373) && !m.LexIsIdentContinue(m.TemplateByte(p+n)) {
 							rhs = p + n
 						}
 					case v != 0:
@@ -11866,7 +11867,7 @@ func (m *Machine) HlApplescript() {
 						expect = 0
 					}
 					hl = TokenProperty
-					if !(c2 == ':' || (p+2 <= m.End && rt.Ld16(m.Mem, p)|8224 == 26223 && !m.LexIsIdentContinue(m.TemplateByte(p+2)))) {
+					if !(c2 == ':' || (p+2 <= m.End && uint32(binary.LittleEndian.Uint16(m.Mem[p:]))|8224 == 26223 && !m.LexIsIdentContinue(m.TemplateByte(p+2)))) {
 						hl = TokenFunction
 						if c2 != '(' {
 							hl = TokenNone
@@ -11906,8 +11907,8 @@ func (m *Machine) HlApplescript() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46384
-		rt.St32(m.Mem, m.StreamWindow, lineStart)
-		rt.St32(m.Mem, m.StreamWindow+4, expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], lineStart)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expect)
 		if m.StreamStateLo > 160 {
 			m.StreamStateLo = 160
 		}
@@ -12005,7 +12006,7 @@ func (m *Machine) RstPlainEnd(p, stop, a, b, c uint32) uint32 {
 	vb = rt.Splat8(b)
 	vc = rt.Splat8(c)
 	for {
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(42)), rt.Eq8(w, rt.Splat8(96))), rt.Or(rt.Eq8(w, rt.Splat8(124)), rt.Eq8(w, rt.Splat8(92)))), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(58)), rt.Eq8(w, rt.Splat8(95))), rt.Or(rt.Eq8(w, va), rt.Or(rt.Eq8(w, vb), rt.Eq8(w, vc))))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -12042,13 +12043,13 @@ func (m *Machine) HlRst() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		prev = rt.Ld32(m.Mem, 98068)
-		block = rt.Ld32(m.Mem, 98072)
-		indent = rt.Ld32(m.Mem, 98076)
-		mid = rt.Ld32(m.Mem, 98080)
-		lineEnd = rt.Ld32(m.Mem, 98084)
-		lineIndent = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		prev = binary.LittleEndian.Uint32(m.Mem[98068:])
+		block = binary.LittleEndian.Uint32(m.Mem[98072:])
+		indent = binary.LittleEndian.Uint32(m.Mem[98076:])
+		mid = binary.LittleEndian.Uint32(m.Mem[98080:])
+		lineEnd = binary.LittleEndian.Uint32(m.Mem[98084:])
+		lineIndent = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -12056,9 +12057,9 @@ func (m *Machine) HlRst() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				prev = rt.Ld32(m.Mem, m.StreamWindow)
-				block = rt.Ld32(m.Mem, m.StreamWindow+4)
-				indent = rt.Ld32(m.Mem, m.StreamWindow+8)
+				prev = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				block = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				indent = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 		mid = 0
@@ -12069,13 +12070,13 @@ next:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, prev)
-				rt.St32(m.Mem, 98072, block)
-				rt.St32(m.Mem, 98076, indent)
-				rt.St32(m.Mem, 98080, mid)
-				rt.St32(m.Mem, 98084, lineEnd)
-				rt.St32(m.Mem, 98088, lineIndent)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], prev)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], block)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], indent)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], mid)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], lineEnd)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], lineIndent)
 				m.LiveSuspended = true
 				return
 			}
@@ -12226,8 +12227,8 @@ next:
 					m.Ptr = q + 2
 					m.EmitTok(TokenPunctuationSpecial, q, m.Ptr)
 					c = q - p
-					c2 = rt.Ld32(m.Mem, p)
-					if (c >= 4 && c2 == 1701080931) || (c == '\n' && rt.Ld64(m.Mem, p) == 0x6f63656372756f73) || (c == 4 && c2 == 1752457581) || (c == 3 && c2&0xffffff == 0x776172) {
+					c2 = binary.LittleEndian.Uint32(m.Mem[p:])
+					if (c >= 4 && c2 == 1701080931) || (c == '\n' && binary.LittleEndian.Uint64(m.Mem[p:]) == 0x6f63656372756f73) || (c == 4 && c2 == 1752457581) || (c == 3 && c2&0xffffff == 0x776172) {
 						block = 4
 						indent = lineIndent
 					}
@@ -12285,7 +12286,7 @@ next:
 				m.EmitTok(TokenPunctuationMarkup, lhs, m.Ptr)
 				continue
 			}
-			if rt.Ld32(m.Mem, lhs)&0xffffff == 0x3e3e3e && lineEnd >= lhs+3 {
+			if binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x3e3e3e && lineEnd >= lhs+3 {
 				m.Ptr = lineEnd
 				m.EmitTok(TokenTextLiteral, lhs, m.Ptr)
 				continue
@@ -12398,7 +12399,7 @@ next:
 		}
 		q = m.RstPlainEnd(lhs+1, lineEnd, 91, 91, 91)
 		c = m.TemplateByte(q)
-		if c == ':' && rt.Ld16(m.Mem, q+1) == 12079 {
+		if c == ':' && uint32(binary.LittleEndian.Uint16(m.Mem[q+1:])) == 12079 {
 			p = m.RstWordStart(lhs, q)
 			if p < q {
 				m.EmitTok(TokenNone, lhs, p)
@@ -12429,9 +12430,9 @@ next:
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46392
-		rt.St32(m.Mem, m.StreamWindow, prev)
-		rt.St32(m.Mem, m.StreamWindow+4, block)
-		rt.St32(m.Mem, m.StreamWindow+8, indent)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], prev)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], block)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], indent)
 		if m.StreamStateLo > 168 {
 			m.StreamStateLo = 168
 		}
@@ -12445,7 +12446,7 @@ next:
 // AdocIsAdmonition is $adocIsAdmonition.
 func (m *Machine) AdocIsAdmonition(p, stop uint32) bool {
 	n := stop - p
-	w := rt.Ld64(m.Mem, p)
+	w := binary.LittleEndian.Uint64(m.Mem[p:])
 	return (n == 3 && uint32(w)&0xffffff == 0x504954) || (n == 4 && uint32(w) == 0x45544f4e) || (n == 7 && (w&0xffffffffffffff == 0x474e494e524157 || w&0xffffffffffffff == 0x4e4f4954554143)) || (n == 9 && w == 0x4e4154524f504d49)
 }
 
@@ -12456,11 +12457,11 @@ func (m *Machine) HlAsciidoc() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		delim = rt.Ld32(m.Mem, 98068)
-		para = rt.Ld32(m.Mem, 98072)
-		mid = rt.Ld32(m.Mem, 98076)
-		lineEnd = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		delim = binary.LittleEndian.Uint32(m.Mem[98068:])
+		para = binary.LittleEndian.Uint32(m.Mem[98072:])
+		mid = binary.LittleEndian.Uint32(m.Mem[98076:])
+		lineEnd = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -12468,8 +12469,8 @@ func (m *Machine) HlAsciidoc() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				delim = rt.Ld32(m.Mem, m.StreamWindow)
-				para = rt.Ld32(m.Mem, m.StreamWindow+4)
+				delim = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				para = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 		mid = 0
@@ -12479,11 +12480,11 @@ next:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, delim)
-				rt.St32(m.Mem, 98072, para)
-				rt.St32(m.Mem, 98076, mid)
-				rt.St32(m.Mem, 98080, lineEnd)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], delim)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], para)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], mid)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], lineEnd)
 				m.LiveSuspended = true
 				return
 			}
@@ -12538,7 +12539,7 @@ next:
 				m.EmitTok(TokenTextLiteral, p, m.Ptr)
 				continue
 			}
-			if q == 1 || (n == 2 && rt.Ld16(m.Mem, p) == 11565) || (n == 1 && c == '+') || (n >= 4 && rt.Ld32(m.Mem, p) == 0x3d3d3d7c) {
+			if q == 1 || (n == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 11565) || (n == 1 && c == '+') || (n >= 4 && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x3d3d3d7c) {
 				if q == 1 && ((n >= 4 && (c == '-' || c == '.' || c == '+' || c == '/')) || c == '`') {
 					delim = c | n<<8
 				}
@@ -12724,7 +12725,7 @@ next:
 			p = rhs + 1
 			n = 0
 			if c < rhs {
-				if rt.Ld16(m.Mem, p) == 12079 {
+				if uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 12079 {
 					q = m.ScanFindSpecial(p, lineEnd, 32, 0, 0)
 					m.EmitTok(TokenNone, lhs, c)
 					m.Ptr = m.ScanFindSpecial(p, q, 91, 0, 0)
@@ -12764,8 +12765,8 @@ next:
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46408
-		rt.St32(m.Mem, m.StreamWindow, delim)
-		rt.St32(m.Mem, m.StreamWindow+4, para)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], delim)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], para)
 		if m.StreamStateLo > 184 {
 			m.StreamStateLo = 184
 		}
@@ -12791,7 +12792,7 @@ func (m *Machine) AsmIsRegister(lhs, rhs uint32) bool {
 			}
 		}
 	}
-	w = rt.Ld32(m.Mem, lhs) | 0x20202020
+	w = binary.LittleEndian.Uint32(m.Mem[lhs:]) | 0x20202020
 	if n-4 <= 1 && w&0xffff00 == 0x6d6d00 && c-120 <= 2 && m.LexIsDigit(uint32(m.Mem[lhs+3])) {
 		return true
 	}
@@ -12834,8 +12835,8 @@ func (m *Machine) HlAsm() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expectMnemonic = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expectMnemonic = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		expectMnemonic = 1
 		m.LexEmitLeadingContinuation()
@@ -12844,15 +12845,15 @@ func (m *Machine) HlAsm() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expectMnemonic = rt.Ld32(m.Mem, m.StreamWindow)
+				expectMnemonic = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expectMnemonic)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expectMnemonic)
 				m.LiveSuspended = true
 				return
 			}
@@ -12958,7 +12959,7 @@ func (m *Machine) HlAsm() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46416
-		rt.St32(m.Mem, m.StreamWindow, expectMnemonic)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expectMnemonic)
 		if m.StreamStateLo > 192 {
 			m.StreamStateLo = 192
 		}
@@ -13011,9 +13012,9 @@ func (m *Machine) HlAwk() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		div = rt.Ld32(m.Mem, 98068)
-		fn = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		div = binary.LittleEndian.Uint32(m.Mem[98068:])
+		fn = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -13021,17 +13022,17 @@ func (m *Machine) HlAwk() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				div = rt.Ld32(m.Mem, m.StreamWindow)
-				fn = rt.Ld32(m.Mem, m.StreamWindow+4)
+				div = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				fn = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, div)
-				rt.St32(m.Mem, 98072, fn)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], div)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], fn)
 				m.LiveSuspended = true
 				return
 			}
@@ -13144,8 +13145,8 @@ func (m *Machine) HlAwk() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46424
-		rt.St32(m.Mem, m.StreamWindow, div)
-		rt.St32(m.Mem, m.StreamWindow+4, fn)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], div)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], fn)
 		if m.StreamStateLo > 200 {
 			m.StreamStateLo = 200
 		}
@@ -13430,15 +13431,15 @@ func (m *Machine) HlBash() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		cmd = rt.Ld32(m.Mem, 98068)
-		flow = rt.Ld32(m.Mem, 98072)
-		arrayOpen = rt.Ld32(m.Mem, 98076)
-		decl = rt.Ld32(m.Mem, 98080)
-		hdDelim = rt.Ld32(m.Mem, 98084)
-		hdLen = rt.Ld32(m.Mem, 98088)
-		hdStrip = rt.Ld32(m.Mem, 98092)
-		joined = rt.Ld32(m.Mem, 98096)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		cmd = binary.LittleEndian.Uint32(m.Mem[98068:])
+		flow = binary.LittleEndian.Uint32(m.Mem[98072:])
+		arrayOpen = binary.LittleEndian.Uint32(m.Mem[98076:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98080:])
+		hdDelim = binary.LittleEndian.Uint32(m.Mem[98084:])
+		hdLen = binary.LittleEndian.Uint32(m.Mem[98088:])
+		hdStrip = binary.LittleEndian.Uint32(m.Mem[98092:])
+		joined = binary.LittleEndian.Uint32(m.Mem[98096:])
 	} else {
 		if !m.Streaming || m.StreamReset|m.StreamDepth != 0 {
 			m.BashArith = 0
@@ -13454,29 +13455,29 @@ func (m *Machine) HlBash() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				cmd = rt.Ld32(m.Mem, m.StreamWindow)
-				flow = rt.Ld32(m.Mem, m.StreamWindow+4)
-				arrayOpen = rt.Ld32(m.Mem, m.StreamWindow+8)
-				decl = rt.Ld32(m.Mem, m.StreamWindow+12)
-				hdDelim = rt.Ld32(m.Mem, m.StreamWindow+16)
-				hdLen = rt.Ld32(m.Mem, m.StreamWindow+20)
-				hdStrip = rt.Ld32(m.Mem, m.StreamWindow+24)
-				joined = rt.Ld32(m.Mem, m.StreamWindow+28)
+				cmd = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				flow = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				arrayOpen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				hdDelim = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				hdLen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				hdStrip = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				joined = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, cmd)
-				rt.St32(m.Mem, 98072, flow)
-				rt.St32(m.Mem, 98076, arrayOpen)
-				rt.St32(m.Mem, 98080, decl)
-				rt.St32(m.Mem, 98084, hdDelim)
-				rt.St32(m.Mem, 98088, hdLen)
-				rt.St32(m.Mem, 98092, hdStrip)
-				rt.St32(m.Mem, 98096, joined)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], cmd)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], flow)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], arrayOpen)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], hdDelim)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], hdLen)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], hdStrip)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], joined)
 				m.LiveSuspended = true
 				return
 			}
@@ -13645,7 +13646,7 @@ func (m *Machine) HlBash() {
 							decl = 0
 						} else if hl == TokenVariable {
 							p = m.LexSkipSpaceAt(rhs)
-							if p+1 < m.End && rt.Ld16(m.Mem, p) == 10536 {
+							if p+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 10536 {
 								hl = TokenFunctionDefinition
 							} else if cmd != 0 {
 								if m.BashByte(m.Ptr) == '=' && c != '\\' {
@@ -13756,14 +13757,14 @@ func (m *Machine) HlBash() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46432
-		rt.St32(m.Mem, m.StreamWindow, cmd)
-		rt.St32(m.Mem, m.StreamWindow+4, flow)
-		rt.St32(m.Mem, m.StreamWindow+8, arrayOpen)
-		rt.St32(m.Mem, m.StreamWindow+12, decl)
-		rt.St32(m.Mem, m.StreamWindow+16, hdDelim)
-		rt.St32(m.Mem, m.StreamWindow+20, hdLen)
-		rt.St32(m.Mem, m.StreamWindow+24, hdStrip)
-		rt.St32(m.Mem, m.StreamWindow+28, joined)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], cmd)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], flow)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], arrayOpen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], hdDelim)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], hdLen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], hdStrip)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], joined)
 		if m.StreamStateLo > 208 {
 			m.StreamStateLo = 208
 		}
@@ -13882,11 +13883,11 @@ func (m *Machine) HlBatch() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		argument = rt.Ld32(m.Mem, 98068)
-		quote = rt.Ld32(m.Mem, 98072)
-		label = rt.Ld32(m.Mem, 98076)
-		variables = rt.Ld64(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		argument = binary.LittleEndian.Uint32(m.Mem[98068:])
+		quote = binary.LittleEndian.Uint32(m.Mem[98072:])
+		label = binary.LittleEndian.Uint32(m.Mem[98076:])
+		variables = binary.LittleEndian.Uint64(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -13894,21 +13895,21 @@ func (m *Machine) HlBatch() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				argument = rt.Ld32(m.Mem, m.StreamWindow)
-				quote = rt.Ld32(m.Mem, m.StreamWindow+4)
-				label = rt.Ld32(m.Mem, m.StreamWindow+8)
-				variables = rt.Ld64(m.Mem, m.StreamWindow+16)
+				argument = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				quote = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				label = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				variables = binary.LittleEndian.Uint64(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, argument)
-				rt.St32(m.Mem, 98072, quote)
-				rt.St32(m.Mem, 98076, label)
-				rt.St64(m.Mem, 98080, variables)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], argument)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], quote)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], label)
+				binary.LittleEndian.PutUint64(m.Mem[98080:], variables)
 				m.LiveSuspended = true
 				return
 			}
@@ -13936,7 +13937,7 @@ func (m *Machine) HlBatch() {
 		if c == '%' || c == '!' {
 			p = m.BatchVariableEnd(lhs, variables)
 			if p > lhs {
-				if p-lhs == 3 && rt.Ld16(m.Mem, lhs) == 9509 {
+				if p-lhs == 3 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 9509 {
 					n = uint32(m.Mem[lhs+2])
 					if (n|32)-97 <= 25 {
 						variables |= uint64(1) << (uint64(n-65) & 63)
@@ -13997,14 +13998,14 @@ func (m *Machine) HlBatch() {
 				hl = TokenLabel
 			}
 			if n == 4 {
-				p = rt.Ld32(m.Mem, 1360)
+				p = binary.LittleEndian.Uint32(m.Mem[1360:])
 			} else {
 				p = 0
 			}
 			label = rt.B2u(p == 0x6f746f67)
 			argument = 1
 			if hl == TokenKeywordControl {
-				if (n == 2 && rt.Ld16(m.Mem, 1360) == 28516) || p == 0x6c6c6163 || p == 0x65736c65 {
+				if (n == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[1360:])) == 28516) || p == 0x6c6c6163 || p == 0x65736c65 {
 					argument = 0
 				}
 			}
@@ -14040,10 +14041,10 @@ func (m *Machine) HlBatch() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46464
-		rt.St32(m.Mem, m.StreamWindow, argument)
-		rt.St32(m.Mem, m.StreamWindow+4, quote)
-		rt.St32(m.Mem, m.StreamWindow+8, label)
-		rt.St64(m.Mem, m.StreamWindow+16, variables)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], argument)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], quote)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], label)
+		binary.LittleEndian.PutUint64(m.Mem[m.StreamWindow+16:], variables)
 		if m.StreamStateLo > 240 {
 			m.StreamStateLo = 240
 		}
@@ -14062,7 +14063,7 @@ func (m *Machine) BibFind(p uint32) uint32 {
 		if p >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(123)), rt.Eq8(w, rt.Splat8(125))), rt.Or(rt.Eq8(w, rt.Splat8(34)), rt.Eq8(w, rt.Splat8(92)))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -14133,11 +14134,11 @@ func (m *Machine) HlBibtex() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		state = rt.Ld32(m.Mem, 98068)
-		kind = rt.Ld32(m.Mem, 98072)
-		closer = rt.Ld32(m.Mem, 98076)
-		open = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		state = binary.LittleEndian.Uint32(m.Mem[98068:])
+		kind = binary.LittleEndian.Uint32(m.Mem[98072:])
+		closer = binary.LittleEndian.Uint32(m.Mem[98076:])
+		open = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -14145,10 +14146,10 @@ func (m *Machine) HlBibtex() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				state = rt.Ld32(m.Mem, m.StreamWindow)
-				kind = rt.Ld32(m.Mem, m.StreamWindow+4)
-				closer = rt.Ld32(m.Mem, m.StreamWindow+8)
-				open = rt.Ld32(m.Mem, m.StreamWindow+12)
+				state = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				kind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				closer = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				open = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 		if open != 0 {
@@ -14158,11 +14159,11 @@ func (m *Machine) HlBibtex() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, state)
-				rt.St32(m.Mem, 98072, kind)
-				rt.St32(m.Mem, 98076, closer)
-				rt.St32(m.Mem, 98080, open)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], state)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], kind)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], closer)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], open)
 				m.LiveSuspended = true
 				return
 			}
@@ -14180,7 +14181,7 @@ func (m *Machine) HlBibtex() {
 			if c == '@' && (m.TemplateByte(m.Ptr)|32)-97 <= 25 {
 				m.ScanIdentRun(45)
 				length = m.Ptr - lhs
-				w = rt.Ld64(m.Mem, lhs+1) | 0x2020202020202020
+				w = binary.LittleEndian.Uint64(m.Mem[lhs+1:]) | 0x2020202020202020
 				kind = rt.B2u(length == 7 && w&0xffffffffffff == 0x676e69727473) | rt.B2u(length == 9 && w == 0x656c626d61657270)<<1
 				if length == 8 && w&0xffffffffffffff == 0x746e656d6d6f63 {
 					m.EmitTok(TokenComment, lhs, m.Ptr)
@@ -14274,10 +14275,10 @@ func (m *Machine) HlBibtex() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46488
-		rt.St32(m.Mem, m.StreamWindow, state)
-		rt.St32(m.Mem, m.StreamWindow+4, kind)
-		rt.St32(m.Mem, m.StreamWindow+8, closer)
-		rt.St32(m.Mem, m.StreamWindow+12, open)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], state)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], kind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], closer)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], open)
 		if m.StreamStateLo > 264 {
 			m.StreamStateLo = 264
 		}
@@ -14339,11 +14340,11 @@ func (m *Machine) HlBicep() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		interp = rt.Ld32(m.Mem, 98068)
-		expect = rt.Ld32(m.Mem, 98072)
-		head = rt.Ld32(m.Mem, 98076)
-		member = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98068:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98072:])
+		head = binary.LittleEndian.Uint32(m.Mem[98076:])
+		member = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		head = 1
 		m.LexEmitLeadingContinuation()
@@ -14352,21 +14353,21 @@ func (m *Machine) HlBicep() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				interp = rt.Ld32(m.Mem, m.StreamWindow)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+4)
-				head = rt.Ld32(m.Mem, m.StreamWindow+8)
-				member = rt.Ld32(m.Mem, m.StreamWindow+12)
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				head = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, interp)
-				rt.St32(m.Mem, 98072, expect)
-				rt.St32(m.Mem, 98076, head)
-				rt.St32(m.Mem, 98080, member)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], head)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], member)
 				m.LiveSuspended = true
 				return
 			}
@@ -14540,10 +14541,10 @@ func (m *Machine) HlBicep() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46504
-		rt.St32(m.Mem, m.StreamWindow, interp)
-		rt.St32(m.Mem, m.StreamWindow+4, expect)
-		rt.St32(m.Mem, m.StreamWindow+8, head)
-		rt.St32(m.Mem, m.StreamWindow+12, member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], head)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], member)
 		if m.StreamStateLo > 280 {
 			m.StreamStateLo = 280
 		}
@@ -14559,7 +14560,7 @@ func (m *Machine) PhpIsOpen(p uint32) bool {
 	if p+3 > m.End {
 		return false
 	}
-	if rt.Ld16(m.Mem, p) != 16188 {
+	if uint32(binary.LittleEndian.Uint16(m.Mem[p:])) != 16188 {
 		return false
 	}
 	c := uint32(m.Mem[p+2])
@@ -14569,7 +14570,7 @@ func (m *Machine) PhpIsOpen(p uint32) bool {
 	if p+5 > m.End {
 		return false
 	}
-	if (rt.Ld32(m.Mem, p+2)|0x202020)&0xffffff != 0x706870 {
+	if (binary.LittleEndian.Uint32(m.Mem[p+2:])|0x202020)&0xffffff != 0x706870 {
 		return false
 	}
 	return p+5 == m.End || m.LexIsSpace(uint32(m.Mem[p+5]))
@@ -14630,7 +14631,7 @@ func (m *Machine) PhpUpperName(lhs, rhs uint32) uint32 {
 	} else {
 		plain = TokenVariable
 	}
-	if rhs+1 < m.End && rt.Ld16(m.Mem, rhs) == 14906 {
+	if rhs+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[rhs:])) == 14906 {
 		return TokenType
 	}
 	if uint32(m.Mem[lhs+1])-97 <= 25 {
@@ -14652,7 +14653,7 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 	}
 	switch n {
 	case 2:
-		w = rt.Ld64(m.Mem, lhs) | 0x2020202020202020
+		w = binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020
 		w &= 65535
 		if w == 26217 || w == 28516 {
 			return TokenKeywordControl
@@ -14662,7 +14663,7 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 		}
 		return TokenVariable
 	case 3:
-		w = rt.Ld64(m.Mem, lhs) | 0x2020202020202020
+		w = binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020
 		w &= 0xffffff
 		if w == 0x77656e || w == 0x657375 || w == 0x726176 {
 			return TokenKeyword
@@ -14675,7 +14676,7 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 		}
 		return TokenVariable
 	case 4:
-		w = rt.Ld64(m.Mem, lhs) | 0x2020202020202020
+		w = binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020
 		w &= 0xffffffff
 		if w == 0x65757274 {
 			return TokenBoolean
@@ -14694,8 +14695,8 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 		}
 		return TokenVariable
 	}
-	v = rt.LdV(m.Mem, lhs)
-	rt.StV(m.Mem, 1360, rt.Or(v, rt.And(rt.LeU8(rt.Sub8(v, rt.Splat8(65)), rt.Splat8(25)), rt.Splat8(32))))
+	v = rt.LdV(m.Mem[lhs:])
+	rt.StV(m.Mem[1360:], rt.Or(v, rt.And(rt.LeU8(rt.Sub8(v, rt.Splat8(65)), rt.Splat8(25)), rt.Splat8(32))))
 	hl := m.LexKeywordValue(1360, 1360+n, 24704, 15, 51)
 	return rt.Sel32(int32(hl) >= 0, hl, TokenVariable)
 }
@@ -14742,12 +14743,12 @@ func (m *Machine) PhpBytesEq(a, b, n uint32) bool {
 	for {
 		if n < 8 {
 			mask = uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63)
-			if rt.Ld64(m.Mem, a)&mask != rt.Ld64(m.Mem, b)&mask {
+			if binary.LittleEndian.Uint64(m.Mem[a:])&mask != binary.LittleEndian.Uint64(m.Mem[b:])&mask {
 				return false
 			}
 			break
 		}
-		if rt.Ld64(m.Mem, a) != rt.Ld64(m.Mem, b) {
+		if binary.LittleEndian.Uint64(m.Mem[a:]) != binary.LittleEndian.Uint64(m.Mem[b:]) {
 			return false
 		}
 		a += 8
@@ -15018,12 +15019,12 @@ func (m *Machine) PhpCode(resume bool) {
 						hl = TokenVariableParameter
 					}
 				case hl == TokenKeywordDeclaration:
-					if m.Ptr-lhs == 8 && rt.Ld64(m.Mem, lhs)|0x2020202020202020 == 0x6e6f6974636e7566 {
+					if m.Ptr-lhs == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:])|0x2020202020202020 == 0x6e6f6974636e7566 {
 						decl = 1
 					} else {
 						decl = 2
 					}
-				case m.Ptr-lhs == 3 && (rt.Ld32(m.Mem, lhs)|0x202020)&0xffffff == 0x77656e:
+				case m.Ptr-lhs == 3 && (binary.LittleEndian.Uint32(m.Mem[lhs:])|0x202020)&0xffffff == 0x77656e:
 					decl = 3
 				}
 				if attr == 1 {
@@ -15110,7 +15111,7 @@ func (m *Machine) PhpStreamResume() bool {
 		return false
 	}
 	m.PhpCode(true)
-	if m.Ptr+1 < m.End && rt.Ld16(m.Mem, m.Ptr) == 15935 {
+	if m.Ptr+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:])) == 15935 {
 		lhs = m.Ptr
 		m.Ptr += 2
 		m.EmitTok(TokenPreproc, lhs, m.Ptr)
@@ -15207,7 +15208,7 @@ func (m *Machine) HlPhp() {
 		}
 		snippet = false
 		m.PhpCode(false)
-		if m.Ptr+1 < m.End && rt.Ld16(m.Mem, m.Ptr) == 15935 {
+		if m.Ptr+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:])) == 15935 {
 			open = m.Ptr
 			m.Ptr += 2
 			m.EmitTok(TokenPreproc, open, m.Ptr)
@@ -15231,7 +15232,7 @@ func (m *Machine) TmplFind4(p, a, b, c, d uint32) uint32 {
 		return m.End
 	}
 	for {
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(a)), rt.Eq8(w, rt.Splat8(b))), rt.Or(rt.Eq8(w, rt.Splat8(c)), rt.Eq8(w, rt.Splat8(d)))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -15253,7 +15254,7 @@ func (m *Machine) TmplFindWord(p uint32, word uint64, n uint32) uint32 {
 		if p+n > m.End {
 			break
 		}
-		if rt.Ld64(m.Mem, p)&mask == word {
+		if binary.LittleEndian.Uint64(m.Mem[p:])&mask == word {
 			break
 		}
 		p++
@@ -15288,7 +15289,7 @@ func (m *Machine) TmplIsVoid(lhs, rhs uint32) bool {
 	if n-2 > 4 {
 		return false
 	}
-	w := (rt.Ld64(m.Mem, lhs) | 0x202020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
+	w := (binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x202020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 	return w == 29282 || w == 29288 || w == 0x676d69 || w == 0x6c6f63 || w == 0x726277 || w == 0x61657261 || w == 0x65736162 || w == 0x6b6e696c || w == 0x6174656d || w == 0x6465626d65 || w == 0x7475706e69 || w == 0x6d61726170 || w == 0x6b63617274 || w == 0x656372756f73
 }
 
@@ -15346,7 +15347,7 @@ func (m *Machine) TmplMarkup(state, dialect uint32) uint32 {
 			}
 			c = m.TemplateByte(p + 1)
 			if c == '!' {
-				if p+4 <= m.End && rt.Ld32(m.Mem, p) == 0x2d2d213c {
+				if p+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x2d2d213c {
 					m.HTMLComment(p)
 				} else {
 					m.HTMLDecl(p, false, TokenTagDoctype)
@@ -15372,7 +15373,7 @@ func (m *Machine) TmplMarkup(state, dialect uint32) uint32 {
 				if q-p == 2 {
 					state = 9
 				} else {
-					state = 1 | m.RawTextKind(q, m.Ptr)<<16 | rt.Sel32(razor, rt.B2u(m.TmplIsVoid(q, m.Ptr))<<6, rt.B2u(dialect&5 == 0 && m.Ptr-q >= 2 && rt.Ld16(m.Mem, q) == 11640)<<5)
+					state = 1 | m.RawTextKind(q, m.Ptr)<<16 | rt.Sel32(razor, rt.B2u(m.TmplIsVoid(q, m.Ptr))<<6, rt.B2u(dialect&5 == 0 && m.Ptr-q >= 2 && uint32(binary.LittleEndian.Uint16(m.Mem[q:])) == 11640)<<5)
 				}
 				continue
 			}
@@ -15485,7 +15486,7 @@ func (m *Machine) TmplMarkup(state, dialect uint32) uint32 {
 func (m *Machine) BladeDirective(lhs, rhs uint32) uint32 {
 	n := m.LexLowerCopy(lhs, rhs, 1360)
 	hl := m.LexKeywordValue(1360, 1360+n, 29248, 15, 68)
-	if int32(hl) < 0 && n > 3 && rt.Ld32(m.Mem, 1360)&0xffffff == 0x646e65 {
+	if int32(hl) < 0 && n > 3 && binary.LittleEndian.Uint32(m.Mem[1360:])&0xffffff == 0x646e65 {
 		hl = m.LexKeywordValue(1363, 1360+n, 29248, 15, 68)
 		if int32(hl) >= 0 {
 			hl &= 255
@@ -15501,7 +15502,7 @@ func (m *Machine) BladeVerbatimEnd(p uint32) uint32 {
 		if p >= m.End {
 			break
 		}
-		if p+12 <= m.End && rt.Ld32(m.Mem, p+8) == 0x6d697461 {
+		if p+12 <= m.End && binary.LittleEndian.Uint32(m.Mem[p+8:]) == 0x6d697461 {
 			break
 		}
 		p++
@@ -15518,12 +15519,12 @@ func (m *Machine) HlBlade() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		markup = rt.Ld32(m.Mem, 98068)
-		php = rt.Ld32(m.Mem, 98072)
-		phpMode = rt.Ld32(m.Mem, 98076)
-		verbatim = rt.Ld32(m.Mem, 98080)
-		resumed = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		markup = binary.LittleEndian.Uint32(m.Mem[98068:])
+		php = binary.LittleEndian.Uint32(m.Mem[98072:])
+		phpMode = binary.LittleEndian.Uint32(m.Mem[98076:])
+		verbatim = binary.LittleEndian.Uint32(m.Mem[98080:])
+		resumed = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -15531,10 +15532,10 @@ func (m *Machine) HlBlade() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				markup = rt.Ld32(m.Mem, m.StreamWindow)
-				php = rt.Ld32(m.Mem, m.StreamWindow+4)
-				phpMode = rt.Ld32(m.Mem, m.StreamWindow+8)
-				verbatim = rt.Ld32(m.Mem, m.StreamWindow+12)
+				markup = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				php = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				phpMode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				verbatim = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 		resumed = 0
@@ -15555,10 +15556,10 @@ func (m *Machine) HlBlade() {
 	if resumed != 0 {
 		if streamRoot != 0 {
 			m.StreamWindow = 46520
-			rt.St32(m.Mem, m.StreamWindow, markup)
-			rt.St32(m.Mem, m.StreamWindow+4, php)
-			rt.St32(m.Mem, m.StreamWindow+8, phpMode)
-			rt.St32(m.Mem, m.StreamWindow+12, verbatim)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], markup)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], php)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], phpMode)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], verbatim)
 			if m.StreamStateLo > 296 {
 				m.StreamStateLo = 296
 			}
@@ -15573,12 +15574,12 @@ next:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, markup)
-				rt.St32(m.Mem, 98072, php)
-				rt.St32(m.Mem, 98076, phpMode)
-				rt.St32(m.Mem, 98080, verbatim)
-				rt.St32(m.Mem, 98084, resumed)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], markup)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], php)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], phpMode)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], verbatim)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], resumed)
 				m.LiveSuspended = true
 				return
 			}
@@ -15829,10 +15830,10 @@ next:
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46520
-		rt.St32(m.Mem, m.StreamWindow, markup)
-		rt.St32(m.Mem, m.StreamWindow+4, php)
-		rt.St32(m.Mem, m.StreamWindow+8, phpMode)
-		rt.St32(m.Mem, m.StreamWindow+12, verbatim)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], markup)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], php)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], phpMode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], verbatim)
 		if m.StreamStateLo > 296 {
 			m.StreamStateLo = 296
 		}
@@ -15845,7 +15846,7 @@ next:
 
 // CWordHl is $cWordHl.
 func (m *Machine) CWordHl(lhs, rhs uint32) uint32 {
-	if rhs-lhs == 8 && rt.Ld64(m.Mem, lhs) == 0x65756e69746e6f63 {
+	if rhs-lhs == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x65756e69746e6f63 {
 		return TokenKeywordControl
 	}
 	g := m.LexKeywordValue(lhs, rhs, 14496, 15, 54)
@@ -15855,7 +15856,7 @@ func (m *Machine) CWordHl(lhs, rhs uint32) uint32 {
 	if m.LexIsConstCase(lhs, rhs) {
 		return TokenConstant
 	}
-	if rhs-lhs >= 3 && rt.Ld16(m.Mem, rhs-2) == 29791 {
+	if rhs-lhs >= 3 && uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) == 29791 {
 		return TokenType
 	}
 	p := m.LexSkipSpaceAt(rhs)
@@ -15880,8 +15881,8 @@ func (m *Machine) HlC() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		strCont = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		strCont = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -15889,7 +15890,7 @@ func (m *Machine) HlC() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				strCont = rt.Ld32(m.Mem, m.StreamWindow)
+				strCont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 		strCont = m.LexCStringResume(strCont)
@@ -15897,8 +15898,8 @@ func (m *Machine) HlC() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, strCont)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], strCont)
 				m.LiveSuspended = true
 				return
 			}
@@ -15947,7 +15948,7 @@ func (m *Machine) HlC() {
 			m.LexScanIdent()
 			rhs = m.Ptr
 			c2 = uint32(m.Mem[m.Ptr])
-			if m.Ptr < m.End && ((rhs-lhs == 1 && (c == 'L' || c == 'u' || c == 'U')) || (rhs-lhs == 2 && rt.Ld16(m.Mem, lhs) == 14453)) && (c2 == '"' || c2 == '\'') {
+			if m.Ptr < m.End && ((rhs-lhs == 1 && (c == 'L' || c == 'u' || c == 'U')) || (rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 14453)) && (c2 == '"' || c2 == '\'') {
 				m.EmitTok(TokenString, lhs, rhs)
 				strCont = m.LexCString(TokenString)
 				continue
@@ -15997,7 +15998,7 @@ func (m *Machine) HlC() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46536
-		rt.St32(m.Mem, m.StreamWindow, strCont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], strCont)
 		if m.StreamStateLo > 312 {
 			m.StreamStateLo = 312
 		}
@@ -16025,7 +16026,7 @@ func (m *Machine) C3WordHl(lhs, rhs uint32, ct bool) uint32 {
 			return TokenKeyword
 		}
 		if rhs-lhs == 7 {
-			w = rt.Ld64(m.Mem, lhs) & 0xffffffffffffff
+			w = binary.LittleEndian.Uint64(m.Mem[lhs:]) & 0xffffffffffffff
 			if w == 0x74736e6f636176 || w == 0x74616c70736176 {
 				return TokenKeyword
 			}
@@ -16047,9 +16048,9 @@ func (m *Machine) HlC3() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -16057,17 +16058,17 @@ func (m *Machine) HlC3() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
 				m.LiveSuspended = true
 				return
 			}
@@ -16119,7 +16120,7 @@ func (m *Machine) HlC3() {
 		if m.LexIsIdentStart(c) {
 			m.LexScanIdent()
 			rhs = m.Ptr
-			if m.C3Byte(rhs) == '"' && ((rhs-lhs == 1 && c == 'x') || (rhs-lhs == 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x343662)) {
+			if m.C3Byte(rhs) == '"' && ((rhs-lhs == 1 && c == 'x') || (rhs-lhs == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x343662)) {
 				m.EmitTok(TokenString, lhs, rhs)
 				m.LexString(34, false, TokenString)
 				member = 0
@@ -16252,8 +16253,8 @@ func (m *Machine) HlC3() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46544
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
 		if m.StreamStateLo > 320 {
 			m.StreamStateLo = 320
 		}
@@ -16272,27 +16273,27 @@ func (m *Machine) CljWordHl(lhs, rhs uint32) uint32 {
 		return v
 	}
 	if n == 6 {
-		if rt.Ld32(m.Mem, lhs) == 0x6c2d6669 && rt.Ld16(m.Mem, lhs+4) == 29797 {
+		if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x6c2d6669 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+4:])) == 29797 {
 			return TokenKeywordControl
 		}
 	}
 	if n == 7 {
 		v = 0xffffffff
-		if rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x65636e6f666564 {
+		if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x65636e6f666564 {
 			v = 531
 		}
-		if rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x6572616c636564 {
+		if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6572616c636564 {
 			v = 275
 		}
 		return v
 	}
 	if n == 8 {
-		if rt.Ld64(m.Mem, lhs) == 0x74656c2d6e656877 {
+		if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x74656c2d6e656877 {
 			return TokenKeywordControl
 		}
 	}
 	if n == 9 {
-		if rt.Ld64(m.Mem, lhs) == 0x726f636572666564 && m.Mem[lhs+8] == 'd' {
+		if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x726f636572666564 && m.Mem[lhs+8] == 'd' {
 			return 787
 		}
 	}
@@ -16339,9 +16340,9 @@ func (m *Machine) HlClojure() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		head = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		head = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -16349,17 +16350,17 @@ func (m *Machine) HlClojure() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				head = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				head = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, head)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], head)
 				m.LiveSuspended = true
 				return
 			}
@@ -16565,8 +16566,8 @@ func (m *Machine) HlClojure() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46552
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, head)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], head)
 		if m.StreamStateLo > 328 {
 			m.StreamStateLo = 328
 		}
@@ -16591,13 +16592,13 @@ func (m *Machine) CmakeCommandGroup(lhs, rhs uint32) uint32 {
 // CmakeIsCondition is $cmakeIsCondition.
 func (m *Machine) CmakeIsCondition(n uint32) bool {
 	if n == 2 {
-		return rt.Ld16(m.Mem, 1360) == 26217
+		return uint32(binary.LittleEndian.Uint16(m.Mem[1360:])) == 26217
 	}
 	if n == 5 {
-		return rt.Ld32(m.Mem, 1360) == 0x6c696877 && m.Mem[1364] == 'e'
+		return binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x6c696877 && m.Mem[1364] == 'e'
 	}
 	if n == 6 {
-		return rt.Ld32(m.Mem, 1360) == 0x65736c65 && rt.Ld16(m.Mem, 1364) == 26217
+		return binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x65736c65 && uint32(binary.LittleEndian.Uint16(m.Mem[1364:])) == 26217
 	}
 	return false
 }
@@ -16757,11 +16758,11 @@ func (m *Machine) HlCmake() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		depth = rt.Ld32(m.Mem, 98068)
-		cond = rt.Ld32(m.Mem, 98072)
-		setVar = rt.Ld32(m.Mem, 98076)
-		strOpen = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98068:])
+		cond = binary.LittleEndian.Uint32(m.Mem[98072:])
+		setVar = binary.LittleEndian.Uint32(m.Mem[98076:])
+		strOpen = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -16769,21 +16770,21 @@ func (m *Machine) HlCmake() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				depth = rt.Ld32(m.Mem, m.StreamWindow)
-				cond = rt.Ld32(m.Mem, m.StreamWindow+4)
-				setVar = rt.Ld32(m.Mem, m.StreamWindow+8)
-				strOpen = rt.Ld32(m.Mem, m.StreamWindow+12)
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				cond = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				setVar = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				strOpen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, depth)
-				rt.St32(m.Mem, 98072, cond)
-				rt.St32(m.Mem, 98076, setVar)
-				rt.St32(m.Mem, 98080, strOpen)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], cond)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], setVar)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], strOpen)
 				m.LiveSuspended = true
 				return
 			}
@@ -16924,10 +16925,10 @@ func (m *Machine) HlCmake() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46560
-		rt.St32(m.Mem, m.StreamWindow, depth)
-		rt.St32(m.Mem, m.StreamWindow+4, cond)
-		rt.St32(m.Mem, m.StreamWindow+8, setVar)
-		rt.St32(m.Mem, m.StreamWindow+12, strOpen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], cond)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], setVar)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], strOpen)
 		if m.StreamStateLo > 336 {
 			m.StreamStateLo = 336
 		}
@@ -16945,7 +16946,7 @@ func (m *Machine) CobolWordHl(lhs, rhs uint32) uint32 {
 	if int32(v) >= 0 {
 		return v
 	}
-	w := rt.Ld64(m.Mem, 1360)
+	w := binary.LittleEndian.Uint64(m.Mem[1360:])
 	if n > 4 && uint32(w) == 0x2d646e65 {
 		v = m.LexKeywordValue(1364, 1360+n, 34560, 63, 172) & 255
 		if v == TokenKeyword || v == TokenKeywordControl {
@@ -16991,10 +16992,10 @@ func (m *Machine) HlCobol() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		col = rt.Ld32(m.Mem, 98068)
-		area = rt.Ld32(m.Mem, 98072)
-		expect = rt.Ld32(m.Mem, 98076)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		col = binary.LittleEndian.Uint32(m.Mem[98068:])
+		area = binary.LittleEndian.Uint32(m.Mem[98072:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -17002,19 +17003,19 @@ func (m *Machine) HlCobol() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				col = rt.Ld32(m.Mem, m.StreamWindow)
-				area = rt.Ld32(m.Mem, m.StreamWindow+4)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+8)
+				col = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				area = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, col)
-				rt.St32(m.Mem, 98072, area)
-				rt.St32(m.Mem, 98076, expect)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], col)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], area)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], expect)
 				m.LiveSuspended = true
 				return
 			}
@@ -17175,7 +17176,7 @@ func (m *Machine) HlCobol() {
 				}
 				if first {
 					p = m.LexSkipSpaceAt(rhs)
-					if c2 == '.' || (p+7 <= lim && (rt.Ld64(m.Mem, p)|0x2020202020202020)&0xffffffffffffff == 0x6e6f6974636573) {
+					if c2 == '.' || (p+7 <= lim && (binary.LittleEndian.Uint64(m.Mem[p:])|0x2020202020202020)&0xffffffffffffff == 0x6e6f6974636573) {
 						hl = TokenFunctionDefinition
 					}
 				}
@@ -17203,9 +17204,9 @@ func (m *Machine) HlCobol() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46576
-		rt.St32(m.Mem, m.StreamWindow, col)
-		rt.St32(m.Mem, m.StreamWindow+4, area)
-		rt.St32(m.Mem, m.StreamWindow+8, expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], col)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], area)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], expect)
 		if m.StreamStateLo > 352 {
 			m.StreamStateLo = 352
 		}
@@ -17251,8 +17252,8 @@ func (m *Machine) HlCodeowners() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		col = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		col = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -17260,15 +17261,15 @@ func (m *Machine) HlCodeowners() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				col = rt.Ld32(m.Mem, m.StreamWindow)
+				col = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, col)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], col)
 				m.LiveSuspended = true
 				return
 			}
@@ -17328,7 +17329,7 @@ func (m *Machine) HlCodeowners() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46592
-		rt.St32(m.Mem, m.StreamWindow, col)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], col)
 		if m.StreamStateLo > 368 {
 			m.StreamStateLo = 368
 		}
@@ -17346,8 +17347,8 @@ func (m *Machine) HlCodeql() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -17355,15 +17356,15 @@ func (m *Machine) HlCodeql() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
 				m.LiveSuspended = true
 				return
 			}
@@ -17482,7 +17483,7 @@ func (m *Machine) HlCodeql() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46600
-		rt.St32(m.Mem, m.StreamWindow, expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
 		if m.StreamStateLo > 376 {
 			m.StreamStateLo = 376
 		}
@@ -17667,16 +17668,16 @@ func (m *Machine) HlCoffee() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		lq = rt.Ld32(m.Mem, 98068)
-		iq = rt.Ld32(m.Mem, 98072)
-		depth = rt.Ld32(m.Mem, 98076)
-		prev = rt.Ld32(m.Mem, 98080)
-		member = rt.Ld32(m.Mem, 98084)
-		decl = rt.Ld32(m.Mem, 98088)
-		params = rt.Ld32(m.Mem, 98092)
-		param = rt.Ld32(m.Mem, 98096)
-		divide = rt.Ld32(m.Mem, 98100)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		lq = binary.LittleEndian.Uint32(m.Mem[98068:])
+		iq = binary.LittleEndian.Uint32(m.Mem[98072:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98076:])
+		prev = binary.LittleEndian.Uint32(m.Mem[98080:])
+		member = binary.LittleEndian.Uint32(m.Mem[98084:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98088:])
+		params = binary.LittleEndian.Uint32(m.Mem[98092:])
+		param = binary.LittleEndian.Uint32(m.Mem[98096:])
+		divide = binary.LittleEndian.Uint32(m.Mem[98100:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -17684,31 +17685,31 @@ func (m *Machine) HlCoffee() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				lq = rt.Ld32(m.Mem, m.StreamWindow)
-				iq = rt.Ld32(m.Mem, m.StreamWindow+4)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+8)
-				prev = rt.Ld32(m.Mem, m.StreamWindow+12)
-				member = rt.Ld32(m.Mem, m.StreamWindow+16)
-				decl = rt.Ld32(m.Mem, m.StreamWindow+20)
-				params = rt.Ld32(m.Mem, m.StreamWindow+24)
-				param = rt.Ld32(m.Mem, m.StreamWindow+28)
-				divide = rt.Ld32(m.Mem, m.StreamWindow+32)
+				lq = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				iq = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				prev = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				params = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				param = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				divide = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, lq)
-				rt.St32(m.Mem, 98072, iq)
-				rt.St32(m.Mem, 98076, depth)
-				rt.St32(m.Mem, 98080, prev)
-				rt.St32(m.Mem, 98084, member)
-				rt.St32(m.Mem, 98088, decl)
-				rt.St32(m.Mem, 98092, params)
-				rt.St32(m.Mem, 98096, param)
-				rt.St32(m.Mem, 98100, divide)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], lq)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], iq)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], prev)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], params)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], param)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], divide)
 				m.LiveSuspended = true
 				return
 			}
@@ -17968,15 +17969,15 @@ func (m *Machine) HlCoffee() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46608
-		rt.St32(m.Mem, m.StreamWindow, lq)
-		rt.St32(m.Mem, m.StreamWindow+4, iq)
-		rt.St32(m.Mem, m.StreamWindow+8, depth)
-		rt.St32(m.Mem, m.StreamWindow+12, prev)
-		rt.St32(m.Mem, m.StreamWindow+16, member)
-		rt.St32(m.Mem, m.StreamWindow+20, decl)
-		rt.St32(m.Mem, m.StreamWindow+24, params)
-		rt.St32(m.Mem, m.StreamWindow+28, param)
-		rt.St32(m.Mem, m.StreamWindow+32, divide)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], lq)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], iq)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], prev)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], params)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], param)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], divide)
 		if m.StreamStateLo > 384 {
 			m.StreamStateLo = 384
 		}
@@ -17989,7 +17990,7 @@ func (m *Machine) HlCoffee() {
 
 // CoqWordKind is $coqWordKind.
 func (m *Machine) CoqWordKind(lhs, rhs uint32) uint32 {
-	w := rt.Ld64(m.Mem, lhs)
+	w := binary.LittleEndian.Uint64(m.Mem[lhs:])
 	if rhs-lhs == 9 && m.Mem[lhs+8] == 'n' && (w == 0x6f69737265766e69 || w == 0x6f697463656a6e69 || w == 0x6f69746975746e69) {
 		return TokenKeywordControl
 	}
@@ -18007,10 +18008,10 @@ func (m *Machine) HlCoq() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		mid = rt.Ld32(m.Mem, 98072)
-		attr = rt.Ld32(m.Mem, 98076)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		mid = binary.LittleEndian.Uint32(m.Mem[98072:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -18018,19 +18019,19 @@ func (m *Machine) HlCoq() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				mid = rt.Ld32(m.Mem, m.StreamWindow+4)
-				attr = rt.Ld32(m.Mem, m.StreamWindow+8)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				mid = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				attr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, mid)
-				rt.St32(m.Mem, 98076, attr)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], mid)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], attr)
 				m.LiveSuspended = true
 				return
 			}
@@ -18169,7 +18170,7 @@ func (m *Machine) HlCoq() {
 			if mid == 0 && m.Mem[c+2448]&64 != 0 {
 				hl = TokenPunctuationListMarker
 			}
-			kind = rt.B2u((rhs == 1 && c == '|') || (rhs == 2 && rt.Ld16(m.Mem, lhs) == 15674))
+			kind = rt.B2u((rhs == 1 && c == '|') || (rhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 15674))
 		}
 		if expect >= 6 {
 			expect = 6 + kind
@@ -18184,9 +18185,9 @@ func (m *Machine) HlCoq() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46648
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, mid)
-		rt.St32(m.Mem, m.StreamWindow+8, attr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], mid)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], attr)
 		if m.StreamStateLo > 424 {
 			m.StreamStateLo = 424
 		}
@@ -18355,10 +18356,10 @@ func (m *Machine) CppDirectiveScan(lhs uint32) bool {
 // CppWordHl is $cppWordHl.
 func (m *Machine) CppWordHl(lhs, rhs uint32) uint32 {
 	if rhs-lhs == 8 {
-		if rt.Ld64(m.Mem, lhs) == 0x65756e69746e6f63 {
+		if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x65756e69746e6f63 {
 			return TokenKeywordControl
 		}
-		if rt.Ld64(m.Mem, lhs) == 0x745f323372616863 {
+		if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x745f323372616863 {
 			return TokenTypeBuiltin
 		}
 	}
@@ -18378,13 +18379,13 @@ func (m *Machine) HlCppImpl(cuda uint32) {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		cuda = rt.Ld32(m.Mem, 98064)
-		streamRoot = rt.Ld32(m.Mem, 98068)
-		midLine = rt.Ld32(m.Mem, 98072)
-		expectType = rt.Ld32(m.Mem, 98076)
-		member = rt.Ld32(m.Mem, 98080)
-		strCont = rt.Ld32(m.Mem, 98084)
-		contDirective = rt.Ld32(m.Mem, 98088)
+		cuda = binary.LittleEndian.Uint32(m.Mem[98064:])
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98068:])
+		midLine = binary.LittleEndian.Uint32(m.Mem[98072:])
+		expectType = binary.LittleEndian.Uint32(m.Mem[98076:])
+		member = binary.LittleEndian.Uint32(m.Mem[98080:])
+		strCont = binary.LittleEndian.Uint32(m.Mem[98084:])
+		contDirective = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -18392,11 +18393,11 @@ func (m *Machine) HlCppImpl(cuda uint32) {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				midLine = rt.Ld32(m.Mem, m.StreamWindow)
-				expectType = rt.Ld32(m.Mem, m.StreamWindow+4)
-				member = rt.Ld32(m.Mem, m.StreamWindow+8)
-				strCont = rt.Ld32(m.Mem, m.StreamWindow+12)
-				contDirective = rt.Ld32(m.Mem, m.StreamWindow+16)
+				midLine = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expectType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				strCont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				contDirective = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 		if strCont != 0 {
@@ -18418,13 +18419,13 @@ func (m *Machine) HlCppImpl(cuda uint32) {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, cuda)
-				rt.St32(m.Mem, 98068, streamRoot)
-				rt.St32(m.Mem, 98072, midLine)
-				rt.St32(m.Mem, 98076, expectType)
-				rt.St32(m.Mem, 98080, member)
-				rt.St32(m.Mem, 98084, strCont)
-				rt.St32(m.Mem, 98088, contDirective)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], cuda)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], midLine)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], expectType)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], strCont)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], contDirective)
 				m.LiveSuspended = true
 				return
 			}
@@ -18475,13 +18476,13 @@ func (m *Machine) HlCppImpl(cuda uint32) {
 					kind = m.CppWordHl(lhs, rhs)
 					if int32(kind) < 0 && cuda&1 != 0 {
 						kind = m.LexKeywordValue(lhs, rhs, 16320, 7, 32)
-						if rhs-lhs == 10 && rt.Ld16(m.Mem, lhs+8) == 24415 && (rt.Ld64(m.Mem, lhs) == 0x6563697665645f5f || rt.Ld64(m.Mem, lhs) == 0x6465726168735f5f) {
+						if rhs-lhs == 10 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+8:])) == 24415 && (binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6563697665645f5f || binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6465726168735f5f) {
 							kind = TokenKeyword
 						}
-						if rhs-lhs == 12 && ((rt.Ld64(m.Mem, lhs) == 0x6972747365725f5f && rt.Ld32(m.Mem, lhs+8) == 0x5f5f7463) || (rt.Ld64(m.Mem, lhs) == 0x696c6e696f6e5f5f && rt.Ld32(m.Mem, lhs+8) == 0x5f5f656e)) {
+						if rhs-lhs == 12 && ((binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6972747365725f5f && binary.LittleEndian.Uint32(m.Mem[lhs+8:]) == 0x5f5f7463) || (binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x696c6e696f6e5f5f && binary.LittleEndian.Uint32(m.Mem[lhs+8:]) == 0x5f5f656e)) {
 							kind = TokenKeyword
 						}
-						if rhs-lhs == 11 && rt.Ld64(m.Mem, lhs) == 0x6e65764561647563 && rt.Ld32(m.Mem, lhs+8)&0xffffff == 0x745f74 {
+						if rhs-lhs == 11 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6e65764561647563 && binary.LittleEndian.Uint32(m.Mem[lhs+8:])&0xffffff == 0x745f74 {
 							kind = TokenTypeBuiltin
 						}
 					}
@@ -18509,7 +18510,7 @@ func (m *Machine) HlCppImpl(cuda uint32) {
 								}
 								expectType = 0
 							}
-						case c2 == '(' || (p+3 <= m.End && rt.Ld32(m.Mem, p)&0xffffff == 0x3c3c3c && cuda&1 != 0):
+						case c2 == '(' || (p+3 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:])&0xffffff == 0x3c3c3c && cuda&1 != 0):
 							if member != 0 {
 								hl = TokenFunctionMethod
 							} else {
@@ -18642,11 +18643,11 @@ func (m *Machine) HlCppImpl(cuda uint32) {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46664
-		rt.St32(m.Mem, m.StreamWindow, midLine)
-		rt.St32(m.Mem, m.StreamWindow+4, expectType)
-		rt.St32(m.Mem, m.StreamWindow+8, member)
-		rt.St32(m.Mem, m.StreamWindow+12, strCont)
-		rt.St32(m.Mem, m.StreamWindow+16, contDirective)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], midLine)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expectType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], strCont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], contDirective)
 		if m.StreamStateLo > 440 {
 			m.StreamStateLo = 440
 		}
@@ -18666,7 +18667,7 @@ func (m *Machine) CsByte(p uint32) uint32 {
 func (m *Machine) CsWordHl(lhs, rhs uint32) uint32 {
 	hl := m.LexKeywordValue(lhs, rhs, 15904, 31, 112)
 	if hl == 0xffffffff {
-		if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
+		if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
 			return TokenKeywordDeclaration
 		}
 	}
@@ -18692,12 +18693,12 @@ func (m *Machine) CsContextual(kind, p, c, query uint32, head bool) uint32 {
 		return kind
 	}
 	if !m.LexIsIdentContinue(m.CsByte(p + 2)) {
-		w = rt.Ld16(m.Mem, p)
+		w = uint32(binary.LittleEndian.Uint16(m.Mem[p:]))
 		if w == 28265 || w == 29545 || w == 29537 {
 			return 0xffffffff
 		}
 	}
-	return rt.Sel32(rt.Ld32(m.Mem, p) == 0x68746977 && !m.LexIsIdentContinue(m.CsByte(p+4)), 0xffffffff, kind)
+	return rt.Sel32(binary.LittleEndian.Uint32(m.Mem[p:]) == 0x68746977 && !m.LexIsIdentContinue(m.CsByte(p+4)), 0xffffffff, kind)
 }
 
 // CsStringBody is $csStringBody.
@@ -18800,17 +18801,17 @@ func (m *Machine) HlCsharp() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		afterType = rt.Ld32(m.Mem, 98076)
-		strKind = rt.Ld32(m.Mem, 98080)
-		seg = rt.Ld32(m.Mem, 98084)
-		interp = rt.Ld32(m.Mem, 98088)
-		interpKind = rt.Ld32(m.Mem, 98092)
-		interpDepth = rt.Ld32(m.Mem, 98096)
-		lineHead = rt.Ld32(m.Mem, 98100)
-		ctx = rt.Ld32(m.Mem, 98104)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		afterType = binary.LittleEndian.Uint32(m.Mem[98076:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98084:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98088:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98092:])
+		interpDepth = binary.LittleEndian.Uint32(m.Mem[98096:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98100:])
+		ctx = binary.LittleEndian.Uint32(m.Mem[98104:])
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
@@ -18819,33 +18820,33 @@ func (m *Machine) HlCsharp() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				afterType = rt.Ld32(m.Mem, m.StreamWindow+8)
-				strKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+16)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+20)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+24)
-				interpDepth = rt.Ld32(m.Mem, m.StreamWindow+28)
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow+32)
-				ctx = rt.Ld32(m.Mem, m.StreamWindow+36)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				afterType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				interpDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
+				ctx = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+36:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, afterType)
-				rt.St32(m.Mem, 98080, strKind)
-				rt.St32(m.Mem, 98084, seg)
-				rt.St32(m.Mem, 98088, interp)
-				rt.St32(m.Mem, 98092, interpKind)
-				rt.St32(m.Mem, 98096, interpDepth)
-				rt.St32(m.Mem, 98100, lineHead)
-				rt.St32(m.Mem, 98104, ctx)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], afterType)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], interpDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], ctx)
 				m.LiveSuspended = true
 				return
 			}
@@ -18975,7 +18976,7 @@ func (m *Machine) HlCsharp() {
 						ctx |= 2
 					}
 				}
-				if expect == 2 && rhs-lhs == 6 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x636974617473 {
+				if expect == 2 && rhs-lhs == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x636974617473 {
 					expect = 3
 				} else {
 					expect = (kind >> 8) & 3
@@ -19173,16 +19174,16 @@ func (m *Machine) HlCsharp() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46688
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, afterType)
-		rt.St32(m.Mem, m.StreamWindow+12, strKind)
-		rt.St32(m.Mem, m.StreamWindow+16, seg)
-		rt.St32(m.Mem, m.StreamWindow+20, interp)
-		rt.St32(m.Mem, m.StreamWindow+24, interpKind)
-		rt.St32(m.Mem, m.StreamWindow+28, interpDepth)
-		rt.St32(m.Mem, m.StreamWindow+32, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+36, ctx)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], afterType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], interpDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+36:], ctx)
 		if m.StreamStateLo > 464 {
 			m.StreamStateLo = 464
 		}
@@ -19215,11 +19216,11 @@ func (m *Machine) HlCsvImpl(delim, quoting uint32) {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		delim = rt.Ld32(m.Mem, 98064)
-		quoting = rt.Ld32(m.Mem, 98068)
-		streamRoot = rt.Ld32(m.Mem, 98072)
-		col = rt.Ld32(m.Mem, 98076)
-		quoted = rt.Ld32(m.Mem, 98080)
+		delim = binary.LittleEndian.Uint32(m.Mem[98064:])
+		quoting = binary.LittleEndian.Uint32(m.Mem[98068:])
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98072:])
+		col = binary.LittleEndian.Uint32(m.Mem[98076:])
+		quoted = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -19227,8 +19228,8 @@ func (m *Machine) HlCsvImpl(delim, quoting uint32) {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				col = rt.Ld32(m.Mem, m.StreamWindow)
-				quoted = rt.Ld32(m.Mem, m.StreamWindow+4)
+				col = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				quoted = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
@@ -19236,11 +19237,11 @@ field:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, delim)
-				rt.St32(m.Mem, 98068, quoting)
-				rt.St32(m.Mem, 98072, streamRoot)
-				rt.St32(m.Mem, 98076, col)
-				rt.St32(m.Mem, 98080, quoted)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], delim)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], quoting)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], col)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], quoted)
 				m.LiveSuspended = true
 				return
 			}
@@ -19294,8 +19295,8 @@ field:
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46728
-		rt.St32(m.Mem, m.StreamWindow, col)
-		rt.St32(m.Mem, m.StreamWindow+4, quoted)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], col)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], quoted)
 		if m.StreamStateLo > 504 {
 			m.StreamStateLo = 504
 		}
@@ -19318,9 +19319,9 @@ func (m *Machine) HlCypher() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		maps = rt.Ld32(m.Mem, 98068)
-		label = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		maps = binary.LittleEndian.Uint32(m.Mem[98068:])
+		label = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -19328,17 +19329,17 @@ func (m *Machine) HlCypher() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				maps = rt.Ld32(m.Mem, m.StreamWindow)
-				label = rt.Ld32(m.Mem, m.StreamWindow+4)
+				maps = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				label = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, maps)
-				rt.St32(m.Mem, 98072, label)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], maps)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], label)
 				m.LiveSuspended = true
 				return
 			}
@@ -19464,8 +19465,8 @@ func (m *Machine) HlCypher() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46736
-		rt.St32(m.Mem, m.StreamWindow, maps)
-		rt.St32(m.Mem, m.StreamWindow+4, label)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], maps)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], label)
 		if m.StreamStateLo > 512 {
 			m.StreamStateLo = 512
 		}
@@ -19478,7 +19479,7 @@ func (m *Machine) HlCypher() {
 
 // DWordKind is $dWordKind.
 func (m *Machine) DWordKind(lhs, rhs uint32) uint32 {
-	if rt.Ld16(m.Mem, lhs) == 24415 {
+	if uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 24415 {
 		if m.LexIsConstCase(lhs, rhs) {
 			return TokenConstantBuiltin
 		}
@@ -19575,12 +19576,12 @@ func (m *Machine) HlD() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		dq = rt.Ld32(m.Mem, 98072)
-		qDepth = rt.Ld32(m.Mem, 98076)
-		afterType = rt.Ld32(m.Mem, 98080)
-		member = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		dq = binary.LittleEndian.Uint32(m.Mem[98072:])
+		qDepth = binary.LittleEndian.Uint32(m.Mem[98076:])
+		afterType = binary.LittleEndian.Uint32(m.Mem[98080:])
+		member = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -19588,9 +19589,9 @@ func (m *Machine) HlD() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				dq = rt.Ld32(m.Mem, m.StreamWindow+4)
-				qDepth = rt.Ld32(m.Mem, m.StreamWindow+8)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				dq = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				qDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 		afterType = 0
@@ -19599,12 +19600,12 @@ func (m *Machine) HlD() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, dq)
-				rt.St32(m.Mem, 98076, qDepth)
-				rt.St32(m.Mem, 98080, afterType)
-				rt.St32(m.Mem, 98084, member)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], dq)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], qDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], afterType)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], member)
 				m.LiveSuspended = true
 				return
 			}
@@ -19818,9 +19819,9 @@ func (m *Machine) HlD() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46744
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, dq)
-		rt.St32(m.Mem, m.StreamWindow+8, qDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], dq)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], qDepth)
 		if m.StreamStateLo > 520 {
 			m.StreamStateLo = 520
 		}
@@ -19939,14 +19940,14 @@ func (m *Machine) HlDart() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		afterType = rt.Ld32(m.Mem, 98076)
-		strKind = rt.Ld32(m.Mem, 98080)
-		seg = rt.Ld32(m.Mem, 98084)
-		interp = rt.Ld32(m.Mem, 98088)
-		interpKind = rt.Ld32(m.Mem, 98092)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		afterType = binary.LittleEndian.Uint32(m.Mem[98076:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98084:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98088:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98092:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -19954,27 +19955,27 @@ func (m *Machine) HlDart() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				afterType = rt.Ld32(m.Mem, m.StreamWindow+8)
-				strKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+16)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+20)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+24)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				afterType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, afterType)
-				rt.St32(m.Mem, 98080, strKind)
-				rt.St32(m.Mem, 98084, seg)
-				rt.St32(m.Mem, 98088, interp)
-				rt.St32(m.Mem, 98092, interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], afterType)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], interpKind)
 				m.LiveSuspended = true
 				return
 			}
@@ -20220,13 +20221,13 @@ func (m *Machine) HlDart() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46760
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, afterType)
-		rt.St32(m.Mem, m.StreamWindow+12, strKind)
-		rt.St32(m.Mem, m.StreamWindow+16, seg)
-		rt.St32(m.Mem, m.StreamWindow+20, interp)
-		rt.St32(m.Mem, m.StreamWindow+24, interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], afterType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], interpKind)
 		if m.StreamStateLo > 536 {
 			m.StreamStateLo = 536
 		}
@@ -20244,7 +20245,7 @@ func (m *Machine) HlDax() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -20256,7 +20257,7 @@ func (m *Machine) HlDax() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
 				m.LiveSuspended = true
 				return
 			}
@@ -20393,7 +20394,7 @@ func (m *Machine) HlDiff() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -20405,7 +20406,7 @@ func (m *Machine) HlDiff() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
 				m.LiveSuspended = true
 				return
 			}
@@ -20420,7 +20421,7 @@ func (m *Machine) HlDiff() {
 		length = lineEnd - lhs
 		if c == '+' || c == '-' {
 			p = lhs + 3
-			if !(length >= 4 && rt.Ld32(m.Mem, lhs)&0xffffff == c*0x10101 && m.LexIsSpace(uint32(m.Mem[lhs+3]))) {
+			if !(length >= 4 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == c*0x10101 && m.LexIsSpace(uint32(m.Mem[lhs+3]))) {
 				p = lhs + 1
 				for {
 					if p >= lineEnd {
@@ -20437,13 +20438,13 @@ func (m *Machine) HlDiff() {
 		} else {
 			p = lhs
 			switch {
-			case length >= 2 && rt.Ld16(m.Mem, lhs) == 16448:
+			case length >= 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 16448:
 				hl = TokenAttribute
 			case c == '#':
 				hl = TokenComment
 			default:
 				if c == 'B' || c-99 <= 1 || c == 'i' || c-110 <= 1 || c-114 <= 1 {
-					if length >= 4 && rt.Ld32(m.Mem, lhs) == 0x66666964 && (lhs+4 == lineEnd || m.LexIsSpace(uint32(m.Mem[lhs+4]))) {
+					if length >= 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x66666964 && (lhs+4 == lineEnd || m.LexIsSpace(uint32(m.Mem[lhs+4]))) {
 						m.EmitTok(TokenFunction, lhs, lhs+4)
 						p = lhs + 4
 						tok = p
@@ -20476,7 +20477,7 @@ func (m *Machine) HlDiff() {
 						m.EmitGap(lhs, m.Ptr)
 						continue
 					}
-					if length >= 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x7865646e69 && (lhs+5 == lineEnd || m.LexIsSpace(uint32(m.Mem[lhs+5]))) {
+					if length >= 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x7865646e69 && (lhs+5 == lineEnd || m.LexIsSpace(uint32(m.Mem[lhs+5]))) {
 						m.EmitTok(TokenKeyword, lhs, lhs+5)
 						p = lhs + 5
 						tok = p
@@ -20502,7 +20503,7 @@ func (m *Machine) HlDiff() {
 							continue
 						}
 						m.EmitTok(TokenConstant, tok, p)
-						if p+2 > lineEnd || rt.Ld16(m.Mem, p) != 11822 {
+						if p+2 > lineEnd || uint32(binary.LittleEndian.Uint16(m.Mem[p:])) != 11822 {
 							hl = TokenNone
 							m.EmitTok(hl, p, lineEnd)
 							lhs = m.Ptr
@@ -20563,7 +20564,7 @@ func (m *Machine) HlDiff() {
 						m.EmitGap(lhs, m.Ptr)
 						continue
 					}
-					if length >= 16 && rt.Ld64(m.Mem, lhs) == 0x6972616c696d6973 && rt.Ld64(m.Mem, lhs+8) == 0x7865646e69207974 {
+					if length >= 16 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6972616c696d6973 && binary.LittleEndian.Uint64(m.Mem[lhs+8:]) == 0x7865646e69207974 {
 						p = lhs + 16
 						p = m.DiffSkipSpace(p, lineEnd)
 						m.EmitTok(TokenLabel, lhs, p)
@@ -20591,13 +20592,13 @@ func (m *Machine) HlDiff() {
 						continue
 					}
 					tok = 0
-					if length >= 13 && rt.Ld64(m.Mem, lhs) == 0x656c69662077656e && rt.Ld64(m.Mem, lhs+8)&0xffffffffff == 0x65646f6d20 {
+					if length >= 13 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x656c69662077656e && binary.LittleEndian.Uint64(m.Mem[lhs+8:])&0xffffffffff == 0x65646f6d20 {
 						tok = lhs + 13
 					}
-					if length >= 17 && rt.Ld64(m.Mem, lhs) == 0x20646574656c6564 && rt.Ld64(m.Mem, lhs+8) == 0x646f6d20656c6966 && m.Mem[lhs+16] == 'e' {
+					if length >= 17 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x20646574656c6564 && binary.LittleEndian.Uint64(m.Mem[lhs+8:]) == 0x646f6d20656c6966 && m.Mem[lhs+16] == 'e' {
 						tok = lhs + 17
 					}
-					if length >= 8 && (rt.Ld64(m.Mem, lhs) == 0x65646f6d2077656e || rt.Ld64(m.Mem, lhs) == 0x65646f6d20646c6f) {
+					if length >= 8 && (binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x65646f6d2077656e || binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x65646f6d20646c6f) {
 						tok = lhs + 8
 					}
 					if tok != 0 {
@@ -20622,7 +20623,7 @@ func (m *Machine) HlDiff() {
 						m.EmitGap(lhs, m.Ptr)
 						continue
 					}
-					if (length >= 11 && rt.Ld64(m.Mem, lhs) == 0x6620656d616e6572 && rt.Ld32(m.Mem, lhs+8)&0xffffff == 0x6d6f72) || (length >= 9 && rt.Ld64(m.Mem, lhs) == 0x7420656d616e6572 && m.Mem[lhs+8] == 'o') || (length >= 9 && rt.Ld64(m.Mem, lhs) == 0x6f72662079706f63 && m.Mem[lhs+8] == 'm') || (length >= 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x6f742079706f63) {
+					if (length >= 11 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6620656d616e6572 && binary.LittleEndian.Uint32(m.Mem[lhs+8:])&0xffffff == 0x6d6f72) || (length >= 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7420656d616e6572 && m.Mem[lhs+8] == 'o') || (length >= 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6f72662079706f63 && m.Mem[lhs+8] == 'm') || (length >= 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6f742079706f63) {
 						hl = TokenLabel
 						m.EmitTok(hl, p, lineEnd)
 						lhs = m.Ptr
@@ -20639,7 +20640,7 @@ func (m *Machine) HlDiff() {
 						m.EmitGap(lhs, m.Ptr)
 						continue
 					}
-					if length >= 12 && rt.Ld64(m.Mem, lhs) == 0x66207972616e6942 && rt.Ld32(m.Mem, lhs+8) == 0x73656c69 {
+					if length >= 12 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x66207972616e6942 && binary.LittleEndian.Uint32(m.Mem[lhs+8:]) == 0x73656c69 {
 						hl = TokenLabel
 						m.EmitTok(hl, p, lineEnd)
 						lhs = m.Ptr
@@ -20805,12 +20806,12 @@ func (m *Machine) HlDockerfile() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		lineHead = rt.Ld32(m.Mem, 98068)
-		inst = rt.Ld32(m.Mem, 98072)
-		cmdHead = rt.Ld32(m.Mem, 98076)
-		hdLen = rt.Ld32(m.Mem, 98080)
-		hdDelim = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98068:])
+		inst = binary.LittleEndian.Uint32(m.Mem[98072:])
+		cmdHead = binary.LittleEndian.Uint32(m.Mem[98076:])
+		hdLen = binary.LittleEndian.Uint32(m.Mem[98080:])
+		hdDelim = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
@@ -20819,23 +20820,23 @@ func (m *Machine) HlDockerfile() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow)
-				inst = rt.Ld32(m.Mem, m.StreamWindow+4)
-				cmdHead = rt.Ld32(m.Mem, m.StreamWindow+8)
-				hdLen = rt.Ld32(m.Mem, m.StreamWindow+12)
-				hdDelim = rt.Ld32(m.Mem, m.StreamWindow+16)
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				inst = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				cmdHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				hdLen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				hdDelim = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, lineHead)
-				rt.St32(m.Mem, 98072, inst)
-				rt.St32(m.Mem, 98076, cmdHead)
-				rt.St32(m.Mem, 98080, hdLen)
-				rt.St32(m.Mem, 98084, hdDelim)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], inst)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], cmdHead)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], hdLen)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], hdDelim)
 				m.LiveSuspended = true
 				return
 			}
@@ -20888,7 +20889,7 @@ func (m *Machine) HlDockerfile() {
 				if g == 4 {
 					inst = 4
 				}
-				if m.Ptr-lhs == 4 && rt.Ld32(m.Mem, lhs)|0x20202020 == 0x6d6f7266 {
+				if m.Ptr-lhs == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:])|0x20202020 == 0x6d6f7266 {
 					inst = 1
 				}
 				cmdHead = rt.B2u(inst == 2)
@@ -21033,11 +21034,11 @@ func (m *Machine) HlDockerfile() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46792
-		rt.St32(m.Mem, m.StreamWindow, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+4, inst)
-		rt.St32(m.Mem, m.StreamWindow+8, cmdHead)
-		rt.St32(m.Mem, m.StreamWindow+12, hdLen)
-		rt.St32(m.Mem, m.StreamWindow+16, hdDelim)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], inst)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], cmdHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], hdLen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], hdDelim)
 		if m.StreamStateLo > 568 {
 			m.StreamStateLo = 568
 		}
@@ -21116,9 +21117,9 @@ func (m *Machine) HlDotenv() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		line = rt.Ld32(m.Mem, 98068)
-		open = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		line = binary.LittleEndian.Uint32(m.Mem[98068:])
+		open = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -21126,8 +21127,8 @@ func (m *Machine) HlDotenv() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				line = rt.Ld32(m.Mem, m.StreamWindow)
-				open = rt.Ld32(m.Mem, m.StreamWindow+4)
+				line = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				open = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 		if open != 0 {
@@ -21139,9 +21140,9 @@ func (m *Machine) HlDotenv() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, line)
-				rt.St32(m.Mem, 98072, open)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], line)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], open)
 				m.LiveSuspended = true
 				return
 			}
@@ -21163,7 +21164,7 @@ func (m *Machine) HlDotenv() {
 		}
 		if line == 0 {
 			line = 2
-			if lhs+7 <= m.End && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x74726f707865 && (m.Mem[lhs+6] == ' ' || m.Mem[lhs+6] == '\t') {
+			if lhs+7 <= m.End && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x74726f707865 && (m.Mem[lhs+6] == ' ' || m.Mem[lhs+6] == '\t') {
 				m.Ptr = lhs + 6
 				m.EmitTok(TokenKeyword, lhs, m.Ptr)
 				line = 0
@@ -21243,8 +21244,8 @@ func (m *Machine) HlDotenv() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46816
-		rt.St32(m.Mem, m.StreamWindow, line)
-		rt.St32(m.Mem, m.StreamWindow+4, open)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], line)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], open)
 		if m.StreamStateLo > 592 {
 			m.StreamStateLo = 592
 		}
@@ -21261,10 +21262,10 @@ func (m *Machine) ExWordHl(lhs, rhs uint32) uint32 {
 	g := m.LexKeywordLookup(lhs, rhs, 16864, 15, 46)
 	if g == 0 {
 		n = rhs - lhs
-		if n >= 5 && rt.Ld16(m.Mem, lhs) == 24415 && rt.Ld16(m.Mem, rhs-2) == 24415 {
+		if n >= 5 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) == 24415 {
 			return TokenVariableSpecial
 		}
-		if n == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x65766965636572 {
+		if n == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x65766965636572 {
 			return TokenKeywordControl
 		}
 		return 0xffffffff
@@ -21421,15 +21422,15 @@ func (m *Machine) HlElixir() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		decl = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		docAttr = rt.Ld32(m.Mem, 98076)
-		interp = rt.Ld32(m.Mem, 98080)
-		lit = rt.Ld32(m.Mem, 98084)
-		depth = rt.Ld32(m.Mem, 98088)
-		iLit = rt.Ld32(m.Mem, 98092)
-		iDepth = rt.Ld32(m.Mem, 98096)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		docAttr = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98080:])
+		lit = binary.LittleEndian.Uint32(m.Mem[98084:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98088:])
+		iLit = binary.LittleEndian.Uint32(m.Mem[98092:])
+		iDepth = binary.LittleEndian.Uint32(m.Mem[98096:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -21437,29 +21438,29 @@ func (m *Machine) HlElixir() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				decl = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				docAttr = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+12)
-				lit = rt.Ld32(m.Mem, m.StreamWindow+16)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+20)
-				iLit = rt.Ld32(m.Mem, m.StreamWindow+24)
-				iDepth = rt.Ld32(m.Mem, m.StreamWindow+28)
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				docAttr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				lit = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				iLit = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				iDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, decl)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, docAttr)
-				rt.St32(m.Mem, 98080, interp)
-				rt.St32(m.Mem, 98084, lit)
-				rt.St32(m.Mem, 98088, depth)
-				rt.St32(m.Mem, 98092, iLit)
-				rt.St32(m.Mem, 98096, iDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], docAttr)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], lit)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], iLit)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], iDepth)
 				m.LiveSuspended = true
 				return
 			}
@@ -21565,7 +21566,7 @@ func (m *Machine) HlElixir() {
 		if c == '@' && m.LexIsIdentStart(c2) {
 			m.Ptr++
 			m.LexScanIdent()
-			docAttr = rt.B2u(m.Ptr-lhs >= 4 && rt.Ld32(m.Mem, m.Ptr-3)&0xffffff == 0x636f64)
+			docAttr = rt.B2u(m.Ptr-lhs >= 4 && binary.LittleEndian.Uint32(m.Mem[m.Ptr-3:])&0xffffff == 0x636f64)
 			m.EmitTok(TokenAttribute, lhs, m.Ptr)
 			continue
 		}
@@ -21706,14 +21707,14 @@ func (m *Machine) HlElixir() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46824
-		rt.St32(m.Mem, m.StreamWindow, decl)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, docAttr)
-		rt.St32(m.Mem, m.StreamWindow+12, interp)
-		rt.St32(m.Mem, m.StreamWindow+16, lit)
-		rt.St32(m.Mem, m.StreamWindow+20, depth)
-		rt.St32(m.Mem, m.StreamWindow+24, iLit)
-		rt.St32(m.Mem, m.StreamWindow+28, iDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], docAttr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], lit)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], iLit)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], iDepth)
 		if m.StreamStateLo > 600 {
 			m.StreamStateLo = 600
 		}
@@ -21751,13 +21752,13 @@ func (m *Machine) HlElm() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		importKw = rt.Ld32(m.Mem, 98072)
-		member = rt.Ld32(m.Mem, 98076)
-		midLine = rt.Ld32(m.Mem, 98080)
-		quote = rt.Ld32(m.Mem, 98084)
-		triple = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		importKw = binary.LittleEndian.Uint32(m.Mem[98072:])
+		member = binary.LittleEndian.Uint32(m.Mem[98076:])
+		midLine = binary.LittleEndian.Uint32(m.Mem[98080:])
+		quote = binary.LittleEndian.Uint32(m.Mem[98084:])
+		triple = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -21765,25 +21766,25 @@ func (m *Machine) HlElm() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				importKw = rt.Ld32(m.Mem, m.StreamWindow+4)
-				member = rt.Ld32(m.Mem, m.StreamWindow+8)
-				midLine = rt.Ld32(m.Mem, m.StreamWindow+12)
-				quote = rt.Ld32(m.Mem, m.StreamWindow+16)
-				triple = rt.Ld32(m.Mem, m.StreamWindow+20)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				importKw = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				midLine = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				quote = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				triple = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, importKw)
-				rt.St32(m.Mem, 98076, member)
-				rt.St32(m.Mem, 98080, midLine)
-				rt.St32(m.Mem, 98084, quote)
-				rt.St32(m.Mem, 98088, triple)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], importKw)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], midLine)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], quote)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], triple)
 				m.LiveSuspended = true
 				return
 			}
@@ -21875,7 +21876,7 @@ func (m *Machine) HlElm() {
 			switch {
 			case kind == 276:
 				importKw = 1
-			case rhs-lhs == 2 && rt.Ld16(m.Mem, lhs) == 29537 && importKw&1 != 0:
+			case rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 29537 && importKw&1 != 0:
 				expect = 1
 			case int32(kind) >= 0 || c-65 > 25:
 				importKw = 0
@@ -21935,12 +21936,12 @@ func (m *Machine) HlElm() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46856
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, importKw)
-		rt.St32(m.Mem, m.StreamWindow+8, member)
-		rt.St32(m.Mem, m.StreamWindow+12, midLine)
-		rt.St32(m.Mem, m.StreamWindow+16, quote)
-		rt.St32(m.Mem, m.StreamWindow+20, triple)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], importKw)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], midLine)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], quote)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], triple)
 		if m.StreamStateLo > 632 {
 			m.StreamStateLo = 632
 		}
@@ -21962,10 +21963,10 @@ func (m *Machine) RubyWordHl(lhs, rhs uint32) uint32 {
 	g := m.LexKeywordLookup(lhs, rhs, 25856, 15, 59)
 	if g == 0 {
 		n = rhs - lhs
-		if n >= 6 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x5f72747461 {
+		if n >= 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x5f72747461 {
 			return TokenFunction
 		}
-		if n >= 5 && rt.Ld16(m.Mem, lhs) == 24415 && rt.Ld16(m.Mem, rhs-2) == 24415 {
+		if n >= 5 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) == 24415 {
 			return TokenVariableSpecial
 		}
 		return 0xffffffff
@@ -22156,26 +22157,26 @@ func (m *Machine) HlRuby() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		operand = rt.Ld32(m.Mem, 98068)
-		decl = rt.Ld32(m.Mem, 98072)
-		member = rt.Ld32(m.Mem, 98076)
-		lineHead = rt.Ld32(m.Mem, 98080)
-		seg = rt.Ld32(m.Mem, 98084)
-		interp = rt.Ld32(m.Mem, 98088)
-		sActive = rt.Ld32(m.Mem, 98092)
-		sClose = rt.Ld32(m.Mem, 98096)
-		sOpen = rt.Ld32(m.Mem, 98100)
-		sDepth = rt.Ld32(m.Mem, 98104)
-		sFlags = rt.Ld32(m.Mem, 98108)
-		iClose = rt.Ld32(m.Mem, 98112)
-		iOpen = rt.Ld32(m.Mem, 98116)
-		iDepth = rt.Ld32(m.Mem, 98120)
-		iFlags = rt.Ld32(m.Mem, 98124)
-		hdLen = rt.Ld32(m.Mem, 98128)
-		hdDelim = rt.Ld32(m.Mem, 98132)
-		hdStrip = rt.Ld32(m.Mem, 98136)
-		data = rt.Ld32(m.Mem, 98140)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		operand = binary.LittleEndian.Uint32(m.Mem[98068:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98072:])
+		member = binary.LittleEndian.Uint32(m.Mem[98076:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98080:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98084:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98088:])
+		sActive = binary.LittleEndian.Uint32(m.Mem[98092:])
+		sClose = binary.LittleEndian.Uint32(m.Mem[98096:])
+		sOpen = binary.LittleEndian.Uint32(m.Mem[98100:])
+		sDepth = binary.LittleEndian.Uint32(m.Mem[98104:])
+		sFlags = binary.LittleEndian.Uint32(m.Mem[98108:])
+		iClose = binary.LittleEndian.Uint32(m.Mem[98112:])
+		iOpen = binary.LittleEndian.Uint32(m.Mem[98116:])
+		iDepth = binary.LittleEndian.Uint32(m.Mem[98120:])
+		iFlags = binary.LittleEndian.Uint32(m.Mem[98124:])
+		hdLen = binary.LittleEndian.Uint32(m.Mem[98128:])
+		hdDelim = binary.LittleEndian.Uint32(m.Mem[98132:])
+		hdStrip = binary.LittleEndian.Uint32(m.Mem[98136:])
+		data = binary.LittleEndian.Uint32(m.Mem[98140:])
 	} else {
 		lineHead = 1
 		operand = 1
@@ -22185,51 +22186,51 @@ func (m *Machine) HlRuby() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				operand = rt.Ld32(m.Mem, m.StreamWindow)
-				decl = rt.Ld32(m.Mem, m.StreamWindow+4)
-				member = rt.Ld32(m.Mem, m.StreamWindow+8)
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow+12)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+16)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+20)
-				sActive = rt.Ld32(m.Mem, m.StreamWindow+24)
-				sClose = rt.Ld32(m.Mem, m.StreamWindow+28)
-				sOpen = rt.Ld32(m.Mem, m.StreamWindow+32)
-				sDepth = rt.Ld32(m.Mem, m.StreamWindow+36)
-				sFlags = rt.Ld32(m.Mem, m.StreamWindow+40)
-				iClose = rt.Ld32(m.Mem, m.StreamWindow+44)
-				iOpen = rt.Ld32(m.Mem, m.StreamWindow+48)
-				iDepth = rt.Ld32(m.Mem, m.StreamWindow+52)
-				iFlags = rt.Ld32(m.Mem, m.StreamWindow+56)
-				hdLen = rt.Ld32(m.Mem, m.StreamWindow+60)
-				hdDelim = rt.Ld32(m.Mem, m.StreamWindow+64)
-				hdStrip = rt.Ld32(m.Mem, m.StreamWindow+68)
-				data = rt.Ld32(m.Mem, m.StreamWindow+72)
+				operand = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				sActive = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				sClose = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				sOpen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
+				sDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+36:])
+				sFlags = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+40:])
+				iClose = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+44:])
+				iOpen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+48:])
+				iDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+52:])
+				iFlags = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+56:])
+				hdLen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+60:])
+				hdDelim = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+64:])
+				hdStrip = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+68:])
+				data = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+72:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, operand)
-				rt.St32(m.Mem, 98072, decl)
-				rt.St32(m.Mem, 98076, member)
-				rt.St32(m.Mem, 98080, lineHead)
-				rt.St32(m.Mem, 98084, seg)
-				rt.St32(m.Mem, 98088, interp)
-				rt.St32(m.Mem, 98092, sActive)
-				rt.St32(m.Mem, 98096, sClose)
-				rt.St32(m.Mem, 98100, sOpen)
-				rt.St32(m.Mem, 98104, sDepth)
-				rt.St32(m.Mem, 98108, sFlags)
-				rt.St32(m.Mem, 98112, iClose)
-				rt.St32(m.Mem, 98116, iOpen)
-				rt.St32(m.Mem, 98120, iDepth)
-				rt.St32(m.Mem, 98124, iFlags)
-				rt.St32(m.Mem, 98128, hdLen)
-				rt.St32(m.Mem, 98132, hdDelim)
-				rt.St32(m.Mem, 98136, hdStrip)
-				rt.St32(m.Mem, 98140, data)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], operand)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], sActive)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], sClose)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], sOpen)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], sDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98108:], sFlags)
+				binary.LittleEndian.PutUint32(m.Mem[98112:], iClose)
+				binary.LittleEndian.PutUint32(m.Mem[98116:], iOpen)
+				binary.LittleEndian.PutUint32(m.Mem[98120:], iDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98124:], iFlags)
+				binary.LittleEndian.PutUint32(m.Mem[98128:], hdLen)
+				binary.LittleEndian.PutUint32(m.Mem[98132:], hdDelim)
+				binary.LittleEndian.PutUint32(m.Mem[98136:], hdStrip)
+				binary.LittleEndian.PutUint32(m.Mem[98140:], data)
 				m.LiveSuspended = true
 				return
 			}
@@ -22309,19 +22310,19 @@ func (m *Machine) HlRuby() {
 			continue
 		}
 		if c == '=' && atHead&1 != 0 {
-			if rt.Ld32(m.Mem, lhs)&0xffffff == 0x65623d && rt.Ld32(m.Mem, lhs+2)&0xffffff == 0x696765 {
+			if binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x65623d && binary.LittleEndian.Uint32(m.Mem[lhs+2:])&0xffffff == 0x696765 {
 				m.ScanToLineEnd()
 				if m.Ptr < m.End {
 					m.Ptr++
 				}
 				m.EmitTok(TokenComment, lhs, m.Ptr)
-				rt.St32(m.Mem, 13952, 0x646e653d)
+				binary.LittleEndian.PutUint32(m.Mem[13952:], 0x646e653d)
 				m.RubyLineDelimited(13952, 4, 4, TokenComment)
 				lineHead = 1
 				continue
 			}
 		}
-		if c == '_' && atHead&1 != 0 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x5f5f444e455f5f && !m.LexIsIdentContinue(m.RubyByte(lhs+7)) {
+		if c == '_' && atHead&1 != 0 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x5f5f444e455f5f && !m.LexIsIdentContinue(m.RubyByte(lhs+7)) {
 			data = 1
 			continue
 		}
@@ -22690,25 +22691,25 @@ func (m *Machine) HlRuby() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46880
-		rt.St32(m.Mem, m.StreamWindow, operand)
-		rt.St32(m.Mem, m.StreamWindow+4, decl)
-		rt.St32(m.Mem, m.StreamWindow+8, member)
-		rt.St32(m.Mem, m.StreamWindow+12, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+16, seg)
-		rt.St32(m.Mem, m.StreamWindow+20, interp)
-		rt.St32(m.Mem, m.StreamWindow+24, sActive)
-		rt.St32(m.Mem, m.StreamWindow+28, sClose)
-		rt.St32(m.Mem, m.StreamWindow+32, sOpen)
-		rt.St32(m.Mem, m.StreamWindow+36, sDepth)
-		rt.St32(m.Mem, m.StreamWindow+40, sFlags)
-		rt.St32(m.Mem, m.StreamWindow+44, iClose)
-		rt.St32(m.Mem, m.StreamWindow+48, iOpen)
-		rt.St32(m.Mem, m.StreamWindow+52, iDepth)
-		rt.St32(m.Mem, m.StreamWindow+56, iFlags)
-		rt.St32(m.Mem, m.StreamWindow+60, hdLen)
-		rt.St32(m.Mem, m.StreamWindow+64, hdDelim)
-		rt.St32(m.Mem, m.StreamWindow+68, hdStrip)
-		rt.St32(m.Mem, m.StreamWindow+72, data)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], operand)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], sActive)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], sClose)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], sOpen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+36:], sDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+40:], sFlags)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+44:], iClose)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+48:], iOpen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+52:], iDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+56:], iFlags)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+60:], hdLen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+64:], hdDelim)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+68:], hdStrip)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+72:], data)
 		if m.StreamStateLo > 656 {
 			m.StreamStateLo = 656
 		}
@@ -22903,8 +22904,8 @@ func (m *Machine) HlErb() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		from = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		from = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -22917,8 +22918,8 @@ func (m *Machine) HlErb() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, from)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], from)
 				m.LiveSuspended = true
 				return
 			}
@@ -22947,7 +22948,7 @@ func (m *Machine) HlErb() {
 			}
 		case m.ErbRawKind(p) != 0:
 			m.HTMLTag(26)
-		case p+4 <= m.End && rt.Ld32(m.Mem, p) == 0x2d2d213c:
+		case p+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x2d2d213c:
 			m.HTMLComment(p)
 		default:
 			m.HTMLDecl(p, m.Mem[p+1] == '?', rt.Sel32(m.Mem[p+1] == '?', TokenComment, TokenTagDoctype))
@@ -23026,9 +23027,9 @@ func (m *Machine) HlErlang() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		col0 = rt.Ld32(m.Mem, 98068)
-		attr = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		col0 = binary.LittleEndian.Uint32(m.Mem[98068:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		col0 = 1
 		m.LexEmitLeadingContinuation()
@@ -23037,17 +23038,17 @@ func (m *Machine) HlErlang() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				col0 = rt.Ld32(m.Mem, m.StreamWindow)
-				attr = rt.Ld32(m.Mem, m.StreamWindow+4)
+				col0 = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				attr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, col0)
-				rt.St32(m.Mem, 98072, attr)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], col0)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], attr)
 				m.LiveSuspended = true
 				return
 			}
@@ -23211,7 +23212,7 @@ func (m *Machine) HlErlang() {
 							if !(m.ErlIsOp(p) || p == 46 || p == 58) {
 								break
 							}
-							if m.Ptr > lhs && (rt.Ld16(m.Mem, m.Ptr)&65535 == 15420 || rt.Ld16(m.Mem, m.Ptr)&65535 == 15934) {
+							if m.Ptr > lhs && (uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:]))&65535 == 15420 || uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:]))&65535 == 15934) {
 								break
 							}
 							m.Ptr++
@@ -23229,8 +23230,8 @@ func (m *Machine) HlErlang() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46960
-		rt.St32(m.Mem, m.StreamWindow, col0)
-		rt.St32(m.Mem, m.StreamWindow+4, attr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], col0)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], attr)
 		if m.StreamStateLo > 736 {
 			m.StreamStateLo = 736
 		}
@@ -23325,11 +23326,11 @@ func (m *Machine) HlFish() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		cmd = rt.Ld32(m.Mem, 98068)
-		expect = rt.Ld32(m.Mem, 98072)
-		str = rt.Ld32(m.Mem, 98076)
-		bitSet = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		cmd = binary.LittleEndian.Uint32(m.Mem[98068:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98072:])
+		str = binary.LittleEndian.Uint32(m.Mem[98076:])
+		bitSet = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		cmd = 1
 		m.LexEmitLeadingContinuation()
@@ -23338,21 +23339,21 @@ func (m *Machine) HlFish() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				cmd = rt.Ld32(m.Mem, m.StreamWindow)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+4)
-				str = rt.Ld32(m.Mem, m.StreamWindow+8)
-				bitSet = rt.Ld32(m.Mem, m.StreamWindow+12)
+				cmd = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				str = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				bitSet = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, cmd)
-				rt.St32(m.Mem, 98072, expect)
-				rt.St32(m.Mem, 98076, str)
-				rt.St32(m.Mem, 98080, bitSet)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], cmd)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], str)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], bitSet)
 				m.LiveSuspended = true
 				return
 			}
@@ -23508,7 +23509,7 @@ func (m *Machine) HlFish() {
 			expect = v
 			cmd = head
 		case v == 5:
-			if rhs-lhs == 2 && rt.Ld16(m.Mem, lhs) == 28265 {
+			if rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 28265 {
 				hl = TokenKeywordControl
 			}
 		case v != 0:
@@ -23547,10 +23548,10 @@ func (m *Machine) HlFish() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46968
-		rt.St32(m.Mem, m.StreamWindow, cmd)
-		rt.St32(m.Mem, m.StreamWindow+4, expect)
-		rt.St32(m.Mem, m.StreamWindow+8, str)
-		rt.St32(m.Mem, m.StreamWindow+12, bitSet)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], cmd)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], str)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], bitSet)
 		if m.StreamStateLo > 744 {
 			m.StreamStateLo = 744
 		}
@@ -23563,10 +23564,10 @@ func (m *Machine) HlFish() {
 
 // FortranWordHl is $fortranWordHl.
 func (m *Machine) FortranWordHl(lhs, rhs uint32) uint32 {
-	if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
+	if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
 		return TokenKeywordControl
 	}
-	if rhs-lhs == 7 && (rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x65726975716e69 || rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x656c6966646e65) {
+	if rhs-lhs == 7 && (binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x65726975716e69 || binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x656c6966646e65) {
 		return TokenFunction
 	}
 	return m.LexKeywordValue(lhs, rhs, 17344, 63, 138)
@@ -23604,12 +23605,12 @@ func (m *Machine) HlFortranImpl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		colBase = rt.Ld32(m.Mem, 98068)
-		expect = rt.Ld32(m.Mem, 98072)
-		member = rt.Ld32(m.Mem, 98076)
-		quote = rt.Ld32(m.Mem, 98080)
-		continued = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		colBase = binary.LittleEndian.Uint32(m.Mem[98068:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98072:])
+		member = binary.LittleEndian.Uint32(m.Mem[98076:])
+		quote = binary.LittleEndian.Uint32(m.Mem[98080:])
+		continued = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -23617,11 +23618,11 @@ func (m *Machine) HlFortranImpl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				column = rt.Ld32(m.Mem, m.StreamWindow)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+4)
-				member = rt.Ld32(m.Mem, m.StreamWindow+8)
-				quote = rt.Ld32(m.Mem, m.StreamWindow+12)
-				continued = rt.Ld32(m.Mem, m.StreamWindow+16)
+				column = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				quote = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				continued = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 		colBase = m.Ptr - column
@@ -23629,12 +23630,12 @@ func (m *Machine) HlFortranImpl() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, colBase)
-				rt.St32(m.Mem, 98072, expect)
-				rt.St32(m.Mem, 98076, member)
-				rt.St32(m.Mem, 98080, quote)
-				rt.St32(m.Mem, 98084, continued)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], colBase)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], quote)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], continued)
 				m.LiveSuspended = true
 				return
 			}
@@ -23835,11 +23836,11 @@ func (m *Machine) HlFortranImpl() {
 	column = m.Ptr - colBase
 	if streamRoot != 0 {
 		m.StreamWindow = 46984
-		rt.St32(m.Mem, m.StreamWindow, column)
-		rt.St32(m.Mem, m.StreamWindow+4, expect)
-		rt.St32(m.Mem, m.StreamWindow+8, member)
-		rt.St32(m.Mem, m.StreamWindow+12, quote)
-		rt.St32(m.Mem, m.StreamWindow+16, continued)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], column)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], quote)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], continued)
 		if m.StreamStateLo > 760 {
 			m.StreamStateLo = 760
 		}
@@ -23897,12 +23898,12 @@ func (m *Machine) HlOcaml() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		typeMode = rt.Ld32(m.Mem, 98076)
-		afterValue = rt.Ld32(m.Mem, 98080)
-		lastModule = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		typeMode = binary.LittleEndian.Uint32(m.Mem[98076:])
+		afterValue = binary.LittleEndian.Uint32(m.Mem[98080:])
+		lastModule = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -23910,23 +23911,23 @@ func (m *Machine) HlOcaml() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				typeMode = rt.Ld32(m.Mem, m.StreamWindow+8)
-				afterValue = rt.Ld32(m.Mem, m.StreamWindow+12)
-				lastModule = rt.Ld32(m.Mem, m.StreamWindow+16)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				typeMode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				afterValue = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				lastModule = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, typeMode)
-				rt.St32(m.Mem, 98080, afterValue)
-				rt.St32(m.Mem, 98084, lastModule)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], typeMode)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], afterValue)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], lastModule)
 				m.LiveSuspended = true
 				return
 			}
@@ -24071,7 +24072,7 @@ func (m *Machine) HlOcaml() {
 				if expect == 4 {
 					expect = 3
 				}
-				typeMode = rt.B2u(rhs-lhs == 2 && rt.Ld16(m.Mem, lhs) == 26223)
+				typeMode = rt.B2u(rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 26223)
 			case uint32(m.Mem[lhs])-65 <= 25:
 				lastModule = rt.B2u(m.MlByte(rhs) == '.')
 				if lastModule != 0 || expect == 3 {
@@ -24193,7 +24194,7 @@ func (m *Machine) HlOcaml() {
 						expect = 0
 					}
 				}
-				if n == 2 && rt.Ld16(m.Mem, lhs) == 14906 {
+				if n == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 14906 {
 					typeMode = 0
 				}
 				hl = TokenOperator
@@ -24214,11 +24215,11 @@ func (m *Machine) HlOcaml() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47008
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, typeMode)
-		rt.St32(m.Mem, m.StreamWindow+12, afterValue)
-		rt.St32(m.Mem, m.StreamWindow+16, lastModule)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], typeMode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], afterValue)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], lastModule)
 		if m.StreamStateLo > 784 {
 			m.StreamStateLo = 784
 		}
@@ -24467,17 +24468,17 @@ func (m *Machine) HlFsharp() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		strKind = rt.Ld32(m.Mem, 98068)
-		seg = rt.Ld32(m.Mem, 98072)
-		interp = rt.Ld32(m.Mem, 98076)
-		interpKind = rt.Ld32(m.Mem, 98080)
-		expect = rt.Ld32(m.Mem, 98084)
-		member = rt.Ld32(m.Mem, 98088)
-		typeMode = rt.Ld32(m.Mem, 98092)
-		afterValue = rt.Ld32(m.Mem, 98096)
-		lastModule = rt.Ld32(m.Mem, 98100)
-		attr = rt.Ld32(m.Mem, 98104)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98068:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98072:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98084:])
+		member = binary.LittleEndian.Uint32(m.Mem[98088:])
+		typeMode = binary.LittleEndian.Uint32(m.Mem[98092:])
+		afterValue = binary.LittleEndian.Uint32(m.Mem[98096:])
+		lastModule = binary.LittleEndian.Uint32(m.Mem[98100:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98104:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -24485,33 +24486,33 @@ func (m *Machine) HlFsharp() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				strKind = rt.Ld32(m.Mem, m.StreamWindow)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+4)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+16)
-				member = rt.Ld32(m.Mem, m.StreamWindow+20)
-				typeMode = rt.Ld32(m.Mem, m.StreamWindow+24)
-				afterValue = rt.Ld32(m.Mem, m.StreamWindow+28)
-				lastModule = rt.Ld32(m.Mem, m.StreamWindow+32)
-				attr = rt.Ld32(m.Mem, m.StreamWindow+36)
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				typeMode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				afterValue = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				lastModule = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
+				attr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+36:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, strKind)
-				rt.St32(m.Mem, 98072, seg)
-				rt.St32(m.Mem, 98076, interp)
-				rt.St32(m.Mem, 98080, interpKind)
-				rt.St32(m.Mem, 98084, expect)
-				rt.St32(m.Mem, 98088, member)
-				rt.St32(m.Mem, 98092, typeMode)
-				rt.St32(m.Mem, 98096, afterValue)
-				rt.St32(m.Mem, 98100, lastModule)
-				rt.St32(m.Mem, 98104, attr)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], typeMode)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], afterValue)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], lastModule)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], attr)
 				m.LiveSuspended = true
 				return
 			}
@@ -24654,7 +24655,7 @@ func (m *Machine) HlFsharp() {
 				} else if hl != TokenKeywordDeclaration {
 					expect = 0
 				}
-				typeMode = rt.B2u(rhs-lhs == 2 && rt.Ld16(m.Mem, lhs) == 26223)
+				typeMode = rt.B2u(rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 26223)
 				afterValue = rt.B2u(hl == TokenBoolean || hl == TokenConstantBuiltin || hl == TokenVariableSpecial)
 			} else {
 				argument = m.MlIsArgStart(pc)
@@ -24830,7 +24831,7 @@ func (m *Machine) HlFsharp() {
 					}
 				}
 			}
-			if n == 2 && rt.Ld16(m.Mem, lhs) == 14906 {
+			if n == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 14906 {
 				typeMode = 0
 			}
 			member = 0
@@ -24843,16 +24844,16 @@ func (m *Machine) HlFsharp() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47032
-		rt.St32(m.Mem, m.StreamWindow, strKind)
-		rt.St32(m.Mem, m.StreamWindow+4, seg)
-		rt.St32(m.Mem, m.StreamWindow+8, interp)
-		rt.St32(m.Mem, m.StreamWindow+12, interpKind)
-		rt.St32(m.Mem, m.StreamWindow+16, expect)
-		rt.St32(m.Mem, m.StreamWindow+20, member)
-		rt.St32(m.Mem, m.StreamWindow+24, typeMode)
-		rt.St32(m.Mem, m.StreamWindow+28, afterValue)
-		rt.St32(m.Mem, m.StreamWindow+32, lastModule)
-		rt.St32(m.Mem, m.StreamWindow+36, attr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], typeMode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], afterValue)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], lastModule)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+36:], attr)
 		if m.StreamStateLo > 808 {
 			m.StreamStateLo = 808
 		}
@@ -24983,7 +24984,7 @@ func (m *Machine) PyStreamResume() bool {
 func (m *Machine) PyWordHl(lhs, rhs uint32) uint32 {
 	hl := m.LexKeywordValue(lhs, rhs, 25472, 31, 78)
 	if hl == 0xffffffff {
-		if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6573696172 {
+		if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6573696172 {
 			return TokenKeywordControl
 		}
 		return TokenNone
@@ -24994,7 +24995,7 @@ func (m *Machine) PyWordHl(lhs, rhs uint32) uint32 {
 // PySoftKeyword is $pySoftKeyword.
 func (m *Machine) PySoftKeyword(lhs, rhs uint32) bool {
 	n := rhs - lhs
-	if !((n == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x686374616d) || (n == 4 && rt.Ld32(m.Mem, lhs) == 0x65736163)) {
+	if !((n == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x686374616d) || (n == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65736163)) {
 		return false
 	}
 	rhs = m.LexSkipSpaceAt(rhs)
@@ -25017,13 +25018,13 @@ func (m *Machine) HlPython() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		afterDecl = rt.Ld32(m.Mem, 98068)
-		afterDot = rt.Ld32(m.Mem, 98072)
-		annotName = rt.Ld32(m.Mem, 98076)
-		brackDepth = rt.Ld32(m.Mem, 98080)
-		lineHead = rt.Ld32(m.Mem, 98084)
-		typeNext = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		afterDecl = binary.LittleEndian.Uint32(m.Mem[98068:])
+		afterDot = binary.LittleEndian.Uint32(m.Mem[98072:])
+		annotName = binary.LittleEndian.Uint32(m.Mem[98076:])
+		brackDepth = binary.LittleEndian.Uint32(m.Mem[98080:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98084:])
+		typeNext = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -25031,11 +25032,11 @@ func (m *Machine) HlPython() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				afterDecl = rt.Ld32(m.Mem, m.StreamWindow)
-				afterDot = rt.Ld32(m.Mem, m.StreamWindow+4)
-				annotName = rt.Ld32(m.Mem, m.StreamWindow+8)
-				brackDepth = rt.Ld32(m.Mem, m.StreamWindow+12)
-				typeNext = rt.Ld32(m.Mem, m.StreamWindow+16)
+				afterDecl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				afterDot = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				annotName = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				brackDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				typeNext = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 		lineHead = 1
@@ -25043,13 +25044,13 @@ func (m *Machine) HlPython() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, afterDecl)
-				rt.St32(m.Mem, 98072, afterDot)
-				rt.St32(m.Mem, 98076, annotName)
-				rt.St32(m.Mem, 98080, brackDepth)
-				rt.St32(m.Mem, 98084, lineHead)
-				rt.St32(m.Mem, 98088, typeNext)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], afterDecl)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], afterDot)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], annotName)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], brackDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], typeNext)
 				m.LiveSuspended = true
 				return
 			}
@@ -25119,7 +25120,7 @@ func (m *Machine) HlPython() {
 						continue
 					}
 				} else if lhs+2 < m.End && (m.Mem[lhs+2] == '"' || m.Mem[lhs+2] == '\'') {
-					p = rt.Ld16(m.Mem, lhs) | 8224
+					p = uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) | 8224
 					if p == 29282 || p == 25202 || p == 29286 || p == 26226 || p == 29300 || p == 29810 {
 						m.PyString(2, uint32(m.Mem[lhs+2]), true, p != 29282 && p != 25202)
 						annotName = 0
@@ -25178,7 +25179,7 @@ func (m *Machine) HlPython() {
 				}
 				m.EmitTok(hl, lhs, m.Ptr)
 				annotName = rt.B2u((g == 0 && hl != TokenKeywordControl) || hl == TokenVariableSpecial) & (rt.B2u(hl == TokenVariableParameter) | lineHead | afterDot&annotName)
-				if m.Ptr-lhs == 6 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x6164626d616c {
+				if m.Ptr-lhs == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x6164626d616c {
 					brackDepth |= 1
 				}
 				afterDecl = g >> 8
@@ -25271,11 +25272,11 @@ func (m *Machine) HlPython() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47072
-		rt.St32(m.Mem, m.StreamWindow, afterDecl)
-		rt.St32(m.Mem, m.StreamWindow+4, afterDot)
-		rt.St32(m.Mem, m.StreamWindow+8, annotName)
-		rt.St32(m.Mem, m.StreamWindow+12, brackDepth)
-		rt.St32(m.Mem, m.StreamWindow+16, typeNext)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], afterDecl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], afterDot)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], annotName)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], brackDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], typeNext)
 		if m.StreamStateLo > 848 {
 			m.StreamStateLo = 848
 		}
@@ -25289,13 +25290,13 @@ func (m *Machine) HlPython() {
 // GdTypeHl is $gdTypeHl.
 func (m *Machine) GdTypeHl(lhs, rhs uint32) uint32 {
 	length := rhs - lhs
-	if length == 8 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x726f74636556 && m.Mem[lhs+7] == 'i' {
+	if length == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x726f74636556 && m.Mem[lhs+7] == 'i' {
 		rhs--
 	}
-	if length == 11 && rt.Ld64(m.Mem, lhs) == 0x726f66736e617254 && rt.Ld32(m.Mem, lhs+7) == 0x44336d72 {
+	if length == 11 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x726f66736e617254 && binary.LittleEndian.Uint32(m.Mem[lhs+7:]) == 0x44336d72 {
 		return TokenTypeBuiltin
 	}
-	if length >= 15 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x64656b636150 && rt.Ld64(m.Mem, rhs-5)&0xffffffffff == 0x7961727241 {
+	if length >= 15 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x64656b636150 && binary.LittleEndian.Uint64(m.Mem[rhs-5:])&0xffffffffff == 0x7961727241 {
 		return m.LexKeywordValue(lhs+6, rhs-5, 18400, 3, 10)
 	}
 	return m.LexKeywordValue(lhs, rhs, 18240, 7, 27)
@@ -25309,11 +25310,11 @@ func (m *Machine) HlGdscript() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		decl = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		operand = rt.Ld32(m.Mem, 98076)
-		quote = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		operand = binary.LittleEndian.Uint32(m.Mem[98076:])
+		quote = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -25321,21 +25322,21 @@ func (m *Machine) HlGdscript() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				decl = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				operand = rt.Ld32(m.Mem, m.StreamWindow+8)
-				quote = rt.Ld32(m.Mem, m.StreamWindow+12)
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				operand = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				quote = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, decl)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, operand)
-				rt.St32(m.Mem, 98080, quote)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], operand)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], quote)
 				m.LiveSuspended = true
 				return
 			}
@@ -25488,10 +25489,10 @@ func (m *Machine) HlGdscript() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47096
-		rt.St32(m.Mem, m.StreamWindow, decl)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, operand)
-		rt.St32(m.Mem, m.StreamWindow+12, quote)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], operand)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], quote)
 		if m.StreamStateLo > 872 {
 			m.StreamStateLo = 872
 		}
@@ -25509,9 +25510,9 @@ func (m *Machine) HlGdresource() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		header = rt.Ld32(m.Mem, 98068)
-		quote = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		header = binary.LittleEndian.Uint32(m.Mem[98068:])
+		quote = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -25519,17 +25520,17 @@ func (m *Machine) HlGdresource() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				header = rt.Ld32(m.Mem, m.StreamWindow)
-				quote = rt.Ld32(m.Mem, m.StreamWindow+4)
+				header = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				quote = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, header)
-				rt.St32(m.Mem, 98072, quote)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], header)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], quote)
 				m.LiveSuspended = true
 				return
 			}
@@ -25649,8 +25650,8 @@ func (m *Machine) HlGdresource() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47112
-		rt.St32(m.Mem, m.StreamWindow, header)
-		rt.St32(m.Mem, m.StreamWindow+4, quote)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], header)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], quote)
 		if m.StreamStateLo > 888 {
 			m.StreamStateLo = 888
 		}
@@ -25671,38 +25672,38 @@ func (m *Machine) GlslWordHl(lhs, rhs uint32) uint32 {
 	}
 	length := rhs - lhs
 	if length >= 7 {
-		w = rt.Ld32(m.Mem, rhs-4)
-		if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x746e69) || (length == 8 && rt.Ld32(m.Mem, lhs) == 0x746e6975) || (length == 9 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x74616f6c66)) {
+		w = binary.LittleEndian.Uint32(m.Mem[rhs-4:])
+		if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x746e69) || (length == 8 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x746e6975) || (length == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x74616f6c66)) {
 			return TokenTypeBuiltin
 		}
 	}
-	if length == 15 && rt.Ld64(m.Mem, lhs) == 0x74616e696d726574 && rt.Ld64(m.Mem, lhs+7) == 0x5458457961526574 {
+	if length == 15 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x74616e696d726574 && binary.LittleEndian.Uint64(m.Mem[lhs+7:]) == 0x5458457961526574 {
 		return TokenKeywordControl
 	}
 	last := uint32(m.Mem[rhs-1])
 	if last-50 <= 2 {
 		if length == 4 {
-			w = rt.Ld32(m.Mem, lhs) & 0xffffff
+			w = binary.LittleEndian.Uint32(m.Mem[lhs:]) & 0xffffff
 			if w == 0x636576 || w == 0x74616d {
 				return TokenTypeBuiltin
 			}
 		}
 		if length == 5 {
-			w = rt.Ld32(m.Mem, lhs)
+			w = binary.LittleEndian.Uint32(m.Mem[lhs:])
 			if w == 0x63657662 || w == 0x63657669 || w == 0x63657675 || w == 0x63657664 || w == 0x74616d64 {
 				return TokenTypeBuiltin
 			}
 		}
-		if length == 6 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x74616d && uint32(m.Mem[lhs+3])-50 <= 2 && m.Mem[lhs+4] == 'x' {
+		if length == 6 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x74616d && uint32(m.Mem[lhs+3])-50 <= 2 && m.Mem[lhs+4] == 'x' {
 			return TokenTypeBuiltin
 		}
-		if length == 7 && rt.Ld32(m.Mem, lhs) == 0x74616d64 && uint32(m.Mem[lhs+4])-50 <= 2 && m.Mem[lhs+5] == 'x' {
+		if length == 7 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x74616d64 && uint32(m.Mem[lhs+4])-50 <= 2 && m.Mem[lhs+5] == 'x' {
 			return TokenTypeBuiltin
 		}
 	}
 	w = rt.B2u(m.Mem[lhs] == 'i' || m.Mem[lhs] == 'u')
-	x = rt.Ld64(m.Mem, lhs+w) & 0xffffffffffffff
-	if (length-w >= 7 && (x == 0x72656c706d6173 || (w == 0 && x == 0x74616d706f6f63))) || (length >= 8 && x == 0x65727574786574) || (((length >= 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6567616d69) || (length >= 6 && x&0xffffffffff == 0x6567616d69)) && w&1 != 0) {
+	x = binary.LittleEndian.Uint64(m.Mem[lhs+w:]) & 0xffffffffffffff
+	if (length-w >= 7 && (x == 0x72656c706d6173 || (w == 0 && x == 0x74616d706f6f63))) || (length >= 8 && x == 0x65727574786574) || (((length >= 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6567616d69) || (length >= 6 && x&0xffffffffff == 0x6567616d69)) && w&1 != 0) {
 		return TokenTypeBuiltin
 	}
 	return TokenNone
@@ -25720,13 +25721,13 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		godot = rt.Ld32(m.Mem, 98064)
-		streamRoot = rt.Ld32(m.Mem, 98068)
-		afterDot = rt.Ld32(m.Mem, 98072)
-		wantType = rt.Ld32(m.Mem, 98076)
-		include = rt.Ld32(m.Mem, 98080)
-		modes = rt.Ld32(m.Mem, 98084)
-		strCont = rt.Ld32(m.Mem, 98088)
+		godot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98068:])
+		afterDot = binary.LittleEndian.Uint32(m.Mem[98072:])
+		wantType = binary.LittleEndian.Uint32(m.Mem[98076:])
+		include = binary.LittleEndian.Uint32(m.Mem[98080:])
+		modes = binary.LittleEndian.Uint32(m.Mem[98084:])
+		strCont = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -25734,11 +25735,11 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				afterDot = rt.Ld32(m.Mem, m.StreamWindow)
-				wantType = rt.Ld32(m.Mem, m.StreamWindow+4)
-				include = rt.Ld32(m.Mem, m.StreamWindow+8)
-				modes = rt.Ld32(m.Mem, m.StreamWindow+12)
-				strCont = rt.Ld32(m.Mem, m.StreamWindow+16)
+				afterDot = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				wantType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				include = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				modes = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				strCont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 		strCont = m.LexCStringResume(strCont)
@@ -25746,13 +25747,13 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, godot)
-				rt.St32(m.Mem, 98068, streamRoot)
-				rt.St32(m.Mem, 98072, afterDot)
-				rt.St32(m.Mem, 98076, wantType)
-				rt.St32(m.Mem, 98080, include)
-				rt.St32(m.Mem, 98084, modes)
-				rt.St32(m.Mem, 98088, strCont)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], godot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], afterDot)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], wantType)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], include)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], modes)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], strCont)
 				m.LiveSuspended = true
 				return
 			}
@@ -25779,7 +25780,7 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 			}
 			word = m.Ptr
 			m.LexScanIdent()
-			include = rt.B2u(m.Ptr-word == 7 && rt.Ld64(m.Mem, word)&0xffffffffffffff == 0x6564756c636e69)
+			include = rt.B2u(m.Ptr-word == 7 && binary.LittleEndian.Uint64(m.Mem[word:])&0xffffffffffffff == 0x6564756c636e69)
 			m.EmitTok(TokenPreproc, lhs, m.Ptr)
 			afterDot = 0
 			wantType = 0
@@ -25874,12 +25875,12 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 							}
 						}
 						if length == 18 {
-							if rt.Ld64(m.Mem, lhs) == 0x7065645f746e6968 && rt.Ld64(m.Mem, lhs+8) == 0x75747865745f6874 && rt.Ld16(m.Mem, lhs+16) == 25970 {
+							if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7065645f746e6968 && binary.LittleEndian.Uint64(m.Mem[lhs+8:]) == 0x75747865745f6874 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+16:])) == 25970 {
 								hl = TokenAttribute
 							}
 						}
 						if length-32 <= 1 {
-							if rt.Ld64(m.Mem, m.Ptr-12) == 0x72746f73696e615f && rt.Ld32(m.Mem, m.Ptr-4) == 0x6369706f {
+							if binary.LittleEndian.Uint64(m.Mem[m.Ptr-12:]) == 0x72746f73696e615f && binary.LittleEndian.Uint32(m.Mem[m.Ptr-4:]) == 0x6369706f {
 								if m.LexKeywordValue(lhs, m.Ptr-12, 18656, 31, 95) == TokenAttribute {
 									hl = TokenAttribute
 								}
@@ -25895,7 +25896,7 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 				switch {
 				case wantType != 0:
 					hl = TokenType
-				case m.Ptr-lhs >= 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x5f6c67:
+				case m.Ptr-lhs >= 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x5f6c67:
 					hl = TokenVariableSpecial
 				default:
 					p = m.LexSkipSpaceAt(m.Ptr)
@@ -25974,11 +25975,11 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47120
-		rt.St32(m.Mem, m.StreamWindow, afterDot)
-		rt.St32(m.Mem, m.StreamWindow+4, wantType)
-		rt.St32(m.Mem, m.StreamWindow+8, include)
-		rt.St32(m.Mem, m.StreamWindow+12, modes)
-		rt.St32(m.Mem, m.StreamWindow+16, strCont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], afterDot)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], wantType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], include)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], modes)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], strCont)
 		if m.StreamStateLo > 896 {
 			m.StreamStateLo = 896
 		}
@@ -26002,9 +26003,9 @@ func (m *Machine) HlGherkin() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		head = rt.Ld32(m.Mem, 98068)
-		row = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		head = binary.LittleEndian.Uint32(m.Mem[98068:])
+		row = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -26018,9 +26019,9 @@ func (m *Machine) HlGherkin() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, head)
-				rt.St32(m.Mem, 98072, row)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], head)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], row)
 				m.LiveSuspended = true
 				return
 			}
@@ -26063,7 +26064,7 @@ func (m *Machine) HlGherkin() {
 				g = m.LexKeywordLookup(lhs, rhs, 33248, 3, 13)
 				c2 = m.TemplateByte(rhs)
 				if g == 1 {
-					if c2 == ' ' && (rt.Ld64(m.Mem, rhs) == 0x656e696c74754f20 || rt.Ld64(m.Mem, rhs+1) == 0x6574616c706d6554) {
+					if c2 == ' ' && (binary.LittleEndian.Uint64(m.Mem[rhs:]) == 0x656e696c74754f20 || binary.LittleEndian.Uint64(m.Mem[rhs+1:]) == 0x6574616c706d6554) {
 						p = rhs + rt.Sel32(m.Mem[rhs+1] == 'O', 8, 9)
 						if p <= m.End {
 							rhs = p
@@ -26158,12 +26159,12 @@ func (m *Machine) HlGleam() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		importCtx = rt.Ld32(m.Mem, 98076)
-		typeCtx = rt.Ld32(m.Mem, 98080)
-		fnHead = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		importCtx = binary.LittleEndian.Uint32(m.Mem[98076:])
+		typeCtx = binary.LittleEndian.Uint32(m.Mem[98080:])
+		fnHead = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -26171,23 +26172,23 @@ func (m *Machine) HlGleam() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				importCtx = rt.Ld32(m.Mem, m.StreamWindow+8)
-				typeCtx = rt.Ld32(m.Mem, m.StreamWindow+12)
-				fnHead = rt.Ld32(m.Mem, m.StreamWindow+16)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				importCtx = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				typeCtx = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				fnHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, importCtx)
-				rt.St32(m.Mem, 98080, typeCtx)
-				rt.St32(m.Mem, 98084, fnHead)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], importCtx)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], typeCtx)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], fnHead)
 				m.LiveSuspended = true
 				return
 			}
@@ -26344,7 +26345,7 @@ func (m *Machine) HlGleam() {
 			member = 0
 			expect = 0
 			if m.Ptr-lhs == 2 {
-				if rt.Ld16(m.Mem, lhs) == 15917 {
+				if uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 15917 {
 					typeCtx = fnHead
 				}
 			}
@@ -26359,11 +26360,11 @@ func (m *Machine) HlGleam() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47144
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, importCtx)
-		rt.St32(m.Mem, m.StreamWindow+12, typeCtx)
-		rt.St32(m.Mem, m.StreamWindow+16, fnHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], importCtx)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], typeCtx)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], fnHead)
 		if m.StreamStateLo > 920 {
 			m.StreamStateLo = 920
 		}
@@ -26382,9 +26383,9 @@ func (m *Machine) HlGnuplot() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		stmt = rt.Ld32(m.Mem, 98068)
-		cmd = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		stmt = binary.LittleEndian.Uint32(m.Mem[98068:])
+		cmd = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		stmt = 1
 		m.LexEmitLeadingContinuation()
@@ -26393,17 +26394,17 @@ func (m *Machine) HlGnuplot() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				stmt = rt.Ld32(m.Mem, m.StreamWindow)
-				cmd = rt.Ld32(m.Mem, m.StreamWindow+4)
+				stmt = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				cmd = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, stmt)
-				rt.St32(m.Mem, 98072, cmd)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], stmt)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], cmd)
 				m.LiveSuspended = true
 				return
 			}
@@ -26476,7 +26477,7 @@ func (m *Machine) HlGnuplot() {
 			g = m.LexKeywordLookup(lhs, rhs, 33312, 31, 143)
 			if cmd == 1 && g == 0 {
 				p = lhs + rt.B2u(c == 'm')
-				if rt.Ld16(m.Mem, p) == 25187 {
+				if uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 25187 {
 					p += 2
 				} else if uint32(m.Mem[p])-120 <= 2 {
 					p++
@@ -26577,8 +26578,8 @@ func (m *Machine) HlGnuplot() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47168
-		rt.St32(m.Mem, m.StreamWindow, stmt)
-		rt.St32(m.Mem, m.StreamWindow+4, cmd)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], stmt)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], cmd)
 		if m.StreamStateLo > 944 {
 			m.StreamStateLo = 944
 		}
@@ -26611,11 +26612,11 @@ func (m *Machine) HlGo() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		recv = rt.Ld32(m.Mem, 98076)
-		typeGroup = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		recv = binary.LittleEndian.Uint32(m.Mem[98076:])
+		typeGroup = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -26623,21 +26624,21 @@ func (m *Machine) HlGo() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				recv = rt.Ld32(m.Mem, m.StreamWindow+8)
-				typeGroup = rt.Ld32(m.Mem, m.StreamWindow+12)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				recv = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				typeGroup = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, recv)
-				rt.St32(m.Mem, 98080, typeGroup)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], recv)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], typeGroup)
 				m.LiveSuspended = true
 				return
 			}
@@ -26782,10 +26783,10 @@ func (m *Machine) HlGo() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47176
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, recv)
-		rt.St32(m.Mem, m.StreamWindow+12, typeGroup)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], recv)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], typeGroup)
 		if m.StreamStateLo > 952 {
 			m.StreamStateLo = 952
 		}
@@ -26830,9 +26831,9 @@ func (m *Machine) HlGraphql() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		paren = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		paren = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -26840,17 +26841,17 @@ func (m *Machine) HlGraphql() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				paren = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				paren = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, paren)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], paren)
 				m.LiveSuspended = true
 				return
 			}
@@ -26973,8 +26974,8 @@ func (m *Machine) HlGraphql() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47192
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, paren)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], paren)
 		if m.StreamStateLo > 968 {
 			m.StreamStateLo = 968
 		}
@@ -27074,11 +27075,11 @@ func (m *Machine) HlGroq() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		operand = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		expect = rt.Ld32(m.Mem, 98076)
-		lineStart = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		operand = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98076:])
+		lineStart = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -27086,21 +27087,21 @@ func (m *Machine) HlGroq() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				operand = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+8)
-				lineStart = rt.Ld32(m.Mem, m.StreamWindow+12)
+				operand = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				lineStart = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, operand)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, expect)
-				rt.St32(m.Mem, 98080, lineStart)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], operand)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], lineStart)
 				m.LiveSuspended = true
 				return
 			}
@@ -27254,10 +27255,10 @@ func (m *Machine) HlGroq() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47200
-		rt.St32(m.Mem, m.StreamWindow, operand)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, expect)
-		rt.St32(m.Mem, m.StreamWindow+12, lineStart)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], operand)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], lineStart)
 		if m.StreamStateLo > 976 {
 			m.StreamStateLo = 976
 		}
@@ -27343,16 +27344,16 @@ func (m *Machine) HlGroovy() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		strKind = rt.Ld32(m.Mem, 98068)
-		seg = rt.Ld32(m.Mem, 98072)
-		interp = rt.Ld32(m.Mem, 98076)
-		interpKind = rt.Ld32(m.Mem, 98080)
-		expect = rt.Ld32(m.Mem, 98084)
-		member = rt.Ld32(m.Mem, 98088)
-		importCtx = rt.Ld32(m.Mem, 98092)
-		prevType = rt.Ld32(m.Mem, 98096)
-		stmtHead = rt.Ld32(m.Mem, 98100)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98068:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98072:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98084:])
+		member = binary.LittleEndian.Uint32(m.Mem[98088:])
+		importCtx = binary.LittleEndian.Uint32(m.Mem[98092:])
+		prevType = binary.LittleEndian.Uint32(m.Mem[98096:])
+		stmtHead = binary.LittleEndian.Uint32(m.Mem[98100:])
 	} else {
 		stmtHead = 1
 		m.LexEmitLeadingContinuation()
@@ -27361,31 +27362,31 @@ func (m *Machine) HlGroovy() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				strKind = rt.Ld32(m.Mem, m.StreamWindow)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+4)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+16)
-				member = rt.Ld32(m.Mem, m.StreamWindow+20)
-				importCtx = rt.Ld32(m.Mem, m.StreamWindow+24)
-				prevType = rt.Ld32(m.Mem, m.StreamWindow+28)
-				stmtHead = rt.Ld32(m.Mem, m.StreamWindow+32)
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				importCtx = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				prevType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				stmtHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, strKind)
-				rt.St32(m.Mem, 98072, seg)
-				rt.St32(m.Mem, 98076, interp)
-				rt.St32(m.Mem, 98080, interpKind)
-				rt.St32(m.Mem, 98084, expect)
-				rt.St32(m.Mem, 98088, member)
-				rt.St32(m.Mem, 98092, importCtx)
-				rt.St32(m.Mem, 98096, prevType)
-				rt.St32(m.Mem, 98100, stmtHead)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], importCtx)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], prevType)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], stmtHead)
 				m.LiveSuspended = true
 				return
 			}
@@ -27616,15 +27617,15 @@ func (m *Machine) HlGroovy() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47216
-		rt.St32(m.Mem, m.StreamWindow, strKind)
-		rt.St32(m.Mem, m.StreamWindow+4, seg)
-		rt.St32(m.Mem, m.StreamWindow+8, interp)
-		rt.St32(m.Mem, m.StreamWindow+12, interpKind)
-		rt.St32(m.Mem, m.StreamWindow+16, expect)
-		rt.St32(m.Mem, m.StreamWindow+20, member)
-		rt.St32(m.Mem, m.StreamWindow+24, importCtx)
-		rt.St32(m.Mem, m.StreamWindow+28, prevType)
-		rt.St32(m.Mem, m.StreamWindow+32, stmtHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], importCtx)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], prevType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], stmtHead)
 		if m.StreamStateLo > 992 {
 			m.StreamStateLo = 992
 		}
@@ -27701,7 +27702,7 @@ func (m *Machine) IndentFilterKind(lhs, rhs uint32) uint32 {
 	if n-2 > 10 {
 		return 0
 	}
-	w := rt.Ld64(m.Mem, lhs) & rt.Sel64(n >= 8, 0xffffffffffffffff, uint64(1)<<(uint64(n<<3)&63)-1)
+	w := binary.LittleEndian.Uint64(m.Mem[lhs:]) & rt.Sel64(n >= 8, 0xffffffffffffffff, uint64(1)<<(uint64(n<<3)&63)-1)
 	if w == 29546 || w == 0x747069726373 || (n == 10 && w == 0x697263736176616a) {
 		return 1
 	}
@@ -28034,10 +28035,10 @@ func (m *Machine) HlHaml() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		block = rt.Ld32(m.Mem, 98068)
-		tag = rt.Ld32(m.Mem, 98072)
-		cont = rt.Ld32(m.Mem, 98076)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		block = binary.LittleEndian.Uint32(m.Mem[98068:])
+		tag = binary.LittleEndian.Uint32(m.Mem[98072:])
+		cont = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -28045,19 +28046,19 @@ func (m *Machine) HlHaml() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				block = rt.Ld32(m.Mem, m.StreamWindow)
-				tag = rt.Ld32(m.Mem, m.StreamWindow+4)
-				cont = rt.Ld32(m.Mem, m.StreamWindow+8)
+				block = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				tag = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				cont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, block)
-				rt.St32(m.Mem, 98072, tag)
-				rt.St32(m.Mem, 98076, cont)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], block)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], tag)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], cont)
 				m.LiveSuspended = true
 				return
 			}
@@ -28165,9 +28166,9 @@ func (m *Machine) HlHaml() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47256
-		rt.St32(m.Mem, m.StreamWindow, block)
-		rt.St32(m.Mem, m.StreamWindow+4, tag)
-		rt.St32(m.Mem, m.StreamWindow+8, cont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], block)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], tag)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], cont)
 		if m.StreamStateLo > 1032 {
 			m.StreamStateLo = 1032
 		}
@@ -28320,7 +28321,7 @@ func (m *Machine) JinjaTag(state, dialect uint32) uint32 {
 					if c > lhs && m.Mem[c-1] == '~' {
 						c--
 					}
-					if !(c-2 >= lhs && rt.Ld16(m.Mem, c-2) == 11565) {
+					if !(c-2 >= lhs && uint32(binary.LittleEndian.Uint16(m.Mem[c-2:])) == 11565) {
 						c = 0
 					}
 				}
@@ -28624,8 +28625,8 @@ func (m *Machine) JinjaRaw(state, dialect uint32) uint32 {
 		if m.TemplateByte(p+1) == '%' {
 			q = p + 2
 			q = m.LexSkipSpaceAt(q + rt.B2u(m.JinjaTrim(m.TemplateByte(q), dialect, 2)))
-			w = rt.Ld64(m.Mem, q)
-			if q+length <= m.End && !m.LexIsIdentContinue(m.TemplateByte(q+length)) && ((kind == 1 && w&0xffffffffffff == 0x776172646e65) || (kind != 1 && ((kind == 2 && w == 0x6162726576646e65 && rt.Ld32(m.Mem, q+8)&0xffffff == 0x6d6974) || (kind != 2 && w == 0x656d6d6f63646e65 && rt.Ld16(m.Mem, q+8) == 29806)))) {
+			w = binary.LittleEndian.Uint64(m.Mem[q:])
+			if q+length <= m.End && !m.LexIsIdentContinue(m.TemplateByte(q+length)) && ((kind == 1 && w&0xffffffffffff == 0x776172646e65) || (kind != 1 && ((kind == 2 && w == 0x6162726576646e65 && binary.LittleEndian.Uint32(m.Mem[q+8:])&0xffffff == 0x6d6974) || (kind != 2 && w == 0x656d6d6f63646e65 && uint32(binary.LittleEndian.Uint16(m.Mem[q+8:])) == 29806)))) {
 				m.EmitTok(hl, lhs, p)
 				m.Ptr = p
 				return 0
@@ -28645,10 +28646,10 @@ func (m *Machine) HlJinjaImpl(dialect uint32) {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		dialect = rt.Ld32(m.Mem, 98064)
-		streamRoot = rt.Ld32(m.Mem, 98068)
-		state = rt.Ld32(m.Mem, 98072)
-		tag = rt.Ld32(m.Mem, 98076)
+		dialect = binary.LittleEndian.Uint32(m.Mem[98064:])
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98068:])
+		state = binary.LittleEndian.Uint32(m.Mem[98072:])
+		tag = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -28656,18 +28657,18 @@ func (m *Machine) HlJinjaImpl(dialect uint32) {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				state = rt.Ld32(m.Mem, m.StreamWindow)
-				tag = rt.Ld32(m.Mem, m.StreamWindow+4)
+				state = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				tag = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, dialect)
-				rt.St32(m.Mem, 98068, streamRoot)
-				rt.St32(m.Mem, 98072, state)
-				rt.St32(m.Mem, 98076, tag)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], dialect)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], state)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], tag)
 				m.LiveSuspended = true
 				return
 			}
@@ -28717,7 +28718,7 @@ func (m *Machine) HlJinjaImpl(dialect uint32) {
 		}
 		c = uint32(m.Mem[m.Ptr+1])
 		if c == '!' {
-			if m.Ptr+4 <= m.End && rt.Ld32(m.Mem, m.Ptr) == 0x2d2d213c {
+			if m.Ptr+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[m.Ptr:]) == 0x2d2d213c {
 				m.HTMLComment(m.Ptr)
 			} else {
 				m.HTMLDecl(m.Ptr, false, TokenTagDoctype)
@@ -28743,8 +28744,8 @@ func (m *Machine) HlJinjaImpl(dialect uint32) {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47272
-		rt.St32(m.Mem, m.StreamWindow, state)
-		rt.St32(m.Mem, m.StreamWindow+4, tag)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], state)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], tag)
 		if m.StreamStateLo > 1048 {
 			m.StreamStateLo = 1048
 		}
@@ -28793,14 +28794,14 @@ func (m *Machine) HlHaskell() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		braces = rt.Ld32(m.Mem, 98068)
-		importLine = rt.Ld32(m.Mem, 98072)
-		inBacktick = rt.Ld32(m.Mem, 98076)
-		lineHead = rt.Ld32(m.Mem, 98080)
-		typeMode = rt.Ld32(m.Mem, 98084)
-		wantFunction = rt.Ld32(m.Mem, 98088)
-		wantType = rt.Ld32(m.Mem, 98092)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		braces = binary.LittleEndian.Uint32(m.Mem[98068:])
+		importLine = binary.LittleEndian.Uint32(m.Mem[98072:])
+		inBacktick = binary.LittleEndian.Uint32(m.Mem[98076:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98080:])
+		typeMode = binary.LittleEndian.Uint32(m.Mem[98084:])
+		wantFunction = binary.LittleEndian.Uint32(m.Mem[98088:])
+		wantType = binary.LittleEndian.Uint32(m.Mem[98092:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -28808,12 +28809,12 @@ func (m *Machine) HlHaskell() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				braces = rt.Ld32(m.Mem, m.StreamWindow)
-				importLine = rt.Ld32(m.Mem, m.StreamWindow+4)
-				inBacktick = rt.Ld32(m.Mem, m.StreamWindow+8)
-				typeMode = rt.Ld32(m.Mem, m.StreamWindow+12)
-				wantFunction = rt.Ld32(m.Mem, m.StreamWindow+16)
-				wantType = rt.Ld32(m.Mem, m.StreamWindow+20)
+				braces = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				importLine = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				inBacktick = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				typeMode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				wantFunction = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				wantType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
 			}
 		}
 		lineHead = 1
@@ -28821,14 +28822,14 @@ func (m *Machine) HlHaskell() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, braces)
-				rt.St32(m.Mem, 98072, importLine)
-				rt.St32(m.Mem, 98076, inBacktick)
-				rt.St32(m.Mem, 98080, lineHead)
-				rt.St32(m.Mem, 98084, typeMode)
-				rt.St32(m.Mem, 98088, wantFunction)
-				rt.St32(m.Mem, 98092, wantType)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], braces)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], importLine)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], inBacktick)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], typeMode)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], wantFunction)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], wantType)
 				m.LiveSuspended = true
 				return
 			}
@@ -28992,7 +28993,7 @@ func (m *Machine) HlHaskell() {
 			m.EmitTok(TokenOperator, lhs, m.Ptr)
 			n = m.Ptr - lhs
 			if n == 2 {
-				p = rt.Ld16(m.Mem, lhs)
+				p = uint32(binary.LittleEndian.Uint16(m.Mem[lhs:]))
 				if p == 14906 {
 					typeMode = 1
 				}
@@ -29011,12 +29012,12 @@ func (m *Machine) HlHaskell() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47280
-		rt.St32(m.Mem, m.StreamWindow, braces)
-		rt.St32(m.Mem, m.StreamWindow+4, importLine)
-		rt.St32(m.Mem, m.StreamWindow+8, inBacktick)
-		rt.St32(m.Mem, m.StreamWindow+12, typeMode)
-		rt.St32(m.Mem, m.StreamWindow+16, wantFunction)
-		rt.St32(m.Mem, m.StreamWindow+20, wantType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], braces)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], importLine)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], inBacktick)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], typeMode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], wantFunction)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], wantType)
 		if m.StreamStateLo > 1056 {
 			m.StreamStateLo = 1056
 		}
@@ -29109,12 +29110,12 @@ func (m *Machine) HlHaxe() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		strKind = rt.Ld32(m.Mem, 98076)
-		interp = rt.Ld32(m.Mem, 98080)
-		interpKind = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98080:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -29122,23 +29123,23 @@ func (m *Machine) HlHaxe() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				strKind = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+12)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+16)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, strKind)
-				rt.St32(m.Mem, 98080, interp)
-				rt.St32(m.Mem, 98084, interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], interpKind)
 				m.LiveSuspended = true
 				return
 			}
@@ -29214,7 +29215,7 @@ func (m *Machine) HlHaxe() {
 				m.Ptr++
 				m.ScanIdentRun(95)
 				rhs = m.Ptr - lhs
-				if (rhs == 3 && rt.Ld16(m.Mem, lhs+1) == 26217) || (rhs == 7 && rt.Ld64(m.Mem, lhs+1)&0xffffffffffff == 0x666965736c65) {
+				if (rhs == 3 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+1:])) == 26217) || (rhs == 7 && binary.LittleEndian.Uint64(m.Mem[lhs+1:])&0xffffffffffff == 0x666965736c65) {
 					m.Ptr = m.HxCondEnd(m.Ptr)
 				}
 				hl = TokenPreproc
@@ -29337,11 +29338,11 @@ func (m *Machine) HlHaxe() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47304
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, strKind)
-		rt.St32(m.Mem, m.StreamWindow+12, interp)
-		rt.St32(m.Mem, m.StreamWindow+16, interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], interpKind)
 		if m.StreamStateLo > 1080 {
 			m.StreamStateLo = 1080
 		}
@@ -29358,14 +29359,14 @@ func (m *Machine) HlslTypeHl(lhs, rhs uint32) uint32 {
 	if length < 4 {
 		return TokenNone
 	}
-	if length >= 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x72656c706d6173 {
+	if length >= 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x72656c706d6173 {
 		return TokenTypeBuiltin
 	}
-	w := rt.Ld32(m.Mem, rhs-4)
-	if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x746e69) || (length == 8 && rt.Ld32(m.Mem, lhs) == 0x746e6975)) {
+	w := binary.LittleEndian.Uint32(m.Mem[rhs-4:])
+	if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x746e69) || (length == 8 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x746e6975)) {
 		return TokenTypeBuiltin
 	}
-	if rt.Ld32(m.Mem, lhs) == 0x316e696d {
+	if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x316e696d {
 		return TokenTypeBuiltin
 	}
 	stem := rhs
@@ -29406,14 +29407,14 @@ func (m *Machine) HlHlsl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		afterType = rt.Ld32(m.Mem, 98076)
-		attr = rt.Ld32(m.Mem, 98080)
-		lineHead = rt.Ld32(m.Mem, 98084)
-		include = rt.Ld32(m.Mem, 98088)
-		strCont = rt.Ld32(m.Mem, 98092)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		afterType = binary.LittleEndian.Uint32(m.Mem[98076:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98080:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98084:])
+		include = binary.LittleEndian.Uint32(m.Mem[98088:])
+		strCont = binary.LittleEndian.Uint32(m.Mem[98092:])
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
@@ -29422,13 +29423,13 @@ func (m *Machine) HlHlsl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				afterType = rt.Ld32(m.Mem, m.StreamWindow+8)
-				attr = rt.Ld32(m.Mem, m.StreamWindow+12)
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow+16)
-				include = rt.Ld32(m.Mem, m.StreamWindow+20)
-				strCont = rt.Ld32(m.Mem, m.StreamWindow+24)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				afterType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				attr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				include = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				strCont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
 			}
 		}
 		strCont = m.LexCStringResume(strCont)
@@ -29436,14 +29437,14 @@ func (m *Machine) HlHlsl() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, afterType)
-				rt.St32(m.Mem, 98080, attr)
-				rt.St32(m.Mem, 98084, lineHead)
-				rt.St32(m.Mem, 98088, include)
-				rt.St32(m.Mem, 98092, strCont)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], afterType)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], attr)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], include)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], strCont)
 				m.LiveSuspended = true
 				return
 			}
@@ -29477,7 +29478,7 @@ func (m *Machine) HlHlsl() {
 			m.Ptr = m.LexSkipSpaceAt(m.Ptr + 1)
 			p = m.Ptr
 			m.LexScanIdent()
-			include = rt.B2u(m.Ptr-p == 7 && rt.Ld64(m.Mem, p)&0xffffffffffffff == 0x6564756c636e69)
+			include = rt.B2u(m.Ptr-p == 7 && binary.LittleEndian.Uint64(m.Mem[p:])&0xffffffffffffff == 0x6564756c636e69)
 			m.EmitTok(TokenPreproc, lhs, m.Ptr)
 			member = 0
 			afterType = 0
@@ -29533,7 +29534,7 @@ func (m *Machine) HlHlsl() {
 				}
 				afterType = rt.B2u(expect == 1)
 				expect = 0
-			case rt.Ld32(m.Mem, lhs)&0xffffff == 0x5f5653:
+			case binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x5f5653:
 				hl = TokenVariableSpecial
 				afterType = 0
 			case member != 0:
@@ -29651,13 +29652,13 @@ func (m *Machine) HlHlsl() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47328
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, afterType)
-		rt.St32(m.Mem, m.StreamWindow+12, attr)
-		rt.St32(m.Mem, m.StreamWindow+16, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+20, include)
-		rt.St32(m.Mem, m.StreamWindow+24, strCont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], afterType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], attr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], include)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], strCont)
 		if m.StreamStateLo > 1104 {
 			m.StreamStateLo = 1104
 		}
@@ -29690,12 +29691,12 @@ func (m *Machine) HlJSONImpl(dialect uint32) {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		dialect = rt.Ld32(m.Mem, 98064)
-		streamRoot = rt.Ld32(m.Mem, 98068)
-		depth = rt.Ld32(m.Mem, 98072)
-		expectKey = rt.Ld32(m.Mem, 98076)
-		json5 = rt.Ld32(m.Mem, 98080)
-		open = rt.Ld32(m.Mem, 98084)
+		dialect = binary.LittleEndian.Uint32(m.Mem[98064:])
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98068:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98072:])
+		expectKey = binary.LittleEndian.Uint32(m.Mem[98076:])
+		json5 = binary.LittleEndian.Uint32(m.Mem[98080:])
+		open = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -29703,9 +29704,9 @@ func (m *Machine) HlJSONImpl(dialect uint32) {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				depth = rt.Ld32(m.Mem, m.StreamWindow)
-				expectKey = rt.Ld32(m.Mem, m.StreamWindow+4)
-				open = rt.Ld32(m.Mem, m.StreamWindow+8)
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expectKey = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				open = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 		json5 = rt.B2u(dialect == 1)
@@ -29716,12 +29717,12 @@ func (m *Machine) HlJSONImpl(dialect uint32) {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, dialect)
-				rt.St32(m.Mem, 98068, streamRoot)
-				rt.St32(m.Mem, 98072, depth)
-				rt.St32(m.Mem, 98076, expectKey)
-				rt.St32(m.Mem, 98080, json5)
-				rt.St32(m.Mem, 98084, open)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], dialect)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], expectKey)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], json5)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], open)
 				m.LiveSuspended = true
 				return
 			}
@@ -29871,9 +29872,9 @@ func (m *Machine) HlJSONImpl(dialect uint32) {
 	m.LiveStackBytes = depth
 	if streamRoot != 0 {
 		m.StreamWindow = 47360
-		rt.St32(m.Mem, m.StreamWindow, depth)
-		rt.St32(m.Mem, m.StreamWindow+4, expectKey)
-		rt.St32(m.Mem, m.StreamWindow+8, open)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expectKey)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], open)
 		if m.StreamStateLo > 1136 {
 			m.StreamStateLo = 1136
 		}
@@ -29888,19 +29889,19 @@ func (m *Machine) HlJSONImpl(dialect uint32) {
 func (m *Machine) JSONWordHl(lhs, rhs, json5 uint32) uint32 {
 	length := rhs - lhs
 	if length == 4 {
-		if rt.Ld32(m.Mem, lhs) == 0x65757274 {
+		if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65757274 {
 			return TokenBoolean
 		}
-		if rt.Ld32(m.Mem, lhs) == 0x6c6c756e {
+		if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x6c6c756e {
 			return TokenConstantBuiltin
 		}
 	}
-	if length == 5 && rt.Ld32(m.Mem, lhs) == 0x736c6166 {
+	if length == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x736c6166 {
 		if m.Mem[lhs+4] == 'e' {
 			return TokenBoolean
 		}
 	}
-	if ((length == 8 && rt.Ld64(m.Mem, lhs) == 0x7974696e69666e49) || (length == 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x4e614e)) && json5&1 != 0 {
+	if ((length == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7974696e69666e49) || (length == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x4e614e)) && json5&1 != 0 {
 		return TokenConstantBuiltin
 	}
 	return TokenNone
@@ -30002,7 +30003,7 @@ func (m *Machine) HTTPBodyEnd(p uint32) uint32 {
 		if p+3 > m.End {
 			break
 		}
-		if rt.Ld16(m.Mem, p+1) == 8995 && m.LexLineByteBefore(p) == 0 {
+		if uint32(binary.LittleEndian.Uint16(m.Mem[p+1:])) == 8995 && m.LexLineByteBefore(p) == 0 {
 			return p
 		}
 		p++
@@ -30022,7 +30023,7 @@ func (m *Machine) HTTPText(hl, stop uint32) {
 		if p+1 < stop && m.Mem[p+1] == '{' {
 			q = m.ScanFindSpecial(p+2, stop, 125, 0, 1)
 		}
-		if q+1 < stop && rt.Ld16(m.Mem, q) == 32125 {
+		if q+1 < stop && uint32(binary.LittleEndian.Uint16(m.Mem[q:])) == 32125 {
 			m.EmitTok(hl, m.Ptr, p)
 			m.Ptr = p + 2
 			m.EmitTok(TokenPunctuationSpecial, p, m.Ptr)
@@ -30050,7 +30051,7 @@ func (m *Machine) HTTPSkipBlanks() {
 
 // HTTPVersion is $httpVersion.
 func (m *Machine) HTTPVersion(rhs uint32) bool {
-	if m.Ptr+5 > rhs || rt.Ld32(m.Mem, m.Ptr) != 0x50545448 || m.Mem[m.Ptr+4] != '/' {
+	if m.Ptr+5 > rhs || binary.LittleEndian.Uint32(m.Mem[m.Ptr:]) != 0x50545448 || m.Mem[m.Ptr+4] != '/' {
 		return false
 	}
 	p := m.Ptr + 4
@@ -30153,9 +30154,9 @@ func (m *Machine) HlHTTP() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		state = rt.Ld32(m.Mem, 98068)
-		typ = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		state = binary.LittleEndian.Uint32(m.Mem[98068:])
+		typ = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -30163,17 +30164,17 @@ func (m *Machine) HlHTTP() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				state = rt.Ld32(m.Mem, m.StreamWindow)
-				typ = rt.Ld32(m.Mem, m.StreamWindow+4)
+				state = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				typ = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, state)
-				rt.St32(m.Mem, 98072, typ)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], state)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], typ)
 				m.LiveSuspended = true
 				return
 			}
@@ -30203,7 +30204,7 @@ func (m *Machine) HlHTTP() {
 		}
 		lhs = m.Ptr
 		c = uint32(m.Mem[lhs])
-		p = rt.B2u(lhs+3 <= m.End && rt.Ld16(m.Mem, lhs+1) == 8995)
+		p = rt.B2u(lhs+3 <= m.End && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+1:])) == 8995)
 		if c == '#' && (p|rt.B2u(state != 2))&1 != 0 {
 			if p != 0 {
 				state = 0
@@ -30242,13 +30243,13 @@ func (m *Machine) HlHTTP() {
 				m.EmitTok(TokenProperty, lhs, p)
 				m.Ptr = p + 1
 				m.EmitTok(TokenPunctuationDelimiter, p, m.Ptr)
-				if p-lhs == 12 && rt.Ld64(m.Mem, lhs)|0x2020202020202020 == 0x2d746e65746e6f63 && rt.Ld32(m.Mem, lhs+8)|0x20202020 == 0x65707974 {
+				if p-lhs == 12 && binary.LittleEndian.Uint64(m.Mem[lhs:])|0x2020202020202020 == 0x2d746e65746e6f63 && binary.LittleEndian.Uint32(m.Mem[lhs+8:])|0x20202020 == 0x65707974 {
 					q = m.Ptr
 					for {
 						if q+3 > rhs {
 							break
 						}
-						c = rt.Ld32(m.Mem, q) | 0x20202020
+						c = binary.LittleEndian.Uint32(m.Mem[q:]) | 0x20202020
 						if c&0xffffff == 0x6c6d78 {
 							typ = 3
 							break
@@ -30314,8 +30315,8 @@ func (m *Machine) HlHTTP() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47376
-		rt.St32(m.Mem, m.StreamWindow, state)
-		rt.St32(m.Mem, m.StreamWindow+4, typ)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], state)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], typ)
 		if m.StreamStateLo > 1152 {
 			m.StreamStateLo = 1152
 		}
@@ -30334,7 +30335,7 @@ func (m *Machine) JsonnetBlock() bool {
 	for {
 		if first {
 			p = m.LexSkipSpaceAt(m.Ptr)
-			if p+3 <= m.End && rt.Ld16(m.Mem, p) == 31868 && m.Mem[p+2] == '|' {
+			if p+3 <= m.End && uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 31868 && m.Mem[p+2] == '|' {
 				m.Ptr = p + 3
 				open = false
 				break
@@ -30363,11 +30364,11 @@ func (m *Machine) HlJsonnet() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		stack = rt.Ld64(m.Mem, 98072)
-		key = rt.Ld32(m.Mem, 98080)
-		expect = rt.Ld32(m.Mem, 98084)
-		block = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		stack = binary.LittleEndian.Uint64(m.Mem[98072:])
+		key = binary.LittleEndian.Uint32(m.Mem[98080:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98084:])
+		block = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -30375,21 +30376,21 @@ func (m *Machine) HlJsonnet() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				stack = rt.Ld64(m.Mem, m.StreamWindow)
-				key = rt.Ld32(m.Mem, m.StreamWindow+8)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+12)
-				block = rt.Ld32(m.Mem, m.StreamWindow+16)
+				stack = binary.LittleEndian.Uint64(m.Mem[m.StreamWindow:])
+				key = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				block = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St64(m.Mem, 98072, stack)
-				rt.St32(m.Mem, 98080, key)
-				rt.St32(m.Mem, 98084, expect)
-				rt.St32(m.Mem, 98088, block)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint64(m.Mem[98072:], stack)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], key)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], block)
 				m.LiveSuspended = true
 				return
 			}
@@ -30494,7 +30495,7 @@ func (m *Machine) HlJsonnet() {
 				expect = 0
 				if c2 != 0 {
 					hl = TokenFunction
-				} else if rhs-lhs == 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x647473 {
+				} else if rhs-lhs == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x647473 {
 					hl = TokenNamespace
 				}
 			}
@@ -30550,10 +30551,10 @@ func (m *Machine) HlJsonnet() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47384
-		rt.St64(m.Mem, m.StreamWindow, stack)
-		rt.St32(m.Mem, m.StreamWindow+8, key)
-		rt.St32(m.Mem, m.StreamWindow+12, expect)
-		rt.St32(m.Mem, m.StreamWindow+16, block)
+		binary.LittleEndian.PutUint64(m.Mem[m.StreamWindow:], stack)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], key)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], block)
 		if m.StreamStateLo > 1160 {
 			m.StreamStateLo = 1160
 		}
@@ -30575,7 +30576,7 @@ func (m *Machine) JlWordHl(lhs, rhs uint32) uint32 {
 	if int32(v) >= 0 {
 		return v
 	}
-	if rhs-lhs == 5 && rt.Ld32(m.Mem, lhs) == 0x72656877 && m.Mem[lhs+4] == 'e' {
+	if rhs-lhs == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x72656877 && m.Mem[lhs+4] == 'e' {
 		return TokenKeywordOperator
 	}
 	return 0xffffffff
@@ -30713,18 +30714,18 @@ func (m *Machine) HlJulia() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		strKind = rt.Ld32(m.Mem, 98068)
-		strHl = rt.Ld32(m.Mem, 98072)
-		seg = rt.Ld32(m.Mem, 98076)
-		interp = rt.Ld32(m.Mem, 98080)
-		interpKind = rt.Ld32(m.Mem, 98084)
-		expect = rt.Ld32(m.Mem, 98088)
-		member = rt.Ld32(m.Mem, 98092)
-		importCtx = rt.Ld32(m.Mem, 98096)
-		stmtHead = rt.Ld32(m.Mem, 98100)
-		afterValue = rt.Ld32(m.Mem, 98104)
-		depth = rt.Ld32(m.Mem, 98108)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98068:])
+		strHl = binary.LittleEndian.Uint32(m.Mem[98072:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98080:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98084:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98088:])
+		member = binary.LittleEndian.Uint32(m.Mem[98092:])
+		importCtx = binary.LittleEndian.Uint32(m.Mem[98096:])
+		stmtHead = binary.LittleEndian.Uint32(m.Mem[98100:])
+		afterValue = binary.LittleEndian.Uint32(m.Mem[98104:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98108:])
 	} else {
 		stmtHead = 1
 		m.LexEmitLeadingContinuation()
@@ -30733,35 +30734,35 @@ func (m *Machine) HlJulia() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				strKind = rt.Ld32(m.Mem, m.StreamWindow)
-				strHl = rt.Ld32(m.Mem, m.StreamWindow+4)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+12)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+16)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+20)
-				member = rt.Ld32(m.Mem, m.StreamWindow+24)
-				importCtx = rt.Ld32(m.Mem, m.StreamWindow+28)
-				stmtHead = rt.Ld32(m.Mem, m.StreamWindow+32)
-				afterValue = rt.Ld32(m.Mem, m.StreamWindow+36)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+40)
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				strHl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				importCtx = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				stmtHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
+				afterValue = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+36:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+40:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, strKind)
-				rt.St32(m.Mem, 98072, strHl)
-				rt.St32(m.Mem, 98076, seg)
-				rt.St32(m.Mem, 98080, interp)
-				rt.St32(m.Mem, 98084, interpKind)
-				rt.St32(m.Mem, 98088, expect)
-				rt.St32(m.Mem, 98092, member)
-				rt.St32(m.Mem, 98096, importCtx)
-				rt.St32(m.Mem, 98100, stmtHead)
-				rt.St32(m.Mem, 98104, afterValue)
-				rt.St32(m.Mem, 98108, depth)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], strHl)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], importCtx)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], stmtHead)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], afterValue)
+				binary.LittleEndian.PutUint32(m.Mem[98108:], depth)
 				m.LiveSuspended = true
 				return
 			}
@@ -30895,7 +30896,7 @@ func (m *Machine) HlJulia() {
 					m.Ptr += 2
 				}
 				if rhs-lhs == 3 {
-					if rt.Ld32(m.Mem, lhs)&0xffffff == 0x776172 {
+					if binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x776172 {
 						strKind += 4
 					}
 				}
@@ -30918,7 +30919,7 @@ func (m *Machine) HlJulia() {
 				if hl == TokenKeywordImport {
 					importCtx = 1
 				}
-				afterValue = rt.B2u(hl == TokenBoolean || hl == TokenConstantBuiltin || (rhs-lhs == 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x646e65) || (rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6e69676562))
+				afterValue = rt.B2u(hl == TokenBoolean || hl == TokenConstantBuiltin || (rhs-lhs == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x646e65) || (rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6e69676562))
 			} else {
 				afterValue = 1
 				switch {
@@ -31063,17 +31064,17 @@ func (m *Machine) HlJulia() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47408
-		rt.St32(m.Mem, m.StreamWindow, strKind)
-		rt.St32(m.Mem, m.StreamWindow+4, strHl)
-		rt.St32(m.Mem, m.StreamWindow+8, seg)
-		rt.St32(m.Mem, m.StreamWindow+12, interp)
-		rt.St32(m.Mem, m.StreamWindow+16, interpKind)
-		rt.St32(m.Mem, m.StreamWindow+20, expect)
-		rt.St32(m.Mem, m.StreamWindow+24, member)
-		rt.St32(m.Mem, m.StreamWindow+28, importCtx)
-		rt.St32(m.Mem, m.StreamWindow+32, stmtHead)
-		rt.St32(m.Mem, m.StreamWindow+36, afterValue)
-		rt.St32(m.Mem, m.StreamWindow+40, depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], strHl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], importCtx)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], stmtHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+36:], afterValue)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+40:], depth)
 		if m.StreamStateLo > 1184 {
 			m.StreamStateLo = 1184
 		}
@@ -31202,15 +31203,15 @@ func (m *Machine) HlJust() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		lineHead = rt.Ld32(m.Mem, 98068)
-		inRecipe = rt.Ld32(m.Mem, 98072)
-		mode = rt.Ld32(m.Mem, 98076)
-		depth = rt.Ld32(m.Mem, 98080)
-		interp = rt.Ld32(m.Mem, 98084)
-		cmdHead = rt.Ld32(m.Mem, 98088)
-		expect = rt.Ld32(m.Mem, 98092)
-		str = rt.Ld32(m.Mem, 98096)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98068:])
+		inRecipe = binary.LittleEndian.Uint32(m.Mem[98072:])
+		mode = binary.LittleEndian.Uint32(m.Mem[98076:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98080:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98084:])
+		cmdHead = binary.LittleEndian.Uint32(m.Mem[98088:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98092:])
+		str = binary.LittleEndian.Uint32(m.Mem[98096:])
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
@@ -31219,29 +31220,29 @@ func (m *Machine) HlJust() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow)
-				inRecipe = rt.Ld32(m.Mem, m.StreamWindow+4)
-				mode = rt.Ld32(m.Mem, m.StreamWindow+8)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+12)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+16)
-				cmdHead = rt.Ld32(m.Mem, m.StreamWindow+20)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+24)
-				str = rt.Ld32(m.Mem, m.StreamWindow+28)
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				inRecipe = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				mode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				cmdHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				str = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, lineHead)
-				rt.St32(m.Mem, 98072, inRecipe)
-				rt.St32(m.Mem, 98076, mode)
-				rt.St32(m.Mem, 98080, depth)
-				rt.St32(m.Mem, 98084, interp)
-				rt.St32(m.Mem, 98088, cmdHead)
-				rt.St32(m.Mem, 98092, expect)
-				rt.St32(m.Mem, 98096, str)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], inRecipe)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], mode)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], cmdHead)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], str)
 				m.LiveSuspended = true
 				return
 			}
@@ -31527,14 +31528,14 @@ func (m *Machine) HlJust() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47456
-		rt.St32(m.Mem, m.StreamWindow, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+4, inRecipe)
-		rt.St32(m.Mem, m.StreamWindow+8, mode)
-		rt.St32(m.Mem, m.StreamWindow+12, depth)
-		rt.St32(m.Mem, m.StreamWindow+16, interp)
-		rt.St32(m.Mem, m.StreamWindow+20, cmdHead)
-		rt.St32(m.Mem, m.StreamWindow+24, expect)
-		rt.St32(m.Mem, m.StreamWindow+28, str)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], inRecipe)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], mode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], cmdHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], str)
 		if m.StreamStateLo > 1232 {
 			m.StreamStateLo = 1232
 		}
@@ -31554,7 +31555,7 @@ func (m *Machine) RustByte(p uint32) uint32 {
 func (m *Machine) RustWordHl(lhs, rhs uint32) uint32 {
 	hl := m.LexKeywordValue(lhs, rhs, 26080, 15, 56)
 	if hl == 0xffffffff {
-		if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
+		if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
 			return TokenKeyword
 		}
 	}
@@ -31621,11 +31622,11 @@ func (m *Machine) HlRust() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		attr = rt.Ld32(m.Mem, 98076)
-		rawOpen = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98076:])
+		rawOpen = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -31633,21 +31634,21 @@ func (m *Machine) HlRust() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				attr = rt.Ld32(m.Mem, m.StreamWindow+8)
-				rawOpen = rt.Ld32(m.Mem, m.StreamWindow+12)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				attr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				rawOpen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, attr)
-				rt.St32(m.Mem, 98080, rawOpen)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], attr)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], rawOpen)
 				m.LiveSuspended = true
 				return
 			}
@@ -31791,7 +31792,7 @@ func (m *Machine) HlRust() {
 					default:
 						hl = TokenVariable
 					}
-					if rhs+1 < m.End && rt.Ld16(m.Mem, rhs) == 14906 {
+					if rhs+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[rhs:])) == 14906 {
 						if m.RustByte(rhs+2) != '<' && c-65 > 25 {
 							hl = TokenNamespace
 						}
@@ -31799,7 +31800,7 @@ func (m *Machine) HlRust() {
 				}
 			}
 			m.EmitTok(hl, lhs, rhs)
-			m.SigPattern &= rt.B2u(rhs-lhs == 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x74756d)
+			m.SigPattern &= rt.B2u(rhs-lhs == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x74756d)
 			member = 0
 			continue
 		}
@@ -31930,10 +31931,10 @@ func (m *Machine) HlRust() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47488
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, attr)
-		rt.St32(m.Mem, m.StreamWindow+12, rawOpen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], attr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], rawOpen)
 		if m.StreamStateLo > 1264 {
 			m.StreamStateLo = 1264
 		}
@@ -31974,7 +31975,7 @@ func (m *Machine) KdlRawHashes(p uint32) uint32 {
 
 // KdlLiteral is $kdlLiteral.
 func (m *Machine) KdlLiteral(lhs, rhs uint32) uint32 {
-	w := rt.Ld32(m.Mem, lhs)
+	w := binary.LittleEndian.Uint32(m.Mem[lhs:])
 	if rhs-lhs == 4 {
 		if w == 0x65757274 {
 			return TokenBoolean
@@ -32024,12 +32025,12 @@ func (m *Machine) HlKdl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		args = rt.Ld32(m.Mem, 98068)
-		paren = rt.Ld32(m.Mem, 98072)
-		join = rt.Ld32(m.Mem, 98076)
-		open = rt.Ld32(m.Mem, 98080)
-		mute = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		args = binary.LittleEndian.Uint32(m.Mem[98068:])
+		paren = binary.LittleEndian.Uint32(m.Mem[98072:])
+		join = binary.LittleEndian.Uint32(m.Mem[98076:])
+		open = binary.LittleEndian.Uint32(m.Mem[98080:])
+		mute = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -32037,23 +32038,23 @@ func (m *Machine) HlKdl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				args = rt.Ld32(m.Mem, m.StreamWindow)
-				paren = rt.Ld32(m.Mem, m.StreamWindow+4)
-				join = rt.Ld32(m.Mem, m.StreamWindow+8)
-				open = rt.Ld32(m.Mem, m.StreamWindow+12)
-				mute = rt.Ld32(m.Mem, m.StreamWindow+16)
+				args = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				paren = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				join = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				open = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				mute = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, args)
-				rt.St32(m.Mem, 98072, paren)
-				rt.St32(m.Mem, 98076, join)
-				rt.St32(m.Mem, 98080, open)
-				rt.St32(m.Mem, 98084, mute)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], args)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], paren)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], join)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], open)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], mute)
 				m.LiveSuspended = true
 				return
 			}
@@ -32433,11 +32434,11 @@ func (m *Machine) HlKdl() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47504
-		rt.St32(m.Mem, m.StreamWindow, args)
-		rt.St32(m.Mem, m.StreamWindow+4, paren)
-		rt.St32(m.Mem, m.StreamWindow+8, join)
-		rt.St32(m.Mem, m.StreamWindow+12, open)
-		rt.St32(m.Mem, m.StreamWindow+16, mute)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], args)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], paren)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], join)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], open)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], mute)
 		if m.StreamStateLo > 1280 {
 			m.StreamStateLo = 1280
 		}
@@ -32470,7 +32471,7 @@ func (m *Machine) KotlinModifies(rhs uint32) bool {
 	if m.LexIsIdentContinue(m.KotlinByte(p + 2)) {
 		return true
 	}
-	w = rt.Ld16(m.Mem, p)
+	w = uint32(binary.LittleEndian.Uint16(m.Mem[p:]))
 	return !(w == 28265 || w == 29545 || w == 29537)
 }
 
@@ -32479,10 +32480,10 @@ func (m *Machine) KotlinWordHl(lhs, rhs uint32) uint32 {
 	hl := m.LexKeywordValue(lhs, rhs, 21504, 15, 72)
 	if hl == 0xffffffff {
 		if rhs-lhs == 5 {
-			if rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x74726f6853 {
+			if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x74726f6853 {
 				return TokenTypeBuiltin
 			}
-			if rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
+			if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
 				return TokenKeyword
 			}
 		}
@@ -32556,14 +32557,14 @@ func (m *Machine) HlKotlin() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		fnAngle = rt.Ld32(m.Mem, 98076)
-		strKind = rt.Ld32(m.Mem, 98080)
-		seg = rt.Ld32(m.Mem, 98084)
-		interp = rt.Ld32(m.Mem, 98088)
-		interpKind = rt.Ld32(m.Mem, 98092)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		fnAngle = binary.LittleEndian.Uint32(m.Mem[98076:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98084:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98088:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98092:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -32571,27 +32572,27 @@ func (m *Machine) HlKotlin() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				fnAngle = rt.Ld32(m.Mem, m.StreamWindow+8)
-				strKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+16)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+20)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+24)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				fnAngle = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, fnAngle)
-				rt.St32(m.Mem, 98080, strKind)
-				rt.St32(m.Mem, 98084, seg)
-				rt.St32(m.Mem, 98088, interp)
-				rt.St32(m.Mem, 98092, interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], fnAngle)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], interpKind)
 				m.LiveSuspended = true
 				return
 			}
@@ -32815,13 +32816,13 @@ func (m *Machine) HlKotlin() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47528
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, fnAngle)
-		rt.St32(m.Mem, m.StreamWindow+12, strKind)
-		rt.St32(m.Mem, m.StreamWindow+16, seg)
-		rt.St32(m.Mem, m.StreamWindow+20, interp)
-		rt.St32(m.Mem, m.StreamWindow+24, interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], fnAngle)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], interpKind)
 		if m.StreamStateLo > 1304 {
 			m.StreamStateLo = 1304
 		}
@@ -32862,17 +32863,17 @@ func (m *Machine) HlLatex() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		math = rt.Ld32(m.Mem, 98068)
-		raw = rt.Ld32(m.Mem, 98072)
-		depth = rt.Ld32(m.Mem, 98076)
-		pend = rt.Ld32(m.Mem, 98080)
-		pendOpt = rt.Ld32(m.Mem, 98084)
-		argHl = rt.Ld32(m.Mem, 98088)
-		argDepth = rt.Ld32(m.Mem, 98092)
-		outerHl = rt.Ld32(m.Mem, 98096)
-		outerDepth = rt.Ld32(m.Mem, 98100)
-		lineEmpty = rt.Ld32(m.Mem, 98104)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		math = binary.LittleEndian.Uint32(m.Mem[98068:])
+		raw = binary.LittleEndian.Uint32(m.Mem[98072:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98076:])
+		pend = binary.LittleEndian.Uint32(m.Mem[98080:])
+		pendOpt = binary.LittleEndian.Uint32(m.Mem[98084:])
+		argHl = binary.LittleEndian.Uint32(m.Mem[98088:])
+		argDepth = binary.LittleEndian.Uint32(m.Mem[98092:])
+		outerHl = binary.LittleEndian.Uint32(m.Mem[98096:])
+		outerDepth = binary.LittleEndian.Uint32(m.Mem[98100:])
+		lineEmpty = binary.LittleEndian.Uint32(m.Mem[98104:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -32880,33 +32881,33 @@ func (m *Machine) HlLatex() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				math = rt.Ld32(m.Mem, m.StreamWindow)
-				raw = rt.Ld32(m.Mem, m.StreamWindow+4)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+8)
-				pend = rt.Ld32(m.Mem, m.StreamWindow+12)
-				pendOpt = rt.Ld32(m.Mem, m.StreamWindow+16)
-				argHl = rt.Ld32(m.Mem, m.StreamWindow+20)
-				argDepth = rt.Ld32(m.Mem, m.StreamWindow+24)
-				outerHl = rt.Ld32(m.Mem, m.StreamWindow+28)
-				outerDepth = rt.Ld32(m.Mem, m.StreamWindow+32)
-				lineEmpty = rt.Ld32(m.Mem, m.StreamWindow+36)
+				math = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				raw = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				pend = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				pendOpt = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				argHl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				argDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				outerHl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				outerDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
+				lineEmpty = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+36:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, math)
-				rt.St32(m.Mem, 98072, raw)
-				rt.St32(m.Mem, 98076, depth)
-				rt.St32(m.Mem, 98080, pend)
-				rt.St32(m.Mem, 98084, pendOpt)
-				rt.St32(m.Mem, 98088, argHl)
-				rt.St32(m.Mem, 98092, argDepth)
-				rt.St32(m.Mem, 98096, outerHl)
-				rt.St32(m.Mem, 98100, outerDepth)
-				rt.St32(m.Mem, 98104, lineEmpty)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], math)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], raw)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], pend)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], pendOpt)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], argHl)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], argDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], outerHl)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], outerDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], lineEmpty)
 				m.LiveSuspended = true
 				return
 			}
@@ -32918,7 +32919,7 @@ func (m *Machine) HlLatex() {
 				if p >= m.End {
 					break
 				}
-				if p+5 <= m.End && rt.Ld32(m.Mem, p) == 0x646e655c && m.Mem[p+4] == '{' {
+				if p+5 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x646e655c && m.Mem[p+4] == '{' {
 					q = m.LatexEnvNameEnd(p + 5)
 					if q < m.End && m.Mem[q] == '}' && m.LatexEnvKey(p+5, q) == raw {
 						break
@@ -33189,7 +33190,7 @@ func (m *Machine) HlLatex() {
 			if p >= m.End {
 				break
 			}
-			w = rt.LdV(m.Mem, p)
+			w = rt.LdV(m.Mem[p:])
 			mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(35)), rt.Splat8(3)), rt.LeU8(rt.Sub8(w, rt.Splat8(91)), rng)), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(123)), rt.Eq8(w, rt.Splat8(125))), rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, extra)))))
 			if mask != 0 {
 				p += uint32(bits.TrailingZeros32(mask))
@@ -33213,16 +33214,16 @@ func (m *Machine) HlLatex() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47560
-		rt.St32(m.Mem, m.StreamWindow, math)
-		rt.St32(m.Mem, m.StreamWindow+4, raw)
-		rt.St32(m.Mem, m.StreamWindow+8, depth)
-		rt.St32(m.Mem, m.StreamWindow+12, pend)
-		rt.St32(m.Mem, m.StreamWindow+16, pendOpt)
-		rt.St32(m.Mem, m.StreamWindow+20, argHl)
-		rt.St32(m.Mem, m.StreamWindow+24, argDepth)
-		rt.St32(m.Mem, m.StreamWindow+28, outerHl)
-		rt.St32(m.Mem, m.StreamWindow+32, outerDepth)
-		rt.St32(m.Mem, m.StreamWindow+36, lineEmpty)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], math)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], raw)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], pend)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], pendOpt)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], argHl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], argDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], outerHl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], outerDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+36:], lineEmpty)
 		if m.StreamStateLo > 1336 {
 			m.StreamStateLo = 1336
 		}
@@ -33286,13 +33287,13 @@ func (m *Machine) LeanIsRest(c uint32) bool {
 
 // LeanWordKind is $leanWordKind.
 func (m *Machine) LeanWordKind(lhs, rhs uint32) uint32 {
-	if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
+	if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
 		return TokenKeywordDeclaration
 	}
-	if rhs-lhs == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x6564756c657270 {
+	if rhs-lhs == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6564756c657270 {
 		return TokenKeyword
 	}
-	if rhs-lhs == 6 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x747265766572 {
+	if rhs-lhs == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x747265766572 {
 		return TokenKeywordControl
 	}
 	return m.LexKeywordValue(lhs, rhs, 28704, 31, 158)
@@ -33364,12 +33365,12 @@ func (m *Machine) HlLean() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		rawOpen = rt.Ld32(m.Mem, 98072)
-		quoted = rt.Ld32(m.Mem, 98076)
-		quotedKind = rt.Ld32(m.Mem, 98080)
-		attribute = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		rawOpen = binary.LittleEndian.Uint32(m.Mem[98072:])
+		quoted = binary.LittleEndian.Uint32(m.Mem[98076:])
+		quotedKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		attribute = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -33377,23 +33378,23 @@ func (m *Machine) HlLean() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				rawOpen = rt.Ld32(m.Mem, m.StreamWindow+4)
-				quoted = rt.Ld32(m.Mem, m.StreamWindow+8)
-				quotedKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				attribute = rt.Ld32(m.Mem, m.StreamWindow+16)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				rawOpen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				quoted = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				quotedKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				attribute = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, rawOpen)
-				rt.St32(m.Mem, 98076, quoted)
-				rt.St32(m.Mem, 98080, quotedKind)
-				rt.St32(m.Mem, 98084, attribute)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], rawOpen)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], quoted)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], quotedKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], attribute)
 				m.LiveSuspended = true
 				return
 			}
@@ -33541,11 +33542,11 @@ func (m *Machine) HlLean() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47600
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, rawOpen)
-		rt.St32(m.Mem, m.StreamWindow+8, quoted)
-		rt.St32(m.Mem, m.StreamWindow+12, quotedKind)
-		rt.St32(m.Mem, m.StreamWindow+16, attribute)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], rawOpen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], quoted)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], quotedKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], attribute)
 		if m.StreamStateLo > 1376 {
 			m.StreamStateLo = 1376
 		}
@@ -33578,14 +33579,14 @@ func (m *Machine) LispWordHl(lhs, rhs uint32) uint32 {
 	g := m.LexKeywordValue(lhs, rhs, 22048, 31, 86)
 	if int32(g) < 0 {
 		if n == 4 {
-			if rt.Ld32(m.Mem, lhs) == 0x2a74656c {
+			if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x2a74656c {
 				return 2065
 			}
-			if rt.Ld32(m.Mem, lhs) == 0x21746573 {
+			if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x21746573 {
 				return TokenKeyword
 			}
 		}
-		if n == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x6572616c636564 {
+		if n == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6572616c636564 {
 			return TokenKeyword
 		}
 		return 0xffffffff
@@ -33715,9 +33716,9 @@ func (m *Machine) HlLisp() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		bl = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		bl = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -33725,17 +33726,17 @@ func (m *Machine) HlLisp() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				bl = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				bl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, bl)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], bl)
 				m.LiveSuspended = true
 				return
 			}
@@ -33808,7 +33809,7 @@ func (m *Machine) HlLisp() {
 			if c2 == 't' || c2 == 'f' {
 				m.LispScanSymbol()
 				rhs = m.Ptr - lhs
-				if rhs == 2 || (rhs == 5 && rt.Ld32(m.Mem, lhs+1) == 0x65757274) || (rhs == 6 && rt.Ld32(m.Mem, lhs+1) == 0x736c6166 && m.Mem[lhs+5] == 'e') {
+				if rhs == 2 || (rhs == 5 && binary.LittleEndian.Uint32(m.Mem[lhs+1:]) == 0x65757274) || (rhs == 6 && binary.LittleEndian.Uint32(m.Mem[lhs+1:]) == 0x736c6166 && m.Mem[lhs+5] == 'e') {
 					m.EmitTok(TokenBoolean, lhs, m.Ptr)
 					bl &= 0xffffff7f
 					continue
@@ -33835,7 +33836,7 @@ func (m *Machine) HlLisp() {
 					continue
 				}
 			}
-			if m.LispByte(lhs+5) == ' ' && rt.Ld32(m.Mem, lhs+1) == 0x676e616c {
+			if m.LispByte(lhs+5) == ' ' && binary.LittleEndian.Uint32(m.Mem[lhs+1:]) == 0x676e616c {
 				m.ScanToLineEnd()
 				m.EmitTok(TokenPreproc, lhs, m.Ptr)
 				bl &= 0xffffff7f
@@ -33942,8 +33943,8 @@ func (m *Machine) HlLisp() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47624
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, bl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], bl)
 		if m.StreamStateLo > 1400 {
 			m.StreamStateLo = 1400
 		}
@@ -33957,10 +33958,10 @@ func (m *Machine) HlLisp() {
 // LlvmWordHl is $llvmWordHl.
 func (m *Machine) LlvmWordHl(lhs, rhs uint32) uint32 {
 	n := rhs - lhs
-	if n == 6 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x69756f747066 {
+	if n == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x69756f747066 {
 		return TokenKeyword
 	}
-	if n == 9 && rt.Ld64(m.Mem, lhs) == 0x7372756365726f6e && m.Mem[lhs+8] == 'e' {
+	if n == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7372756365726f6e && m.Mem[lhs+8] == 'e' {
 		return TokenAttribute
 	}
 	return m.LexKeywordValue(lhs, rhs, 54800, 63, 198)
@@ -34020,7 +34021,7 @@ func (m *Machine) HlLlvm() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -34032,7 +34033,7 @@ func (m *Machine) HlLlvm() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
 				m.LiveSuspended = true
 				return
 			}
@@ -34140,7 +34141,7 @@ func (m *Machine) HlLlvm() {
 						}
 					default:
 						hl = TokenNone
-						if rt.Ld32(m.Mem, lhs)&0xffffff == 0x5f5744 || rt.Ld32(m.Mem, lhs) == 0x6c464944 {
+						if binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x5f5744 || binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x6c464944 {
 							hl = TokenConstantBuiltin
 						}
 					}
@@ -34186,8 +34187,8 @@ func (m *Machine) HlLog() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		plain = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		plain = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -34201,8 +34202,8 @@ next:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, plain)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], plain)
 				m.LiveSuspended = true
 				return
 			}
@@ -34219,7 +34220,7 @@ next:
 			m.ScanIdentRun(0)
 			n = m.Ptr - lhs
 			p = m.TemplateByte(m.Ptr)
-			if p == 58 && m.Ptr+3 <= m.End && rt.Ld16(m.Mem, m.Ptr+1) == 12079 {
+			if p == 58 && m.Ptr+3 <= m.End && uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr+1:])) == 12079 {
 				n = m.Ptr + 3
 				for {
 					m.Ptr++
@@ -34253,15 +34254,15 @@ next:
 				if c >= 'a' && !(m.LogIsMark(p) || (lhs > m.SrcBase && m.LogIsMark(uint32(m.Mem[lhs-1])))) {
 					if n == 4 {
 						switch {
-						case rt.Ld32(m.Mem, lhs) == 0x65757274:
+						case binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65757274:
 							hl = TokenBoolean
-						case rt.Ld32(m.Mem, lhs) == 0x6c6c756e:
+						case binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x6c6c756e:
 							hl = TokenConstantBuiltin
 						default:
 							hl = TokenNone
 						}
 					}
-					if n == 5 && rt.Ld32(m.Mem, lhs) == 0x736c6166 && m.Mem[lhs+4] == 'e' {
+					if n == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x736c6166 && m.Mem[lhs+4] == 'e' {
 						hl = TokenBoolean
 					}
 				} else {
@@ -34320,7 +34321,7 @@ next:
 				}
 				continue
 			}
-			if n == 2 && rt.Ld16(m.Mem, lhs) == 29793 {
+			if n == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 29793 {
 				if m.LexLineByteBefore(lhs) != 0 {
 					hl = TokenNone
 				} else {
@@ -34342,7 +34343,7 @@ next:
 				}
 				continue
 			}
-			if c-65 <= 25 && ((n >= 6 && rt.Ld32(m.Mem, m.Ptr-5) == 0x6f727245 && m.Mem[m.Ptr-1] == 'r') || (n >= 9 && rt.Ld64(m.Mem, m.Ptr-9) == 0x6f69747065637845 && m.Mem[m.Ptr-1] == 'n')) {
+			if c-65 <= 25 && ((n >= 6 && binary.LittleEndian.Uint32(m.Mem[m.Ptr-5:]) == 0x6f727245 && m.Mem[m.Ptr-1] == 'r') || (n >= 9 && binary.LittleEndian.Uint64(m.Mem[m.Ptr-9:]) == 0x6f69747065637845 && m.Mem[m.Ptr-1] == 'n')) {
 				hl = TokenType
 				if hl != 0 {
 					m.EmitTok(TokenNone, plain, lhs)
@@ -34501,9 +34502,9 @@ func (m *Machine) HlLua() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		decl = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -34511,17 +34512,17 @@ func (m *Machine) HlLua() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				decl = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, decl)
-				rt.St32(m.Mem, 98072, member)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
 				m.LiveSuspended = true
 				return
 			}
@@ -34644,8 +34645,8 @@ func (m *Machine) HlLua() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47632
-		rt.St32(m.Mem, m.StreamWindow, decl)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
 		if m.StreamStateLo > 1408 {
 			m.StreamStateLo = 1408
 		}
@@ -34695,11 +34696,11 @@ func (m *Machine) HlLuau() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		decl = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		typ = rt.Ld32(m.Mem, 98076)
-		interp = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		typ = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -34707,21 +34708,21 @@ func (m *Machine) HlLuau() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				decl = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				typ = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+12)
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				typ = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, decl)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, typ)
-				rt.St32(m.Mem, 98080, interp)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], typ)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interp)
 				m.LiveSuspended = true
 				return
 			}
@@ -34983,10 +34984,10 @@ func (m *Machine) HlLuau() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47640
-		rt.St32(m.Mem, m.StreamWindow, decl)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, typ)
-		rt.St32(m.Mem, m.StreamWindow+12, interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], typ)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interp)
 		if m.StreamStateLo > 1416 {
 			m.StreamStateLo = 1416
 		}
@@ -34999,7 +35000,7 @@ func (m *Machine) HlLuau() {
 
 // MakeIsEndef is $makeIsEndef.
 func (m *Machine) MakeIsEndef(lhs, rhs uint32) bool {
-	return rhs-lhs == 5 && rt.Ld32(m.Mem, lhs) == 0x65646e65 && m.Mem[lhs+4] == 'f'
+	return rhs-lhs == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65646e65 && m.Mem[lhs+4] == 'f'
 }
 
 // MakeIsWordEnd is $makeIsWordEnd.
@@ -35147,7 +35148,7 @@ func (m *Machine) MakeDollar(nest uint32) {
 				rhs = m.Ptr
 				if rhs > lhs {
 					p = m.LexSkipSpaceAt(rhs)
-					if m.TemplateByte(p) != closer && (m.LexKeywordLookup(lhs, rhs, 22464, 15, 53) == 5 || (rhs-lhs == 9 && rt.Ld64(m.Mem, lhs) == 0x6966657270646461 && m.Mem[lhs+8] == 'x')) {
+					if m.TemplateByte(p) != closer && (m.LexKeywordLookup(lhs, rhs, 22464, 15, 53) == 5 || (rhs-lhs == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6966657270646461 && m.Mem[lhs+8] == 'x')) {
 						m.EmitTok(TokenFunction, lhs, rhs)
 					} else {
 						m.EmitTok(TokenVariable, lhs, rhs)
@@ -35263,14 +35264,14 @@ func (m *Machine) HlMakefile() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		lineHead = rt.Ld32(m.Mem, 98068)
-		mode = rt.Ld32(m.Mem, 98072)
-		targets = rt.Ld32(m.Mem, 98076)
-		expectVar = rt.Ld32(m.Mem, 98080)
-		cmdHead = rt.Ld32(m.Mem, 98084)
-		inRule = rt.Ld32(m.Mem, 98088)
-		define = rt.Ld32(m.Mem, 98092)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98068:])
+		mode = binary.LittleEndian.Uint32(m.Mem[98072:])
+		targets = binary.LittleEndian.Uint32(m.Mem[98076:])
+		expectVar = binary.LittleEndian.Uint32(m.Mem[98080:])
+		cmdHead = binary.LittleEndian.Uint32(m.Mem[98084:])
+		inRule = binary.LittleEndian.Uint32(m.Mem[98088:])
+		define = binary.LittleEndian.Uint32(m.Mem[98092:])
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
@@ -35279,27 +35280,27 @@ func (m *Machine) HlMakefile() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow)
-				mode = rt.Ld32(m.Mem, m.StreamWindow+4)
-				targets = rt.Ld32(m.Mem, m.StreamWindow+8)
-				expectVar = rt.Ld32(m.Mem, m.StreamWindow+12)
-				cmdHead = rt.Ld32(m.Mem, m.StreamWindow+16)
-				inRule = rt.Ld32(m.Mem, m.StreamWindow+20)
-				define = rt.Ld32(m.Mem, m.StreamWindow+24)
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				mode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				targets = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				expectVar = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				cmdHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				inRule = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				define = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, lineHead)
-				rt.St32(m.Mem, 98072, mode)
-				rt.St32(m.Mem, 98076, targets)
-				rt.St32(m.Mem, 98080, expectVar)
-				rt.St32(m.Mem, 98084, cmdHead)
-				rt.St32(m.Mem, 98088, inRule)
-				rt.St32(m.Mem, 98092, define)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], mode)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], targets)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], expectVar)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], cmdHead)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], inRule)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], define)
 				m.LiveSuspended = true
 				return
 			}
@@ -35398,7 +35399,7 @@ func (m *Machine) HlMakefile() {
 							if g == 3 {
 								define = 1
 							}
-							if m.Ptr-lhs == 4 && rt.Ld32(m.Mem, lhs) == 0x65736c65 {
+							if m.Ptr-lhs == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65736c65 {
 								lineHead = 1
 							}
 							m.EmitTok(hl, lhs, m.Ptr)
@@ -35569,13 +35570,13 @@ func (m *Machine) HlMakefile() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47656
-		rt.St32(m.Mem, m.StreamWindow, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+4, mode)
-		rt.St32(m.Mem, m.StreamWindow+8, targets)
-		rt.St32(m.Mem, m.StreamWindow+12, expectVar)
-		rt.St32(m.Mem, m.StreamWindow+16, cmdHead)
-		rt.St32(m.Mem, m.StreamWindow+20, inRule)
-		rt.St32(m.Mem, m.StreamWindow+24, define)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], mode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], targets)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], expectVar)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], cmdHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], inRule)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], define)
 		if m.StreamStateLo > 1432 {
 			m.StreamStateLo = 1432
 		}
@@ -35617,7 +35618,7 @@ func (m *Machine) MatBlockComment() {
 		m.ScanToLineEnd()
 	}
 	m.EmitTok(TokenComment, lhs, m.Ptr)
-	rt.St16(m.Mem, 13952, 32037)
+	binary.LittleEndian.PutUint16(m.Mem[13952:], uint16(32037))
 	m.StreamSetLine(13952, 2, 2, TokenComment)
 }
 
@@ -35633,15 +35634,15 @@ func (m *Machine) HlMatlab() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		fnHead = rt.Ld32(m.Mem, 98068)
-		fnOut = rt.Ld32(m.Mem, 98072)
-		paren = rt.Ld32(m.Mem, 98076)
-		fnDepth = rt.Ld32(m.Mem, 98080)
-		afterValue = rt.Ld32(m.Mem, 98084)
-		lineHead = rt.Ld32(m.Mem, 98088)
-		member = rt.Ld32(m.Mem, 98092)
-		classLine = rt.Ld32(m.Mem, 98096)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		fnHead = binary.LittleEndian.Uint32(m.Mem[98068:])
+		fnOut = binary.LittleEndian.Uint32(m.Mem[98072:])
+		paren = binary.LittleEndian.Uint32(m.Mem[98076:])
+		fnDepth = binary.LittleEndian.Uint32(m.Mem[98080:])
+		afterValue = binary.LittleEndian.Uint32(m.Mem[98084:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98088:])
+		member = binary.LittleEndian.Uint32(m.Mem[98092:])
+		classLine = binary.LittleEndian.Uint32(m.Mem[98096:])
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
@@ -35650,29 +35651,29 @@ func (m *Machine) HlMatlab() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				fnHead = rt.Ld32(m.Mem, m.StreamWindow)
-				fnOut = rt.Ld32(m.Mem, m.StreamWindow+4)
-				paren = rt.Ld32(m.Mem, m.StreamWindow+8)
-				fnDepth = rt.Ld32(m.Mem, m.StreamWindow+12)
-				afterValue = rt.Ld32(m.Mem, m.StreamWindow+16)
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow+20)
-				member = rt.Ld32(m.Mem, m.StreamWindow+24)
-				classLine = rt.Ld32(m.Mem, m.StreamWindow+28)
+				fnHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				fnOut = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				paren = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				fnDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				afterValue = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				classLine = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, fnHead)
-				rt.St32(m.Mem, 98072, fnOut)
-				rt.St32(m.Mem, 98076, paren)
-				rt.St32(m.Mem, 98080, fnDepth)
-				rt.St32(m.Mem, 98084, afterValue)
-				rt.St32(m.Mem, 98088, lineHead)
-				rt.St32(m.Mem, 98092, member)
-				rt.St32(m.Mem, 98096, classLine)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], fnHead)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], fnOut)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], paren)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], fnDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], afterValue)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], classLine)
 				m.LiveSuspended = true
 				return
 			}
@@ -35751,7 +35752,7 @@ func (m *Machine) HlMatlab() {
 				if kind>>8 == 2 {
 					classLine = 1
 				}
-				afterValue = rt.B2u(hl == TokenBoolean || hl == TokenConstantBuiltin || (rhs-lhs == 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x646e65))
+				afterValue = rt.B2u(hl == TokenBoolean || hl == TokenConstantBuiltin || (rhs-lhs == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x646e65))
 			} else {
 				afterValue = 1
 				switch {
@@ -35858,14 +35859,14 @@ func (m *Machine) HlMatlab() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47688
-		rt.St32(m.Mem, m.StreamWindow, fnHead)
-		rt.St32(m.Mem, m.StreamWindow+4, fnOut)
-		rt.St32(m.Mem, m.StreamWindow+8, paren)
-		rt.St32(m.Mem, m.StreamWindow+12, fnDepth)
-		rt.St32(m.Mem, m.StreamWindow+16, afterValue)
-		rt.St32(m.Mem, m.StreamWindow+20, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+24, member)
-		rt.St32(m.Mem, m.StreamWindow+28, classLine)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], fnHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], fnOut)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], paren)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], fnDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], afterValue)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], classLine)
 		if m.StreamStateLo > 1464 {
 			m.StreamStateLo = 1464
 		}
@@ -36114,8 +36115,8 @@ func (m *Machine) MdxEsmStart(p uint32) bool {
 	if p+7 > m.End {
 		return false
 	}
-	word := rt.Ld32(m.Mem, p)
-	if !((word == 0x6f706d69 && rt.Ld16(m.Mem, p+4) == 29810) || (word == 0x6f707865 && rt.Ld16(m.Mem, p+4) == 29810)) {
+	word := binary.LittleEndian.Uint32(m.Mem[p:])
+	if !((word == 0x6f706d69 && uint32(binary.LittleEndian.Uint16(m.Mem[p+4:])) == 29810) || (word == 0x6f707865 && uint32(binary.LittleEndian.Uint16(m.Mem[p+4:])) == 29810)) {
 		return false
 	}
 	c := uint32(m.Mem[p+6])
@@ -36231,11 +36232,11 @@ func (m *Machine) HlMdx() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		fenceAt = rt.Ld32(m.Mem, 98068)
-		from = rt.Ld32(m.Mem, 98072)
-		noClose = rt.Ld32(m.Mem, 98076)
-		p = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		fenceAt = binary.LittleEndian.Uint32(m.Mem[98068:])
+		from = binary.LittleEndian.Uint32(m.Mem[98072:])
+		noClose = binary.LittleEndian.Uint32(m.Mem[98076:])
+		p = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -36260,11 +36261,11 @@ scan:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, fenceAt)
-				rt.St32(m.Mem, 98072, from)
-				rt.St32(m.Mem, 98076, noClose)
-				rt.St32(m.Mem, 98080, p)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], fenceAt)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], from)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], noClose)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], p)
 				m.LiveSuspended = true
 				return
 			}
@@ -36321,7 +36322,7 @@ scan:
 			continue
 		}
 		if m.Mem[p] == '<' {
-			if p+4 <= m.End && rt.Ld32(m.Mem, p) == 0x2d2d213c {
+			if p+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x2d2d213c {
 				to = m.MarkdownHTMLEnd(p, m.MarkdownLineEnd(p))
 				m.MdxMarkdownRange(from, to)
 				from = to
@@ -36430,13 +36431,13 @@ func (m *Machine) HlMermaid() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		kind = rt.Ld32(m.Mem, 98068)
-		mid = rt.Ld32(m.Mem, 98072)
-		style = rt.Ld32(m.Mem, 98076)
-		attr = rt.Ld32(m.Mem, 98080)
-		dir = rt.Ld32(m.Mem, 98084)
-		quote = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		kind = binary.LittleEndian.Uint32(m.Mem[98068:])
+		mid = binary.LittleEndian.Uint32(m.Mem[98072:])
+		style = binary.LittleEndian.Uint32(m.Mem[98076:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98080:])
+		dir = binary.LittleEndian.Uint32(m.Mem[98084:])
+		quote = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -36444,12 +36445,12 @@ func (m *Machine) HlMermaid() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				kind = rt.Ld32(m.Mem, m.StreamWindow)
-				mid = rt.Ld32(m.Mem, m.StreamWindow+4)
-				style = rt.Ld32(m.Mem, m.StreamWindow+8)
-				attr = rt.Ld32(m.Mem, m.StreamWindow+12)
-				dir = rt.Ld32(m.Mem, m.StreamWindow+16)
-				quote = rt.Ld32(m.Mem, m.StreamWindow+20)
+				kind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				mid = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				style = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				attr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				dir = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				quote = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
 			}
 		}
 		p = m.FrontMatterOpen()
@@ -36473,13 +36474,13 @@ func (m *Machine) HlMermaid() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, kind)
-				rt.St32(m.Mem, 98072, mid)
-				rt.St32(m.Mem, 98076, style)
-				rt.St32(m.Mem, 98080, attr)
-				rt.St32(m.Mem, 98084, dir)
-				rt.St32(m.Mem, 98088, quote)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], kind)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], mid)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], style)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], attr)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], dir)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], quote)
 				m.LiveSuspended = true
 				return
 			}
@@ -36544,10 +36545,10 @@ func (m *Machine) HlMermaid() {
 				if m.LexIsIdentStart(c) {
 					m.ScanIdentRun(45)
 					p = m.Ptr - lhs
-					if (p == 9 && rt.Ld64(m.Mem, lhs) == 0x6172676169447265) || (p >= 12 && rt.Ld64(m.Mem, lhs) == 0x6169447373616c63) {
+					if (p == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6172676169447265) || (p >= 12 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6169447373616c63) {
 						kind = 2
 					}
-					if p == 15 && rt.Ld64(m.Mem, lhs) == 0x65636e6575716573 {
+					if p == 15 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x65636e6575716573 {
 						kind = 3
 					}
 					m.EmitTok(TokenKeywordDeclaration, lhs, m.Ptr)
@@ -36677,7 +36678,7 @@ func (m *Machine) HlMermaid() {
 						}
 						v = 0xffffffff
 						if style|attr == 0 {
-							if p-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x656c797473 {
+							if p-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x656c797473 {
 								lexKeywordValue = 529
 							} else {
 								lexKeywordValue = m.LexKeywordValue(lhs, p, 57488, 15, 59)
@@ -36697,7 +36698,7 @@ func (m *Machine) HlMermaid() {
 							continue
 						}
 						t3 = p-lhs == 2
-						q = rt.Ld16(m.Mem, lhs)
+						q = uint32(binary.LittleEndian.Uint16(m.Mem[lhs:]))
 						if t3 && (q == 17492 || q == 16980 || q == 21570 || q == 19538 || q == 21068) {
 							m.EmitTok(TokenConstant, lhs, p)
 							continue
@@ -36777,12 +36778,12 @@ func (m *Machine) HlMermaid() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47720
-		rt.St32(m.Mem, m.StreamWindow, kind)
-		rt.St32(m.Mem, m.StreamWindow+4, mid)
-		rt.St32(m.Mem, m.StreamWindow+8, style)
-		rt.St32(m.Mem, m.StreamWindow+12, attr)
-		rt.St32(m.Mem, m.StreamWindow+16, dir)
-		rt.St32(m.Mem, m.StreamWindow+20, quote)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], kind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], mid)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], style)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], attr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], dir)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], quote)
 		if m.StreamStateLo > 1496 {
 			m.StreamStateLo = 1496
 		}
@@ -36854,10 +36855,10 @@ func (m *Machine) HlMoonbit() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		str = rt.Ld32(m.Mem, 98076)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		str = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -36865,19 +36866,19 @@ func (m *Machine) HlMoonbit() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				str = rt.Ld32(m.Mem, m.StreamWindow+8)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				str = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, str)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], str)
 				m.LiveSuspended = true
 				return
 			}
@@ -37167,9 +37168,9 @@ func (m *Machine) HlMoonbit() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47744
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, str)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], str)
 		if m.StreamStateLo > 1520 {
 			m.StreamStateLo = 1520
 		}
@@ -37222,9 +37223,9 @@ func (m *Machine) HlNginx() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		open = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		open = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -37232,8 +37233,8 @@ func (m *Machine) HlNginx() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				open = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				open = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 		if open != 0 {
@@ -37245,9 +37246,9 @@ func (m *Machine) HlNginx() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, open)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], open)
 				m.LiveSuspended = true
 				return
 			}
@@ -37373,15 +37374,15 @@ func (m *Machine) HlNginx() {
 		if m.LexIsDigit(c) && m.NginxIsSize(lhs, m.Ptr) {
 			hl = TokenNumber
 		}
-		if (p == 2 && rt.Ld16(m.Mem, lhs) == 28271) || (p == 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x66666f) {
+		if (p == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 28271) || (p == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x66666f) {
 			hl = TokenBoolean
 		}
 		m.EmitTok(hl, lhs, m.Ptr)
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47760
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, open)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], open)
 		if m.StreamStateLo > 1536 {
 			m.StreamStateLo = 1536
 		}
@@ -37489,16 +37490,16 @@ func (m *Machine) HlNim() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		afterDecl = rt.Ld32(m.Mem, 98068)
-		afterDot = rt.Ld32(m.Mem, 98072)
-		comment = rt.Ld32(m.Mem, 98076)
-		defEnd = rt.Ld32(m.Mem, 98080)
-		depth = rt.Ld32(m.Mem, 98084)
-		importKw = rt.Ld32(m.Mem, 98088)
-		nameEnd = rt.Ld32(m.Mem, 98092)
-		pragma = rt.Ld32(m.Mem, 98096)
-		triple = rt.Ld32(m.Mem, 98100)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		afterDecl = binary.LittleEndian.Uint32(m.Mem[98068:])
+		afterDot = binary.LittleEndian.Uint32(m.Mem[98072:])
+		comment = binary.LittleEndian.Uint32(m.Mem[98076:])
+		defEnd = binary.LittleEndian.Uint32(m.Mem[98080:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98084:])
+		importKw = binary.LittleEndian.Uint32(m.Mem[98088:])
+		nameEnd = binary.LittleEndian.Uint32(m.Mem[98092:])
+		pragma = binary.LittleEndian.Uint32(m.Mem[98096:])
+		triple = binary.LittleEndian.Uint32(m.Mem[98100:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -37506,13 +37507,13 @@ func (m *Machine) HlNim() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				afterDecl = rt.Ld32(m.Mem, m.StreamWindow)
-				afterDot = rt.Ld32(m.Mem, m.StreamWindow+4)
-				comment = rt.Ld32(m.Mem, m.StreamWindow+8)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+12)
-				importKw = rt.Ld32(m.Mem, m.StreamWindow+16)
-				pragma = rt.Ld32(m.Mem, m.StreamWindow+20)
-				triple = rt.Ld32(m.Mem, m.StreamWindow+24)
+				afterDecl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				afterDot = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				comment = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				importKw = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				pragma = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				triple = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
 			}
 		}
 		defEnd = 0
@@ -37528,16 +37529,16 @@ func (m *Machine) HlNim() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, afterDecl)
-				rt.St32(m.Mem, 98072, afterDot)
-				rt.St32(m.Mem, 98076, comment)
-				rt.St32(m.Mem, 98080, defEnd)
-				rt.St32(m.Mem, 98084, depth)
-				rt.St32(m.Mem, 98088, importKw)
-				rt.St32(m.Mem, 98092, nameEnd)
-				rt.St32(m.Mem, 98096, pragma)
-				rt.St32(m.Mem, 98100, triple)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], afterDecl)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], afterDot)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], comment)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], defEnd)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], importKw)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], nameEnd)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], pragma)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], triple)
 				m.LiveSuspended = true
 				return
 			}
@@ -37654,12 +37655,12 @@ func (m *Machine) HlNim() {
 					if dot == 0 {
 						g = m.LexKeywordValue(lhs, m.Ptr, 22816, 31, 105)
 						if g == 0xffffffff && m.Ptr-lhs == 5 {
-							if rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6573696172 {
+							if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6573696172 {
 								g = TokenKeywordControl
 							}
 						}
 						if g == 0xffffffff && m.Ptr-lhs == 6 {
-							if rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x74726f707865 {
+							if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x74726f707865 {
 								g = 532
 							}
 						}
@@ -37854,13 +37855,13 @@ func (m *Machine) HlNim() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47768
-		rt.St32(m.Mem, m.StreamWindow, afterDecl)
-		rt.St32(m.Mem, m.StreamWindow+4, afterDot)
-		rt.St32(m.Mem, m.StreamWindow+8, comment)
-		rt.St32(m.Mem, m.StreamWindow+12, depth)
-		rt.St32(m.Mem, m.StreamWindow+16, importKw)
-		rt.St32(m.Mem, m.StreamWindow+20, pragma)
-		rt.St32(m.Mem, m.StreamWindow+24, triple)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], afterDecl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], afterDot)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], comment)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], importKw)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], pragma)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], triple)
 		if m.StreamStateLo > 1544 {
 			m.StreamStateLo = 1544
 		}
@@ -37990,16 +37991,16 @@ func (m *Machine) HlNix() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		strKind = rt.Ld32(m.Mem, 98068)
-		seg = rt.Ld32(m.Mem, 98072)
-		interp = rt.Ld32(m.Mem, 98076)
-		interpKind = rt.Ld32(m.Mem, 98080)
-		afterValue = rt.Ld32(m.Mem, 98084)
-		member = rt.Ld32(m.Mem, 98088)
-		inherit = rt.Ld32(m.Mem, 98092)
-		brackets = rt.Ld32(m.Mem, 98096)
-		depth = rt.Ld32(m.Mem, 98100)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98068:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98072:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		afterValue = binary.LittleEndian.Uint32(m.Mem[98084:])
+		member = binary.LittleEndian.Uint32(m.Mem[98088:])
+		inherit = binary.LittleEndian.Uint32(m.Mem[98092:])
+		brackets = binary.LittleEndian.Uint32(m.Mem[98096:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98100:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -38007,31 +38008,31 @@ func (m *Machine) HlNix() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				strKind = rt.Ld32(m.Mem, m.StreamWindow)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+4)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				afterValue = rt.Ld32(m.Mem, m.StreamWindow+16)
-				member = rt.Ld32(m.Mem, m.StreamWindow+20)
-				inherit = rt.Ld32(m.Mem, m.StreamWindow+24)
-				brackets = rt.Ld32(m.Mem, m.StreamWindow+28)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+32)
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				afterValue = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				inherit = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				brackets = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, strKind)
-				rt.St32(m.Mem, 98072, seg)
-				rt.St32(m.Mem, 98076, interp)
-				rt.St32(m.Mem, 98080, interpKind)
-				rt.St32(m.Mem, 98084, afterValue)
-				rt.St32(m.Mem, 98088, member)
-				rt.St32(m.Mem, 98092, inherit)
-				rt.St32(m.Mem, 98096, brackets)
-				rt.St32(m.Mem, 98100, depth)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], afterValue)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], inherit)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], brackets)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], depth)
 				m.LiveSuspended = true
 				return
 			}
@@ -38166,7 +38167,7 @@ func (m *Machine) HlNix() {
 			}
 			if int32(kind) >= 0 {
 				hl = kind
-				if hl == TokenKeyword && rhs-lhs == 7 && rt.Ld32(m.Mem, lhs) == 0x65686e69 {
+				if hl == TokenKeyword && rhs-lhs == 7 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65686e69 {
 					inherit = 1
 				}
 				afterValue = rt.B2u(hl == TokenBoolean || hl == TokenConstantBuiltin)
@@ -38275,15 +38276,15 @@ func (m *Machine) HlNix() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47800
-		rt.St32(m.Mem, m.StreamWindow, strKind)
-		rt.St32(m.Mem, m.StreamWindow+4, seg)
-		rt.St32(m.Mem, m.StreamWindow+8, interp)
-		rt.St32(m.Mem, m.StreamWindow+12, interpKind)
-		rt.St32(m.Mem, m.StreamWindow+16, afterValue)
-		rt.St32(m.Mem, m.StreamWindow+20, member)
-		rt.St32(m.Mem, m.StreamWindow+24, inherit)
-		rt.St32(m.Mem, m.StreamWindow+28, brackets)
-		rt.St32(m.Mem, m.StreamWindow+32, depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], afterValue)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], inherit)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], brackets)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], depth)
 		if m.StreamStateLo > 1576 {
 			m.StreamStateLo = 1576
 		}
@@ -38306,10 +38307,10 @@ func (m *Machine) ObjcWordHl(lhs, rhs uint32, at bool, propAttrs uint32) uint32 
 	if at {
 		n = rhs - lhs
 		if g == 1 {
-			if (n == 9 && rt.Ld64(m.Mem, lhs) == 0x6361667265746e69) || (n == 14 && rt.Ld64(m.Mem, lhs) == 0x6e656d656c706d69) || (n == 8 && rt.Ld64(m.Mem, lhs) == 0x6c6f636f746f7270) || (n == 5 && rt.Ld32(m.Mem, lhs) == 0x73616c63) {
+			if (n == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6361667265746e69) || (n == 14 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6e656d656c706d69) || (n == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6c6f636f746f7270) || (n == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x73616c63) {
 				return 273
 			}
-			if n == 8 && rt.Ld64(m.Mem, lhs) == 0x79747265706f7270 {
+			if n == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x79747265706f7270 {
 				return 529
 			}
 		}
@@ -38329,16 +38330,16 @@ func (m *Machine) HlObjc() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		midLine = rt.Ld32(m.Mem, 98068)
-		expectType = rt.Ld32(m.Mem, 98072)
-		propAttrs = rt.Ld32(m.Mem, 98076)
-		declHead = rt.Ld32(m.Mem, 98080)
-		parens = rt.Ld32(m.Mem, 98084)
-		brackets = rt.Ld32(m.Mem, 98088)
-		member = rt.Ld32(m.Mem, 98092)
-		declColon = rt.Ld32(m.Mem, 98096)
-		strCont = rt.Ld32(m.Mem, 98100)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		midLine = binary.LittleEndian.Uint32(m.Mem[98068:])
+		expectType = binary.LittleEndian.Uint32(m.Mem[98072:])
+		propAttrs = binary.LittleEndian.Uint32(m.Mem[98076:])
+		declHead = binary.LittleEndian.Uint32(m.Mem[98080:])
+		parens = binary.LittleEndian.Uint32(m.Mem[98084:])
+		brackets = binary.LittleEndian.Uint32(m.Mem[98088:])
+		member = binary.LittleEndian.Uint32(m.Mem[98092:])
+		declColon = binary.LittleEndian.Uint32(m.Mem[98096:])
+		strCont = binary.LittleEndian.Uint32(m.Mem[98100:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -38346,15 +38347,15 @@ func (m *Machine) HlObjc() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				midLine = rt.Ld32(m.Mem, m.StreamWindow)
-				expectType = rt.Ld32(m.Mem, m.StreamWindow+4)
-				propAttrs = rt.Ld32(m.Mem, m.StreamWindow+8)
-				declHead = rt.Ld32(m.Mem, m.StreamWindow+12)
-				parens = rt.Ld32(m.Mem, m.StreamWindow+16)
-				brackets = rt.Ld32(m.Mem, m.StreamWindow+20)
-				member = rt.Ld32(m.Mem, m.StreamWindow+24)
-				declColon = rt.Ld32(m.Mem, m.StreamWindow+28)
-				strCont = rt.Ld32(m.Mem, m.StreamWindow+32)
+				midLine = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expectType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				propAttrs = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				declHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				parens = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				brackets = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				declColon = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				strCont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
 			}
 		}
 		strCont = m.LexCStringResume(strCont)
@@ -38362,16 +38363,16 @@ func (m *Machine) HlObjc() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, midLine)
-				rt.St32(m.Mem, 98072, expectType)
-				rt.St32(m.Mem, 98076, propAttrs)
-				rt.St32(m.Mem, 98080, declHead)
-				rt.St32(m.Mem, 98084, parens)
-				rt.St32(m.Mem, 98088, brackets)
-				rt.St32(m.Mem, 98092, member)
-				rt.St32(m.Mem, 98096, declColon)
-				rt.St32(m.Mem, 98100, strCont)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], midLine)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], expectType)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], propAttrs)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], declHead)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], parens)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], brackets)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], declColon)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], strCont)
 				m.LiveSuspended = true
 				return
 			}
@@ -38550,15 +38551,15 @@ func (m *Machine) HlObjc() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47840
-		rt.St32(m.Mem, m.StreamWindow, midLine)
-		rt.St32(m.Mem, m.StreamWindow+4, expectType)
-		rt.St32(m.Mem, m.StreamWindow+8, propAttrs)
-		rt.St32(m.Mem, m.StreamWindow+12, declHead)
-		rt.St32(m.Mem, m.StreamWindow+16, parens)
-		rt.St32(m.Mem, m.StreamWindow+20, brackets)
-		rt.St32(m.Mem, m.StreamWindow+24, member)
-		rt.St32(m.Mem, m.StreamWindow+28, declColon)
-		rt.St32(m.Mem, m.StreamWindow+32, strCont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], midLine)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expectType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], propAttrs)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], declHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], parens)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], brackets)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], declColon)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], strCont)
 		if m.StreamStateLo > 1616 {
 			m.StreamStateLo = 1616
 		}
@@ -38580,7 +38581,7 @@ func (m *Machine) OdinEndianType(lhs, rhs uint32) bool {
 	if rhs-lhs < 5 {
 		return false
 	}
-	c := rt.Ld16(m.Mem, rhs-2)
+	c := uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:]))
 	if !(c == 25964 || c == 25954) {
 		return false
 	}
@@ -38624,7 +38625,7 @@ func (m *Machine) OdinDeclKind(p uint32) uint32 {
 			m.Ptr = p
 			m.LexScanIdent()
 			q = m.Ptr
-			if q-p == 4 && rt.Ld32(m.Mem, p) == 0x65707974 {
+			if q-p == 4 && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x65707974 {
 				m.Ptr = save
 				return 2
 			}
@@ -38744,10 +38745,10 @@ func (m *Machine) HlOdin() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		attrDepth = rt.Ld32(m.Mem, 98076)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		attrDepth = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -38755,19 +38756,19 @@ func (m *Machine) HlOdin() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				attrDepth = rt.Ld32(m.Mem, m.StreamWindow+8)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				attrDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, attrDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], attrDepth)
 				m.LiveSuspended = true
 				return
 			}
@@ -39024,9 +39025,9 @@ func (m *Machine) HlOdin() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47880
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, attrDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], attrDepth)
 		if m.StreamStateLo > 1656 {
 			m.StreamStateLo = 1656
 		}
@@ -39044,10 +39045,10 @@ func (m *Machine) HlOpenscad() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		depth = rt.Ld32(m.Mem, 98068)
-		expr = rt.Ld32(m.Mem, 98072)
-		define = rt.Ld32(m.Mem, 98076)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98068:])
+		expr = binary.LittleEndian.Uint32(m.Mem[98072:])
+		define = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -39055,19 +39056,19 @@ func (m *Machine) HlOpenscad() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				depth = rt.Ld32(m.Mem, m.StreamWindow)
-				expr = rt.Ld32(m.Mem, m.StreamWindow+4)
-				define = rt.Ld32(m.Mem, m.StreamWindow+8)
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				define = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, depth)
-				rt.St32(m.Mem, 98072, expr)
-				rt.St32(m.Mem, 98076, define)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], expr)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], define)
 				m.LiveSuspended = true
 				return
 			}
@@ -39181,9 +39182,9 @@ func (m *Machine) HlOpenscad() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47896
-		rt.St32(m.Mem, m.StreamWindow, depth)
-		rt.St32(m.Mem, m.StreamWindow+4, expr)
-		rt.St32(m.Mem, m.StreamWindow+8, define)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], define)
 		if m.StreamStateLo > 1672 {
 			m.StreamStateLo = 1672
 		}
@@ -39201,7 +39202,7 @@ func (m *Machine) PasWordHl(lhs, rhs uint32) uint32 {
 	if int32(v) >= 0 {
 		return v
 	}
-	if n == 6 && rt.Ld32(m.Mem, 1360) == 0x75736572 && rt.Ld16(m.Mem, 1364) == 29804 {
+	if n == 6 && binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x75736572 && uint32(binary.LittleEndian.Uint16(m.Mem[1364:])) == 29804 {
 		return TokenVariableSpecial
 	}
 	return 0xffffffff
@@ -39296,15 +39297,15 @@ func (m *Machine) HlPascal() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		fnHead = rt.Ld32(m.Mem, 98072)
-		paren = rt.Ld32(m.Mem, 98076)
-		paramDepth = rt.Ld32(m.Mem, 98080)
-		typeCtx = rt.Ld32(m.Mem, 98084)
-		propCtx = rt.Ld32(m.Mem, 98088)
-		propName = rt.Ld32(m.Mem, 98092)
-		member = rt.Ld32(m.Mem, 98096)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		fnHead = binary.LittleEndian.Uint32(m.Mem[98072:])
+		paren = binary.LittleEndian.Uint32(m.Mem[98076:])
+		paramDepth = binary.LittleEndian.Uint32(m.Mem[98080:])
+		typeCtx = binary.LittleEndian.Uint32(m.Mem[98084:])
+		propCtx = binary.LittleEndian.Uint32(m.Mem[98088:])
+		propName = binary.LittleEndian.Uint32(m.Mem[98092:])
+		member = binary.LittleEndian.Uint32(m.Mem[98096:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -39312,29 +39313,29 @@ func (m *Machine) HlPascal() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				fnHead = rt.Ld32(m.Mem, m.StreamWindow+4)
-				paren = rt.Ld32(m.Mem, m.StreamWindow+8)
-				paramDepth = rt.Ld32(m.Mem, m.StreamWindow+12)
-				typeCtx = rt.Ld32(m.Mem, m.StreamWindow+16)
-				propCtx = rt.Ld32(m.Mem, m.StreamWindow+20)
-				propName = rt.Ld32(m.Mem, m.StreamWindow+24)
-				member = rt.Ld32(m.Mem, m.StreamWindow+28)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				fnHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				paren = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				paramDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				typeCtx = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				propCtx = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				propName = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, fnHead)
-				rt.St32(m.Mem, 98076, paren)
-				rt.St32(m.Mem, 98080, paramDepth)
-				rt.St32(m.Mem, 98084, typeCtx)
-				rt.St32(m.Mem, 98088, propCtx)
-				rt.St32(m.Mem, 98092, propName)
-				rt.St32(m.Mem, 98096, member)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], fnHead)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], paren)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], paramDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], typeCtx)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], propCtx)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], propName)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], member)
 				m.LiveSuspended = true
 				return
 			}
@@ -39395,8 +39396,8 @@ func (m *Machine) HlPascal() {
 					expect = (kind >> 8) & 15
 				}
 				fnHead = 0
-				typeCtx = rt.B2u(rhs-lhs == 2 && rt.Ld16(m.Mem, 1360) == 26223)
-				if rhs-lhs == 8 && rt.Ld64(m.Mem, 1360) == 0x79747265706f7270 {
+				typeCtx = rt.B2u(rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[1360:])) == 26223)
+				if rhs-lhs == 8 && binary.LittleEndian.Uint64(m.Mem[1360:]) == 0x79747265706f7270 {
 					propCtx = 1
 					propName = 1
 				}
@@ -39531,14 +39532,14 @@ func (m *Machine) HlPascal() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47912
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, fnHead)
-		rt.St32(m.Mem, m.StreamWindow+8, paren)
-		rt.St32(m.Mem, m.StreamWindow+12, paramDepth)
-		rt.St32(m.Mem, m.StreamWindow+16, typeCtx)
-		rt.St32(m.Mem, m.StreamWindow+20, propCtx)
-		rt.St32(m.Mem, m.StreamWindow+24, propName)
-		rt.St32(m.Mem, m.StreamWindow+28, member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], fnHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], paren)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], paramDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], typeCtx)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], propCtx)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], propName)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], member)
 		if m.StreamStateLo > 1688 {
 			m.StreamStateLo = 1688
 		}
@@ -39563,10 +39564,10 @@ func (m *Machine) PerlWordHl(lhs, rhs uint32) uint32 {
 		if n == 1 && m.Mem[lhs] == 'x' {
 			return TokenKeywordOperator
 		}
-		if n == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6665646e75 {
+		if n == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6665646e75 {
 			return TokenFunction
 		}
-		if n >= 5 && rt.Ld16(m.Mem, lhs) == 24415 && rt.Ld16(m.Mem, rhs-2) == 24415 {
+		if n >= 5 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) == 24415 {
 			return TokenVariableSpecial
 		}
 		return 0xffffffff
@@ -39598,7 +39599,7 @@ func (m *Machine) PerlWordHl(lhs, rhs uint32) uint32 {
 // PerlQuoteKind is $perlQuoteKind.
 func (m *Machine) PerlQuoteKind(lhs, rhs uint32) uint32 {
 	n := rhs - lhs
-	w := rt.Ld32(m.Mem, lhs) & 65535
+	w := binary.LittleEndian.Uint32(m.Mem[lhs:]) & 65535
 	if n == 1 {
 		w &= 255
 		if w == 113 {
@@ -39782,22 +39783,22 @@ func (m *Machine) HlPerl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		operand = rt.Ld32(m.Mem, 98068)
-		decl = rt.Ld32(m.Mem, 98072)
-		member = rt.Ld32(m.Mem, 98076)
-		lineHead = rt.Ld32(m.Mem, 98080)
-		seg = rt.Ld32(m.Mem, 98084)
-		sActive = rt.Ld32(m.Mem, 98088)
-		sClose = rt.Ld32(m.Mem, 98092)
-		sOpen = rt.Ld32(m.Mem, 98096)
-		sDepth = rt.Ld32(m.Mem, 98100)
-		sFlags = rt.Ld32(m.Mem, 98104)
-		sSecond = rt.Ld32(m.Mem, 98108)
-		hdLen = rt.Ld32(m.Mem, 98112)
-		hdDelim = rt.Ld32(m.Mem, 98116)
-		hdStrip = rt.Ld32(m.Mem, 98120)
-		data = rt.Ld32(m.Mem, 98124)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		operand = binary.LittleEndian.Uint32(m.Mem[98068:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98072:])
+		member = binary.LittleEndian.Uint32(m.Mem[98076:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98080:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98084:])
+		sActive = binary.LittleEndian.Uint32(m.Mem[98088:])
+		sClose = binary.LittleEndian.Uint32(m.Mem[98092:])
+		sOpen = binary.LittleEndian.Uint32(m.Mem[98096:])
+		sDepth = binary.LittleEndian.Uint32(m.Mem[98100:])
+		sFlags = binary.LittleEndian.Uint32(m.Mem[98104:])
+		sSecond = binary.LittleEndian.Uint32(m.Mem[98108:])
+		hdLen = binary.LittleEndian.Uint32(m.Mem[98112:])
+		hdDelim = binary.LittleEndian.Uint32(m.Mem[98116:])
+		hdStrip = binary.LittleEndian.Uint32(m.Mem[98120:])
+		data = binary.LittleEndian.Uint32(m.Mem[98124:])
 	} else {
 		lineHead = 1
 		operand = 1
@@ -39807,43 +39808,43 @@ func (m *Machine) HlPerl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				operand = rt.Ld32(m.Mem, m.StreamWindow)
-				decl = rt.Ld32(m.Mem, m.StreamWindow+4)
-				member = rt.Ld32(m.Mem, m.StreamWindow+8)
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow+12)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+16)
-				sActive = rt.Ld32(m.Mem, m.StreamWindow+20)
-				sClose = rt.Ld32(m.Mem, m.StreamWindow+24)
-				sOpen = rt.Ld32(m.Mem, m.StreamWindow+28)
-				sDepth = rt.Ld32(m.Mem, m.StreamWindow+32)
-				sFlags = rt.Ld32(m.Mem, m.StreamWindow+36)
-				sSecond = rt.Ld32(m.Mem, m.StreamWindow+40)
-				hdLen = rt.Ld32(m.Mem, m.StreamWindow+44)
-				hdDelim = rt.Ld32(m.Mem, m.StreamWindow+48)
-				hdStrip = rt.Ld32(m.Mem, m.StreamWindow+52)
-				data = rt.Ld32(m.Mem, m.StreamWindow+56)
+				operand = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				sActive = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				sClose = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				sOpen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
+				sDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+32:])
+				sFlags = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+36:])
+				sSecond = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+40:])
+				hdLen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+44:])
+				hdDelim = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+48:])
+				hdStrip = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+52:])
+				data = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+56:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, operand)
-				rt.St32(m.Mem, 98072, decl)
-				rt.St32(m.Mem, 98076, member)
-				rt.St32(m.Mem, 98080, lineHead)
-				rt.St32(m.Mem, 98084, seg)
-				rt.St32(m.Mem, 98088, sActive)
-				rt.St32(m.Mem, 98092, sClose)
-				rt.St32(m.Mem, 98096, sOpen)
-				rt.St32(m.Mem, 98100, sDepth)
-				rt.St32(m.Mem, 98104, sFlags)
-				rt.St32(m.Mem, 98108, sSecond)
-				rt.St32(m.Mem, 98112, hdLen)
-				rt.St32(m.Mem, 98116, hdDelim)
-				rt.St32(m.Mem, 98120, hdStrip)
-				rt.St32(m.Mem, 98124, data)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], operand)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], sActive)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], sClose)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], sOpen)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], sDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], sFlags)
+				binary.LittleEndian.PutUint32(m.Mem[98108:], sSecond)
+				binary.LittleEndian.PutUint32(m.Mem[98112:], hdLen)
+				binary.LittleEndian.PutUint32(m.Mem[98116:], hdDelim)
+				binary.LittleEndian.PutUint32(m.Mem[98120:], hdStrip)
+				binary.LittleEndian.PutUint32(m.Mem[98124:], data)
 				m.LiveSuspended = true
 				return
 			}
@@ -39934,13 +39935,13 @@ func (m *Machine) HlPerl() {
 			continue
 		}
 		if c == '=' && atHead&1 != 0 && (c2|32)-97 <= 25 {
-			rt.St32(m.Mem, 13952, 0x7475633d)
+			binary.LittleEndian.PutUint32(m.Mem[13952:], 0x7475633d)
 			m.PerlLineDelimited(13952, 4, 8, TokenCommentDoc)
 			lineHead = 1
 			operand = 1
 			continue
 		}
-		if c == '_' && atHead&1 != 0 && (rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x5f5f444e455f5f || rt.Ld64(m.Mem, lhs) == 0x5f5f415441445f5f) && !m.LexIsIdentContinue(m.PerlByte(lhs+rt.Sel32(c3 == 'D', 8, 7))) {
+		if c == '_' && atHead&1 != 0 && (binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x5f5f444e455f5f || binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x5f5f415441445f5f) && !m.LexIsIdentContinue(m.PerlByte(lhs+rt.Sel32(c3 == 'D', 8, 7))) {
 			data = 1
 			continue
 		}
@@ -40084,7 +40085,7 @@ func (m *Machine) HlPerl() {
 					operand = rt.B2u(hl != TokenVariableSpecial)
 				} else {
 					pc = m.PerlByte(p)
-					path = rhs+1 < m.End && rt.Ld16(m.Mem, rhs) == 14906
+					path = rhs+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[rhs:])) == 14906
 					operand = 0
 					switch {
 					case decl != 0:
@@ -40116,7 +40117,7 @@ func (m *Machine) HlPerl() {
 							hl = TokenType
 						}
 					default:
-						if (p+1 < m.End && rt.Ld16(m.Mem, p) == 15933) || (pc == 125 && m.Mem[lhs-1] == '{') {
+						if (p+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 15933) || (pc == 125 && m.Mem[lhs-1] == '{') {
 							hl = TokenStringSpecialSymbol
 						} else {
 							hl = TokenFunction
@@ -40209,21 +40210,21 @@ func (m *Machine) HlPerl() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 47944
-		rt.St32(m.Mem, m.StreamWindow, operand)
-		rt.St32(m.Mem, m.StreamWindow+4, decl)
-		rt.St32(m.Mem, m.StreamWindow+8, member)
-		rt.St32(m.Mem, m.StreamWindow+12, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+16, seg)
-		rt.St32(m.Mem, m.StreamWindow+20, sActive)
-		rt.St32(m.Mem, m.StreamWindow+24, sClose)
-		rt.St32(m.Mem, m.StreamWindow+28, sOpen)
-		rt.St32(m.Mem, m.StreamWindow+32, sDepth)
-		rt.St32(m.Mem, m.StreamWindow+36, sFlags)
-		rt.St32(m.Mem, m.StreamWindow+40, sSecond)
-		rt.St32(m.Mem, m.StreamWindow+44, hdLen)
-		rt.St32(m.Mem, m.StreamWindow+48, hdDelim)
-		rt.St32(m.Mem, m.StreamWindow+52, hdStrip)
-		rt.St32(m.Mem, m.StreamWindow+56, data)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], operand)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], sActive)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], sClose)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], sOpen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+32:], sDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+36:], sFlags)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+40:], sSecond)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+44:], hdLen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+48:], hdDelim)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+52:], hdStrip)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+56:], data)
 		if m.StreamStateLo > 1720 {
 			m.StreamStateLo = 1720
 		}
@@ -40240,7 +40241,7 @@ func (m *Machine) SQLWordHl(lhs, rhs uint32) uint32 {
 	if n-2 > 6 {
 		return TokenVariable
 	}
-	w := (rt.Ld64(m.Mem, lhs) | 0x2020202020202020) & (uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63))
+	w := (binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020) & (uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63))
 	c := uint32(w) & 255
 	switch c {
 	case 'a':
@@ -40478,7 +40479,7 @@ func (m *Machine) SQLDollarString() bool {
 		}
 		matched = true
 		if n <= 8 {
-			matched = rt.Ld64(m.Mem, lhs)&mask == rt.Ld64(m.Mem, candidate)&mask
+			matched = binary.LittleEndian.Uint64(m.Mem[lhs:])&mask == binary.LittleEndian.Uint64(m.Mem[candidate:])&mask
 		} else {
 			i = 0
 			for {
@@ -40542,7 +40543,7 @@ func (m *Machine) SQLTableBefore(lhs uint32) bool {
 		p--
 	}
 	w -= p
-	return (w == 4 && rt.Ld32(m.Mem, p)|0x20202020 == 0x6f746e69) || (w == 5 && (rt.Ld64(m.Mem, p)|0x2020202020)&0xffffffffff == 0x656c626174)
+	return (w == 4 && binary.LittleEndian.Uint32(m.Mem[p:])|0x20202020 == 0x6f746e69) || (w == 5 && (binary.LittleEndian.Uint64(m.Mem[p:])|0x2020202020)&0xffffffffff == 0x656c626174)
 }
 
 // HlSQLImpl is $hlSqlImpl.
@@ -40553,8 +40554,8 @@ func (m *Machine) HlSQLImpl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -40562,15 +40563,15 @@ func (m *Machine) HlSQLImpl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
 				m.LiveSuspended = true
 				return
 			}
@@ -40751,7 +40752,7 @@ func (m *Machine) HlSQLImpl() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48008
-		rt.St32(m.Mem, m.StreamWindow, expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
 		if m.StreamStateLo > 1784 {
 			m.StreamStateLo = 1784
 		}
@@ -40869,7 +40870,7 @@ func (m *Machine) PoString() {
 				m.EmitTok(TokenStringSpecial, p, q)
 				seg = q
 			} else {
-				q = p + 1 + rt.B2u(rt.Ld16(m.Mem, p) == 31611)
+				q = p + 1 + rt.B2u(uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 31611)
 			}
 			m.Ptr = q
 		}
@@ -40908,7 +40909,7 @@ func (m *Machine) HlPo() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -40920,7 +40921,7 @@ func (m *Machine) HlPo() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
 				m.LiveSuspended = true
 				return
 			}
@@ -40974,8 +40975,8 @@ func (m *Machine) HlPo() {
 		if m.LexIsIdentStart(c) {
 			m.ScanIdentRun(0)
 			n = m.Ptr - lhs
-			w = rt.Ld64(m.Mem, lhs)
-			m.EmitTok(rt.Sel32((n == 5 && w&0xffffffffff == 0x646967736d) || (n == 6 && w&0xffffffffffff == 0x72747367736d) || (n == 7 && w&0xffffffffffffff == 0x7478746367736d) || (n == 12 && w == 0x6c705f646967736d && rt.Ld32(m.Mem, lhs+8) == 0x6c617275), TokenKeyword, TokenNone), lhs, m.Ptr)
+			w = binary.LittleEndian.Uint64(m.Mem[lhs:])
+			m.EmitTok(rt.Sel32((n == 5 && w&0xffffffffff == 0x646967736d) || (n == 6 && w&0xffffffffffff == 0x72747367736d) || (n == 7 && w&0xffffffffffffff == 0x7478746367736d) || (n == 12 && w == 0x6c705f646967736d && binary.LittleEndian.Uint32(m.Mem[lhs+8:]) == 0x6c617275), TokenKeyword, TokenNone), lhs, m.Ptr)
 			continue
 		}
 		m.EmitTok(rt.Sel32(c == '[' || c == ']', TokenPunctuationBracket, TokenNone), lhs, m.Ptr)
@@ -41036,9 +41037,9 @@ func (m *Machine) HlPowerquery() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		text = rt.Ld32(m.Mem, 98068)
-		nest = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		text = binary.LittleEndian.Uint32(m.Mem[98068:])
+		nest = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -41046,8 +41047,8 @@ func (m *Machine) HlPowerquery() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				text = rt.Ld32(m.Mem, m.StreamWindow)
-				nest = rt.Ld32(m.Mem, m.StreamWindow+4)
+				text = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				nest = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 		if text != 0 {
@@ -41058,9 +41059,9 @@ func (m *Machine) HlPowerquery() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, text)
-				rt.St32(m.Mem, 98072, nest)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], text)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], nest)
 				m.LiveSuspended = true
 				return
 			}
@@ -41143,7 +41144,7 @@ func (m *Machine) HlPowerquery() {
 					hl = TokenFunction
 				case dotted:
 					hl = TokenConstant
-					if rhs-lhs > 5 && m.Mem[rhs-5] == '.' && rt.Ld32(m.Mem, rhs-4) == 0x65707954 {
+					if rhs-lhs > 5 && m.Mem[rhs-5] == '.' && binary.LittleEndian.Uint32(m.Mem[rhs-4:]) == 0x65707954 {
 						hl = TokenTypeBuiltin
 					}
 				case rhs == lhs+1:
@@ -41194,8 +41195,8 @@ func (m *Machine) HlPowerquery() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48016
-		rt.St32(m.Mem, m.StreamWindow, text)
-		rt.St32(m.Mem, m.StreamWindow+4, nest)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], text)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], nest)
 		if m.StreamStateLo > 1792 {
 			m.StreamStateLo = 1792
 		}
@@ -41348,14 +41349,14 @@ func (m *Machine) HlPowershell() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		cmdPos = rt.Ld32(m.Mem, 98076)
-		strKind = rt.Ld32(m.Mem, 98080)
-		seg = rt.Ld32(m.Mem, 98084)
-		interp = rt.Ld32(m.Mem, 98088)
-		interpKind = rt.Ld32(m.Mem, 98092)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		cmdPos = binary.LittleEndian.Uint32(m.Mem[98076:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98084:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98088:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98092:])
 	} else {
 		cmdPos = 1
 		m.LexEmitLeadingContinuation()
@@ -41364,27 +41365,27 @@ func (m *Machine) HlPowershell() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				cmdPos = rt.Ld32(m.Mem, m.StreamWindow+8)
-				strKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+16)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+20)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+24)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				cmdPos = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, cmdPos)
-				rt.St32(m.Mem, 98080, strKind)
-				rt.St32(m.Mem, 98084, seg)
-				rt.St32(m.Mem, 98088, interp)
-				rt.St32(m.Mem, 98092, interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], cmdPos)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], interpKind)
 				m.LiveSuspended = true
 				return
 			}
@@ -41727,13 +41728,13 @@ func (m *Machine) HlPowershell() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48024
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, cmdPos)
-		rt.St32(m.Mem, m.StreamWindow+12, strKind)
-		rt.St32(m.Mem, m.StreamWindow+16, seg)
-		rt.St32(m.Mem, m.StreamWindow+20, interp)
-		rt.St32(m.Mem, m.StreamWindow+24, interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], cmdPos)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], interpKind)
 		if m.StreamStateLo > 1800 {
 			m.StreamStateLo = 1800
 		}
@@ -41751,11 +41752,11 @@ func (m *Machine) HlPrisma() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		pending = rt.Ld32(m.Mem, 98068)
-		block = rt.Ld32(m.Mem, 98072)
-		col = rt.Ld32(m.Mem, 98076)
-		paren = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		pending = binary.LittleEndian.Uint32(m.Mem[98068:])
+		block = binary.LittleEndian.Uint32(m.Mem[98072:])
+		col = binary.LittleEndian.Uint32(m.Mem[98076:])
+		paren = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -41763,21 +41764,21 @@ func (m *Machine) HlPrisma() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				pending = rt.Ld32(m.Mem, m.StreamWindow)
-				block = rt.Ld32(m.Mem, m.StreamWindow+4)
-				col = rt.Ld32(m.Mem, m.StreamWindow+8)
-				paren = rt.Ld32(m.Mem, m.StreamWindow+12)
+				pending = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				block = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				col = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				paren = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, pending)
-				rt.St32(m.Mem, 98072, block)
-				rt.St32(m.Mem, 98076, col)
-				rt.St32(m.Mem, 98080, paren)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], pending)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], block)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], col)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], paren)
 				m.LiveSuspended = true
 				return
 			}
@@ -41902,10 +41903,10 @@ func (m *Machine) HlPrisma() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48056
-		rt.St32(m.Mem, m.StreamWindow, pending)
-		rt.St32(m.Mem, m.StreamWindow+4, block)
-		rt.St32(m.Mem, m.StreamWindow+8, col)
-		rt.St32(m.Mem, m.StreamWindow+12, paren)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], pending)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], block)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], col)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], paren)
 		if m.StreamStateLo > 1832 {
 			m.StreamStateLo = 1832
 		}
@@ -41928,8 +41929,8 @@ func (m *Machine) HlProlog() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		head = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		head = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		head = 1
 		m.LexEmitLeadingContinuation()
@@ -41938,15 +41939,15 @@ func (m *Machine) HlProlog() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				head = rt.Ld32(m.Mem, m.StreamWindow)
+				head = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, head)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], head)
 				m.LiveSuspended = true
 				return
 			}
@@ -42057,7 +42058,7 @@ func (m *Machine) HlProlog() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48072
-		rt.St32(m.Mem, m.StreamWindow, head)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], head)
 		if m.StreamStateLo > 1848 {
 			m.StreamStateLo = 1848
 		}
@@ -42074,7 +42075,7 @@ func (m *Machine) ProtoWordHl(lhs, rhs uint32) uint32 {
 	g := m.LexKeywordValue(lhs, rhs, 25312, 15, 39)
 	if int32(g) < 0 {
 		if rhs-lhs == 8 {
-			w = rt.Ld64(m.Mem, lhs)
+			w = binary.LittleEndian.Uint64(m.Mem[lhs:])
 			if w == 0x6465726975716572 || w == 0x6465767265736572 {
 				return TokenKeyword
 			}
@@ -42090,9 +42091,9 @@ func (m *Machine) HlProto() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -42100,17 +42101,17 @@ func (m *Machine) HlProto() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
 				m.LiveSuspended = true
 				return
 			}
@@ -42220,8 +42221,8 @@ func (m *Machine) HlProto() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48080
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
 		if m.StreamStateLo > 1856 {
 			m.StreamStateLo = 1856
 		}
@@ -42459,7 +42460,7 @@ func (m *Machine) PugTail(stop, kind uint32) uint32 {
 			}
 			return 512 | kind
 		}
-		if c == '&' && lhs+11 <= stop && rt.Ld64(m.Mem, lhs+1) == 0x7475626972747461 && rt.Ld16(m.Mem, lhs+9) == 29541 {
+		if c == '&' && lhs+11 <= stop && binary.LittleEndian.Uint64(m.Mem[lhs+1:]) == 0x7475626972747461 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+9:])) == 29541 {
 			m.Ptr = lhs + 11
 			m.EmitTok(TokenKeyword, lhs, m.Ptr)
 			if m.TemplateByte(m.Ptr) == '(' {
@@ -42657,7 +42658,7 @@ func (m *Machine) PugLine(stop uint32) uint32 {
 				break
 			}
 			m.LexScanIdent()
-			if m.Ptr-lhs == 2 && rt.Ld16(m.Mem, lhs) == 28265 {
+			if m.Ptr-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 28265 {
 				m.EmitTok(TokenKeywordControl, lhs, m.Ptr)
 				break
 			}
@@ -42675,9 +42676,9 @@ func (m *Machine) HlPug() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		block = rt.Ld32(m.Mem, 98068)
-		tag = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		block = binary.LittleEndian.Uint32(m.Mem[98068:])
+		tag = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -42685,17 +42686,17 @@ func (m *Machine) HlPug() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				block = rt.Ld32(m.Mem, m.StreamWindow)
-				tag = rt.Ld32(m.Mem, m.StreamWindow+4)
+				block = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				tag = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, block)
-				rt.St32(m.Mem, 98072, tag)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], block)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], tag)
 				m.LiveSuspended = true
 				return
 			}
@@ -42785,8 +42786,8 @@ func (m *Machine) HlPug() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48088
-		rt.St32(m.Mem, m.StreamWindow, block)
-		rt.St32(m.Mem, m.StreamWindow+4, tag)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], block)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], tag)
 		if m.StreamStateLo > 1864 {
 			m.StreamStateLo = 1864
 		}
@@ -42975,11 +42976,11 @@ func (m *Machine) HlPuppet() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		params = rt.Ld32(m.Mem, 98072)
-		str = rt.Ld32(m.Mem, 98076)
-		hd = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		params = binary.LittleEndian.Uint32(m.Mem[98072:])
+		str = binary.LittleEndian.Uint32(m.Mem[98076:])
+		hd = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -42987,10 +42988,10 @@ func (m *Machine) HlPuppet() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				params = rt.Ld32(m.Mem, m.StreamWindow+4)
-				str = rt.Ld32(m.Mem, m.StreamWindow+8)
-				hd = rt.Ld32(m.Mem, m.StreamWindow+12)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				params = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				str = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				hd = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
@@ -42998,11 +42999,11 @@ next:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, params)
-				rt.St32(m.Mem, 98076, str)
-				rt.St32(m.Mem, 98080, hd)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], params)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], str)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], hd)
 				m.LiveSuspended = true
 				return
 			}
@@ -43219,10 +43220,10 @@ next:
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48096
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, params)
-		rt.St32(m.Mem, m.StreamWindow+8, str)
-		rt.St32(m.Mem, m.StreamWindow+12, hd)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], params)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], str)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], hd)
 		if m.StreamStateLo > 1872 {
 			m.StreamStateLo = 1872
 		}
@@ -43317,13 +43318,13 @@ func (m *Machine) HlQml() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		js = rt.Ld32(m.Mem, 98068)
-		decl = rt.Ld32(m.Mem, 98072)
-		params = rt.Ld32(m.Mem, 98076)
-		enum = rt.Ld32(m.Mem, 98080)
-		member = rt.Ld32(m.Mem, 98084)
-		bind = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		js = binary.LittleEndian.Uint32(m.Mem[98068:])
+		decl = binary.LittleEndian.Uint32(m.Mem[98072:])
+		params = binary.LittleEndian.Uint32(m.Mem[98076:])
+		enum = binary.LittleEndian.Uint32(m.Mem[98080:])
+		member = binary.LittleEndian.Uint32(m.Mem[98084:])
+		bind = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -43331,25 +43332,25 @@ func (m *Machine) HlQml() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				js = rt.Ld32(m.Mem, m.StreamWindow)
-				decl = rt.Ld32(m.Mem, m.StreamWindow+4)
-				params = rt.Ld32(m.Mem, m.StreamWindow+8)
-				enum = rt.Ld32(m.Mem, m.StreamWindow+12)
-				member = rt.Ld32(m.Mem, m.StreamWindow+16)
-				bind = rt.Ld32(m.Mem, m.StreamWindow+20)
+				js = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				decl = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				params = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				enum = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				bind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, js)
-				rt.St32(m.Mem, 98072, decl)
-				rt.St32(m.Mem, 98076, params)
-				rt.St32(m.Mem, 98080, enum)
-				rt.St32(m.Mem, 98084, member)
-				rt.St32(m.Mem, 98088, bind)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], js)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], decl)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], params)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], enum)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], bind)
 				m.LiveSuspended = true
 				return
 			}
@@ -43460,10 +43461,10 @@ func (m *Machine) HlQml() {
 			case n == 58:
 				bind = 1
 				hl = TokenProperty
-				if rt.Ld16(m.Mem, lhs) == 28271 && uint32(m.Mem[lhs+2])-65 <= 25 {
+				if uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 28271 && uint32(m.Mem[lhs+2])-65 <= 25 {
 					hl = TokenFunction
 				}
-				if rhs-lhs == 2 && rt.Ld16(m.Mem, lhs) == 25705 {
+				if rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 25705 {
 					hl = TokenKeyword
 				}
 			case g-1 <= 7:
@@ -43588,12 +43589,12 @@ func (m *Machine) HlQml() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48112
-		rt.St32(m.Mem, m.StreamWindow, js)
-		rt.St32(m.Mem, m.StreamWindow+4, decl)
-		rt.St32(m.Mem, m.StreamWindow+8, params)
-		rt.St32(m.Mem, m.StreamWindow+12, enum)
-		rt.St32(m.Mem, m.StreamWindow+16, member)
-		rt.St32(m.Mem, m.StreamWindow+20, bind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], js)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], decl)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], params)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], enum)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], bind)
 		if m.StreamStateLo > 1888 {
 			m.StreamStateLo = 1888
 		}
@@ -43634,7 +43635,7 @@ func (m *Machine) RDefinedAhead(p uint32) bool {
 		return false
 	}
 	c := m.RByte(p + 8)
-	return rt.Ld64(m.Mem, p) == 0x6e6f6974636e7566 && !(m.LexIsIdentContinue(c) || c == '.')
+	return binary.LittleEndian.Uint64(m.Mem[p:]) == 0x6e6f6974636e7566 && !(m.LexIsIdentContinue(c) || c == '.')
 }
 
 // RRawString is $rRawString.
@@ -43694,11 +43695,11 @@ func (m *Machine) HlR() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		member = rt.Ld32(m.Mem, 98068)
-		paren = rt.Ld32(m.Mem, 98072)
-		fnHead = rt.Ld32(m.Mem, 98076)
-		fnDepth = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		member = binary.LittleEndian.Uint32(m.Mem[98068:])
+		paren = binary.LittleEndian.Uint32(m.Mem[98072:])
+		fnHead = binary.LittleEndian.Uint32(m.Mem[98076:])
+		fnDepth = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -43706,21 +43707,21 @@ func (m *Machine) HlR() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				member = rt.Ld32(m.Mem, m.StreamWindow)
-				paren = rt.Ld32(m.Mem, m.StreamWindow+4)
-				fnHead = rt.Ld32(m.Mem, m.StreamWindow+8)
-				fnDepth = rt.Ld32(m.Mem, m.StreamWindow+12)
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				paren = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				fnHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				fnDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, member)
-				rt.St32(m.Mem, 98072, paren)
-				rt.St32(m.Mem, 98076, fnHead)
-				rt.St32(m.Mem, 98080, fnDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], paren)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], fnHead)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], fnDepth)
 				m.LiveSuspended = true
 				return
 			}
@@ -43883,10 +43884,10 @@ func (m *Machine) HlR() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48136
-		rt.St32(m.Mem, m.StreamWindow, member)
-		rt.St32(m.Mem, m.StreamWindow+4, paren)
-		rt.St32(m.Mem, m.StreamWindow+8, fnHead)
-		rt.St32(m.Mem, m.StreamWindow+12, fnDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], paren)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], fnHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], fnDepth)
 		if m.StreamStateLo > 1912 {
 			m.StreamStateLo = 1912
 		}
@@ -44020,15 +44021,15 @@ func (m *Machine) HlRazor() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		stack = rt.Ld64(m.Mem, 98072)
-		markup = rt.Ld32(m.Mem, 98080)
-		await = rt.Ld32(m.Mem, 98084)
-		xline = rt.Ld32(m.Mem, 98088)
-		stmt = rt.Ld32(m.Mem, 98092)
-		enter = rt.Ld32(m.Mem, 98096)
-		lineMarkup = rt.Ld32(m.Mem, 98100)
-		resumed = rt.Ld32(m.Mem, 98104)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		stack = binary.LittleEndian.Uint64(m.Mem[98072:])
+		markup = binary.LittleEndian.Uint32(m.Mem[98080:])
+		await = binary.LittleEndian.Uint32(m.Mem[98084:])
+		xline = binary.LittleEndian.Uint32(m.Mem[98088:])
+		stmt = binary.LittleEndian.Uint32(m.Mem[98092:])
+		enter = binary.LittleEndian.Uint32(m.Mem[98096:])
+		lineMarkup = binary.LittleEndian.Uint32(m.Mem[98100:])
+		resumed = binary.LittleEndian.Uint32(m.Mem[98104:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -44036,13 +44037,13 @@ func (m *Machine) HlRazor() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				stack = rt.Ld64(m.Mem, m.StreamWindow)
-				markup = rt.Ld32(m.Mem, m.StreamWindow+8)
-				await = rt.Ld32(m.Mem, m.StreamWindow+12)
-				xline = rt.Ld32(m.Mem, m.StreamWindow+16)
-				stmt = rt.Ld32(m.Mem, m.StreamWindow+20)
-				enter = rt.Ld32(m.Mem, m.StreamWindow+24)
-				lineMarkup = rt.Ld32(m.Mem, m.StreamWindow+28)
+				stack = binary.LittleEndian.Uint64(m.Mem[m.StreamWindow:])
+				markup = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				await = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				xline = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				stmt = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				enter = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				lineMarkup = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
 			}
 		}
 		resumed = 0
@@ -44054,13 +44055,13 @@ func (m *Machine) HlRazor() {
 	if resumed != 0 {
 		if streamRoot != 0 {
 			m.StreamWindow = 48152
-			rt.St64(m.Mem, m.StreamWindow, stack)
-			rt.St32(m.Mem, m.StreamWindow+8, markup)
-			rt.St32(m.Mem, m.StreamWindow+12, await)
-			rt.St32(m.Mem, m.StreamWindow+16, xline)
-			rt.St32(m.Mem, m.StreamWindow+20, stmt)
-			rt.St32(m.Mem, m.StreamWindow+24, enter)
-			rt.St32(m.Mem, m.StreamWindow+28, lineMarkup)
+			binary.LittleEndian.PutUint64(m.Mem[m.StreamWindow:], stack)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], markup)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], await)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], xline)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], stmt)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], enter)
+			binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], lineMarkup)
 			if m.StreamStateLo > 1928 {
 				m.StreamStateLo = 1928
 			}
@@ -44075,15 +44076,15 @@ next:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St64(m.Mem, 98072, stack)
-				rt.St32(m.Mem, 98080, markup)
-				rt.St32(m.Mem, 98084, await)
-				rt.St32(m.Mem, 98088, xline)
-				rt.St32(m.Mem, 98092, stmt)
-				rt.St32(m.Mem, 98096, enter)
-				rt.St32(m.Mem, 98100, lineMarkup)
-				rt.St32(m.Mem, 98104, resumed)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint64(m.Mem[98072:], stack)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], markup)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], await)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], xline)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], stmt)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], enter)
+				binary.LittleEndian.PutUint32(m.Mem[98100:], lineMarkup)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], resumed)
 				m.LiveSuspended = true
 				return
 			}
@@ -44126,7 +44127,7 @@ next:
 			m.ScanIdentRun(95)
 			p = m.Ptr - lhs
 			m.Ptr = lhs
-			if (p == 4 && rt.Ld32(m.Mem, lhs) == 0x65736c65) || (p == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x796c6c616e6966) || (p == 5 && (rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6863746163 || rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x656c696877)) {
+			if (p == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65736c65) || (p == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x796c6c616e6966) || (p == 5 && (binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6863746163 || binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x656c696877)) {
 				p = m.RazorExprEnd(m.Ptr, true)
 				m.RazorCs(p)
 				q = 1
@@ -44432,7 +44433,7 @@ next:
 								continue next
 							}
 							q = m.LexSkipSpaceAt(p)
-							if p-m.Ptr == 5 && rt.Ld64(m.Mem, m.Ptr)&0xffffffffff == 0x7469617761 && m.LexIsIdentStart(m.TemplateByte(q)) {
+							if p-m.Ptr == 5 && binary.LittleEndian.Uint64(m.Mem[m.Ptr:])&0xffffffffff == 0x7469617761 && m.LexIsIdentStart(m.TemplateByte(q)) {
 								p = q
 							} else {
 								p = m.Ptr
@@ -44464,13 +44465,13 @@ next:
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48152
-		rt.St64(m.Mem, m.StreamWindow, stack)
-		rt.St32(m.Mem, m.StreamWindow+8, markup)
-		rt.St32(m.Mem, m.StreamWindow+12, await)
-		rt.St32(m.Mem, m.StreamWindow+16, xline)
-		rt.St32(m.Mem, m.StreamWindow+20, stmt)
-		rt.St32(m.Mem, m.StreamWindow+24, enter)
-		rt.St32(m.Mem, m.StreamWindow+28, lineMarkup)
+		binary.LittleEndian.PutUint64(m.Mem[m.StreamWindow:], stack)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], markup)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], await)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], xline)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], stmt)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], enter)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], lineMarkup)
 		if m.StreamStateLo > 1928 {
 			m.StreamStateLo = 1928
 		}
@@ -44564,11 +44565,11 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		sparql = rt.Ld32(m.Mem, 98064)
-		streamRoot = rt.Ld32(m.Mem, 98068)
-		term = rt.Ld32(m.Mem, 98072)
-		nest = rt.Ld32(m.Mem, 98076)
-		long = rt.Ld32(m.Mem, 98080)
+		sparql = binary.LittleEndian.Uint32(m.Mem[98064:])
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98068:])
+		term = binary.LittleEndian.Uint32(m.Mem[98072:])
+		nest = binary.LittleEndian.Uint32(m.Mem[98076:])
+		long = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -44576,9 +44577,9 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				term = rt.Ld32(m.Mem, m.StreamWindow)
-				nest = rt.Ld32(m.Mem, m.StreamWindow+4)
-				long = rt.Ld32(m.Mem, m.StreamWindow+8)
+				term = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				nest = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				long = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 		if long != 0 {
@@ -44588,11 +44589,11 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, sparql)
-				rt.St32(m.Mem, 98068, streamRoot)
-				rt.St32(m.Mem, 98072, term)
-				rt.St32(m.Mem, 98076, nest)
-				rt.St32(m.Mem, 98080, long)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], sparql)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], term)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], nest)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], long)
 				m.LiveSuspended = true
 				return
 			}
@@ -44664,7 +44665,7 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 					if c == '@' {
 						m.ScanIdentRun(45)
 						p = m.Ptr - lhs
-						if (p == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x78696665727040) || (p == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6573616240) {
+						if (p == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x78696665727040) || (p == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6573616240) {
 							m.EmitTok(TokenKeywordImport, lhs, m.Ptr)
 							term = 4
 						} else {
@@ -44835,9 +44836,9 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48184
-		rt.St32(m.Mem, m.StreamWindow, term)
-		rt.St32(m.Mem, m.StreamWindow+4, nest)
-		rt.St32(m.Mem, m.StreamWindow+8, long)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], term)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], nest)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], long)
 		if m.StreamStateLo > 1960 {
 			m.StreamStateLo = 1960
 		}
@@ -44856,8 +44857,8 @@ func (m *Machine) HlReg() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		col = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		col = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -44865,7 +44866,7 @@ func (m *Machine) HlReg() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				col = rt.Ld32(m.Mem, m.StreamWindow)
+				col = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
@@ -44873,8 +44874,8 @@ next:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, col)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], col)
 				m.LiveSuspended = true
 				return
 			}
@@ -44925,7 +44926,7 @@ next:
 				m.EmitTok(hl, lhs, m.Ptr)
 				continue
 			}
-			w = rt.Ld64(m.Mem, lhs)
+			w = binary.LittleEndian.Uint64(m.Mem[lhs:])
 			if lhs+8 <= m.End && (w == 0x2073776f646e6957 || w == 0x3454494445474552) {
 				m.ScanToLineEnd()
 				hl = TokenKeyword
@@ -44948,7 +44949,7 @@ next:
 						if n == 0 {
 							m.Ptr = lhs + 1
 						} else {
-							w = (rt.Ld64(m.Mem, lhs) | 0x2020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
+							w = (binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 							c = m.TemplateByte(m.Ptr)
 							hl = TokenTypeBuiltin
 							if !(n <= 5 && (c == ':' || c == '(') && (w == 0x64726f7764 || w == 0x64726f7771 || w == 0x786568)) {
@@ -44975,7 +44976,7 @@ next:
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48200
-		rt.St32(m.Mem, m.StreamWindow, col)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], col)
 		if m.StreamStateLo > 1976 {
 			m.StreamStateLo = 1976
 		}
@@ -44994,9 +44995,9 @@ func (m *Machine) HlRosmsg() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		col = rt.Ld32(m.Mem, 98068)
-		str = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		col = binary.LittleEndian.Uint32(m.Mem[98068:])
+		str = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -45004,17 +45005,17 @@ func (m *Machine) HlRosmsg() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				col = rt.Ld32(m.Mem, m.StreamWindow)
-				str = rt.Ld32(m.Mem, m.StreamWindow+4)
+				col = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				str = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, col)
-				rt.St32(m.Mem, 98072, str)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], col)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], str)
 				m.LiveSuspended = true
 				return
 			}
@@ -45086,7 +45087,7 @@ func (m *Machine) HlRosmsg() {
 								case n == 0:
 									m.Ptr = lhs + 1
 								case col == 0:
-									if n == 3 && m.TemplateByte(m.Ptr) == ':' && rt.Ld32(m.Mem, lhs)&0xffffff == 0x47534d {
+									if n == 3 && m.TemplateByte(m.Ptr) == ':' && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x47534d {
 										m.Ptr++
 										hl = TokenKeyword
 									} else {
@@ -45107,7 +45108,7 @@ func (m *Machine) HlRosmsg() {
 										hl = TokenConstant
 									}
 								case n-4 <= 1:
-									w = (rt.Ld64(m.Mem, lhs) | 0x2020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
+									w = (binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 									if w == 0x65757274 || w == 0x65736c6166 {
 										hl = TokenBoolean
 									}
@@ -45122,8 +45123,8 @@ func (m *Machine) HlRosmsg() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48208
-		rt.St32(m.Mem, m.StreamWindow, col)
-		rt.St32(m.Mem, m.StreamWindow+4, str)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], col)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], str)
 		if m.StreamStateLo > 1984 {
 			m.StreamStateLo = 1984
 		}
@@ -45141,7 +45142,7 @@ func (m *Machine) SasWordHl(lhs, rhs uint32) uint32 {
 	if int32(v) >= 0 {
 		return v
 	}
-	w := rt.Ld64(m.Mem, 1360)
+	w := binary.LittleEndian.Uint64(m.Mem[1360:])
 	if (n == 5 && w&0xffffffffff == 0x656c696877) || (n == 6 && w&0xffffffffffff == 0x6e7275746572) {
 		return TokenKeywordControl
 	}
@@ -45187,7 +45188,7 @@ func (m *Machine) SasCards(mode uint32) uint32 {
 		p = m.ScanFindSpecial(lhs, m.End, 59, 0, 1)
 		m.Ptr = p
 		if m.TemplateByte(p) == ';' {
-			if mode != 4 || (p+4 <= m.End && rt.Ld32(m.Mem, p) == 0x3b3b3b3b) {
+			if mode != 4 || (p+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x3b3b3b3b) {
 				m.Ptr = lhs
 				return 0
 			}
@@ -45205,12 +45206,12 @@ func (m *Machine) HlSas() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		stmt = rt.Ld32(m.Mem, 98068)
-		opts = rt.Ld32(m.Mem, 98072)
-		paren = rt.Ld32(m.Mem, 98076)
-		expect = rt.Ld32(m.Mem, 98080)
-		cards = rt.Ld32(m.Mem, 98084)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		stmt = binary.LittleEndian.Uint32(m.Mem[98068:])
+		opts = binary.LittleEndian.Uint32(m.Mem[98072:])
+		paren = binary.LittleEndian.Uint32(m.Mem[98076:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98080:])
+		cards = binary.LittleEndian.Uint32(m.Mem[98084:])
 	} else {
 		stmt = 1
 		m.LexEmitLeadingContinuation()
@@ -45219,23 +45220,23 @@ func (m *Machine) HlSas() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				stmt = rt.Ld32(m.Mem, m.StreamWindow)
-				opts = rt.Ld32(m.Mem, m.StreamWindow+4)
-				paren = rt.Ld32(m.Mem, m.StreamWindow+8)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+12)
-				cards = rt.Ld32(m.Mem, m.StreamWindow+16)
+				stmt = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				opts = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				paren = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				cards = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, stmt)
-				rt.St32(m.Mem, 98072, opts)
-				rt.St32(m.Mem, 98076, paren)
-				rt.St32(m.Mem, 98080, expect)
-				rt.St32(m.Mem, 98084, cards)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], stmt)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], opts)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], paren)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], cards)
 				m.LiveSuspended = true
 				return
 			}
@@ -45317,7 +45318,7 @@ func (m *Machine) HlSas() {
 					m.EmitTok(TokenType, lhs, m.Ptr)
 					continue
 				}
-				v = rt.Ld32(m.Mem, lhs) | 0x20202020
+				v = binary.LittleEndian.Uint32(m.Mem[lhs:]) | 0x20202020
 				hl = TokenNamespace
 				if (rhs == lhs+4 && v == 0x7473616c) || (rhs == lhs+5 && v == 0x73726966 && uint32(m.Mem[lhs+4])|32 == 116) {
 					hl = TokenVariableSpecial
@@ -45332,7 +45333,7 @@ func (m *Machine) HlSas() {
 			}
 			if lhs > m.SrcBase && (m.Mem[lhs-1] == '"' || m.Mem[lhs-1] == '\'') {
 				p = rhs - lhs
-				if (p == 1 && m.Mem[c+5264]&32 != 0) || (p == 2 && rt.Ld16(m.Mem, lhs)|8224 == 29796) {
+				if (p == 1 && m.Mem[c+5264]&32 != 0) || (p == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:]))|8224 == 29796) {
 					m.EmitTok(TokenStringSpecial, lhs, rhs)
 					continue
 				}
@@ -45458,11 +45459,11 @@ func (m *Machine) HlSas() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48216
-		rt.St32(m.Mem, m.StreamWindow, stmt)
-		rt.St32(m.Mem, m.StreamWindow+4, opts)
-		rt.St32(m.Mem, m.StreamWindow+8, paren)
-		rt.St32(m.Mem, m.StreamWindow+12, expect)
-		rt.St32(m.Mem, m.StreamWindow+16, cards)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], stmt)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], opts)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], paren)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], cards)
 		if m.StreamStateLo > 1992 {
 			m.StreamStateLo = 1992
 		}
@@ -45558,13 +45559,13 @@ func (m *Machine) HlScala() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		importCtx = rt.Ld32(m.Mem, 98076)
-		strKind = rt.Ld32(m.Mem, 98080)
-		interp = rt.Ld32(m.Mem, 98084)
-		interpKind = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		importCtx = binary.LittleEndian.Uint32(m.Mem[98076:])
+		strKind = binary.LittleEndian.Uint32(m.Mem[98080:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98084:])
+		interpKind = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -45572,25 +45573,25 @@ func (m *Machine) HlScala() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				importCtx = rt.Ld32(m.Mem, m.StreamWindow+8)
-				strKind = rt.Ld32(m.Mem, m.StreamWindow+12)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+16)
-				interpKind = rt.Ld32(m.Mem, m.StreamWindow+20)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				importCtx = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				strKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				interpKind = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, importCtx)
-				rt.St32(m.Mem, 98080, strKind)
-				rt.St32(m.Mem, 98084, interp)
-				rt.St32(m.Mem, 98088, interpKind)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], importCtx)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], strKind)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], interpKind)
 				m.LiveSuspended = true
 				return
 			}
@@ -45688,7 +45689,7 @@ func (m *Machine) HlScala() {
 					m.Ptr += 2
 				}
 				if rhs-lhs == 3 {
-					if rt.Ld32(m.Mem, lhs)&0xffffff == 0x776172 {
+					if binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x776172 {
 						strKind += 2
 					}
 				}
@@ -45698,7 +45699,7 @@ func (m *Machine) HlScala() {
 				continue
 			}
 			if importCtx != 0 {
-				if rhs-lhs == 6 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x7463656a626f {
+				if rhs-lhs == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x7463656a626f {
 					importCtx = 0
 				}
 			}
@@ -45829,12 +45830,12 @@ func (m *Machine) HlScala() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48240
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, importCtx)
-		rt.St32(m.Mem, m.StreamWindow+12, strKind)
-		rt.St32(m.Mem, m.StreamWindow+16, interp)
-		rt.St32(m.Mem, m.StreamWindow+20, interpKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], importCtx)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], strKind)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], interpKind)
 		if m.StreamStateLo > 2016 {
 			m.StreamStateLo = 2016
 		}
@@ -45851,11 +45852,11 @@ func (m *Machine) ShaderlabWordHl(lhs, rhs uint32) uint32 {
 	n := m.LexLowerCopy(lhs, rhs, 1360)
 	p = 1360
 	if n == 8 {
-		if rt.Ld64(m.Mem, p) == 0x6b6361626c696166 {
+		if binary.LittleEndian.Uint64(m.Mem[p:]) == 0x6b6361626c696166 {
 			return TokenKeyword
 		}
 	}
-	if n > 8 && rt.Ld64(m.Mem, p) == 0x73756e696d656e6f {
+	if n > 8 && binary.LittleEndian.Uint64(m.Mem[p:]) == 0x73756e696d656e6f {
 		p += 8
 		n -= 8
 	}
@@ -45868,17 +45869,17 @@ func (m *Machine) ShaderlabOpener(lhs, rhs uint32) uint32 {
 	if n != 9 && n != 11 {
 		return 0
 	}
-	tail := rt.Ld64(m.Mem, rhs-7) & 0xffffffffffffff
+	tail := binary.LittleEndian.Uint64(m.Mem[rhs-7:]) & 0xffffffffffffff
 	if tail != 0x4d4152474f5250 && tail != 0x4544554c434e49 {
 		return 0
 	}
 	if n == 9 {
-		return rt.Sel32(rt.Ld16(m.Mem, lhs) == 18243, 38, 0)
+		return rt.Sel32(uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 18243, 38, 0)
 	}
-	if rt.Ld32(m.Mem, lhs) == 0x4c534c48 {
+	if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x4c534c48 {
 		return 38
 	}
-	return rt.Sel32(rt.Ld32(m.Mem, lhs) == 0x4c534c47, 39, 0)
+	return rt.Sel32(binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x4c534c47, 39, 0)
 }
 
 // ShaderlabBodyEnd is $shaderlabBodyEnd.
@@ -45890,7 +45891,7 @@ func (m *Machine) ShaderlabBodyEnd(p uint32) uint32 {
 		if p >= m.End {
 			break
 		}
-		w = rt.Ld64(m.Mem, p) & 0xffffffffffffff
+		w = binary.LittleEndian.Uint64(m.Mem[p:]) & 0xffffffffffffff
 		switch {
 		case w&0xffffffffff == 0x4743444e45:
 			n = 5
@@ -45972,8 +45973,8 @@ func (m *Machine) HlShaderlab() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		attr = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		attr = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -45987,8 +45988,8 @@ next:
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, attr)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], attr)
 				m.LiveSuspended = true
 				return
 			}
@@ -46111,9 +46112,9 @@ func (m *Machine) HlSolidity() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -46121,17 +46122,17 @@ func (m *Machine) HlSolidity() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
 				m.LiveSuspended = true
 				return
 			}
@@ -46162,26 +46163,26 @@ func (m *Machine) HlSolidity() {
 			rhs = m.Ptr
 			n = rhs - lhs
 			c2 = m.TemplateByte(rhs)
-			if (c2 == '"' || c2 == '\'') && ((n == 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x786568) || (n == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x65646f63696e75)) {
+			if (c2 == '"' || c2 == '\'') && ((n == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x786568) || (n == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x65646f63696e75)) {
 				m.EmitTok(TokenString, lhs, rhs)
 				m.LexString(c2, false, TokenString)
 				continue
 			}
 			kind = m.LexKeywordValue(lhs, rhs, 26528, 31, 110)
-			if n == 8 && rt.Ld64(m.Mem, lhs) == 0x746e6174736e6f63 {
+			if n == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x746e6174736e6f63 {
 				kind = TokenKeyword
 			}
-			if n == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x65726975716572 {
+			if n == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x65726975716572 {
 				kind = TokenFunction
 			}
 			p = lhs
-			if n > 3 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x746e69 {
+			if n > 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x746e69 {
 				p = lhs + 3
 			}
-			if n > 4 && rt.Ld32(m.Mem, lhs) == 0x746e6975 {
+			if n > 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x746e6975 {
 				p = lhs + 4
 			}
-			if n > 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x7365747962 {
+			if n > 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x7365747962 {
 				p = lhs + 5
 			}
 			if p != lhs && rhs-p <= 3 && m.Mem[p] != '0' {
@@ -46253,8 +46254,8 @@ func (m *Machine) HlSolidity() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48264
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
 		if m.StreamStateLo > 2040 {
 			m.StreamStateLo = 2040
 		}
@@ -46272,7 +46273,7 @@ func (m *Machine) StataWordHl(lhs, rhs uint32) uint32 {
 	if int32(v) >= 0 || n < 6 {
 		return v
 	}
-	w := rt.Ld64(m.Mem, lhs)
+	w := binary.LittleEndian.Uint64(m.Mem[lhs:])
 	if n == 6 {
 		w &= 0xffffffffffff
 		if w == 0x65646f636572 || w == 0x65646f636564 {
@@ -46433,14 +46434,14 @@ func (m *Machine) HlStata() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		eol = rt.Ld32(m.Mem, 98068)
-		cmd = rt.Ld32(m.Mem, 98072)
-		colon = rt.Ld32(m.Mem, 98076)
-		opt = rt.Ld32(m.Mem, 98080)
-		paren = rt.Ld32(m.Mem, 98084)
-		expect = rt.Ld32(m.Mem, 98088)
-		cont = rt.Ld32(m.Mem, 98092)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		eol = binary.LittleEndian.Uint32(m.Mem[98068:])
+		cmd = binary.LittleEndian.Uint32(m.Mem[98072:])
+		colon = binary.LittleEndian.Uint32(m.Mem[98076:])
+		opt = binary.LittleEndian.Uint32(m.Mem[98080:])
+		paren = binary.LittleEndian.Uint32(m.Mem[98084:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98088:])
+		cont = binary.LittleEndian.Uint32(m.Mem[98092:])
 	} else {
 		cmd = 1
 		m.LexEmitLeadingContinuation()
@@ -46449,12 +46450,12 @@ func (m *Machine) HlStata() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				cmd = rt.Ld32(m.Mem, m.StreamWindow)
-				colon = rt.Ld32(m.Mem, m.StreamWindow+4)
-				opt = rt.Ld32(m.Mem, m.StreamWindow+8)
-				paren = rt.Ld32(m.Mem, m.StreamWindow+12)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+16)
-				cont = rt.Ld32(m.Mem, m.StreamWindow+20)
+				cmd = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				colon = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				opt = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				paren = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				cont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
 			}
 		}
 		eol = 0
@@ -46462,14 +46463,14 @@ func (m *Machine) HlStata() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, eol)
-				rt.St32(m.Mem, 98072, cmd)
-				rt.St32(m.Mem, 98076, colon)
-				rt.St32(m.Mem, 98080, opt)
-				rt.St32(m.Mem, 98084, paren)
-				rt.St32(m.Mem, 98088, expect)
-				rt.St32(m.Mem, 98092, cont)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], eol)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], cmd)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], colon)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], opt)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], paren)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], cont)
 				m.LiveSuspended = true
 				return
 			}
@@ -46633,12 +46634,12 @@ func (m *Machine) HlStata() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48272
-		rt.St32(m.Mem, m.StreamWindow, cmd)
-		rt.St32(m.Mem, m.StreamWindow+4, colon)
-		rt.St32(m.Mem, m.StreamWindow+8, opt)
-		rt.St32(m.Mem, m.StreamWindow+12, paren)
-		rt.St32(m.Mem, m.StreamWindow+16, expect)
-		rt.St32(m.Mem, m.StreamWindow+20, cont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], cmd)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], colon)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], opt)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], paren)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], cont)
 		if m.StreamStateLo > 2048 {
 			m.StreamStateLo = 2048
 		}
@@ -46653,7 +46654,7 @@ func (m *Machine) HlStata() {
 func (m *Machine) SwiftWordHl(lhs, rhs uint32) uint32 {
 	hl := m.LexKeywordValue(lhs, rhs, 26944, 15, 64)
 	if hl == 0xffffffff {
-		if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
+		if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
 			return TokenKeyword
 		}
 	}
@@ -46766,7 +46767,7 @@ func (m *Machine) SwiftCallAhead(lhs, rhs, p, member, cond uint32) bool {
 	c := m.TemplateByte(p)
 	n := rhs - lhs
 	if c == '?' || c == '!' {
-		return member == 0 && m.TemplateByte(p+1) == '(' && n == 4 && rt.Ld32(m.Mem, lhs) == 0x74696e69
+		return member == 0 && m.TemplateByte(p+1) == '(' && n == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x74696e69
 	}
 	if c != '{' || cond != 0 {
 		return false
@@ -46778,14 +46779,14 @@ func (m *Machine) SwiftCallAhead(lhs, rhs, p, member, cond uint32) bool {
 		return false
 	}
 	if n == 3 {
-		c = rt.Ld32(m.Mem, lhs) & 0xffffff
+		c = binary.LittleEndian.Uint32(m.Mem[lhs:]) & 0xffffff
 		return !(c == 7628135 || c == 7628147)
 	}
 	if n == 6 {
-		return rt.Ld64(m.Mem, lhs)&0xffffffffffff != 0x746553646964
+		return binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff != 0x746553646964
 	}
 	if n == 7 {
-		return rt.Ld64(m.Mem, lhs)&0xffffffffffffff != 0x7465536c6c6977
+		return binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff != 0x7465536c6c6977
 	}
 	return true
 }
@@ -46798,15 +46799,15 @@ func (m *Machine) HlSwift() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
-		seg = rt.Ld32(m.Mem, 98076)
-		interp = rt.Ld32(m.Mem, 98080)
-		stringMode = rt.Ld32(m.Mem, 98084)
-		rawOpen = rt.Ld32(m.Mem, 98088)
-		cond = rt.Ld32(m.Mem, 98092)
-		condParen = rt.Ld32(m.Mem, 98096)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98080:])
+		stringMode = binary.LittleEndian.Uint32(m.Mem[98084:])
+		rawOpen = binary.LittleEndian.Uint32(m.Mem[98088:])
+		cond = binary.LittleEndian.Uint32(m.Mem[98092:])
+		condParen = binary.LittleEndian.Uint32(m.Mem[98096:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -46814,29 +46815,29 @@ func (m *Machine) HlSwift() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+12)
-				stringMode = rt.Ld32(m.Mem, m.StreamWindow+16)
-				rawOpen = rt.Ld32(m.Mem, m.StreamWindow+20)
-				cond = rt.Ld32(m.Mem, m.StreamWindow+24)
-				condParen = rt.Ld32(m.Mem, m.StreamWindow+28)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				stringMode = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				rawOpen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				cond = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				condParen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+28:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
-				rt.St32(m.Mem, 98076, seg)
-				rt.St32(m.Mem, 98080, interp)
-				rt.St32(m.Mem, 98084, stringMode)
-				rt.St32(m.Mem, 98088, rawOpen)
-				rt.St32(m.Mem, 98092, cond)
-				rt.St32(m.Mem, 98096, condParen)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], stringMode)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], rawOpen)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], cond)
+				binary.LittleEndian.PutUint32(m.Mem[98096:], condParen)
 				m.LiveSuspended = true
 				return
 			}
@@ -46966,7 +46967,7 @@ func (m *Machine) HlSwift() {
 					expect = (kind >> 8) & 3
 				} else if kind == TokenKeywordDeclaration {
 					expect = 0
-					if rhs-lhs == 9 && rt.Ld64(m.Mem, lhs) == 0x7069726373627573 {
+					if rhs-lhs == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7069726373627573 {
 						m.SigFnPend = 1
 						m.SigFnAngle = 0
 					}
@@ -47015,7 +47016,7 @@ func (m *Machine) HlSwift() {
 						} else {
 							hl = TokenFunction
 						}
-						if member == 0 && rhs-lhs == 4 && rt.Ld32(m.Mem, lhs) == 0x74696e69 {
+						if member == 0 && rhs-lhs == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x74696e69 {
 							m.SigFnPend = 1
 							m.SigFnAngle = 0
 						}
@@ -47165,14 +47166,14 @@ func (m *Machine) HlSwift() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48296
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
-		rt.St32(m.Mem, m.StreamWindow+8, seg)
-		rt.St32(m.Mem, m.StreamWindow+12, interp)
-		rt.St32(m.Mem, m.StreamWindow+16, stringMode)
-		rt.St32(m.Mem, m.StreamWindow+20, rawOpen)
-		rt.St32(m.Mem, m.StreamWindow+24, cond)
-		rt.St32(m.Mem, m.StreamWindow+28, condParen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], stringMode)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], rawOpen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], cond)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+28:], condParen)
 		if m.StreamStateLo > 2072 {
 			m.StreamStateLo = 2072
 		}
@@ -47274,13 +47275,13 @@ func (m *Machine) HlTcl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		pos = rt.Ld32(m.Mem, 98068)
-		expect = rt.Ld32(m.Mem, 98072)
-		param = rt.Ld32(m.Mem, 98076)
-		inStr = rt.Ld32(m.Mem, 98080)
-		depth = rt.Ld32(m.Mem, 98084)
-		bitSet = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		pos = binary.LittleEndian.Uint32(m.Mem[98068:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98072:])
+		param = binary.LittleEndian.Uint32(m.Mem[98076:])
+		inStr = binary.LittleEndian.Uint32(m.Mem[98080:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98084:])
+		bitSet = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -47288,25 +47289,25 @@ func (m *Machine) HlTcl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				pos = rt.Ld32(m.Mem, m.StreamWindow)
-				expect = rt.Ld32(m.Mem, m.StreamWindow+4)
-				param = rt.Ld32(m.Mem, m.StreamWindow+8)
-				inStr = rt.Ld32(m.Mem, m.StreamWindow+12)
-				depth = rt.Ld32(m.Mem, m.StreamWindow+16)
-				bitSet = rt.Ld32(m.Mem, m.StreamWindow+20)
+				pos = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				param = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				inStr = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				bitSet = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, pos)
-				rt.St32(m.Mem, 98072, expect)
-				rt.St32(m.Mem, 98076, param)
-				rt.St32(m.Mem, 98080, inStr)
-				rt.St32(m.Mem, 98084, depth)
-				rt.St32(m.Mem, 98088, bitSet)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], pos)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], param)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], inStr)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], bitSet)
 				m.LiveSuspended = true
 				return
 			}
@@ -47471,12 +47472,12 @@ func (m *Machine) HlTcl() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48328
-		rt.St32(m.Mem, m.StreamWindow, pos)
-		rt.St32(m.Mem, m.StreamWindow+4, expect)
-		rt.St32(m.Mem, m.StreamWindow+8, param)
-		rt.St32(m.Mem, m.StreamWindow+12, inStr)
-		rt.St32(m.Mem, m.StreamWindow+16, depth)
-		rt.St32(m.Mem, m.StreamWindow+20, bitSet)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], pos)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], param)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], inStr)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], bitSet)
 		if m.StreamStateLo > 2104 {
 			m.StreamStateLo = 2104
 		}
@@ -47552,13 +47553,13 @@ func (m *Machine) HlTerraform() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		member = rt.Ld32(m.Mem, 98068)
-		lineHead = rt.Ld32(m.Mem, 98072)
-		seg = rt.Ld32(m.Mem, 98076)
-		interp = rt.Ld32(m.Mem, 98080)
-		hdLen = rt.Ld32(m.Mem, 98084)
-		hdDelim = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		member = binary.LittleEndian.Uint32(m.Mem[98068:])
+		lineHead = binary.LittleEndian.Uint32(m.Mem[98072:])
+		seg = binary.LittleEndian.Uint32(m.Mem[98076:])
+		interp = binary.LittleEndian.Uint32(m.Mem[98080:])
+		hdLen = binary.LittleEndian.Uint32(m.Mem[98084:])
+		hdDelim = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
@@ -47567,25 +47568,25 @@ func (m *Machine) HlTerraform() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				member = rt.Ld32(m.Mem, m.StreamWindow)
-				lineHead = rt.Ld32(m.Mem, m.StreamWindow+4)
-				seg = rt.Ld32(m.Mem, m.StreamWindow+8)
-				interp = rt.Ld32(m.Mem, m.StreamWindow+12)
-				hdLen = rt.Ld32(m.Mem, m.StreamWindow+16)
-				hdDelim = rt.Ld32(m.Mem, m.StreamWindow+20)
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				lineHead = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				seg = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				interp = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				hdLen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				hdDelim = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, member)
-				rt.St32(m.Mem, 98072, lineHead)
-				rt.St32(m.Mem, 98076, seg)
-				rt.St32(m.Mem, 98080, interp)
-				rt.St32(m.Mem, 98084, hdLen)
-				rt.St32(m.Mem, 98088, hdDelim)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], member)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], lineHead)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], seg)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], interp)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], hdLen)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], hdDelim)
 				m.LiveSuspended = true
 				return
 			}
@@ -47751,12 +47752,12 @@ func (m *Machine) HlTerraform() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48352
-		rt.St32(m.Mem, m.StreamWindow, member)
-		rt.St32(m.Mem, m.StreamWindow+4, lineHead)
-		rt.St32(m.Mem, m.StreamWindow+8, seg)
-		rt.St32(m.Mem, m.StreamWindow+12, interp)
-		rt.St32(m.Mem, m.StreamWindow+16, hdLen)
-		rt.St32(m.Mem, m.StreamWindow+20, hdDelim)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], lineHead)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], seg)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], interp)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], hdLen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], hdDelim)
 		if m.StreamStateLo > 2128 {
 			m.StreamStateLo = 2128
 		}
@@ -47780,7 +47781,7 @@ func (m *Machine) TomlBareKeyEnd(p uint32) uint32 {
 		if p >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9))), rt.Or(rt.Eq8(w, rt.Splat8(95)), rt.Eq8(w, rt.Splat8(45))))) ^ 65535
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -48061,10 +48062,10 @@ func (m *Machine) HlToml() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		depth = rt.Ld32(m.Mem, 98068)
-		header = rt.Ld32(m.Mem, 98072)
-		key = rt.Ld32(m.Mem, 98076)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		depth = binary.LittleEndian.Uint32(m.Mem[98068:])
+		header = binary.LittleEndian.Uint32(m.Mem[98072:])
+		key = binary.LittleEndian.Uint32(m.Mem[98076:])
 	} else {
 		key = 1
 		m.LexEmitLeadingContinuation()
@@ -48073,19 +48074,19 @@ func (m *Machine) HlToml() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				depth = rt.Ld32(m.Mem, m.StreamWindow)
-				header = rt.Ld32(m.Mem, m.StreamWindow+4)
-				key = rt.Ld32(m.Mem, m.StreamWindow+8)
+				depth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				header = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				key = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, depth)
-				rt.St32(m.Mem, 98072, header)
-				rt.St32(m.Mem, 98076, key)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], depth)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], header)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], key)
 				m.LiveSuspended = true
 				return
 			}
@@ -48215,20 +48216,20 @@ func (m *Machine) HlToml() {
 			continue
 		}
 		p = lhs + 4
-		if p <= m.End && rt.Ld32(m.Mem, lhs) == 0x65757274 && m.TomlIsValueEnd(p)&1 != 0 {
+		if p <= m.End && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65757274 && m.TomlIsValueEnd(p)&1 != 0 {
 			m.Ptr = p
 			m.EmitTok(TokenConstant, lhs, m.Ptr)
 			continue
 		}
 		p = lhs + 5
-		if p <= m.End && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x65736c6166 && m.TomlIsValueEnd(p)&1 != 0 {
+		if p <= m.End && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x65736c6166 && m.TomlIsValueEnd(p)&1 != 0 {
 			m.Ptr = p
 			m.EmitTok(TokenConstant, lhs, m.Ptr)
 			continue
 		}
 		s = lhs + rt.B2u(c == '+' || c == '-')
 		q = s + 3
-		if q <= m.End && (rt.Ld32(m.Mem, s)&0xffffff == 0x666e69 || rt.Ld32(m.Mem, s)&0xffffff == 0x6e616e) && m.TomlIsValueEnd(q)&1 != 0 {
+		if q <= m.End && (binary.LittleEndian.Uint32(m.Mem[s:])&0xffffff == 0x666e69 || binary.LittleEndian.Uint32(m.Mem[s:])&0xffffff == 0x6e616e) && m.TomlIsValueEnd(q)&1 != 0 {
 			m.Ptr = q
 			m.EmitTok(TokenNumber, lhs, m.Ptr)
 			continue
@@ -48364,9 +48365,9 @@ func (m *Machine) HlToml() {
 	m.LiveStackBytes = depth
 	if streamRoot != 0 {
 		m.StreamWindow = 48376
-		rt.St32(m.Mem, m.StreamWindow, depth)
-		rt.St32(m.Mem, m.StreamWindow+4, header)
-		rt.St32(m.Mem, m.StreamWindow+8, key)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], depth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], header)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], key)
 		if m.StreamStateLo > 2152 {
 			m.StreamStateLo = 2152
 		}
@@ -48408,7 +48409,7 @@ func (m *Machine) TypstTextEnd(p uint32) uint32 {
 		if p >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(35)), rt.Splat8(1)), rt.LeU8(rt.Sub8(w, rt.Splat8(91)), rt.Splat8(5))), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(42)), rt.Eq8(w, rt.Splat8(47))), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(60)), rt.Eq8(w, rt.Splat8(64))), rt.LeU8(rt.Sub8(w, rt.Splat8(10)), rt.Splat8(3))))))
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -48469,7 +48470,7 @@ func (m *Machine) TypstText(lhs, flags uint32) {
 		if q > lhs && m.Mem[p-2] == 's' {
 			q--
 		}
-		if rt.Ld32(m.Mem, q) != 0x70747468 {
+		if binary.LittleEndian.Uint32(m.Mem[q:]) != 0x70747468 {
 			q = p
 		}
 	}
@@ -48504,11 +48505,11 @@ func (m *Machine) HlTypst() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		stack = rt.Ld64(m.Mem, 98072)
-		flags = rt.Ld32(m.Mem, 98080)
-		mid = rt.Ld32(m.Mem, 98084)
-		raw = rt.Ld32(m.Mem, 98088)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		stack = binary.LittleEndian.Uint64(m.Mem[98072:])
+		flags = binary.LittleEndian.Uint32(m.Mem[98080:])
+		mid = binary.LittleEndian.Uint32(m.Mem[98084:])
+		raw = binary.LittleEndian.Uint32(m.Mem[98088:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -48516,10 +48517,10 @@ func (m *Machine) HlTypst() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				stack = rt.Ld64(m.Mem, m.StreamWindow)
-				flags = rt.Ld32(m.Mem, m.StreamWindow+8)
-				mid = rt.Ld32(m.Mem, m.StreamWindow+12)
-				raw = rt.Ld32(m.Mem, m.StreamWindow+16)
+				stack = binary.LittleEndian.Uint64(m.Mem[m.StreamWindow:])
+				flags = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				mid = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				raw = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
 			}
 		}
 		if raw != 0 {
@@ -48529,11 +48530,11 @@ func (m *Machine) HlTypst() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St64(m.Mem, 98072, stack)
-				rt.St32(m.Mem, 98080, flags)
-				rt.St32(m.Mem, 98084, mid)
-				rt.St32(m.Mem, 98088, raw)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint64(m.Mem[98072:], stack)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], flags)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], mid)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], raw)
 				m.LiveSuspended = true
 				return
 			}
@@ -48910,10 +48911,10 @@ func (m *Machine) HlTypst() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48392
-		rt.St64(m.Mem, m.StreamWindow, stack)
-		rt.St32(m.Mem, m.StreamWindow+8, flags)
-		rt.St32(m.Mem, m.StreamWindow+12, mid)
-		rt.St32(m.Mem, m.StreamWindow+16, raw)
+		binary.LittleEndian.PutUint64(m.Mem[m.StreamWindow:], stack)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], flags)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], mid)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], raw)
 		if m.StreamStateLo > 2168 {
 			m.StreamStateLo = 2168
 		}
@@ -48927,16 +48928,16 @@ func (m *Machine) HlTypst() {
 // VerilogWord is $verilogWord.
 func (m *Machine) VerilogWord(lhs, rhs uint32) uint32 {
 	n := rhs - lhs
-	if n == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x74756f6e69 {
+	if n == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x74756f6e69 {
 		return TokenKeywordDeclaration
 	}
-	if n == 11 && rt.Ld64(m.Mem, lhs) == 0x72656e6567646e65 && rt.Ld64(m.Mem, rhs-8) == 0x65746172656e6567 {
+	if n == 11 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x72656e6567646e65 && binary.LittleEndian.Uint64(m.Mem[rhs-8:]) == 0x65746172656e6567 {
 		return TokenKeywordDeclaration
 	}
-	if n == 10 && rt.Ld64(m.Mem, lhs) == 0x696f707265766f63 && rt.Ld64(m.Mem, rhs-8) == 0x746e696f70726576 {
+	if n == 10 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x696f707265766f63 && binary.LittleEndian.Uint64(m.Mem[rhs-8:]) == 0x746e696f70726576 {
 		return TokenKeywordDeclaration
 	}
-	if n == 8 && rt.Ld64(m.Mem, lhs) == 0x797469726f697270 {
+	if n == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x797469726f697270 {
 		return TokenKeywordControl
 	}
 	return m.LexKeywordValue(lhs, rhs, 31264, 63, 139)
@@ -48967,9 +48968,9 @@ func (m *Machine) HlVerilog() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		strCont = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		strCont = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -48977,8 +48978,8 @@ func (m *Machine) HlVerilog() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				strCont = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				strCont = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 		strCont = m.LexCStringResume(strCont)
@@ -48986,9 +48987,9 @@ func (m *Machine) HlVerilog() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, strCont)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], strCont)
 				m.LiveSuspended = true
 				return
 			}
@@ -49163,8 +49164,8 @@ func (m *Machine) HlVerilog() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48416
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, strCont)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], strCont)
 		if m.StreamStateLo > 2192 {
 			m.StreamStateLo = 2192
 		}
@@ -49208,8 +49209,8 @@ func (m *Machine) HlVhdl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -49217,15 +49218,15 @@ func (m *Machine) HlVhdl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
 				m.LiveSuspended = true
 				return
 			}
@@ -49372,7 +49373,7 @@ func (m *Machine) HlVhdl() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48424
-		rt.St32(m.Mem, m.StreamWindow, expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
 		if m.StreamStateLo > 2200 {
 			m.StreamStateLo = 2200
 		}
@@ -49390,11 +49391,11 @@ func (m *Machine) HlViml() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		st = rt.Ld32(m.Mem, 98068)
-		bol = rt.Ld32(m.Mem, 98072)
-		fn = rt.Ld32(m.Mem, 98076)
-		multi = rt.Ld32(m.Mem, 98080)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		st = binary.LittleEndian.Uint32(m.Mem[98068:])
+		bol = binary.LittleEndian.Uint32(m.Mem[98072:])
+		fn = binary.LittleEndian.Uint32(m.Mem[98076:])
+		multi = binary.LittleEndian.Uint32(m.Mem[98080:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -49402,21 +49403,21 @@ func (m *Machine) HlViml() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				st = rt.Ld32(m.Mem, m.StreamWindow)
-				bol = rt.Ld32(m.Mem, m.StreamWindow+4)
-				fn = rt.Ld32(m.Mem, m.StreamWindow+8)
-				multi = rt.Ld32(m.Mem, m.StreamWindow+12)
+				st = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				bol = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				fn = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				multi = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, st)
-				rt.St32(m.Mem, 98072, bol)
-				rt.St32(m.Mem, 98076, fn)
-				rt.St32(m.Mem, 98080, multi)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], st)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], bol)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], fn)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], multi)
 				m.LiveSuspended = true
 				return
 			}
@@ -49691,10 +49692,10 @@ func (m *Machine) HlViml() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48432
-		rt.St32(m.Mem, m.StreamWindow, st)
-		rt.St32(m.Mem, m.StreamWindow+4, bol)
-		rt.St32(m.Mem, m.StreamWindow+8, fn)
-		rt.St32(m.Mem, m.StreamWindow+12, multi)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], st)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], bol)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], fn)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], multi)
 		if m.StreamStateLo > 2208 {
 			m.StreamStateLo = 2208
 		}
@@ -49887,9 +49888,9 @@ func (m *Machine) HlVue() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		from = rt.Ld32(m.Mem, 98068)
-		p = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		from = binary.LittleEndian.Uint32(m.Mem[98068:])
+		p = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -49903,9 +49904,9 @@ func (m *Machine) HlVue() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, from)
-				rt.St32(m.Mem, 98072, p)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], from)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], p)
 				m.LiveSuspended = true
 				return
 			}
@@ -49916,7 +49917,7 @@ func (m *Machine) HlVue() {
 		}
 		c = uint32(m.Mem[p])
 		if c == '<' {
-			if p+4 <= m.End && rt.Ld32(m.Mem, p) == 0x2d2d213c {
+			if p+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x2d2d213c {
 				m.VueHTMLRange(from, p)
 				m.Ptr = p
 				m.HTMLComment(p)
@@ -49973,11 +49974,11 @@ func (m *Machine) WatWordHl(lhs, rhs uint32) uint32 {
 	if p < rhs && m.LexIsDigit(uint32(m.Mem[p])) {
 		return TokenNumber
 	}
-	c = rt.Ld32(m.Mem, p) & 0xffffff
+	c = binary.LittleEndian.Uint32(m.Mem[p:]) & 0xffffff
 	if rhs-p == 3 && (c == 6712937 || c == 7233902) {
 		return TokenNumber
 	}
-	if rhs-p > 6 && rt.Ld64(m.Mem, p)&0xffffffffffff == 0x78303a6e616e {
+	if rhs-p > 6 && binary.LittleEndian.Uint64(m.Mem[p:])&0xffffffffffff == 0x78303a6e616e {
 		p += 6
 		for {
 			if !m.LexIsHex(uint32(m.Mem[p])) {
@@ -50078,7 +50079,7 @@ func (m *Machine) HlWat() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -50090,7 +50091,7 @@ func (m *Machine) HlWat() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
 				m.LiveSuspended = true
 				return
 			}
@@ -50155,10 +50156,10 @@ func (m *Machine) WgslTypeHl(lhs, rhs uint32) uint32 {
 	if length < 4 {
 		return TokenNone
 	}
-	if length >= 9 && rt.Ld64(m.Mem, lhs) == 0x5f65727574786574 {
+	if length >= 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x5f65727574786574 {
 		return TokenTypeBuiltin
 	}
-	w := rt.Ld32(m.Mem, lhs) & 0xffffff
+	w := binary.LittleEndian.Uint32(m.Mem[lhs:]) & 0xffffff
 	c := uint32(m.Mem[rhs-1])
 	if c == 'f' || c == 'h' || (w == 0x636576 && (c == 'i' || c == 'u')) {
 		rhs--
@@ -50198,9 +50199,9 @@ func (m *Machine) HlWgsl() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expect = rt.Ld32(m.Mem, 98068)
-		member = rt.Ld32(m.Mem, 98072)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expect = binary.LittleEndian.Uint32(m.Mem[98068:])
+		member = binary.LittleEndian.Uint32(m.Mem[98072:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -50208,17 +50209,17 @@ func (m *Machine) HlWgsl() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expect = rt.Ld32(m.Mem, m.StreamWindow)
-				member = rt.Ld32(m.Mem, m.StreamWindow+4)
+				expect = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				member = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expect)
-				rt.St32(m.Mem, 98072, member)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expect)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], member)
 				m.LiveSuspended = true
 				return
 			}
@@ -50334,8 +50335,8 @@ func (m *Machine) HlWgsl() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48448
-		rt.St32(m.Mem, m.StreamWindow, expect)
-		rt.St32(m.Mem, m.StreamWindow+4, member)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expect)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], member)
 		if m.StreamStateLo > 2224 {
 			m.StreamStateLo = 2224
 		}
@@ -50428,7 +50429,7 @@ func (m *Machine) HlWolfram() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -50440,7 +50441,7 @@ func (m *Machine) HlWolfram() {
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
 				m.LiveSuspended = true
 				return
 			}
@@ -50581,7 +50582,7 @@ func (m *Machine) HlWolfram() {
 							q--
 						}
 						if !call {
-							call = q >= m.SrcBase+2 && rt.Ld16(m.Mem, q-2) == 12079
+							call = q >= m.SrcBase+2 && uint32(binary.LittleEndian.Uint16(m.Mem[q-2:])) == 12079
 						}
 						if call {
 							hl = TokenFunction
@@ -50645,7 +50646,7 @@ func (m *Machine) HlWolfram() {
 					if m.Mem[m.Ptr-1] == '/' && m.TemplateByte(m.Ptr) == ';' {
 						m.Ptr++
 					}
-					if m.Ptr-lhs == 2 && rt.Ld16(m.Mem, lhs) == 14906 {
+					if m.Ptr-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 14906 {
 						if m.LexIsIdentStart(m.TemplateByte(m.Ptr)) {
 							m.EmitTok(TokenOperator, lhs, m.Ptr)
 							lhs = m.Ptr
@@ -50684,7 +50685,7 @@ func (m *Machine) ZigIdentEnd(p uint32) uint32 {
 		if p >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		mask = rt.Bitmask8(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9)), rt.Eq8(w, rt.Splat8(95))))) ^ 65535
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
@@ -50782,7 +50783,7 @@ func (m *Machine) ZigWordHl(lhs, rhs uint32) uint32 {
 			}
 			return 0xffffffff
 		}
-		if rhs-lhs == 8 && rt.Ld64(m.Mem, lhs) == 0x656d6974706d6f63 {
+		if rhs-lhs == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x656d6974706d6f63 {
 			return TokenKeyword
 		}
 		if m.Mem[lhs] == 'i' || m.Mem[lhs] == 'u' {
@@ -50824,19 +50825,19 @@ func (m *Machine) HlZig() {
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
-		streamRoot = rt.Ld32(m.Mem, 98064)
-		expectFunc = rt.Ld32(m.Mem, 98068)
-		expectLabel = rt.Ld32(m.Mem, 98072)
-		expectType = rt.Ld32(m.Mem, 98076)
-		expectVar = rt.Ld32(m.Mem, 98080)
-		labelColon = rt.Ld32(m.Mem, 98084)
-		parenDepth = rt.Ld32(m.Mem, 98088)
-		payload = rt.Ld32(m.Mem, 98092)
-		payloadParens = rt.Ld64(m.Mem, 98096)
-		payloadReady = rt.Ld32(m.Mem, 98104)
-		prevDot = rt.Ld32(m.Mem, 98108)
-		wantBreakLabel = rt.Ld32(m.Mem, 98112)
-		wantPayloadParen = rt.Ld32(m.Mem, 98116)
+		streamRoot = binary.LittleEndian.Uint32(m.Mem[98064:])
+		expectFunc = binary.LittleEndian.Uint32(m.Mem[98068:])
+		expectLabel = binary.LittleEndian.Uint32(m.Mem[98072:])
+		expectType = binary.LittleEndian.Uint32(m.Mem[98076:])
+		expectVar = binary.LittleEndian.Uint32(m.Mem[98080:])
+		labelColon = binary.LittleEndian.Uint32(m.Mem[98084:])
+		parenDepth = binary.LittleEndian.Uint32(m.Mem[98088:])
+		payload = binary.LittleEndian.Uint32(m.Mem[98092:])
+		payloadParens = binary.LittleEndian.Uint64(m.Mem[98096:])
+		payloadReady = binary.LittleEndian.Uint32(m.Mem[98104:])
+		prevDot = binary.LittleEndian.Uint32(m.Mem[98108:])
+		wantBreakLabel = binary.LittleEndian.Uint32(m.Mem[98112:])
+		wantPayloadParen = binary.LittleEndian.Uint32(m.Mem[98116:])
 	} else {
 		m.LexEmitLeadingContinuation()
 		if m.Streaming && m.StreamDepth == 0 {
@@ -50844,37 +50845,37 @@ func (m *Machine) HlZig() {
 			streamRoot = 1
 			m.StreamDepth = streamRoot
 			if m.StreamReset == 0 {
-				expectFunc = rt.Ld32(m.Mem, m.StreamWindow)
-				expectLabel = rt.Ld32(m.Mem, m.StreamWindow+4)
-				expectType = rt.Ld32(m.Mem, m.StreamWindow+8)
-				expectVar = rt.Ld32(m.Mem, m.StreamWindow+12)
-				labelColon = rt.Ld32(m.Mem, m.StreamWindow+16)
-				parenDepth = rt.Ld32(m.Mem, m.StreamWindow+20)
-				payload = rt.Ld32(m.Mem, m.StreamWindow+24)
-				payloadParens = rt.Ld64(m.Mem, m.StreamWindow+32)
-				payloadReady = rt.Ld32(m.Mem, m.StreamWindow+40)
-				prevDot = rt.Ld32(m.Mem, m.StreamWindow+44)
-				wantBreakLabel = rt.Ld32(m.Mem, m.StreamWindow+48)
-				wantPayloadParen = rt.Ld32(m.Mem, m.StreamWindow+52)
+				expectFunc = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow:])
+				expectLabel = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+4:])
+				expectType = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+8:])
+				expectVar = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+12:])
+				labelColon = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+16:])
+				parenDepth = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+20:])
+				payload = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+24:])
+				payloadParens = binary.LittleEndian.Uint64(m.Mem[m.StreamWindow+32:])
+				payloadReady = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+40:])
+				prevDot = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+44:])
+				wantBreakLabel = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+48:])
+				wantPayloadParen = binary.LittleEndian.Uint32(m.Mem[m.StreamWindow+52:])
 			}
 		}
 	}
 	for {
 		if m.Ptr >= m.LiveLimit {
 			if liveRoot {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, expectFunc)
-				rt.St32(m.Mem, 98072, expectLabel)
-				rt.St32(m.Mem, 98076, expectType)
-				rt.St32(m.Mem, 98080, expectVar)
-				rt.St32(m.Mem, 98084, labelColon)
-				rt.St32(m.Mem, 98088, parenDepth)
-				rt.St32(m.Mem, 98092, payload)
-				rt.St64(m.Mem, 98096, payloadParens)
-				rt.St32(m.Mem, 98104, payloadReady)
-				rt.St32(m.Mem, 98108, prevDot)
-				rt.St32(m.Mem, 98112, wantBreakLabel)
-				rt.St32(m.Mem, 98116, wantPayloadParen)
+				binary.LittleEndian.PutUint32(m.Mem[98064:], streamRoot)
+				binary.LittleEndian.PutUint32(m.Mem[98068:], expectFunc)
+				binary.LittleEndian.PutUint32(m.Mem[98072:], expectLabel)
+				binary.LittleEndian.PutUint32(m.Mem[98076:], expectType)
+				binary.LittleEndian.PutUint32(m.Mem[98080:], expectVar)
+				binary.LittleEndian.PutUint32(m.Mem[98084:], labelColon)
+				binary.LittleEndian.PutUint32(m.Mem[98088:], parenDepth)
+				binary.LittleEndian.PutUint32(m.Mem[98092:], payload)
+				binary.LittleEndian.PutUint64(m.Mem[98096:], payloadParens)
+				binary.LittleEndian.PutUint32(m.Mem[98104:], payloadReady)
+				binary.LittleEndian.PutUint32(m.Mem[98108:], prevDot)
+				binary.LittleEndian.PutUint32(m.Mem[98112:], wantBreakLabel)
+				binary.LittleEndian.PutUint32(m.Mem[98116:], wantPayloadParen)
 				m.LiveSuspended = true
 				return
 			}
@@ -50958,7 +50959,7 @@ func (m *Machine) HlZig() {
 			m.Ptr += 2
 			m.Ptr = m.ZigIdentEnd(m.Ptr)
 			hl = TokenFunction
-			if (m.Ptr-lhs == 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x74726f706d6940) || (m.Ptr-lhs == 8 && rt.Ld64(m.Mem, lhs) == 0x74726f706d496340) {
+			if (m.Ptr-lhs == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x74726f706d6940) || (m.Ptr-lhs == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x74726f706d496340) {
 				hl = TokenKeywordImport
 			}
 		case m.LexIsDigit(c):
@@ -51090,7 +51091,7 @@ func (m *Machine) HlZig() {
 					hl = TokenVariableParameter
 				}
 			}
-			if hl == TokenVariable && expectVar == 0 && m.Ptr-lhs == 3 && (rt.Ld32(m.Mem, lhs)&0xffffff == 0x6e616e || rt.Ld32(m.Mem, lhs)&0xffffff == 0x666e69) {
+			if hl == TokenVariable && expectVar == 0 && m.Ptr-lhs == 3 && (binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x6e616e || binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x666e69) {
 				hl = TokenNumber
 			}
 			expectFunc = 0
@@ -51238,18 +51239,18 @@ func (m *Machine) HlZig() {
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 48456
-		rt.St32(m.Mem, m.StreamWindow, expectFunc)
-		rt.St32(m.Mem, m.StreamWindow+4, expectLabel)
-		rt.St32(m.Mem, m.StreamWindow+8, expectType)
-		rt.St32(m.Mem, m.StreamWindow+12, expectVar)
-		rt.St32(m.Mem, m.StreamWindow+16, labelColon)
-		rt.St32(m.Mem, m.StreamWindow+20, parenDepth)
-		rt.St32(m.Mem, m.StreamWindow+24, payload)
-		rt.St64(m.Mem, m.StreamWindow+32, payloadParens)
-		rt.St32(m.Mem, m.StreamWindow+40, payloadReady)
-		rt.St32(m.Mem, m.StreamWindow+44, prevDot)
-		rt.St32(m.Mem, m.StreamWindow+48, wantBreakLabel)
-		rt.St32(m.Mem, m.StreamWindow+52, wantPayloadParen)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow:], expectFunc)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+4:], expectLabel)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+8:], expectType)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+12:], expectVar)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+16:], labelColon)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+20:], parenDepth)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+24:], payload)
+		binary.LittleEndian.PutUint64(m.Mem[m.StreamWindow+32:], payloadParens)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+40:], payloadReady)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+44:], prevDot)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+48:], wantBreakLabel)
+		binary.LittleEndian.PutUint32(m.Mem[m.StreamWindow+52:], wantPayloadParen)
 		if m.StreamStateLo > 2232 {
 			m.StreamStateLo = 2232
 		}
@@ -51279,9 +51280,9 @@ func (m *Machine) LanguageByName(lhs, rhs uint32) uint32 {
 	if length-1 > 17 {
 		return 0
 	}
-	record := 62464 + rt.Ld16(m.Mem, length<<1+62464)
-	stop := 62464 + rt.Ld16(m.Mem, length<<1+62466)
-	word := rt.Ld64(m.Mem, lhs) | 0x2020202020202020
+	record := 62464 + uint32(binary.LittleEndian.Uint16(m.Mem[length<<1+62464:]))
+	stop := 62464 + uint32(binary.LittleEndian.Uint16(m.Mem[length<<1+62466:]))
+	word := binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020
 	if length >= 8 {
 		mask = 0xffffffffffffffff
 	} else {
@@ -51292,14 +51293,14 @@ alias:
 		if record >= stop {
 			break
 		}
-		if (word^rt.Ld64(m.Mem, record+1))&mask == 0 {
+		if (word^binary.LittleEndian.Uint64(m.Mem[record+1:]))&mask == 0 {
 			i = 8
 			for {
 				if i >= length {
 					break
 				}
 				rem = length - i
-				if ((rt.Ld64(m.Mem, lhs+i)|0x2020202020202020)^rt.Ld64(m.Mem, record+i+1))&rt.Sel64(rem >= 8, 0xffffffffffffffff, uint64(1)<<(uint64(rem<<3)&63)-1) != 0 {
+				if ((binary.LittleEndian.Uint64(m.Mem[lhs+i:])|0x2020202020202020)^binary.LittleEndian.Uint64(m.Mem[record+i+1:]))&rt.Sel64(rem >= 8, 0xffffffffffffffff, uint64(1)<<(uint64(rem<<3)&63)-1) != 0 {
 					record += length + 1
 					continue alias
 				}
@@ -51450,11 +51451,11 @@ func (m *Machine) LvAlloc(length uint32) uint32 {
 	var prev uint32
 	total := m.LvRoundSize(length + 8)
 	idx := m.LvClassOf(total)
-	head := rt.Ld32(m.Mem, 0x17e90+idx<<2)
+	head := binary.LittleEndian.Uint32(m.Mem[0x17e90+idx<<2:])
 	if idx != 31 {
 		if head != 0 {
-			rt.St32(m.Mem, 0x17e90+idx<<2, rt.Ld32(m.Mem, head+4))
-			rt.St32(m.Mem, head, total)
+			binary.LittleEndian.PutUint32(m.Mem[0x17e90+idx<<2:], binary.LittleEndian.Uint32(m.Mem[head+4:]))
+			binary.LittleEndian.PutUint32(m.Mem[head:], total)
 			m.LvHeapFreed -= total
 			m.LvHeapLive += total
 			return head + 8
@@ -51464,19 +51465,19 @@ func (m *Machine) LvAlloc(length uint32) uint32 {
 			if head == 0 {
 				break
 			}
-			if rt.Ld32(m.Mem, head)&0xfffffffe == total {
+			if binary.LittleEndian.Uint32(m.Mem[head:])&0xfffffffe == total {
 				if prev != 0 {
-					rt.St32(m.Mem, prev+4, rt.Ld32(m.Mem, head+4))
+					binary.LittleEndian.PutUint32(m.Mem[prev+4:], binary.LittleEndian.Uint32(m.Mem[head+4:]))
 				} else {
-					rt.St32(m.Mem, 98060, rt.Ld32(m.Mem, head+4))
+					binary.LittleEndian.PutUint32(m.Mem[98060:], binary.LittleEndian.Uint32(m.Mem[head+4:]))
 				}
-				rt.St32(m.Mem, head, total)
+				binary.LittleEndian.PutUint32(m.Mem[head:], total)
 				m.LvHeapFreed -= total
 				m.LvHeapLive += total
 				return head + 8
 			}
 			prev = head
-			head = rt.Ld32(m.Mem, head+4)
+			head = binary.LittleEndian.Uint32(m.Mem[head+4:])
 		}
 	}
 	if m.LvHeapEnd+total > m.LvHeapCeil {
@@ -51484,8 +51485,8 @@ func (m *Machine) LvAlloc(length uint32) uint32 {
 	}
 	head = m.LvHeapEnd
 	m.LvHeapEnd = head + total
-	rt.St32(m.Mem, head, total)
-	rt.St32(m.Mem, head+4, 0)
+	binary.LittleEndian.PutUint32(m.Mem[head:], total)
+	binary.LittleEndian.PutUint32(m.Mem[head+4:], 0)
 	m.LvHeapLive += total
 	return head + 8
 }
@@ -51496,11 +51497,11 @@ func (m *Machine) LvFree(body uint32) {
 		return
 	}
 	hdr := body - 8
-	total := rt.Ld32(m.Mem, hdr) & 0xfffffffe
+	total := binary.LittleEndian.Uint32(m.Mem[hdr:]) & 0xfffffffe
 	idx := m.LvClassOf(total)
-	rt.St32(m.Mem, hdr, total|1)
-	rt.St32(m.Mem, hdr+4, rt.Ld32(m.Mem, 0x17e90+idx<<2))
-	rt.St32(m.Mem, 0x17e90+idx<<2, hdr)
+	binary.LittleEndian.PutUint32(m.Mem[hdr:], total|1)
+	binary.LittleEndian.PutUint32(m.Mem[hdr+4:], binary.LittleEndian.Uint32(m.Mem[0x17e90+idx<<2:]))
+	binary.LittleEndian.PutUint32(m.Mem[0x17e90+idx<<2:], hdr)
 	m.LvHeapLive -= total
 	m.LvHeapFreed += total
 }
@@ -51508,7 +51509,7 @@ func (m *Machine) LvFree(body uint32) {
 // LvShrink is $lvShrink.
 func (m *Machine) LvShrink(body, length uint32) {
 	hdr := body - 8
-	total := rt.Ld32(m.Mem, hdr) & 0xfffffffe
+	total := binary.LittleEndian.Uint32(m.Mem[hdr:]) & 0xfffffffe
 	keep := m.LvRoundSize(length + 8)
 	rest := total - keep
 	if rest < 16 {
@@ -51517,8 +51518,8 @@ func (m *Machine) LvShrink(body, length uint32) {
 	if m.LvRoundSize(rest) != rest {
 		return
 	}
-	rt.St32(m.Mem, hdr, keep)
-	rt.St32(m.Mem, hdr+keep, rest)
+	binary.LittleEndian.PutUint32(m.Mem[hdr:], keep)
+	binary.LittleEndian.PutUint32(m.Mem[hdr+keep:], rest)
 	m.LvFree(hdr + keep + 8)
 }
 
@@ -51544,12 +51545,12 @@ func (m *Machine) LvHash(ptr, length uint32) uint64 {
 		if p >= stop {
 			break
 		}
-		h = (h ^ rt.Ld64(m.Mem, p)) * 0x100000001b3
+		h = (h ^ binary.LittleEndian.Uint64(m.Mem[p:])) * 0x100000001b3
 		p += 8
 	}
 	k := length & 7
 	if k != 0 {
-		h = (h ^ rt.Ld64(m.Mem, p)&(uint64(0xffffffffffffffff)>>(uint64((8-k)<<3)&63))) * 0x100000001b3
+		h = (h ^ binary.LittleEndian.Uint64(m.Mem[p:])&(uint64(0xffffffffffffffff)>>(uint64((8-k)<<3)&63))) * 0x100000001b3
 	}
 	h = (h ^ h>>33) * 0xff51afd7ed558ccd
 	h = (h ^ h>>33) * 0xc4ceb9fe1a85ec53
@@ -51563,7 +51564,7 @@ func (m *Machine) LvBytesEq(a, b, length uint32) bool {
 		return true
 	}
 	for {
-		different = rt.Ne8(rt.LdV(m.Mem, a), rt.LdV(m.Mem, b))
+		different = rt.Ne8(rt.LdV(m.Mem[a:]), rt.LdV(m.Mem[b:]))
 		if rt.AnyTrue(different) {
 			return uint32(bits.TrailingZeros32(rt.Bitmask8(different))) >= length
 		}
@@ -51595,7 +51596,7 @@ func (m *Machine) LvAllocID(blob uint32) uint32 {
 	var id, nt uint32
 	if m.LvIDFree != 0 {
 		id = m.LvIDFree
-		m.LvIDFree = rt.Ld32(m.Mem, m.LvIDTab+id<<2) >> 1
+		m.LvIDFree = binary.LittleEndian.Uint32(m.Mem[m.LvIDTab+id<<2:]) >> 1
 	} else {
 		if m.LvIDNext >= m.LvIDCap {
 			nt = m.LvAlloc(m.LvIDCap << 3)
@@ -51608,7 +51609,7 @@ func (m *Machine) LvAllocID(blob uint32) uint32 {
 		id = m.LvIDNext
 		m.LvIDNext = id + 1
 	}
-	rt.St32(m.Mem, m.LvIDTab+id<<2, blob)
+	binary.LittleEndian.PutUint32(m.Mem[m.LvIDTab+id<<2:], blob)
 	return id
 }
 
@@ -51622,15 +51623,15 @@ func (m *Machine) LvGrowBuckets() {
 		if i > m.LvBucketMask {
 			break
 		}
-		node = rt.Ld32(m.Mem, m.LvBuckets+i<<2)
+		node = binary.LittleEndian.Uint32(m.Mem[m.LvBuckets+i<<2:])
 		for {
 			if node == 0 {
 				break
 			}
-			next = rt.Ld32(m.Mem, node)
-			slot = nb + (rt.Ld32(m.Mem, node+12)&newMask)<<2
-			rt.St32(m.Mem, node, rt.Ld32(m.Mem, slot))
-			rt.St32(m.Mem, slot, node)
+			next = binary.LittleEndian.Uint32(m.Mem[node:])
+			slot = nb + (binary.LittleEndian.Uint32(m.Mem[node+12:])&newMask)<<2
+			binary.LittleEndian.PutUint32(m.Mem[node:], binary.LittleEndian.Uint32(m.Mem[slot:]))
+			binary.LittleEndian.PutUint32(m.Mem[slot:], node)
 			node = next
 		}
 		i++
@@ -51645,18 +51646,18 @@ func (m *Machine) LvIntern(ptr, length uint32) uint32 {
 	h := m.LvHash(ptr, length)
 	lo := uint32(h)
 	hi := uint32(h >> 32)
-	node := rt.Ld32(m.Mem, m.LvBuckets+(lo&m.LvBucketMask)<<2)
+	node := binary.LittleEndian.Uint32(m.Mem[m.LvBuckets+(lo&m.LvBucketMask)<<2:])
 	for {
 		if node == 0 {
 			break
 		}
-		if rt.Ld32(m.Mem, node+8) == length && rt.Ld32(m.Mem, node+12) == lo && rt.Ld32(m.Mem, node+16) == hi {
+		if binary.LittleEndian.Uint32(m.Mem[node+8:]) == length && binary.LittleEndian.Uint32(m.Mem[node+12:]) == lo && binary.LittleEndian.Uint32(m.Mem[node+16:]) == hi {
 			if m.LvBytesEq(node+24, ptr, length) {
-				rt.St32(m.Mem, node+4, rt.Ld32(m.Mem, node+4)+1)
-				return rt.Ld32(m.Mem, node+20)
+				binary.LittleEndian.PutUint32(m.Mem[node+4:], binary.LittleEndian.Uint32(m.Mem[node+4:])+1)
+				return binary.LittleEndian.Uint32(m.Mem[node+20:])
 			}
 		}
-		node = rt.Ld32(m.Mem, node)
+		node = binary.LittleEndian.Uint32(m.Mem[node:])
 	}
 	before := m.LvTransLo
 	body := m.LvAlloc(length + 24)
@@ -51664,13 +51665,13 @@ func (m *Machine) LvIntern(ptr, length uint32) uint32 {
 	rt.Copy(m.Mem, body+24, ptr, length)
 	id := m.LvAllocID(body)
 	slot := m.LvBuckets + (lo&m.LvBucketMask)<<2
-	rt.St32(m.Mem, body, rt.Ld32(m.Mem, slot))
-	rt.St32(m.Mem, body+4, 1)
-	rt.St32(m.Mem, body+8, length)
-	rt.St32(m.Mem, body+12, lo)
-	rt.St32(m.Mem, body+16, hi)
-	rt.St32(m.Mem, body+20, id)
-	rt.St32(m.Mem, slot, body)
+	binary.LittleEndian.PutUint32(m.Mem[body:], binary.LittleEndian.Uint32(m.Mem[slot:]))
+	binary.LittleEndian.PutUint32(m.Mem[body+4:], 1)
+	binary.LittleEndian.PutUint32(m.Mem[body+8:], length)
+	binary.LittleEndian.PutUint32(m.Mem[body+12:], lo)
+	binary.LittleEndian.PutUint32(m.Mem[body+16:], hi)
+	binary.LittleEndian.PutUint32(m.Mem[body+20:], id)
+	binary.LittleEndian.PutUint32(m.Mem[slot:], body)
 	m.LvStateCount++
 	m.LvStateBytes += length
 	if m.LvStateCount > m.LvBucketMask+1-(m.LvBucketMask+1)>>2 {
@@ -51685,23 +51686,23 @@ func (m *Machine) LvRelease(id uint32) {
 		return
 	}
 	slotAddr := m.LvIDTab + id<<2
-	node := rt.Ld32(m.Mem, slotAddr)
-	rt.St32(m.Mem, node+4, rt.Ld32(m.Mem, node+4)-1)
-	if rt.Ld32(m.Mem, node+4) != 0 {
+	node := binary.LittleEndian.Uint32(m.Mem[slotAddr:])
+	binary.LittleEndian.PutUint32(m.Mem[node+4:], binary.LittleEndian.Uint32(m.Mem[node+4:])-1)
+	if binary.LittleEndian.Uint32(m.Mem[node+4:]) != 0 {
 		return
 	}
-	prev := m.LvBuckets + (rt.Ld32(m.Mem, node+12)&m.LvBucketMask)<<2
+	prev := m.LvBuckets + (binary.LittleEndian.Uint32(m.Mem[node+12:])&m.LvBucketMask)<<2
 	for {
-		if rt.Ld32(m.Mem, prev) == node {
-			rt.St32(m.Mem, prev, rt.Ld32(m.Mem, node))
+		if binary.LittleEndian.Uint32(m.Mem[prev:]) == node {
+			binary.LittleEndian.PutUint32(m.Mem[prev:], binary.LittleEndian.Uint32(m.Mem[node:]))
 			break
 		}
-		prev = rt.Ld32(m.Mem, prev)
+		prev = binary.LittleEndian.Uint32(m.Mem[prev:])
 	}
 	m.LvStateCount--
-	m.LvStateBytes -= rt.Ld32(m.Mem, node+8)
+	m.LvStateBytes -= binary.LittleEndian.Uint32(m.Mem[node+8:])
 	m.LvFree(node)
-	rt.St32(m.Mem, slotAddr, m.LvIDFree<<1|1)
+	binary.LittleEndian.PutUint32(m.Mem[slotAddr:], m.LvIDFree<<1|1)
 	m.LvIDFree = id
 }
 
@@ -51743,10 +51744,10 @@ func (m *Machine) LvStackBase() uint32 {
 			if p >= 45200 {
 				break
 			}
-			if rt.Ld32(m.Mem, p) == 0 {
+			if binary.LittleEndian.Uint32(m.Mem[p:]) == 0 {
 				break
 			}
-			stack = m.LvFenceStack(rt.Ld32(m.Mem, p+8))
+			stack = m.LvFenceStack(binary.LittleEndian.Uint32(m.Mem[p+8:]))
 			if stack != 0 {
 				return stack
 			}
@@ -51782,53 +51783,53 @@ func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
 	if jsxLen > 4096 {
 		jsxLen = 4096
 	}
-	rt.St32(m.Mem, dst, stackLen)
-	rt.St32(m.Mem, dst+4, brkLen)
-	rt.St32(m.Mem, dst+8, jsxLen)
-	rt.St32(m.Mem, dst+12, m.StreamMode)
-	rt.St32(m.Mem, dst+16, m.StreamA)
-	rt.St32(m.Mem, dst+20, m.StreamB)
-	rt.St32(m.Mem, dst+24, m.StreamC)
-	rt.St32(m.Mem, dst+28, m.StreamHl)
-	rt.St32(m.Mem, dst+32, m.StreamRegionKind)
-	rt.St32(m.Mem, dst+36, m.StreamRegionStarted)
-	rt.St32(m.Mem, dst+40, m.RecCarryHl)
-	rt.St32(m.Mem, dst+44, m.MarkdownDepth)
-	rt.St32(m.Mem, dst+48, m.MarkdownStreamFence)
-	rt.St32(m.Mem, dst+52, m.MarkdownStreamFenceLen)
-	rt.St32(m.Mem, dst+56, m.MarkdownStreamLang)
-	rt.St32(m.Mem, dst+60, m.PhpStreamingCode)
-	rt.St32(m.Mem, dst+64, m.PhpStreamDecl)
-	rt.St32(m.Mem, dst+68, m.PhpStreamMember)
-	rt.St32(m.Mem, dst+72, m.BashArith)
-	rt.St32(m.Mem, dst+76, m.Lto)
-	rt.St32(m.Mem, dst+80, m.PrevLto)
-	rt.St32(m.Mem, dst+84, m.PrevTok)
-	rt.St32(m.Mem, dst+88, m.NlBefore)
-	rt.St32(m.Mem, dst+92, m.BraceDepth)
-	rt.St32(m.Mem, dst+96, m.RxCloser)
-	rt.St32(m.Mem, dst+100, m.JsTemplateLexSp)
-	rt.St32(m.Mem, dst+104, m.BrkSp)
-	rt.St32(m.Mem, dst+108, m.JsxSp)
-	rt.St32(m.Mem, dst+112, m.TsxStreamMode)
-	rt.St32(m.Mem, dst+116, m.TsxStreamNl)
-	rt.St32(m.Mem, dst+120, m.TsxStreamExpressionClose)
-	rt.St32(m.Mem, dst+124, m.TsxStreamExpressionClosed)
-	rt.St32(m.Mem, dst+128, m.TsxStreamExpressionDepth)
-	rt.St32(m.Mem, dst+132, m.SigParens)
-	rt.St32(m.Mem, dst+136, m.SigMask)
-	rt.St32(m.Mem, dst+140, m.SigObscure)
-	rt.St32(m.Mem, dst+144, m.SigPattern)
-	rt.St32(m.Mem, dst+148, m.SigAngle)
-	rt.St32(m.Mem, dst+152, m.SigFnPend)
-	rt.St32(m.Mem, dst+156, m.SigFnAngle)
-	rt.St32(m.Mem, dst+160, m.JsTemplateMarker)
-	rt.St32(m.Mem, dst+164, m.JsTemplateState)
-	rt.St32(m.Mem, dst+168, m.JsTemplateEmitSp)
+	binary.LittleEndian.PutUint32(m.Mem[dst:], stackLen)
+	binary.LittleEndian.PutUint32(m.Mem[dst+4:], brkLen)
+	binary.LittleEndian.PutUint32(m.Mem[dst+8:], jsxLen)
+	binary.LittleEndian.PutUint32(m.Mem[dst+12:], m.StreamMode)
+	binary.LittleEndian.PutUint32(m.Mem[dst+16:], m.StreamA)
+	binary.LittleEndian.PutUint32(m.Mem[dst+20:], m.StreamB)
+	binary.LittleEndian.PutUint32(m.Mem[dst+24:], m.StreamC)
+	binary.LittleEndian.PutUint32(m.Mem[dst+28:], m.StreamHl)
+	binary.LittleEndian.PutUint32(m.Mem[dst+32:], m.StreamRegionKind)
+	binary.LittleEndian.PutUint32(m.Mem[dst+36:], m.StreamRegionStarted)
+	binary.LittleEndian.PutUint32(m.Mem[dst+40:], m.RecCarryHl)
+	binary.LittleEndian.PutUint32(m.Mem[dst+44:], m.MarkdownDepth)
+	binary.LittleEndian.PutUint32(m.Mem[dst+48:], m.MarkdownStreamFence)
+	binary.LittleEndian.PutUint32(m.Mem[dst+52:], m.MarkdownStreamFenceLen)
+	binary.LittleEndian.PutUint32(m.Mem[dst+56:], m.MarkdownStreamLang)
+	binary.LittleEndian.PutUint32(m.Mem[dst+60:], m.PhpStreamingCode)
+	binary.LittleEndian.PutUint32(m.Mem[dst+64:], m.PhpStreamDecl)
+	binary.LittleEndian.PutUint32(m.Mem[dst+68:], m.PhpStreamMember)
+	binary.LittleEndian.PutUint32(m.Mem[dst+72:], m.BashArith)
+	binary.LittleEndian.PutUint32(m.Mem[dst+76:], m.Lto)
+	binary.LittleEndian.PutUint32(m.Mem[dst+80:], m.PrevLto)
+	binary.LittleEndian.PutUint32(m.Mem[dst+84:], m.PrevTok)
+	binary.LittleEndian.PutUint32(m.Mem[dst+88:], m.NlBefore)
+	binary.LittleEndian.PutUint32(m.Mem[dst+92:], m.BraceDepth)
+	binary.LittleEndian.PutUint32(m.Mem[dst+96:], m.RxCloser)
+	binary.LittleEndian.PutUint32(m.Mem[dst+100:], m.JsTemplateLexSp)
+	binary.LittleEndian.PutUint32(m.Mem[dst+104:], m.BrkSp)
+	binary.LittleEndian.PutUint32(m.Mem[dst+108:], m.JsxSp)
+	binary.LittleEndian.PutUint32(m.Mem[dst+112:], m.TsxStreamMode)
+	binary.LittleEndian.PutUint32(m.Mem[dst+116:], m.TsxStreamNl)
+	binary.LittleEndian.PutUint32(m.Mem[dst+120:], m.TsxStreamExpressionClose)
+	binary.LittleEndian.PutUint32(m.Mem[dst+124:], m.TsxStreamExpressionClosed)
+	binary.LittleEndian.PutUint32(m.Mem[dst+128:], m.TsxStreamExpressionDepth)
+	binary.LittleEndian.PutUint32(m.Mem[dst+132:], m.SigParens)
+	binary.LittleEndian.PutUint32(m.Mem[dst+136:], m.SigMask)
+	binary.LittleEndian.PutUint32(m.Mem[dst+140:], m.SigObscure)
+	binary.LittleEndian.PutUint32(m.Mem[dst+144:], m.SigPattern)
+	binary.LittleEndian.PutUint32(m.Mem[dst+148:], m.SigAngle)
+	binary.LittleEndian.PutUint32(m.Mem[dst+152:], m.SigFnPend)
+	binary.LittleEndian.PutUint32(m.Mem[dst+156:], m.SigFnAngle)
+	binary.LittleEndian.PutUint32(m.Mem[dst+160:], m.JsTemplateMarker)
+	binary.LittleEndian.PutUint32(m.Mem[dst+164:], m.JsTemplateState)
+	binary.LittleEndian.PutUint32(m.Mem[dst+168:], m.JsTemplateEmitSp)
 	rt.Copy(m.Mem, dst+172, 13952, 32)
 	rt.Copy(m.Mem, dst+204, 45104, 96)
-	rt.St32(m.Mem, dst+300, m.EcmaImport)
-	rt.St32(m.Mem, dst+304, m.TernaryTop)
+	binary.LittleEndian.PutUint32(m.Mem[dst+300:], m.EcmaImport)
+	binary.LittleEndian.PutUint32(m.Mem[dst+304:], m.TernaryTop)
 	p := dst + 308
 	rt.Copy(m.Mem, p, stackBase, stackLen)
 	p += stackLen
@@ -51847,7 +51848,7 @@ func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
 		if lo >= m.StreamStateHi {
 			break
 		}
-		if rt.AnyTrue(rt.LdV(m.Mem, 46224+lo)) {
+		if rt.AnyTrue(rt.LdV(m.Mem[46224+lo:])) {
 			break
 		}
 		lo += 16
@@ -51862,10 +51863,10 @@ func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
 		lo++
 	}
 	if lo >= m.StreamStateHi {
-		rt.St16(m.Mem, p, 0)
+		binary.LittleEndian.PutUint16(m.Mem[p:], uint16(0))
 		return p + 2 - dst
 	}
-	rt.St16(m.Mem, p, lo)
+	binary.LittleEndian.PutUint16(m.Mem[p:], uint16(lo))
 	rt.Copy(m.Mem, p+2, 46224+lo, m.StreamStateHi-lo)
 	return p + 2 + (m.StreamStateHi - lo) - dst
 }
@@ -51877,7 +51878,7 @@ func (m *Machine) LvTrimBlob(base, length uint32) uint32 {
 		if p-base < 16 {
 			break
 		}
-		if rt.AnyTrue(rt.LdV(m.Mem, p-16)) {
+		if rt.AnyTrue(rt.LdV(m.Mem[p-16:])) {
 			break
 		}
 		p -= 16
@@ -51896,54 +51897,54 @@ func (m *Machine) LvTrimBlob(base, length uint32) uint32 {
 
 // LvRestoreBlob is $lvRestoreBlob.
 func (m *Machine) LvRestoreBlob(src, length uint32) {
-	stackLen := rt.Ld32(m.Mem, src)
-	brkLen := rt.Ld32(m.Mem, src+4)
-	jsxLen := rt.Ld32(m.Mem, src+8)
-	m.StreamMode = rt.Ld32(m.Mem, src+12)
-	m.StreamA = rt.Ld32(m.Mem, src+16)
-	m.StreamB = rt.Ld32(m.Mem, src+20)
-	m.StreamC = rt.Ld32(m.Mem, src+24)
-	m.StreamHl = rt.Ld32(m.Mem, src+28)
-	m.StreamRegionKind = rt.Ld32(m.Mem, src+32)
-	m.StreamRegionStarted = rt.Ld32(m.Mem, src+36)
-	m.RecCarryHl = rt.Ld32(m.Mem, src+40)
-	m.MarkdownDepth = rt.Ld32(m.Mem, src+44)
-	m.MarkdownStreamFence = rt.Ld32(m.Mem, src+48)
-	m.MarkdownStreamFenceLen = rt.Ld32(m.Mem, src+52)
-	m.MarkdownStreamLang = rt.Ld32(m.Mem, src+56)
-	m.PhpStreamingCode = rt.Ld32(m.Mem, src+60)
-	m.PhpStreamDecl = rt.Ld32(m.Mem, src+64)
-	m.PhpStreamMember = rt.Ld32(m.Mem, src+68)
-	m.BashArith = rt.Ld32(m.Mem, src+72)
-	m.Lto = rt.Ld32(m.Mem, src+76)
-	m.PrevLto = rt.Ld32(m.Mem, src+80)
-	m.PrevTok = rt.Ld32(m.Mem, src+84)
-	m.NlBefore = rt.Ld32(m.Mem, src+88)
-	m.BraceDepth = rt.Ld32(m.Mem, src+92)
-	m.RxCloser = rt.Ld32(m.Mem, src+96)
-	m.JsTemplateLexSp = rt.Ld32(m.Mem, src+100)
-	m.BrkSp = rt.Ld32(m.Mem, src+104)
-	m.JsxSp = rt.Ld32(m.Mem, src+108)
-	m.TsxStreamMode = rt.Ld32(m.Mem, src+112)
-	m.TsxStreamNl = rt.Ld32(m.Mem, src+116)
-	m.TsxStreamExpressionClose = rt.Ld32(m.Mem, src+120)
-	m.TsxStreamExpressionClosed = rt.Ld32(m.Mem, src+124)
-	m.TsxStreamExpressionDepth = rt.Ld32(m.Mem, src+128)
-	m.SigParens = rt.Ld32(m.Mem, src+132)
-	m.SigMask = rt.Ld32(m.Mem, src+136)
-	m.SigObscure = rt.Ld32(m.Mem, src+140)
-	m.SigPattern = rt.Ld32(m.Mem, src+144)
-	m.SigAngle = rt.Ld32(m.Mem, src+148)
-	m.SigFnPend = rt.Ld32(m.Mem, src+152)
-	m.SigFnAngle = rt.Ld32(m.Mem, src+156)
-	m.JsTemplateMarker = rt.Ld32(m.Mem, src+160)
-	m.JsTemplateState = rt.Ld32(m.Mem, src+164)
-	m.JsTemplateEmitSp = rt.Ld32(m.Mem, src+168)
+	stackLen := binary.LittleEndian.Uint32(m.Mem[src:])
+	brkLen := binary.LittleEndian.Uint32(m.Mem[src+4:])
+	jsxLen := binary.LittleEndian.Uint32(m.Mem[src+8:])
+	m.StreamMode = binary.LittleEndian.Uint32(m.Mem[src+12:])
+	m.StreamA = binary.LittleEndian.Uint32(m.Mem[src+16:])
+	m.StreamB = binary.LittleEndian.Uint32(m.Mem[src+20:])
+	m.StreamC = binary.LittleEndian.Uint32(m.Mem[src+24:])
+	m.StreamHl = binary.LittleEndian.Uint32(m.Mem[src+28:])
+	m.StreamRegionKind = binary.LittleEndian.Uint32(m.Mem[src+32:])
+	m.StreamRegionStarted = binary.LittleEndian.Uint32(m.Mem[src+36:])
+	m.RecCarryHl = binary.LittleEndian.Uint32(m.Mem[src+40:])
+	m.MarkdownDepth = binary.LittleEndian.Uint32(m.Mem[src+44:])
+	m.MarkdownStreamFence = binary.LittleEndian.Uint32(m.Mem[src+48:])
+	m.MarkdownStreamFenceLen = binary.LittleEndian.Uint32(m.Mem[src+52:])
+	m.MarkdownStreamLang = binary.LittleEndian.Uint32(m.Mem[src+56:])
+	m.PhpStreamingCode = binary.LittleEndian.Uint32(m.Mem[src+60:])
+	m.PhpStreamDecl = binary.LittleEndian.Uint32(m.Mem[src+64:])
+	m.PhpStreamMember = binary.LittleEndian.Uint32(m.Mem[src+68:])
+	m.BashArith = binary.LittleEndian.Uint32(m.Mem[src+72:])
+	m.Lto = binary.LittleEndian.Uint32(m.Mem[src+76:])
+	m.PrevLto = binary.LittleEndian.Uint32(m.Mem[src+80:])
+	m.PrevTok = binary.LittleEndian.Uint32(m.Mem[src+84:])
+	m.NlBefore = binary.LittleEndian.Uint32(m.Mem[src+88:])
+	m.BraceDepth = binary.LittleEndian.Uint32(m.Mem[src+92:])
+	m.RxCloser = binary.LittleEndian.Uint32(m.Mem[src+96:])
+	m.JsTemplateLexSp = binary.LittleEndian.Uint32(m.Mem[src+100:])
+	m.BrkSp = binary.LittleEndian.Uint32(m.Mem[src+104:])
+	m.JsxSp = binary.LittleEndian.Uint32(m.Mem[src+108:])
+	m.TsxStreamMode = binary.LittleEndian.Uint32(m.Mem[src+112:])
+	m.TsxStreamNl = binary.LittleEndian.Uint32(m.Mem[src+116:])
+	m.TsxStreamExpressionClose = binary.LittleEndian.Uint32(m.Mem[src+120:])
+	m.TsxStreamExpressionClosed = binary.LittleEndian.Uint32(m.Mem[src+124:])
+	m.TsxStreamExpressionDepth = binary.LittleEndian.Uint32(m.Mem[src+128:])
+	m.SigParens = binary.LittleEndian.Uint32(m.Mem[src+132:])
+	m.SigMask = binary.LittleEndian.Uint32(m.Mem[src+136:])
+	m.SigObscure = binary.LittleEndian.Uint32(m.Mem[src+140:])
+	m.SigPattern = binary.LittleEndian.Uint32(m.Mem[src+144:])
+	m.SigAngle = binary.LittleEndian.Uint32(m.Mem[src+148:])
+	m.SigFnPend = binary.LittleEndian.Uint32(m.Mem[src+152:])
+	m.SigFnAngle = binary.LittleEndian.Uint32(m.Mem[src+156:])
+	m.JsTemplateMarker = binary.LittleEndian.Uint32(m.Mem[src+160:])
+	m.JsTemplateState = binary.LittleEndian.Uint32(m.Mem[src+164:])
+	m.JsTemplateEmitSp = binary.LittleEndian.Uint32(m.Mem[src+168:])
 	m.LiveStackBytes = stackLen
 	rt.Copy(m.Mem, 13952, src+172, 32)
 	rt.Copy(m.Mem, 45104, src+204, 96)
-	m.EcmaImport = rt.Ld32(m.Mem, src+300)
-	m.TernaryTop = rt.Ld32(m.Mem, src+304)
+	m.EcmaImport = binary.LittleEndian.Uint32(m.Mem[src+300:])
+	m.TernaryTop = binary.LittleEndian.Uint32(m.Mem[src+304:])
 	p := src + 308
 	stackBase := m.LvStackBase()
 	rt.Copy(m.Mem, stackBase, p, stackLen)
@@ -51959,7 +51960,7 @@ func (m *Machine) LvRestoreBlob(src, length uint32) {
 	rt.Copy(m.Mem, 40992, p, jsxLen)
 	p += jsxLen
 	m.StreamClearCheckpoints()
-	lo := rt.Ld16(m.Mem, p)
+	lo := uint32(binary.LittleEndian.Uint16(m.Mem[p:]))
 	p += 2
 	length = src + length - p
 	if int32(length) > 0 {
@@ -52021,9 +52022,9 @@ func (m *Machine) LvEnsureLines(extra uint32) {
 
 // LvFreeLineRes is $lvFreeLineRes.
 func (m *Machine) LvFreeLineRes(slot uint32) {
-	m.LvFreeLineText(rt.Ld32(m.Mem, slot), rt.Ld32(m.Mem, slot+4), rt.Ld32(m.Mem, slot+24))
-	m.LvFree(rt.Ld32(m.Mem, slot+12))
-	m.LvRelease(rt.Ld32(m.Mem, slot+20))
+	m.LvFreeLineText(binary.LittleEndian.Uint32(m.Mem[slot:]), binary.LittleEndian.Uint32(m.Mem[slot+4:]), binary.LittleEndian.Uint32(m.Mem[slot+24:]))
+	m.LvFree(binary.LittleEndian.Uint32(m.Mem[slot+12:]))
+	m.LvRelease(binary.LittleEndian.Uint32(m.Mem[slot+20:]))
 }
 
 // LvFreeLineText is $lvFreeLineText.
@@ -52058,33 +52059,33 @@ func (m *Machine) LvCancelLine() {
 func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 	var inBase, recStart, recLen, blobBase, blobLen, newID, end, stop, hl, before, w, node, remaining, base, lvCaptureBlob uint32
 	slot := m.LvSlot(i)
-	flags := rt.Ld32(m.Mem, slot+24)
-	byteLen := rt.Ld32(m.Mem, slot+4)
+	flags := binary.LittleEndian.Uint32(m.Mem[slot+24:])
+	byteLen := binary.LittleEndian.Uint32(m.Mem[slot+4:])
 	termBytes := flags & 3
 	total := byteLen + termBytes
-	wide := rt.Ld32(m.Mem, slot+8) >= 0x1000000
+	wide := binary.LittleEndian.Uint32(m.Mem[slot+8:]) >= 0x1000000
 	if m.LvLinePhase == 0 {
 		inBase = m.LvHeapCeil + 16
 		m.LvGrowTo(inBase + total + 64)
 		if reset != 0 {
 			m.LvResetCaptured()
 		} else if m.LvMachineID != m.LvIncoming {
-			node = rt.Ld32(m.Mem, m.LvIDTab+m.LvIncoming<<2)
+			node = binary.LittleEndian.Uint32(m.Mem[m.LvIDTab+m.LvIncoming<<2:])
 			m.LvGrowTo(inBase + 10790)
 			rt.Fill(m.Mem, inBase, 0, 8502)
-			rt.Copy(m.Mem, inBase, node+24, rt.Ld32(m.Mem, node+8))
-			m.LvRestoreBlob(inBase, rt.Ld32(m.Mem, node+8))
+			rt.Copy(m.Mem, inBase, node+24, binary.LittleEndian.Uint32(m.Mem[node+8:]))
+			m.LvRestoreBlob(inBase, binary.LittleEndian.Uint32(m.Mem[node+8:]))
 		}
 		m.LvMachineID = 0xffffffff
-		rt.Copy(m.Mem, inBase, rt.Ld32(m.Mem, slot), byteLen)
+		rt.Copy(m.Mem, inBase, binary.LittleEndian.Uint32(m.Mem[slot:]), byteLen)
 		if termBytes == 2 {
-			rt.St16(m.Mem, inBase+byteLen, 2573)
+			binary.LittleEndian.PutUint16(m.Mem[inBase+byteLen:], uint16(2573))
 		} else if termBytes != 0 {
 			m.Mem[inBase+byteLen] = '\n'
 		}
 		m.Mem[inBase+total] = 0
 		m.Mem[1] = 3
-		rt.St32(m.Mem, 2, total)
+		binary.LittleEndian.PutUint32(m.Mem[2:], total)
 		m.SrcBase = inBase
 		m.Streaming = true
 		m.StreamReset = reset
@@ -52114,7 +52115,7 @@ func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 		m.RecStreamEnd()
 		m.Streaming = false
 		m.StreamDepth = 0
-		recStart = rt.Ld32(m.Mem, 6)
+		recStart = binary.LittleEndian.Uint32(m.Mem[6:])
 		recLen = m.Out - recStart
 		blobBase = (recStart + recLen + 7) & 0xfffffff8
 		m.LvGrowTo(blobBase + 10868)
@@ -52124,10 +52125,10 @@ func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 		m.LvTransLo = recStart
 		m.LvTransHi = blobBase + blobLen
 		if reset == 0 && m.LvIncoming < m.LvIDNext {
-			node = rt.Ld32(m.Mem, m.LvIDTab+m.LvIncoming<<2)
-			if node&1 == 0 && node != 0 && rt.Ld32(m.Mem, node+8) == blobLen {
+			node = binary.LittleEndian.Uint32(m.Mem[m.LvIDTab+m.LvIncoming<<2:])
+			if node&1 == 0 && node != 0 && binary.LittleEndian.Uint32(m.Mem[node+8:]) == blobLen {
 				if m.LvBytesEq(node+24, blobBase, blobLen) {
-					rt.St32(m.Mem, node+4, rt.Ld32(m.Mem, node+4)+1)
+					binary.LittleEndian.PutUint32(m.Mem[node+4:], binary.LittleEndian.Uint32(m.Mem[node+4:])+1)
 					newID = m.LvIncoming
 				}
 			}
@@ -52167,8 +52168,8 @@ func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 			return 0xffffffff
 		}
 		w = m.LvTransLo + m.LvRecord
-		end = rt.Ld32(m.Mem, w)
-		hl = rt.Ld32(m.Mem, w+4)
+		end = binary.LittleEndian.Uint32(m.Mem[w:])
+		hl = binary.LittleEndian.Uint32(m.Mem[w+4:])
 		if end > byteLen {
 			end = byteLen
 		}
@@ -52177,7 +52178,7 @@ func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 			if stop > end {
 				stop = end
 			}
-			inBase = rt.Ld32(m.Mem, slot)
+			inBase = binary.LittleEndian.Uint32(m.Mem[slot:])
 			for {
 				if stop >= byteLen {
 					break
@@ -52199,21 +52200,21 @@ func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 		if m.LvTokenCount != 0 {
 			node = w - rt.Sel32(wide, 8, 4)
 			if wide {
-				before = rt.Ld32(m.Mem, node)
+				before = binary.LittleEndian.Uint32(m.Mem[node:])
 			} else {
-				before = rt.Ld32(m.Mem, node) & 0xffffff
+				before = binary.LittleEndian.Uint32(m.Mem[node:]) & 0xffffff
 			}
 		}
 		if m.LvChar > before {
-			if m.LvTokenCount != 0 && hl == rt.Sel32(wide, rt.Ld32(m.Mem, node+4), rt.Ld32(m.Mem, node)>>24) {
+			if m.LvTokenCount != 0 && hl == rt.Sel32(wide, binary.LittleEndian.Uint32(m.Mem[node+4:]), binary.LittleEndian.Uint32(m.Mem[node:])>>24) {
 				w = node
 				m.LvTokenCount--
 			}
 			if wide {
-				rt.St32(m.Mem, w, m.LvChar)
-				rt.St32(m.Mem, w+4, hl)
+				binary.LittleEndian.PutUint32(m.Mem[w:], m.LvChar)
+				binary.LittleEndian.PutUint32(m.Mem[w+4:], hl)
 			} else {
-				rt.St32(m.Mem, w, m.LvChar|hl<<24)
+				binary.LittleEndian.PutUint32(m.Mem[w:], m.LvChar|hl<<24)
 			}
 			m.LvTokenCount++
 		}
@@ -52222,10 +52223,10 @@ func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 	}
 	m.LvTransLo = 0
 	m.LvTransHi = 0
-	m.LvFree(rt.Ld32(m.Mem, slot+12))
-	rt.St32(m.Mem, slot+12, m.LvTokenPtr)
-	rt.St32(m.Mem, slot+16, m.LvTokenCount)
-	rt.St32(m.Mem, slot+24, flags&0xfffffffb|rt.B2u(wide)<<2)
+	m.LvFree(binary.LittleEndian.Uint32(m.Mem[slot+12:]))
+	binary.LittleEndian.PutUint32(m.Mem[slot+12:], m.LvTokenPtr)
+	binary.LittleEndian.PutUint32(m.Mem[slot+16:], m.LvTokenCount)
+	binary.LittleEndian.PutUint32(m.Mem[slot+24:], flags&0xfffffffb|rt.B2u(wide)<<2)
 	m.LvIncoming = m.LvOutgoing
 	m.LvOutgoing = 0
 	m.LvTokenPtr = 0
@@ -52242,7 +52243,7 @@ func (m *Machine) LvUTF16Len(p, length uint32) uint32 {
 		if stop-p < 16 {
 			break
 		}
-		w = rt.LdV(m.Mem, p)
+		w = rt.LdV(m.Mem[p:])
 		n += 16 - uint32(bits.OnesCount32(rt.Bitmask8(rt.Eq8(rt.And(w, rt.Splat8(192)), rt.Splat8(128)))))
 		n += uint32(bits.OnesCount32(rt.Bitmask8(rt.GeU8(w, rt.Splat8(240)))))
 		p += 16
@@ -52267,14 +52268,14 @@ func (m *Machine) LvUTF16Len(p, length uint32) uint32 {
 func (m *Machine) LvAppendLine(textPtr, byteLen, flags uint32) {
 	m.LvEnsureLines(1)
 	slot := m.LvLineTab + m.LvLineCount<<5
-	rt.St32(m.Mem, slot, textPtr)
-	rt.St32(m.Mem, slot+4, byteLen)
-	rt.St32(m.Mem, slot+8, m.LvUTF16Len(textPtr, byteLen))
-	rt.St32(m.Mem, slot+12, 0)
-	rt.St32(m.Mem, slot+16, 0)
-	rt.St32(m.Mem, slot+20, 0xffffffff)
-	rt.St32(m.Mem, slot+24, flags)
-	rt.St32(m.Mem, slot+28, 0)
+	binary.LittleEndian.PutUint32(m.Mem[slot:], textPtr)
+	binary.LittleEndian.PutUint32(m.Mem[slot+4:], byteLen)
+	binary.LittleEndian.PutUint32(m.Mem[slot+8:], m.LvUTF16Len(textPtr, byteLen))
+	binary.LittleEndian.PutUint32(m.Mem[slot+12:], 0)
+	binary.LittleEndian.PutUint32(m.Mem[slot+16:], 0)
+	binary.LittleEndian.PutUint32(m.Mem[slot+20:], 0xffffffff)
+	binary.LittleEndian.PutUint32(m.Mem[slot+24:], flags)
+	binary.LittleEndian.PutUint32(m.Mem[slot+28:], 0)
 	m.LvLineCount++
 	m.LvGapAt = m.LvLineCount
 }
@@ -52326,14 +52327,14 @@ func (m *Machine) LiveInitDoc(ptr, length, lang uint32) {
 	m.LvInitialEnd = stop
 	m.LvInitialLive = m.LvLineCount
 	m.LvInitialDead = 0
-	rt.St32(m.Mem, 81920, 1)
-	rt.St32(m.Mem, 81924, 0)
-	rt.St32(m.Mem, 81928, 0)
-	rt.St32(m.Mem, 81932, 0)
-	rt.St32(m.Mem, 81936, m.LvLineCount)
+	binary.LittleEndian.PutUint32(m.Mem[81920:], 1)
+	binary.LittleEndian.PutUint32(m.Mem[81924:], 0)
+	binary.LittleEndian.PutUint32(m.Mem[81928:], 0)
+	binary.LittleEndian.PutUint32(m.Mem[81932:], 0)
+	binary.LittleEndian.PutUint32(m.Mem[81936:], m.LvLineCount)
 	m.LvRangePtr = m.LvAlloc(8)
-	rt.St32(m.Mem, m.LvRangePtr, 0)
-	rt.St32(m.Mem, m.LvRangePtr+4, m.LvLineCount)
+	binary.LittleEndian.PutUint32(m.Mem[m.LvRangePtr:], 0)
+	binary.LittleEndian.PutUint32(m.Mem[m.LvRangePtr+4:], m.LvLineCount)
 	m.LvRangeCount = 1
 	m.LvRangeIdx = 0
 	m.LvChangeIdx = 0
@@ -52393,14 +52394,14 @@ func (m *Machine) LvEmitSpliceLine(line, src, length, flags, state uint32) {
 		rt.Copy(m.Mem, tp, src, length)
 	}
 	slot := m.LvSlot(line)
-	rt.St32(m.Mem, slot, tp)
-	rt.St32(m.Mem, slot+4, length)
-	rt.St32(m.Mem, slot+8, m.LvUTF16Len(src, length))
-	rt.St32(m.Mem, slot+12, 0)
-	rt.St32(m.Mem, slot+16, 0)
-	rt.St32(m.Mem, slot+20, state)
-	rt.St32(m.Mem, slot+24, flags)
-	rt.St32(m.Mem, slot+28, 0)
+	binary.LittleEndian.PutUint32(m.Mem[slot:], tp)
+	binary.LittleEndian.PutUint32(m.Mem[slot+4:], length)
+	binary.LittleEndian.PutUint32(m.Mem[slot+8:], m.LvUTF16Len(src, length))
+	binary.LittleEndian.PutUint32(m.Mem[slot+12:], 0)
+	binary.LittleEndian.PutUint32(m.Mem[slot+16:], 0)
+	binary.LittleEndian.PutUint32(m.Mem[slot+20:], state)
+	binary.LittleEndian.PutUint32(m.Mem[slot+24:], flags)
+	binary.LittleEndian.PutUint32(m.Mem[slot+28:], 0)
 }
 
 // LvSpliceEdit is $lvSpliceEdit.
@@ -52410,12 +52411,12 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 	sSlot := m.LvSlot(sLine)
 	eSlot := m.LvSlot(eLine)
 	same := sLine == eLine
-	sText := rt.Ld32(m.Mem, sSlot)
-	sByteLen := rt.Ld32(m.Mem, sSlot+4)
-	sFlags := rt.Ld32(m.Mem, sSlot+24)
-	eText := rt.Ld32(m.Mem, eSlot)
-	eByteLen := rt.Ld32(m.Mem, eSlot+4)
-	eFlags := rt.Ld32(m.Mem, eSlot+24)
+	sText := binary.LittleEndian.Uint32(m.Mem[sSlot:])
+	sByteLen := binary.LittleEndian.Uint32(m.Mem[sSlot+4:])
+	sFlags := binary.LittleEndian.Uint32(m.Mem[sSlot+24:])
+	eText := binary.LittleEndian.Uint32(m.Mem[eSlot:])
+	eByteLen := binary.LittleEndian.Uint32(m.Mem[eSlot+4:])
+	eFlags := binary.LittleEndian.Uint32(m.Mem[eSlot+24:])
 	sPos := m.LvCharToByte(sText, sByteLen, sChar)
 	sSplit := sPos >> 31
 	sPos &= 0x7fffffff
@@ -52448,7 +52449,7 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 	for {
 		if p >= 3 && p+3 <= L {
 			w = scratch + p
-			if rt.Ld16(m.Mem, w-3)&61695 == 41197 && rt.Ld16(m.Mem, w)&61695 == 45293 {
+			if uint32(binary.LittleEndian.Uint16(m.Mem[w-3:]))&61695 == 41197 && uint32(binary.LittleEndian.Uint16(m.Mem[w:]))&61695 == 45293 {
 				w -= 3
 				cp = 0x10000 + (((uint32(m.Mem[w+1])&15)<<6|uint32(m.Mem[w+2])&63)<<10 | (uint32(m.Mem[w+4])&15)<<6 | uint32(m.Mem[w+5])&63)
 				m.Mem[w] = byte(240 | cp>>18)
@@ -52467,10 +52468,10 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 	finalTerm := eFlags & 19
 	if sLine > 0 {
 		pSlot = m.LvSlot(sLine - 1)
-		pFlags = rt.Ld32(m.Mem, pSlot+24)
+		pFlags = binary.LittleEndian.Uint32(m.Mem[pSlot+24:])
 		if pFlags&19 == 17 && ((L != 0 && m.Mem[scratch] == '\n') || (L == 0 && finalTerm == 1)) {
-			pText = rt.Ld32(m.Mem, pSlot)
-			pLen = rt.Ld32(m.Mem, pSlot+4)
+			pText = binary.LittleEndian.Uint32(m.Mem[pSlot:])
+			pLen = binary.LittleEndian.Uint32(m.Mem[pSlot+4:])
 			w = m.LvAlloc(pLen + 1 + L)
 			rt.Copy(m.Mem, w, pText, pLen)
 			m.Mem[w+pLen] = '\r'
@@ -52519,7 +52520,7 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 	if n != n0 {
 		m.LvEnsureLines(n)
 	}
-	eState := rt.Ld32(m.Mem, m.LvSlot(eLine)+20)
+	eState := binary.LittleEndian.Uint32(m.Mem[m.LvSlot(eLine)+20:])
 	j := sLine
 	for {
 		if j > eLine {
@@ -52529,9 +52530,9 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 		if j > sLine && j < eLine {
 			m.LvFreeLineRes(b)
 		} else {
-			m.LvFree(rt.Ld32(m.Mem, b+12))
+			m.LvFree(binary.LittleEndian.Uint32(m.Mem[b+12:]))
 			if j < eLine {
-				m.LvRelease(rt.Ld32(m.Mem, b+20))
+				m.LvRelease(binary.LittleEndian.Uint32(m.Mem[b+20:]))
 			}
 		}
 		j++
@@ -52586,43 +52587,43 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 // LvAddChange is $lvAddChange.
 func (m *Machine) LvAddChange(os, oe, ns, ne uint32) bool {
 	var last uint32
-	count := rt.Ld32(m.Mem, 81920)
+	count := binary.LittleEndian.Uint32(m.Mem[81920:])
 	if count != 0 {
 		last = 0x14004 + (count-1)<<4
-		if os <= rt.Ld32(m.Mem, last+4) {
-			if oe > rt.Ld32(m.Mem, last+4) {
-				rt.St32(m.Mem, last+4, oe)
+		if os <= binary.LittleEndian.Uint32(m.Mem[last+4:]) {
+			if oe > binary.LittleEndian.Uint32(m.Mem[last+4:]) {
+				binary.LittleEndian.PutUint32(m.Mem[last+4:], oe)
 			}
-			if ne > rt.Ld32(m.Mem, last+12) {
-				rt.St32(m.Mem, last+12, ne)
+			if ne > binary.LittleEndian.Uint32(m.Mem[last+12:]) {
+				binary.LittleEndian.PutUint32(m.Mem[last+12:], ne)
 			}
 			return false
 		}
 		if count >= 1000 {
-			rt.St32(m.Mem, last+4, oe)
-			rt.St32(m.Mem, last+12, ne)
+			binary.LittleEndian.PutUint32(m.Mem[last+4:], oe)
+			binary.LittleEndian.PutUint32(m.Mem[last+12:], ne)
 			return false
 		}
 	}
 	last = 0x14004 + count<<4
-	rt.St32(m.Mem, last, os)
-	rt.St32(m.Mem, last+4, oe)
-	rt.St32(m.Mem, last+8, ns)
-	rt.St32(m.Mem, last+12, ne)
-	rt.St32(m.Mem, 81920, count+1)
+	binary.LittleEndian.PutUint32(m.Mem[last:], os)
+	binary.LittleEndian.PutUint32(m.Mem[last+4:], oe)
+	binary.LittleEndian.PutUint32(m.Mem[last+8:], ns)
+	binary.LittleEndian.PutUint32(m.Mem[last+12:], ne)
+	binary.LittleEndian.PutUint32(m.Mem[81920:], count+1)
 	return true
 }
 
 // LvAbsorbChange is $lvAbsorbChange.
 func (m *Machine) LvAbsorbChange(idx uint32) {
-	count := rt.Ld32(m.Mem, 81920)
+	count := binary.LittleEndian.Uint32(m.Mem[81920:])
 	e := 0x14004 + idx<<4
-	rt.St32(m.Mem, e+4, rt.Ld32(m.Mem, e+20))
-	rt.St32(m.Mem, e+12, rt.Ld32(m.Mem, e+28))
+	binary.LittleEndian.PutUint32(m.Mem[e+4:], binary.LittleEndian.Uint32(m.Mem[e+20:]))
+	binary.LittleEndian.PutUint32(m.Mem[e+12:], binary.LittleEndian.Uint32(m.Mem[e+28:]))
 	if count > idx+2 {
 		rt.Copy(m.Mem, e+16, e+32, (count-(idx+2))<<4)
 	}
-	rt.St32(m.Mem, 81920, count-1)
+	binary.LittleEndian.PutUint32(m.Mem[81920:], count-1)
 }
 
 // LvCloseRange is $lvCloseRange.
@@ -52631,8 +52632,8 @@ func (m *Machine) LvCloseRange(through uint32) {
 		return
 	}
 	e := 0x14004 + m.LvChangeIdx<<4
-	rt.St32(m.Mem, e+4, rt.Ld32(m.Mem, e+4)+(through-m.LvDirtyTo))
-	rt.St32(m.Mem, e+12, through)
+	binary.LittleEndian.PutUint32(m.Mem[e+4:], binary.LittleEndian.Uint32(m.Mem[e+4:])+(through-m.LvDirtyTo))
+	binary.LittleEndian.PutUint32(m.Mem[e+12:], through)
 }
 
 // LvFinish is $lvFinish.
@@ -52650,7 +52651,7 @@ func (m *Machine) LvNewAddr(body uint32) uint32 {
 	if body == 0 {
 		return 0
 	}
-	return rt.Ld32(m.Mem, body-8+4) + 8
+	return binary.LittleEndian.Uint32(m.Mem[body-8+4:]) + 8
 }
 
 // LvCompact is $lvCompact.
@@ -52662,9 +52663,9 @@ func (m *Machine) LvCompact() {
 		if hdr >= m.LvHeapEnd {
 			break
 		}
-		size = rt.Ld32(m.Mem, hdr) & 0xfffffffe
-		if rt.Ld32(m.Mem, hdr)&1 == 0 {
-			rt.St32(m.Mem, hdr+4, to)
+		size = binary.LittleEndian.Uint32(m.Mem[hdr:]) & 0xfffffffe
+		if binary.LittleEndian.Uint32(m.Mem[hdr:])&1 == 0 {
+			binary.LittleEndian.PutUint32(m.Mem[hdr+4:], to)
 			to += size
 		}
 		hdr += size
@@ -52685,13 +52686,13 @@ func (m *Machine) LvCompact() {
 			}
 		}
 		slot = m.LvLineTab + i<<5
-		flags = rt.Ld32(m.Mem, slot+24)
+		flags = binary.LittleEndian.Uint32(m.Mem[slot+24:])
 		if flags&8 != 0 {
-			rt.St32(m.Mem, slot, newInitial+(rt.Ld32(m.Mem, slot)-m.LvInitialBlock))
+			binary.LittleEndian.PutUint32(m.Mem[slot:], newInitial+(binary.LittleEndian.Uint32(m.Mem[slot:])-m.LvInitialBlock))
 		} else {
-			rt.St32(m.Mem, slot, m.LvNewAddr(rt.Ld32(m.Mem, slot)))
+			binary.LittleEndian.PutUint32(m.Mem[slot:], m.LvNewAddr(binary.LittleEndian.Uint32(m.Mem[slot:])))
 		}
-		rt.St32(m.Mem, slot+12, m.LvNewAddr(rt.Ld32(m.Mem, slot+12)))
+		binary.LittleEndian.PutUint32(m.Mem[slot+12:], m.LvNewAddr(binary.LittleEndian.Uint32(m.Mem[slot+12:])))
 		i++
 	}
 	i = 1
@@ -52700,9 +52701,9 @@ func (m *Machine) LvCompact() {
 			break
 		}
 		slot = m.LvIDTab + i<<2
-		v = rt.Ld32(m.Mem, slot)
+		v = binary.LittleEndian.Uint32(m.Mem[slot:])
 		if v != 0 && v&1 == 0 {
-			rt.St32(m.Mem, slot, m.LvNewAddr(v))
+			binary.LittleEndian.PutUint32(m.Mem[slot:], m.LvNewAddr(v))
 		}
 		i++
 	}
@@ -52712,14 +52713,14 @@ func (m *Machine) LvCompact() {
 			break
 		}
 		slot = m.LvBuckets + i<<2
-		node = rt.Ld32(m.Mem, slot)
-		rt.St32(m.Mem, slot, m.LvNewAddr(node))
+		node = binary.LittleEndian.Uint32(m.Mem[slot:])
+		binary.LittleEndian.PutUint32(m.Mem[slot:], m.LvNewAddr(node))
 		for {
 			if node == 0 {
 				break
 			}
-			next = rt.Ld32(m.Mem, node)
-			rt.St32(m.Mem, node, m.LvNewAddr(next))
+			next = binary.LittleEndian.Uint32(m.Mem[node:])
+			binary.LittleEndian.PutUint32(m.Mem[node:], m.LvNewAddr(next))
 			node = next
 		}
 		i++
@@ -52736,13 +52737,13 @@ func (m *Machine) LvCompact() {
 		if hdr >= m.LvHeapEnd {
 			break
 		}
-		size = rt.Ld32(m.Mem, hdr) & 0xfffffffe
-		if rt.Ld32(m.Mem, hdr)&1 == 0 {
-			to = rt.Ld32(m.Mem, hdr+4)
+		size = binary.LittleEndian.Uint32(m.Mem[hdr:]) & 0xfffffffe
+		if binary.LittleEndian.Uint32(m.Mem[hdr:])&1 == 0 {
+			to = binary.LittleEndian.Uint32(m.Mem[hdr+4:])
 			if to != hdr {
 				rt.Copy(m.Mem, to, hdr, size)
 			}
-			rt.St32(m.Mem, to+4, 0)
+			binary.LittleEndian.PutUint32(m.Mem[to+4:], 0)
 		}
 		hdr += size
 	}
@@ -52759,13 +52760,13 @@ func (m *Machine) LvAddPend(a, b, shift, ranges, rangeCount uint32) uint32 {
 	}
 	if m.LvAddChange(a, b, a+shift, b+shift) {
 		slot = ranges + rangeCount<<3
-		rt.St32(m.Mem, slot, a+shift)
-		rt.St32(m.Mem, slot+4, b+shift)
+		binary.LittleEndian.PutUint32(m.Mem[slot:], a+shift)
+		binary.LittleEndian.PutUint32(m.Mem[slot+4:], b+shift)
 		return rangeCount + 1
 	}
 	slot = ranges + (rangeCount-1)<<3
-	if b+shift > rt.Ld32(m.Mem, slot+4) {
-		rt.St32(m.Mem, slot+4, b+shift)
+	if b+shift > binary.LittleEndian.Uint32(m.Mem[slot+4:]) {
+		binary.LittleEndian.PutUint32(m.Mem[slot+4:], b+shift)
 	}
 	return rangeCount
 }
@@ -52775,7 +52776,7 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 	var k, e, n, n0, shift, newFrom, newTo, rangeCount, slot, pend, pendCount, pendIdx, pendSlot, a, b, os, oe uint32
 	var ext bool
 	m.LvCancelLine()
-	count := rt.Ld32(m.Mem, staged)
+	count := binary.LittleEndian.Uint32(m.Mem[staged:])
 	if m.LvPhase || undelivered != 0 {
 		a = m.LvCursor
 		if m.LvDirtyTo > a {
@@ -52795,8 +52796,8 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 			pendCount = 1
 		}
 		pend = m.LvAlloc(pendCount << 3)
-		rt.St32(m.Mem, pend, a)
-		rt.St32(m.Mem, pend+4, b)
+		binary.LittleEndian.PutUint32(m.Mem[pend:], a)
+		binary.LittleEndian.PutUint32(m.Mem[pend+4:], b)
 		k = 1
 		for {
 			if k >= pendCount {
@@ -52804,8 +52805,8 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 			}
 			slot = m.LvRangePtr + (m.LvRangeIdx+k)<<3
 			pendSlot = pend + k<<3
-			rt.St32(m.Mem, pendSlot, rt.Ld32(m.Mem, slot))
-			rt.St32(m.Mem, pendSlot+4, rt.Ld32(m.Mem, slot+4))
+			binary.LittleEndian.PutUint32(m.Mem[pendSlot:], binary.LittleEndian.Uint32(m.Mem[slot:]))
+			binary.LittleEndian.PutUint32(m.Mem[pendSlot+4:], binary.LittleEndian.Uint32(m.Mem[slot+4:]))
 			k++
 		}
 		m.LvFree(m.LvRangePtr)
@@ -52819,10 +52820,10 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 		}
 		k--
 		e = staged + 4 + k*24
-		n = m.LvSpliceEdit(rt.Ld32(m.Mem, e), rt.Ld32(m.Mem, e+4), rt.Ld32(m.Mem, e+8), rt.Ld32(m.Mem, e+12), staged+rt.Ld32(m.Mem, e+16), rt.Ld32(m.Mem, e+20))
-		rt.St32(m.Mem, e+20, n)
+		n = m.LvSpliceEdit(binary.LittleEndian.Uint32(m.Mem[e:]), binary.LittleEndian.Uint32(m.Mem[e+4:]), binary.LittleEndian.Uint32(m.Mem[e+8:]), binary.LittleEndian.Uint32(m.Mem[e+12:]), staged+binary.LittleEndian.Uint32(m.Mem[e+16:]), binary.LittleEndian.Uint32(m.Mem[e+20:]))
+		binary.LittleEndian.PutUint32(m.Mem[e+20:], n)
 	}
-	rt.St32(m.Mem, 81920, 0)
+	binary.LittleEndian.PutUint32(m.Mem[81920:], 0)
 	ranges := m.LvAlloc((count + pendCount + 1) << 3)
 	k = 0
 	for {
@@ -52830,25 +52831,25 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 			break
 		}
 		e = staged + 4 + k*24
-		n = rt.Ld32(m.Mem, e+20)
+		n = binary.LittleEndian.Uint32(m.Mem[e+20:])
 		ext = n&1 != 0
 		n >>= 1
-		n0 = rt.Ld32(m.Mem, e+8) - rt.Ld32(m.Mem, e) + 1 + rt.B2u(ext)
-		os = rt.Ld32(m.Mem, e) - rt.B2u(ext)
-		oe = rt.Ld32(m.Mem, e+8) + 1
+		n0 = binary.LittleEndian.Uint32(m.Mem[e+8:]) - binary.LittleEndian.Uint32(m.Mem[e:]) + 1 + rt.B2u(ext)
+		os = binary.LittleEndian.Uint32(m.Mem[e:]) - rt.B2u(ext)
+		oe = binary.LittleEndian.Uint32(m.Mem[e+8:]) + 1
 		for {
 			if pendIdx >= pendCount {
 				break
 			}
 			pendSlot = pend + pendIdx<<3
-			a = rt.Ld32(m.Mem, pendSlot)
-			b = rt.Ld32(m.Mem, pendSlot+4)
+			a = binary.LittleEndian.Uint32(m.Mem[pendSlot:])
+			b = binary.LittleEndian.Uint32(m.Mem[pendSlot+4:])
 			if a >= oe {
 				break
 			}
 			rangeCount = m.LvAddPend(a, rt.Sel32(b < os, b, os), shift, ranges, rangeCount)
 			if b > oe {
-				rt.St32(m.Mem, pendSlot, oe)
+				binary.LittleEndian.PutUint32(m.Mem[pendSlot:], oe)
 				break
 			}
 			pendIdx++
@@ -52856,13 +52857,13 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 		newFrom = os + shift
 		newTo = newFrom + n
 		if m.LvAddChange(os, oe, newFrom, newTo) {
-			rt.St32(m.Mem, ranges+rangeCount<<3, newFrom)
-			rt.St32(m.Mem, ranges+rangeCount<<3+4, newTo)
+			binary.LittleEndian.PutUint32(m.Mem[ranges+rangeCount<<3:], newFrom)
+			binary.LittleEndian.PutUint32(m.Mem[ranges+rangeCount<<3+4:], newTo)
 			rangeCount++
 		} else {
 			slot = ranges + (rangeCount-1)<<3
-			if newTo > rt.Ld32(m.Mem, slot+4) {
-				rt.St32(m.Mem, slot+4, newTo)
+			if newTo > binary.LittleEndian.Uint32(m.Mem[slot+4:]) {
+				binary.LittleEndian.PutUint32(m.Mem[slot+4:], newTo)
 			}
 		}
 		shift += n - n0
@@ -52873,7 +52874,7 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 			break
 		}
 		pendSlot = pend + pendIdx<<3
-		rangeCount = m.LvAddPend(rt.Ld32(m.Mem, pendSlot), rt.Ld32(m.Mem, pendSlot+4), shift, ranges, rangeCount)
+		rangeCount = m.LvAddPend(binary.LittleEndian.Uint32(m.Mem[pendSlot:]), binary.LittleEndian.Uint32(m.Mem[pendSlot+4:]), shift, ranges, rangeCount)
 		pendIdx++
 	}
 	m.LvFree(pend)
@@ -52885,10 +52886,10 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 	m.LvRetok = 0
 	m.LvMachineID = 0xffffffff
 	if rangeCount != 0 {
-		m.LvCursor = rt.Ld32(m.Mem, ranges)
-		m.LvDirtyTo = rt.Ld32(m.Mem, ranges+4)
+		m.LvCursor = binary.LittleEndian.Uint32(m.Mem[ranges:])
+		m.LvDirtyTo = binary.LittleEndian.Uint32(m.Mem[ranges+4:])
 		if m.LvCursor != 0 {
-			m.LvIncoming = rt.Ld32(m.Mem, m.LvSlot(m.LvCursor-1)+20)
+			m.LvIncoming = binary.LittleEndian.Uint32(m.Mem[m.LvSlot(m.LvCursor-1)+20:])
 		} else {
 			m.LvIncoming = 0
 		}
@@ -52914,12 +52915,12 @@ func (m *Machine) LiveRun(budget, end, work uint32) uint32 {
 		budget--
 		i = m.LvCursor
 		slot = m.LvSlot(i)
-		oldID = rt.Ld32(m.Mem, slot+20)
+		oldID = binary.LittleEndian.Uint32(m.Mem[slot+20:])
 		newID = m.LvRunLine(i, rt.B2u(i == 0), work)
 		if newID == 0xffffffff {
 			return 1
 		}
-		rt.St32(m.Mem, slot+20, newID)
+		binary.LittleEndian.PutUint32(m.Mem[slot+20:], newID)
 		m.LvRelease(oldID)
 		m.LvRetok++
 		m.LvCursor = i + 1
@@ -52928,11 +52929,11 @@ func (m *Machine) LiveRun(budget, end, work uint32) uint32 {
 				break
 			}
 			next = m.LvRangePtr + (m.LvRangeIdx+1)<<3
-			if m.LvCursor < rt.Ld32(m.Mem, next) {
+			if m.LvCursor < binary.LittleEndian.Uint32(m.Mem[next:]) {
 				break
 			}
-			if rt.Ld32(m.Mem, next+4) > m.LvDirtyTo {
-				m.LvDirtyTo = rt.Ld32(m.Mem, next+4)
+			if binary.LittleEndian.Uint32(m.Mem[next+4:]) > m.LvDirtyTo {
+				m.LvDirtyTo = binary.LittleEndian.Uint32(m.Mem[next+4:])
 			}
 			m.LvRangeIdx++
 			m.LvAbsorbChange(m.LvChangeIdx)
@@ -52948,9 +52949,9 @@ func (m *Machine) LiveRun(budget, end, work uint32) uint32 {
 				m.LvRangeIdx++
 				m.LvChangeIdx++
 				next = m.LvRangePtr + m.LvRangeIdx<<3
-				m.LvCursor = rt.Ld32(m.Mem, next)
-				m.LvDirtyTo = rt.Ld32(m.Mem, next+4)
-				m.LvIncoming = rt.Ld32(m.Mem, m.LvSlot(m.LvCursor-1)+20)
+				m.LvCursor = binary.LittleEndian.Uint32(m.Mem[next:])
+				m.LvDirtyTo = binary.LittleEndian.Uint32(m.Mem[next+4:])
+				m.LvIncoming = binary.LittleEndian.Uint32(m.Mem[m.LvSlot(m.LvCursor-1)+20:])
 			} else {
 				m.LvFinish()
 				return 0
@@ -52966,32 +52967,32 @@ func (m *Machine) LiveLineCount() uint32 {
 
 // LiveLineLen is (export "liveLineLen").
 func (m *Machine) LiveLineLen(i uint32) uint32 {
-	return rt.Ld32(m.Mem, m.LvSlot(i)+8)
+	return binary.LittleEndian.Uint32(m.Mem[m.LvSlot(i)+8:])
 }
 
 // LiveLineByteLen is (export "liveLineByteLen").
 func (m *Machine) LiveLineByteLen(i uint32) uint32 {
-	return rt.Ld32(m.Mem, m.LvSlot(i)+4)
+	return binary.LittleEndian.Uint32(m.Mem[m.LvSlot(i)+4:])
 }
 
 // LiveLineTextPtr is (export "liveLineTextPtr").
 func (m *Machine) LiveLineTextPtr(i uint32) uint32 {
-	return rt.Ld32(m.Mem, m.LvSlot(i))
+	return binary.LittleEndian.Uint32(m.Mem[m.LvSlot(i):])
 }
 
 // LiveLineFlags is (export "liveLineFlags").
 func (m *Machine) LiveLineFlags(i uint32) uint32 {
-	return rt.Ld32(m.Mem, m.LvSlot(i)+24)
+	return binary.LittleEndian.Uint32(m.Mem[m.LvSlot(i)+24:])
 }
 
 // LiveLineTokPtr is (export "liveLineTokPtr").
 func (m *Machine) LiveLineTokPtr(i uint32) uint32 {
-	return rt.Ld32(m.Mem, m.LvSlot(i)+12)
+	return binary.LittleEndian.Uint32(m.Mem[m.LvSlot(i)+12:])
 }
 
 // LiveLineTokCount is (export "liveLineTokCount").
 func (m *Machine) LiveLineTokCount(i uint32) uint32 {
-	return rt.Ld32(m.Mem, m.LvSlot(i)+16)
+	return binary.LittleEndian.Uint32(m.Mem[m.LvSlot(i)+16:])
 }
 
 // LiveChangesPtr is (export "liveChangesPtr").

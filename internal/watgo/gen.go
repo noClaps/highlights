@@ -346,8 +346,11 @@ func generate(mod *Module, opts Options) (string, []byte) {
 	sb.WriteString(consts.declarations())
 	src := sb.String()
 	bitsImport := ""
+	if strings.Contains(funcs.String(), "binary.") {
+		bitsImport += "\t\"encoding/binary\"\n"
+	}
 	if strings.Contains(funcs.String(), "bits.") {
-		bitsImport = "\t\"math/bits\"\n"
+		bitsImport += "\t\"math/bits\"\n"
 	}
 	return strings.Replace(src, "@@bits@@\n", bitsImport, 1), mem
 }
@@ -1342,6 +1345,12 @@ func (g *fgen) typeOf(e *expr, types map[string]string) string {
 				return f.Results[0].goType()
 			}
 			return ""
+		}
+		switch e.fn {
+		case "binary.LittleEndian.Uint32":
+			return "uint32"
+		case "binary.LittleEndian.Uint64":
+			return "uint64"
 		}
 		if name, ok := strings.CutPrefix(e.fn, "rt."); ok {
 			switch {
@@ -2796,28 +2805,30 @@ type memOp struct {
 	helper string
 }
 
+// loads and stores are templates over the memory slice from the
+// address, m.Mem[a:], and for a store the value
 var loads = map[string]memOp{
-	"i32.load":     {I32, "rt.Ld32"},
-	"i32.load8_u":  {I32, "rt.Ld8"},
-	"i32.load8_s":  {I32, "rt.Ld8s"},
-	"i32.load16_u": {I32, "rt.Ld16"},
-	"i32.load16_s": {I32, "rt.Ld16s"},
-	"i64.load":     {I64, "rt.Ld64"},
-	"i64.load8_u":  {I64, "rt.Ld64_8"},
-	"i64.load16_u": {I64, "rt.Ld64_16"},
-	"i64.load32_u": {I64, "rt.Ld64_32"},
-	"v128.load":    {V128, "rt.LdV"},
+	"i32.load":     {I32, "binary.LittleEndian.Uint32(%s)"},
+	"i32.load8_u":  {I32, ""},
+	"i32.load8_s":  {I32, "uint32(int8(%s[0]))"},
+	"i32.load16_u": {I32, "uint32(binary.LittleEndian.Uint16(%s))"},
+	"i32.load16_s": {I32, "uint32(int16(binary.LittleEndian.Uint16(%s)))"},
+	"i64.load":     {I64, "binary.LittleEndian.Uint64(%s)"},
+	"i64.load8_u":  {I64, ""},
+	"i64.load16_u": {I64, "uint64(binary.LittleEndian.Uint16(%s))"},
+	"i64.load32_u": {I64, "uint64(binary.LittleEndian.Uint32(%s))"},
+	"v128.load":    {V128, "rt.LdV(%s)"},
 }
 
 var stores = map[string]memOp{
-	"i32.store":   {I32, "rt.St32"},
-	"i32.store8":  {I32, "rt.St8"},
-	"i32.store16": {I32, "rt.St16"},
-	"i64.store":   {I64, "rt.St64"},
-	"i64.store8":  {I64, "rt.St64_8"},
-	"i64.store16": {I64, "rt.St64_16"},
-	"i64.store32": {I64, "rt.St64_32"},
-	"v128.store":  {V128, "rt.StV"},
+	"i32.store":   {I32, "binary.LittleEndian.PutUint32(%s, %s)"},
+	"i32.store8":  {I32, ""},
+	"i32.store16": {I32, "binary.LittleEndian.PutUint16(%s, uint16(%s))"},
+	"i64.store":   {I64, "binary.LittleEndian.PutUint64(%s, %s)"},
+	"i64.store8":  {I64, ""},
+	"i64.store16": {I64, "binary.LittleEndian.PutUint16(%s, uint16(%s))"},
+	"i64.store32": {I64, "binary.LittleEndian.PutUint32(%s, uint32(%s))"},
+	"v128.store":  {V128, "rt.StV(%s, %s)"},
 }
 
 func (g *fgen) apply(head string, imms []string) {
@@ -2842,7 +2853,7 @@ func (g *fgen) apply(head string, imms []string) {
 			g.push(value{expr: op.typ.goType() + "(" + b + ")", typ: op.typ, byteExpr: b})
 			return
 		}
-		g.push(value{expr: fmt.Sprintf("%s(m.Mem, %s)", op.helper, at), typ: op.typ})
+		g.push(value{expr: fmt.Sprintf(op.helper, "m.Mem["+at+":]"), typ: op.typ})
 		return
 	}
 	if op, ok := stores[head]; ok {
@@ -2861,7 +2872,7 @@ func (g *fgen) apply(head string, imms []string) {
 			g.line("m.Mem[%s] = %s", at, b)
 			return
 		}
-		g.line("%s(m.Mem, %s, %s)", op.helper, at, trimParens(g.asValue(v)))
+		g.line(op.helper, "m.Mem["+at+":]", trimParens(g.asValue(v)))
 		return
 	}
 	switch head {
