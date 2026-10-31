@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"highlights/internal/engine"
+	"highlights/internal/fixtures/kwtest"
 	"highlights/internal/jsjson"
 )
 
@@ -714,6 +715,10 @@ func (r *replayer) harness(src *moduleSrc) func(*engine.Machine) {
 		skip("module from %s", filepath.Base(src.URL))
 	}
 	content := *src.Content
+	// test modules that add exports to the full module highlight with it
+	if strings.Contains(content, `(import "../src/highlights.wat")`) {
+		return nil
+	}
 	if m := langTemplate.FindStringSubmatch(content); m != nil {
 		fn := lexer(m[2])
 		return func(m *engine.Machine) {
@@ -1568,11 +1573,58 @@ func rawResult(recorded json.RawMessage, v uint64) any {
 // customHarness returns the highlight entry of a test module that is not
 // one of the lexer templates, or nil.
 func customHarness(content string) func(*engine.Machine) {
+	// tsx_test.ts scans the first half of the input, then the rest
+	if strings.Contains(content, `(import "../src/langs/tsx.wat")`) && strings.Contains(content, "(local.set $mid") {
+		return func(m *engine.Machine) {
+			m.FhlBegin()
+			m.Gend = m.Gptr + (m.Gend-m.Gptr)>>1
+			m.FhlTsx()
+			m.Gend = m.Geof
+			m.FhlTsx()
+			m.FhlEnd()
+		}
+	}
 	return nil
 }
 
 // customMachine instantiates a test module used through its exports, or
 // returns nil.
 func customMachine(src *moduleSrc) *rawMachine {
+	if src == nil || src.Content == nil {
+		return nil
+	}
+	content := *src.Content
+	switch {
+	case strings.Contains(content, `(export "escape")`):
+		// e2e_test.ts: escape [65536, 65536+len) to 131072
+		return engineRaw(newMachine(), map[string]func(*engine.Machine, []uint64) uint64{
+			"escape": func(m *engine.Machine, args []uint64) uint64 {
+				m.Gout = 131072
+				m.FescCopy(65536, 65536+uint32(args[0]))
+				return uint64(m.Gout - 131072)
+			},
+		})
+	case strings.Contains(content, `(export "keyword" (func $isKeyword))`):
+		return engineRaw(newMachine(), map[string]func(*engine.Machine, []uint64) uint64{
+			"keyword": func(m *engine.Machine, args []uint64) uint64 {
+				return uint64(m.FisKeyword(uint32(args[0]), uint32(args[1])))
+			},
+		})
+	case strings.Contains(content, "(keyword-table $Test "):
+		m := kwtest.New()
+		return &rawMachine{
+			mem: &m.Mem,
+			call: func(name string, args []uint64) (uint64, bool) {
+				switch name {
+				case "lookup":
+					return uint64(m.ExportLookup(uint32(args[0]))), true
+				case "lower":
+					return uint64(m.ExportLower(uint32(args[0]))), true
+				}
+				return 0, false
+			},
+			setEnv: func(func(string) uint32) {},
+		}
+	}
 	return nil
 }
