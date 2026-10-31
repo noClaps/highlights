@@ -382,17 +382,17 @@ var (
 // slice per completed line. An isolated engine instance scans each
 // completed chunk once and keeps lexer state between chunks.
 type StreamTokenizer struct {
-	hl               *Highlighter
-	langID           int
-	ansi             *ansiState
-	set              *themeSet
-	prefix           string
-	maxLineLength    int
-	pendingBytes     []byte
-	pendingSurrogate string // an incomplete code point at the end of a text chunk
-	tail             string
-	streamChar       int
-	streamStarted    bool
+	hl            *Highlighter
+	langID        int
+	ansi          *ansiState
+	set           *themeSet
+	prefix        string
+	maxLineLength int
+	pendingBytes  []byte
+	pendingRune   string // an incomplete code point at the end of a text chunk
+	tail          string
+	streamChar    int
+	streamStarted bool
 }
 
 // NewStreamTokenizer validates the options and takes an engine instance.
@@ -444,13 +444,13 @@ func (s *StreamTokenizer) PushBytes(chunk []byte) ([][]ThemedToken, error) {
 		chunk = s.pendingBytes
 		s.pendingBytes = nil
 	}
-	prefix := s.tail + s.pendingSurrogate
+	prefix := s.tail + s.pendingRune
 	lines, err := s.tokenizeBytes(chunk[:end], prefix)
 	if err != nil {
 		return nil, err
 	}
 	s.tail = ""
-	s.pendingSurrogate = ""
+	s.pendingRune = ""
 	if end < len(chunk) {
 		s.pendingBytes = append([]byte(nil), chunk[end:]...)
 	}
@@ -472,11 +472,11 @@ func (s *StreamTokenizer) Push(chunk string) ([][]ThemedToken, error) {
 		chunk = decoded + chunk
 		s.pendingBytes = nil
 	}
-	chunk = s.pendingSurrogate + chunk
-	s.pendingSurrogate = ""
+	chunk = s.pendingRune + chunk
+	s.pendingRune = ""
 	// keep an incomplete trailing code point for the next chunk
 	if cut := incompleteSuffix(chunk); cut > 0 {
-		s.pendingSurrogate = chunk[len(chunk)-cut:]
+		s.pendingRune = chunk[len(chunk)-cut:]
 		chunk = chunk[:len(chunk)-cut]
 	}
 	end := strings.LastIndexByte(chunk, '\n') + 1
@@ -501,10 +501,10 @@ func (s *StreamTokenizer) End() ([][]ThemedToken, error) {
 	}
 	defer s.Close()
 	if len(s.pendingBytes) > 0 {
-		return s.tokenizeBytes(s.pendingBytes, s.tail+s.pendingSurrogate)
+		return s.tokenizeBytes(s.pendingBytes, s.tail+s.pendingRune)
 	}
-	s.tail += s.pendingSurrogate
-	s.pendingSurrogate = ""
+	s.tail += s.pendingRune
+	s.pendingRune = ""
 	if s.tail == "" {
 		return [][]ThemedToken{{}}, nil
 	}
@@ -527,7 +527,7 @@ func (s *StreamTokenizer) Close() error {
 	streamPoolMu.Unlock()
 	s.hl = nil
 	s.pendingBytes = nil
-	s.pendingSurrogate = ""
+	s.pendingRune = ""
 	s.tail = ""
 	return nil
 }
