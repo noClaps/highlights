@@ -6,11 +6,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"strconv"
-	"strings"
 	"go/format"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"highlights/internal/wat"
 	"highlights/internal/watgo"

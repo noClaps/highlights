@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -145,7 +146,7 @@ type LiveTokenizer struct {
 	maxLineLength   int
 	onDeferTokenize func(map[int][]HighlightedToken)
 	schedule        func(func())
-	now             func() time.Time
+	nowMS           func() float64
 	revision        int
 	deferGeneration int
 	materializing   *materializing
@@ -177,7 +178,17 @@ func eol(flags uint32) string {
 
 // NewLiveTokenizer creates a tokenizer for an initial document.
 func NewLiveTokenizer(opts LiveTokenizerOptions) (*LiveTokenizer, error) {
-	t := &LiveTokenizer{}
+	now := opts.Now
+	if now == nil {
+		now = time.Now
+	}
+	return newLiveTokenizerWithClock(opts, func() float64 { return float64(now().UnixNano()) / 1e6 })
+}
+
+// newLiveTokenizerWithClock creates a tokenizer whose budgets read nowMS,
+// in milliseconds.
+func newLiveTokenizerWithClock(opts LiveTokenizerOptions, nowMS func() float64) (*LiveTokenizer, error) {
+	t := &LiveTokenizer{nowMS: nowMS}
 	// an editor needs tokens that cover the raw text, so `ansi` keeps its
 	// escape sequences and uses the plain lexer
 	if !isAnsi(opts.Lang) {
@@ -196,10 +207,6 @@ func NewLiveTokenizer(opts LiveTokenizerOptions) (*LiveTokenizer, error) {
 	t.maxLineLength = opts.TokenizeMaxLineLength
 	t.onDeferTokenize = opts.OnDeferTokenize
 	t.schedule = opts.Schedule
-	t.now = opts.Now
-	if t.now == nil {
-		t.now = time.Now
-	}
 	if err := checkRenderRange(opts.RenderRange); err != nil {
 		return nil, err
 	}
@@ -315,7 +322,7 @@ func (t *LiveTokenizer) flush(endLine int, all bool) error {
 	if !all {
 		end = min(endLine, count)
 	}
-	_, err = t.workSlice(hl, end, time.Time{}, nil)
+	_, err = t.workSlice(hl, end, math.Inf(1), nil)
 	if generation == t.deferGeneration && t.hl == hl && !t.paused && t.pending(hl) {
 		t.scheduleSlice(generation)
 	}
@@ -633,7 +640,7 @@ func (t *LiveTokenizer) runSlice(hl *Highlighter, renderRange *LineRange) (map[i
 	if renderRange.Start < count {
 		end = min(renderRange.End, count)
 	}
-	lines, err := t.workSlice(hl, end, t.now().Add(time.Millisecond), renderRange)
+	lines, err := t.workSlice(hl, end, t.nowMS()+1, renderRange)
 	if generation == t.deferGeneration && t.hl == hl && !t.paused && t.pending(hl) {
 		t.scheduleSlice(generation)
 	}
@@ -659,7 +666,7 @@ func (t *LiveTokenizer) deferSlice(generation int) {
 		return
 	}
 	hl := t.hl
-	_, _ = t.workSlice(hl, int(hl.m.ExportLiveLineCount()), t.now().Add(time.Millisecond), nil)
+	_, _ = t.workSlice(hl, int(hl.m.ExportLiveLineCount()), t.nowMS()+1, nil)
 	if generation == t.deferGeneration && t.hl == hl && !t.paused && t.pending(hl) {
 		t.scheduleSlice(generation)
 	}
@@ -676,14 +683,14 @@ func (t *LiveTokenizer) deliver(lines map[int][]HighlightedToken) {
 }
 
 // workSlice tokenizes and materializes lines before endLine until the
-// deadline; a zero deadline has no limit.
-func (t *LiveTokenizer) workSlice(hl *Highlighter, endLine int, deadline time.Time, renderRange *LineRange) (map[int][]HighlightedToken, error) {
+// deadline in milliseconds; an infinite deadline has no limit.
+func (t *LiveTokenizer) workSlice(hl *Highlighter, endLine int, deadline float64, renderRange *LineRange) (map[int][]HighlightedToken, error) {
 	generation := t.deferGeneration
 	lines := map[int][]HighlightedToken{}
 	deferred := map[int][]HighlightedToken{}
 	first := t.set.themes[0]
-	unlimited := deadline.IsZero()
-	expired := func() bool { return !unlimited && !t.now().Before(deadline) }
+	unlimited := math.IsInf(deadline, 1)
+	expired := func() bool { return !(t.nowMS() < deadline) }
 	inRange := func(line int) bool {
 		return renderRange != nil && line >= renderRange.Start && line < renderRange.End
 	}

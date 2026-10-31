@@ -421,6 +421,286 @@ func (m *Machine) ExportLiveStats(p0 uint32) uint32 {
 	return m.XliveStats(p0)
 }
 
+// Funcs maps each named function without parameters or results to its
+// method.
+var Funcs = map[string]func(*Machine){
+	"$scanToLineEnd":               (*Machine).FscanToLineEnd,
+	"$scanBlockCommentEnd":         (*Machine).FscanBlockCommentEnd,
+	"$scanWhitespace":              (*Machine).FscanWhitespace,
+	"$streamClearCheckpoints":      (*Machine).FstreamClearCheckpoints,
+	"$closeSpan":                   (*Machine).FcloseSpan,
+	"$recStreamEnd":                (*Machine).FrecStreamEnd,
+	"$recLinesPost":                (*Machine).FrecLinesPost,
+	"$lexEmitLeadingContinuation":  (*Machine).FlexEmitLeadingContinuation,
+	"$multiPrologue":               (*Machine).FmultiPrologue,
+	"$prologue":                    (*Machine).Fprologue,
+	"$epilogue":                    (*Machine).Fepilogue,
+	"$hlBegin":                     (*Machine).FhlBegin,
+	"$hlEnd":                       (*Machine).FhlEnd,
+	"$sigReset":                    (*Machine).FsigReset,
+	"$sigMark":                     (*Machine).FsigMark,
+	"$sigUnmark":                   (*Machine).FsigUnmark,
+	"$lexScanIdent":                (*Machine).FlexScanIdent,
+	"$lexScanNumber":               (*Machine).FlexScanNumber,
+	"$cssScanIdent":                (*Machine).FcssScanIdent,
+	"$cssScanNumber":               (*Machine).FcssScanNumber,
+	"$hlCss":                       (*Machine).FhlCss,
+	"$hlLess":                      (*Machine).FhlLess,
+	"$hlScss":                      (*Machine).FhlScss,
+	"$hlSass":                      (*Machine).FhlSass,
+	"$hlStylus":                    (*Machine).FhlStylus,
+	"$xmlScanName":                 (*Machine).FxmlScanName,
+	"$hlXml":                       (*Machine).FhlXml,
+	"$hlHtml":                      (*Machine).FhlHtml,
+	"$hlAngularHtml":               (*Machine).FhlAngularHtml,
+	"$brkPop":                      (*Machine).FbrkPop,
+	"$scanIdentTail":               (*Machine).FscanIdentTail,
+	"$hlJs":                        (*Machine).FhlJs,
+	"$jsxPop":                      (*Machine).FjsxPop,
+	"$jsxOpenContainer":            (*Machine).FjsxOpenContainer,
+	"$jsxTagStep":                  (*Machine).FjsxTagStep,
+	"$jsxCloseTailStep":            (*Machine).FjsxCloseTailStep,
+	"$jsxContentStep":              (*Machine).FjsxContentStep,
+	"$hlJsx":                       (*Machine).FhlJsx,
+	"$hlTs":                        (*Machine).FhlTs,
+	"$tsrxStyleStep":               (*Machine).FtsrxStyleStep,
+	"$hlTsrx":                      (*Machine).FhlTsrx,
+	"$ecmaReset":                   (*Machine).FecmaReset,
+	"$hlTsx":                       (*Machine).FhlTsx,
+	"$hlYaml":                      (*Machine).FhlYaml,
+	"$hlSvelte":                    (*Machine).FhlSvelte,
+	"$hlAstro":                     (*Machine).FhlAstro,
+	"$markdownFenceClearDeeper":    (*Machine).FmarkdownFenceClearDeeper,
+	"$markdownClearEmbeddedStream": (*Machine).FmarkdownClearEmbeddedStream,
+	"$hlMarkdown":                  (*Machine).FhlMarkdown,
+	"$streamClearEmbedded":         (*Machine).FstreamClearEmbedded,
+	"$hlAbap":                      (*Machine).FhlAbap,
+	"$hlAda":                       (*Machine).FhlAda,
+	"$hlJavaImpl":                  (*Machine).FhlJavaImpl,
+	"$hlJava":                      (*Machine).FhlJava,
+	"$hlApex":                      (*Machine).FhlApex,
+	"$hlIni":                       (*Machine).FhlIni,
+	"$hlApache":                    (*Machine).FhlApache,
+	"$hlApplescript":               (*Machine).FhlApplescript,
+	"$hlRst":                       (*Machine).FhlRst,
+	"$hlAsciidoc":                  (*Machine).FhlAsciidoc,
+	"$hlAsm":                       (*Machine).FhlAsm,
+	"$awkRegex":                    (*Machine).FawkRegex,
+	"$hlAwk":                       (*Machine).FhlAwk,
+	"$bashScanWord":                (*Machine).FbashScanWord,
+	"$bashDouble":                  (*Machine).FbashDouble,
+	"$hlBash":                      (*Machine).FhlBash,
+	"$hlBatch":                     (*Machine).FhlBatch,
+	"$hlBibtex":                    (*Machine).FhlBibtex,
+	"$hlBicep":                     (*Machine).FhlBicep,
+	"$hlPhp":                       (*Machine).FhlPhp,
+	"$tmplCut":                     (*Machine).FtmplCut,
+	"$hlBlade":                     (*Machine).FhlBlade,
+	"$hlC":                         (*Machine).FhlC,
+	"$hlC3":                        (*Machine).FhlC3,
+	"$cljScanSymbol":               (*Machine).FcljScanSymbol,
+	"$hlClojure":                   (*Machine).FhlClojure,
+	"$cmakeReference":              (*Machine).FcmakeReference,
+	"$cmakeScanWord":               (*Machine).FcmakeScanWord,
+	"$hlCmake":                     (*Machine).FhlCmake,
+	"$hlCobol":                     (*Machine).FhlCobol,
+	"$hlCodeowners":                (*Machine).FhlCodeowners,
+	"$hlCodeql":                    (*Machine).FhlCodeql,
+	"$hlCoffee":                    (*Machine).FhlCoffee,
+	"$hlCoq":                       (*Machine).FhlCoq,
+	"$cppScanNumber":               (*Machine).FcppScanNumber,
+	"$hlCpp":                       (*Machine).FhlCpp,
+	"$hlCsharp":                    (*Machine).FhlCsharp,
+	"$hlCsv":                       (*Machine).FhlCsv,
+	"$hlTsv":                       (*Machine).FhlTsv,
+	"$hlCuda":                      (*Machine).FhlCuda,
+	"$hlCypher":                    (*Machine).FhlCypher,
+	"$dDelimitedString":            (*Machine).FdDelimitedString,
+	"$hlD":                         (*Machine).FhlD,
+	"$hlDart":                      (*Machine).FhlDart,
+	"$hlDax":                       (*Machine).FhlDax,
+	"$hlDiff":                      (*Machine).FhlDiff,
+	"$hlDockerfile":                (*Machine).FhlDockerfile,
+	"$hlDotenv":                    (*Machine).FhlDotenv,
+	"$hlElixir":                    (*Machine).FhlElixir,
+	"$hlElm":                       (*Machine).FhlElm,
+	"$hlRuby":                      (*Machine).FhlRuby,
+	"$hlErb":                       (*Machine).FhlErb,
+	"$erlScanNumber":               (*Machine).FerlScanNumber,
+	"$hlErlang":                    (*Machine).FhlErlang,
+	"$hlFish":                      (*Machine).FhlFish,
+	"$hlFortranImpl":               (*Machine).FhlFortranImpl,
+	"$hlFortran":                   (*Machine).FhlFortran,
+	"$hlFortranFixed":              (*Machine).FhlFortranFixed,
+	"$hlOcaml":                     (*Machine).FhlOcaml,
+	"$mlFloatDot":                  (*Machine).FmlFloatDot,
+	"$hlFsharp":                    (*Machine).FhlFsharp,
+	"$hlPython":                    (*Machine).FhlPython,
+	"$hlGdscript":                  (*Machine).FhlGdscript,
+	"$hlGdresource":                (*Machine).FhlGdresource,
+	"$hlGlsl":                      (*Machine).FhlGlsl,
+	"$hlGdshader":                  (*Machine).FhlGdshader,
+	"$hlGherkin":                   (*Machine).FhlGherkin,
+	"$hlGleam":                     (*Machine).FhlGleam,
+	"$hlGnuplot":                   (*Machine).FhlGnuplot,
+	"$hlGo":                        (*Machine).FhlGo,
+	"$gqlBlockString":              (*Machine).FgqlBlockString,
+	"$hlGraphql":                   (*Machine).FhlGraphql,
+	"$hlGroq":                      (*Machine).FhlGroq,
+	"$hlGroovy":                    (*Machine).FhlGroovy,
+	"$hlHack":                      (*Machine).FhlHack,
+	"$hlHaml":                      (*Machine).FhlHaml,
+	"$hlJinja":                     (*Machine).FhlJinja,
+	"$hlHandlebars":                (*Machine).FhlHandlebars,
+	"$hlHaskell":                   (*Machine).FhlHaskell,
+	"$hlHaxe":                      (*Machine).FhlHaxe,
+	"$hlHlsl":                      (*Machine).FhlHlsl,
+	"$hlJson":                      (*Machine).FhlJson,
+	"$hlJson5":                     (*Machine).FhlJson5,
+	"$hlJsonl":                     (*Machine).FhlJsonl,
+	"$jsonNumber":                  (*Machine).FjsonNumber,
+	"$httpSkipBlanks":              (*Machine).FhttpSkipBlanks,
+	"$hlHttp":                      (*Machine).FhlHttp,
+	"$hlJsonnet":                   (*Machine).FhlJsonnet,
+	"$hlJulia":                     (*Machine).FhlJulia,
+	"$hlJust":                      (*Machine).FhlJust,
+	"$hlRust":                      (*Machine).FhlRust,
+	"$kdlIdentEnd":                 (*Machine).FkdlIdentEnd,
+	"$hlKdl":                       (*Machine).FhlKdl,
+	"$hlKotlin":                    (*Machine).FhlKotlin,
+	"$hlLatex":                     (*Machine).FhlLatex,
+	"$hlLean":                      (*Machine).FhlLean,
+	"$hlLiquid":                    (*Machine).FhlLiquid,
+	"$lispScanSymbol":              (*Machine).FlispScanSymbol,
+	"$hlLisp":                      (*Machine).FhlLisp,
+	"$llvmName":                    (*Machine).FllvmName,
+	"$llvmString":                  (*Machine).FllvmString,
+	"$hlLlvm":                      (*Machine).FhlLlvm,
+	"$hlLog":                       (*Machine).FhlLog,
+	"$hlLua":                       (*Machine).FhlLua,
+	"$hlLuau":                      (*Machine).FhlLuau,
+	"$makeScanWord":                (*Machine).FmakeScanWord,
+	"$makeQuoted":                  (*Machine).FmakeQuoted,
+	"$hlMakefile":                  (*Machine).FhlMakefile,
+	"$matBlockComment":             (*Machine).FmatBlockComment,
+	"$hlMatlab":                    (*Machine).FhlMatlab,
+	"$hlMdx":                       (*Machine).FhlMdx,
+	"$hlMermaid":                   (*Machine).FhlMermaid,
+	"$hlMoonbit":                   (*Machine).FhlMoonbit,
+	"$hlNginx":                     (*Machine).FhlNginx,
+	"$hlNim":                       (*Machine).FhlNim,
+	"$hlNix":                       (*Machine).FhlNix,
+	"$hlObjc":                      (*Machine).FhlObjc,
+	"$hlOdin":                      (*Machine).FhlOdin,
+	"$hlOpenscad":                  (*Machine).FhlOpenscad,
+	"$pasString":                   (*Machine).FpasString,
+	"$hlPascal":                    (*Machine).FhlPascal,
+	"$hlPerl":                      (*Machine).FhlPerl,
+	"$hlSqlImpl":                   (*Machine).FhlSqlImpl,
+	"$hlSql":                       (*Machine).FhlSql,
+	"$hlPlsql":                     (*Machine).FhlPlsql,
+	"$poString":                    (*Machine).FpoString,
+	"$hlPo":                        (*Machine).FhlPo,
+	"$hlPowerquery":                (*Machine).FhlPowerquery,
+	"$hlPowershell":                (*Machine).FhlPowershell,
+	"$hlPrisma":                    (*Machine).FhlPrisma,
+	"$hlProlog":                    (*Machine).FhlProlog,
+	"$hlProto":                     (*Machine).FhlProto,
+	"$hlPug":                       (*Machine).FhlPug,
+	"$puppetName":                  (*Machine).FpuppetName,
+	"$hlPuppet":                    (*Machine).FhlPuppet,
+	"$hlQml":                       (*Machine).FhlQml,
+	"$hlR":                         (*Machine).FhlR,
+	"$hlRazor":                     (*Machine).FhlRazor,
+	"$hlSparql":                    (*Machine).FhlSparql,
+	"$hlTurtle":                    (*Machine).FhlTurtle,
+	"$hlReg":                       (*Machine).FhlReg,
+	"$hlRosmsg":                    (*Machine).FhlRosmsg,
+	"$hlSas":                       (*Machine).FhlSas,
+	"$hlScala":                     (*Machine).FhlScala,
+	"$hlShaderlab":                 (*Machine).FhlShaderlab,
+	"$hlSolidity":                  (*Machine).FhlSolidity,
+	"$hlStata":                     (*Machine).FhlStata,
+	"$hlSwift":                     (*Machine).FhlSwift,
+	"$tclScanName":                 (*Machine).FtclScanName,
+	"$hlTcl":                       (*Machine).FhlTcl,
+	"$hlTerraform":                 (*Machine).FhlTerraform,
+	"$hlToml":                      (*Machine).FhlToml,
+	"$hlTwig":                      (*Machine).FhlTwig,
+	"$typstLabelName":              (*Machine).FtypstLabelName,
+	"$hlTypst":                     (*Machine).FhlTypst,
+	"$hlVerilog":                   (*Machine).FhlVerilog,
+	"$hlVhdl":                      (*Machine).FhlVhdl,
+	"$hlViml":                      (*Machine).FhlViml,
+	"$vueTag":                      (*Machine).FvueTag,
+	"$hlVue":                       (*Machine).FhlVue,
+	"$watBlockComment":             (*Machine).FwatBlockComment,
+	"$hlWat":                       (*Machine).FhlWat,
+	"$hlWgsl":                      (*Machine).FhlWgsl,
+	"$wlName":                      (*Machine).FwlName,
+	"$wlDigits":                    (*Machine).FwlDigits,
+	"$hlWolfram":                   (*Machine).FhlWolfram,
+	"$hlZig":                       (*Machine).FhlZig,
+	"$hlPlain":                     (*Machine).FhlPlain,
+	"$lvHeapInit":                  (*Machine).FlvHeapInit,
+	"$lvStateInit":                 (*Machine).FlvStateInit,
+	"$lvGrowBuckets":               (*Machine).FlvGrowBuckets,
+	"$lvResetCaptured":             (*Machine).FlvResetCaptured,
+	"$lvCancelLine":                (*Machine).FlvCancelLine,
+	"$lvFinish":                    (*Machine).FlvFinish,
+	"$lvCompact":                   (*Machine).FlvCompact,
+	"$streamResetGlobals":          (*Machine).FstreamResetGlobals,
+}
+
+// CallExport calls an export with integer arguments. It reports false
+// for an unknown export or one with vector values.
+func (m *Machine) CallExport(name string, args []uint64) (uint64, bool) {
+	switch name {
+	case "highlight":
+		m.Xhighlight()
+		return 0, true
+	case "highlightStream":
+		m.XhighlightStream(uint32(arg(args, 0)))
+		return 0, true
+	case "liveApplyEdits":
+		m.XliveApplyEdits(uint32(arg(args, 0)), uint32(arg(args, 1)))
+		return 0, true
+	case "liveChangesPtr":
+		return uint64(m.XliveChangesPtr()), true
+	case "liveInitDoc":
+		m.XliveInitDoc(uint32(arg(args, 0)), uint32(arg(args, 1)), uint32(arg(args, 2)))
+		return 0, true
+	case "liveLineByteLen":
+		return uint64(m.XliveLineByteLen(uint32(arg(args, 0)))), true
+	case "liveLineCount":
+		return uint64(m.XliveLineCount()), true
+	case "liveLineFlags":
+		return uint64(m.XliveLineFlags(uint32(arg(args, 0)))), true
+	case "liveLineLen":
+		return uint64(m.XliveLineLen(uint32(arg(args, 0)))), true
+	case "liveLineTextPtr":
+		return uint64(m.XliveLineTextPtr(uint32(arg(args, 0)))), true
+	case "liveLineTokCount":
+		return uint64(m.XliveLineTokCount(uint32(arg(args, 0)))), true
+	case "liveLineTokPtr":
+		return uint64(m.XliveLineTokPtr(uint32(arg(args, 0)))), true
+	case "liveRun":
+		return uint64(m.XliveRun(uint32(arg(args, 0)), uint32(arg(args, 1)), uint32(arg(args, 2)))), true
+	case "liveStage":
+		return uint64(m.XliveStage(uint32(arg(args, 0)))), true
+	case "liveStats":
+		return uint64(m.XliveStats(uint32(arg(args, 0)))), true
+	}
+	return 0, false
+}
+
+func arg(args []uint64, i int) uint64 {
+	if i < len(args) {
+		return args[i]
+	}
+	return 0
+}
+
 // FthemeRec is $themeRec.
 func (m *Machine) FthemeRec(l_hl uint32) uint32 {
 	var t0 uint32

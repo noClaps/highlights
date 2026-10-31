@@ -168,6 +168,45 @@ func generate(mod *Module, opts Options) (string, []byte) {
 		}
 	}
 
+	// lookup tables for tools and tests
+	w("// Funcs maps each named function without parameters or results to its\n// method.\nvar Funcs = map[string]func(*Machine){\n")
+	for _, f := range mod.Funcs {
+		if f.Import == nil && f.Name != "" && len(f.Params) == 0 && len(f.Results) == 0 {
+			w("\t%q: (*Machine).%s,\n", f.Name, f.GoName)
+		}
+	}
+	w("}\n\n")
+	w("// CallExport calls an export with integer arguments. It reports false\n// for an unknown export or one with vector values.\nfunc (m *Machine) CallExport(name string, args []uint64) (uint64, bool) {\n\tswitch name {\n")
+	for _, e := range exportNames {
+		f := exportOf[e]
+		scalar := true
+		for _, p := range f.Params {
+			if p.Type == V128 {
+				scalar = false
+			}
+		}
+		for _, r := range f.Results {
+			if r == V128 {
+				scalar = false
+			}
+		}
+		if !scalar {
+			continue
+		}
+		var args []string
+		for i, p := range f.Params {
+			args = append(args, fmt.Sprintf("%s(arg(args, %d))", p.Type.goType(), i))
+		}
+		call := fmt.Sprintf("m.%s(%s)", f.GoName, strings.Join(args, ", "))
+		w("\tcase %q:\n", e)
+		if len(f.Results) > 0 {
+			w("\t\treturn uint64(%s), true\n", call)
+		} else {
+			w("\t\t%s\n\t\treturn 0, true\n", call)
+		}
+	}
+	w("\t}\n\treturn 0, false\n}\n\nfunc arg(args []uint64, i int) uint64 {\n\tif i < len(args) {\n\t\treturn args[i]\n\t}\n\treturn 0\n}\n\n")
+
 	for _, f := range mod.Funcs {
 		if f.Import != nil {
 			continue

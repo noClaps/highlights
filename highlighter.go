@@ -71,7 +71,9 @@ func IsSupportedLanguage(lang string) bool {
 // Highlighter owns one engine instance. It is not safe for concurrent use;
 // the package-level functions pool instances for concurrent callers.
 type Highlighter struct {
-	m               *engine.Machine
+	m *engine.Machine
+	// entry replaces the highlight export, for lexer test harnesses
+	entry           func(*engine.Machine)
 	themeWritten    []byte
 	htmlPrefix      string
 	htmlPrefixSet   bool
@@ -143,7 +145,9 @@ func (h *Highlighter) run(langID, mode, inputLength int, reset *bool) (err error
 			err = trapError(r)
 		}
 	}()
-	if reset == nil {
+	if reset == nil && h.entry != nil {
+		h.entry(h.m)
+	} else if reset == nil {
 		h.m.ExportHighlight()
 	} else if *reset {
 		h.m.ExportHighlightStream(1)
