@@ -99,8 +99,32 @@ func (t *utf16Text) slice(a, b int) string {
 	if a >= b {
 		return ""
 	}
+	if t.ascii {
+		return t.s[min(a, len(t.s)):min(b, len(t.s))]
+	}
 	start := t.byteOffset(a)
-	return t.s[start:t.byteOffset(b)]
+	var head string
+	if t.u > a {
+		// a falls inside a surrogate pair: keep its low half
+		_, lo := splitPair(t.s, t.b-4)
+		head = lo
+	}
+	end := t.byteOffset(b)
+	if t.u > b {
+		hi, _ := splitPair(t.s, t.b-4)
+		return head + t.s[start:end-4] + hi
+	}
+	return head + t.s[start:end]
+}
+
+// splitPair returns the WTF-8 halves of the four-byte code point at s[i].
+func splitPair(s string, i int) (hi, lo string) {
+	r, _ := utf8.DecodeRuneInString(s[i:])
+	r -= 0x10000
+	enc := func(u rune) string {
+		return string([]byte{0xed, byte(0x80 | (u>>6)&0x3f), byte(0x80 | u&0x3f)})
+	}
+	return enc(0xd800 + r>>10), enc(0xdc00 + r&0x3ff)
 }
 
 // decodeUTF8 decodes bytes as the WHATWG UTF-8 decoder does, replacing each

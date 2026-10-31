@@ -1306,7 +1306,7 @@ func (r *replayer) liveCall(e *event, c *cursor) {
 	}
 	lineArg := func() int {
 		n, ok := arg(0).(float64)
-		if !ok || n != math.Trunc(n) {
+		if !ok || n != math.Trunc(n) || math.IsInf(n, 0) {
 			skip("line is not an integer")
 		}
 		return int(n)
@@ -1418,7 +1418,7 @@ func (r *replayer) edits(v any) []TextEdit {
 		}
 		l, ok1 := o.Value("line").(float64)
 		ch, ok2 := o.Value("character").(float64)
-		if !ok1 || !ok2 || l != math.Trunc(l) || ch != math.Trunc(ch) {
+		if !ok1 || !ok2 || l != math.Trunc(l) || ch != math.Trunc(ch) || math.IsInf(l, 0) || math.IsInf(ch, 0) {
 			skip("position is not integral")
 		}
 		return Position{int(l), int(ch)}
@@ -1459,7 +1459,9 @@ func (r *replayer) deferCallback(c *cursor) func(map[int][]HighlightedToken) {
 
 func (r *replayer) rawNew(e *event) {
 	src := r.modules[*e.Module]
-	if src == nil || src.Content != nil || !strings.HasSuffix(src.URL, "/src/highlights.wat") {
+	full := src != nil && ((src.Content == nil && strings.HasSuffix(src.URL, "/src/highlights.wat")) ||
+		(src.Content != nil && strings.Contains(*src.Content, `(import "../src/highlights.wat")`)))
+	if !full {
 		if m := customMachine(src); m != nil {
 			r.raws[e.ID] = m
 			return
