@@ -1,6 +1,7 @@
 package highlights
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -53,13 +54,22 @@ func (s HTMLStyle) CSS() string {
 	return sb.String()
 }
 
-// MarshalJSON encodes the declarations as an ordered object.
+// MarshalJSON encodes the declarations as an object in order.
 func (s HTMLStyle) MarshalJSON() ([]byte, error) {
-	o := &Object{}
-	for _, p := range s {
-		o.Set(p.Name, p.Value)
+	var b bytes.Buffer
+	b.WriteByte('{')
+	for i, p := range s {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		k, _ := json.Marshal(p.Name)
+		v, _ := json.Marshal(p.Value)
+		b.Write(k)
+		b.WriteByte(':')
+		b.Write(v)
 	}
-	return o.MarshalJSON()
+	b.WriteByte('}')
+	return b.Bytes(), nil
 }
 
 // Shiki font style flags.
@@ -98,62 +108,34 @@ type ThemedToken struct {
 
 // MarshalJSON encodes the token with Shiki's field names.
 func (t ThemedToken) MarshalJSON() ([]byte, error) {
-	o := NewObject("content", t.Content, "offset", t.Offset)
-	if t.Color != "" {
-		o.Set("color", t.Color)
+	type token struct {
+		Content   string    `json:"content"`
+		Offset    int       `json:"offset"`
+		Color     string    `json:"color,omitempty"`
+		BgColor   string    `json:"bgColor,omitempty"`
+		FontStyle *int      `json:"fontStyle,omitempty"`
+		HTMLStyle HTMLStyle `json:"htmlStyle,omitempty"`
+		Type      int       `json:"type,omitempty"`
 	}
-	if t.BgColor != "" {
-		o.Set("bgColor", t.BgColor)
-	}
+	out := token{t.Content, t.Offset, t.Color, t.BgColor, nil, t.HTMLStyle, t.Type}
 	if t.HTMLStyle == nil {
-		o.Set("fontStyle", t.FontStyle)
-	} else {
-		o.Set("htmlStyle", t.HTMLStyle)
+		out.FontStyle = &t.FontStyle
 	}
-	if t.Type != 0 {
-		o.Set("type", t.Type)
-	}
-	return o.MarshalJSON()
+	return json.Marshal(out)
 }
 
 // TokensResult is the result of CodeToTokens, matching Shiki's.
 type TokensResult struct {
-	Tokens    [][]ThemedToken
-	Fg        string
-	Bg        string
-	ThemeName string
-	RootStyle string
+	Tokens    [][]ThemedToken `json:"tokens"`
+	Fg        string          `json:"fg,omitempty"`
+	Bg        string          `json:"bg,omitempty"`
+	ThemeName string          `json:"themeName,omitempty"`
+	// RootStyle is set only when no theme applies inline.
+	RootStyle string `json:"rootStyle,omitempty"`
 }
 
 type themeMeta struct {
 	fg, bg, themeName, rootStyle string
-}
-
-// MarshalJSON encodes the result with Shiki's field names.
-func (r TokensResult) MarshalJSON() ([]byte, error) {
-	tokens := r.Tokens
-	if tokens == nil {
-		tokens = [][]ThemedToken{}
-	}
-	for i, line := range tokens {
-		if line == nil {
-			tokens[i] = []ThemedToken{}
-		}
-	}
-	o := NewObject("tokens", tokens)
-	if r.Fg != "" {
-		o.Set("fg", r.Fg)
-	}
-	if r.Bg != "" {
-		o.Set("bg", r.Bg)
-	}
-	if r.ThemeName != "" {
-		o.Set("themeName", r.ThemeName)
-	}
-	if r.RootStyle != "" {
-		o.Set("rootStyle", r.RootStyle)
-	}
-	return json.Marshal(o)
 }
 
 type themeRole int
@@ -270,7 +252,7 @@ func resolveOptionThemes(o *ThemeOptions) (*themeSet, error) {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
 	if len(entries) == 0 {
-		return nil, &TypeError{"themes must not be empty"}
+		return nil, newError(ErrInvalidTheme, "themes must not be empty")
 	}
 	defaultColor := o.DefaultColor
 	if defaultColor == "" {
@@ -288,7 +270,7 @@ func resolveOptionThemes(o *ThemeOptions) (*themeSet, error) {
 			}
 		}
 		if light == nil || dark == nil {
-			return nil, &TypeError{"`themes` must contain `light` and `dark` when defaultColor is 'light-dark()'"}
+			return nil, newError(ErrInvalidTheme, "`themes` must contain `light` and `dark` when defaultColor is 'light-dark()'")
 		}
 		entries = []entry{*light, *dark}
 		roles = []themeRole{roleLightDark, roleLightDark}
@@ -301,7 +283,7 @@ func resolveOptionThemes(o *ThemeOptions) (*themeSet, error) {
 				}
 			}
 			if at < 0 {
-				return nil, &TypeError{"`themes` must contain the defaultColor key `" + defaultColor + "`"}
+				return nil, newError(ErrInvalidTheme, "`themes` must contain the defaultColor key `"+defaultColor+"`")
 			}
 			first := entries[at]
 			entries = append(append([]entry{first}, entries[:at]...), entries[at+1:]...)

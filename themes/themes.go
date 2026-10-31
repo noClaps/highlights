@@ -30,7 +30,6 @@ var CSSVariables = &highlights.Theme{
 	Name:         "CSS Variables",
 	Appearance:   "dark",
 	CSSVariables: &highlights.CSSVariables{All: true},
-	Style:        &highlights.Object{},
 }
 
 // ToCSS converts a theme to CSS custom-property declarations; "" uses the

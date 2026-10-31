@@ -5,17 +5,6 @@ import (
 	"unicode/utf8"
 )
 
-// TypeError reports an invalid argument shape, like JavaScript's TypeError.
-type TypeError struct{ Message string }
-
-func (e *TypeError) Error() string { return e.Message }
-
-// RangeError reports an argument outside its valid range, like
-// JavaScript's RangeError.
-type RangeError struct{ Message string }
-
-func (e *RangeError) Error() string { return e.Message }
-
 // decodeUnit decodes the code point at s[i] and returns its UTF-16 length
 // and byte size. A three-byte surrogate encoding (WTF-8) is one unit, and
 // any other malformed byte counts as one replacement character.

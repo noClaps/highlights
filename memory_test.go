@@ -51,7 +51,7 @@ func TestSharedHTMLRecyclesLargeCapacityForSmallInputs(t *testing.T) {
 			t.Fatal(err)
 		}
 		h := getShared()
-		if pages := h.Pages(); pages*pageSize > 1024*1024 {
+		if pages := h.pages(); pages*pageSize > 1024*1024 {
 			t.Fatalf("pooled instance holds %d pages", pages)
 		}
 		putShared(h)

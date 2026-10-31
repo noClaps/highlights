@@ -1,44 +1,21 @@
 package highlights
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"math"
 	"strconv"
 	"strings"
 	"unicode"
 )
 
-// Object is a JSON object that keeps its key order, as JavaScript objects
-// do. Theme styles and syntax scopes use it so that output that iterates
-// keys, such as ToCSS, follows the theme file.
-//
-// Values are decoded JSON: string, float64, bool, nil, []any, or *Object.
-type Object struct {
+// object is a decoded JSON object that keeps its key order, as JavaScript
+// objects do. Values are string, float64, bool, nil, []any, or *object.
+type object struct {
 	keys   []string
 	values map[string]any
 }
 
-// NewObject builds an object from alternating keys and values.
-func NewObject(pairs ...any) *Object {
-	o := &Object{}
-	for i := 0; i+1 < len(pairs); i += 2 {
-		o.Set(pairs[i].(string), pairs[i+1])
-	}
-	return o
-}
-
-// Keys returns the keys in insertion order.
-func (o *Object) Keys() []string {
-	if o == nil {
-		return nil
-	}
-	return o.keys
-}
-
-// Get returns a value and whether the key exists.
-func (o *Object) Get(key string) (any, bool) {
+func (o *object) get(key string) (any, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -46,14 +23,13 @@ func (o *Object) Get(key string) (any, bool) {
 	return v, ok
 }
 
-// Value returns a value, or nil when the key is absent.
-func (o *Object) Value(key string) any {
-	v, _ := o.Get(key)
+func (o *object) value(key string) any {
+	v, _ := o.get(key)
 	return v
 }
 
-// Set adds or replaces a value. A new key goes last.
-func (o *Object) Set(key string, value any) {
+// set adds or replaces a value; a new key goes last.
+func (o *object) set(key string, value any) {
 	if o.values == nil {
 		o.values = map[string]any{}
 	}
@@ -61,51 +37,6 @@ func (o *Object) Set(key string, value any) {
 		o.keys = append(o.keys, key)
 	}
 	o.values[key] = value
-}
-
-// Len returns the number of keys.
-func (o *Object) Len() int {
-	if o == nil {
-		return 0
-	}
-	return len(o.keys)
-}
-
-// UnmarshalJSON decodes a JSON object and keeps its key order.
-func (o *Object) UnmarshalJSON(data []byte) error {
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
-	v, err := decodeOrdered(dec)
-	if err != nil {
-		return err
-	}
-	obj, ok := v.(*Object)
-	if !ok {
-		return fmt.Errorf("expected a JSON object")
-	}
-	*o = *obj
-	return nil
-}
-
-// MarshalJSON encodes the object in key order.
-func (o *Object) MarshalJSON() ([]byte, error) {
-	var b bytes.Buffer
-	b.WriteByte('{')
-	for i, k := range o.Keys() {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		key, _ := json.Marshal(k)
-		b.Write(key)
-		b.WriteByte(':')
-		val, err := json.Marshal(o.values[k])
-		if err != nil {
-			return nil, err
-		}
-		b.Write(val)
-	}
-	b.WriteByte('}')
-	return b.Bytes(), nil
 }
 
 func decodeOrdered(dec *json.Decoder) (any, error) {
@@ -117,7 +48,7 @@ func decodeOrdered(dec *json.Decoder) (any, error) {
 	case json.Delim:
 		switch t {
 		case '{':
-			o := &Object{}
+			o := &object{}
 			for dec.More() {
 				kt, err := dec.Token()
 				if err != nil {
@@ -127,7 +58,7 @@ func decodeOrdered(dec *json.Decoder) (any, error) {
 				if err != nil {
 					return nil, err
 				}
-				o.Set(kt.(string), v)
+				o.set(kt.(string), v)
 			}
 			if _, err := dec.Token(); err != nil {
 				return nil, err

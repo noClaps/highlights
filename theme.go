@@ -2,9 +2,6 @@ package highlights
 
 import (
 	"encoding/binary"
-	"encoding/json"
-	"fmt"
-	"math"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -21,348 +18,13 @@ const DefaultCSSVariablePrefix = "--hls-"
 // records padded for the emitter's SIMD comparisons.
 const themeTableBytes = 384
 
-// Theme is a Zed-compatible color theme.
-type Theme struct {
-	Name       string
-	Appearance string
-	// Style holds colors and syntax scopes, in theme-file key order.
-	Style *Object
-	// CSSVariables makes colors CSS custom properties. Nil disables it.
-	CSSVariables *CSSVariables
-}
+var cssNameReplacer = strings.NewReplacer(".", "-", "_", "-")
 
-// CSSVariables configures a CSS-variable theme. With All, every token slot
-// uses its prefixed custom property and Style is not read. Otherwise the
-// theme is a palette: syntax colors name variable suffixes.
-type CSSVariables struct {
-	All      bool
-	Prefix   *string
-	Defaults map[string]string
-}
-
-// ThemeFamily is a Zed-compatible collection of themes.
-type ThemeFamily struct {
-	Name   string
-	Author string
-	Themes []*Theme
-}
-
-// ThemeSource is a *Theme or a *ThemeFamily. A family resolves to its
-// first member.
-type ThemeSource interface {
-	themeSource()
-}
-
-func (*Theme) themeSource()       {}
-func (*ThemeFamily) themeSource() {}
-
-type themeJSON struct {
-	Name         any             `json:"name"`
-	Appearance   any             `json:"appearance"`
-	Style        *Object         `json:"style"`
-	CSSVariables json.RawMessage `json:"cssVariables"`
-	Author       any             `json:"author"`
-	Themes       []*Theme        `json:"themes"`
-}
-
-// UnmarshalJSON decodes a Zed theme object.
-func (t *Theme) UnmarshalJSON(data []byte) error {
-	var raw themeJSON
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	t.Name, _ = raw.Name.(string)
-	t.Appearance, _ = raw.Appearance.(string)
-	t.Style = raw.Style
-	t.CSSVariables = nil
-	switch s := strings.TrimSpace(string(raw.CSSVariables)); {
-	case s == "true":
-		t.CSSVariables = &CSSVariables{All: true}
-	case strings.HasPrefix(s, "{"):
-		var cfg struct {
-			Prefix   *string           `json:"prefix"`
-			Defaults map[string]string `json:"defaults"`
-		}
-		if err := json.Unmarshal(raw.CSSVariables, &cfg); err != nil {
-			return err
-		}
-		t.CSSVariables = &CSSVariables{Prefix: cfg.Prefix, Defaults: cfg.Defaults}
-	}
-	return nil
-}
-
-// MarshalJSON encodes the theme as a Zed theme object.
-func (t *Theme) MarshalJSON() ([]byte, error) {
-	out := NewObject("name", t.Name, "appearance", t.Appearance)
-	if t.Style != nil {
-		out.Set("style", t.Style)
-	} else {
-		out.Set("style", &Object{})
-	}
-	if c := t.CSSVariables; c != nil {
-		if c.All {
-			out.Set("cssVariables", true)
-		} else {
-			cfg := &Object{}
-			if c.Prefix != nil {
-				cfg.Set("prefix", *c.Prefix)
-			}
-			if c.Defaults != nil {
-				defaults := &Object{}
-				for k, v := range c.Defaults {
-					defaults.Set(k, v)
-				}
-				cfg.Set("defaults", defaults)
-			}
-			out.Set("cssVariables", cfg)
-		}
-	}
-	return out.MarshalJSON()
-}
-
-// ParseTheme decodes a theme or theme family from JSON.
-func ParseTheme(data []byte) (ThemeSource, error) {
-	var raw themeJSON
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-	if raw.Themes != nil {
-		f := &ThemeFamily{Themes: raw.Themes}
-		f.Name, _ = raw.Name.(string)
-		f.Author, _ = raw.Author.(string)
-		return f, nil
-	}
-	t := &Theme{}
-	if err := t.UnmarshalJSON(data); err != nil {
-		return nil, err
-	}
-	return t, nil
-}
-
-// MustParseTheme is ParseTheme for themes known to be valid.
-func MustParseTheme(data []byte) *Theme {
-	src, err := ParseTheme(data)
-	if err != nil {
-		panic(err)
-	}
-	t, err := ResolveTheme(src)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
-var (
-	colorRe     = regexp.MustCompile(`(?i)^#([a-f0-9]{3,4}|[a-f0-9]{6}|[a-f0-9]{8})$`)
-	displayP3Re = regexp.MustCompile(`(?i)^color\(display-p3\s+[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s+[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s+[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:\s*/\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+))?\s*\)$`)
-)
-
-// TokenStyle is one theme slot's resolved styling for a token type.
-type TokenStyle struct {
-	// Color is a CSS color, or "" when the slot inherits the foreground.
-	Color  string
-	Italic bool
-	Weight int
-}
-
-// IsThemeColor accepts hex and numeric Display P3 colors that cannot escape
-// a CSS declaration. Named colors, variables, and other CSS are rejected.
-func IsThemeColor(value any) bool {
-	s, ok := value.(string)
-	if !ok {
-		return false
-	}
-	s = jsTrim(s)
-	return colorRe.MatchString(s) || displayP3Re.MatchString(s)
-}
-
-// nullish reports JavaScript's null or undefined.
-func styleValue(style *Object, key string) any {
-	return style.Value(key)
-}
-
-func coalesce(values ...any) any {
-	for _, v := range values {
-		if v != nil {
-			return v
-		}
-	}
-	return nil
-}
-
-// ThemeForeground returns `editor.foreground`, `text`, then `foreground`.
-func ThemeForeground(style *Object) any {
-	return coalesce(styleValue(style, "editor.foreground"), styleValue(style, "text"), styleValue(style, "foreground"))
-}
-
-// ThemeBackground returns `editor.background`, then `background`.
-func ThemeBackground(style *Object) any {
-	return coalesce(styleValue(style, "editor.background"), styleValue(style, "background"))
-}
-
-// AnsiNames lists ANSI color names in SGR order, as in Zed's
-// `terminal.ansi.<name>` keys.
-var AnsiNames = []string{
-	"black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
-	"bright_black", "bright_red", "bright_green", "bright_yellow",
-	"bright_blue", "bright_magenta", "bright_cyan", "bright_white",
-}
-
-// VS Code's terminal colors, which Shiki uses when a theme has none.
-var ansiDefaults = []string{
-	"#000000", "#cd3131", "#0dbc79", "#e5e510", "#2472c8", "#bc3fbc",
-	"#11a8cd", "#e5e5e5", "#666666", "#f14c4c", "#23d18b", "#f5f543",
-	"#3b8eea", "#d670d6", "#29b8db", "#ffffff",
-}
-
-// ThemeAnsiColors returns a theme's 16 ANSI colors. Missing or invalid
-// colors use VS Code's.
-func ThemeAnsiColors(style *Object) []string {
-	out := make([]string, len(AnsiNames))
-	for i, name := range AnsiNames {
-		color := resolveThemeStyle(NewObject("foreground", styleValue(style, "terminal.ansi."+name)), "foreground").Color
-		if color == "" {
-			color = ansiDefaults[i]
-		}
-		out[i] = color
-	}
-	return out
-}
-
-func describeThemeValue(value any) string {
-	switch v := value.(type) {
-	case nil:
-		return "undefined"
-	case *Theme:
-		if v == nil {
-			return "undefined"
-		}
-		return "an object without a `name`"
-	case *ThemeFamily:
-		if v == nil {
-			return "undefined"
-		}
-		var first any
-		if len(v.Themes) > 0 {
-			first = v.Themes[0]
-		}
-		return "a ThemeFamily whose first member is " + describeThemeValue(first)
-	}
-	return fmt.Sprintf("a %T", value)
-}
-
-// ResolveTheme returns a theme, or the first member of a family.
-func ResolveTheme(theme ThemeSource) (*Theme, error) {
-	var resolved *Theme
-	switch t := theme.(type) {
-	case *Theme:
-		resolved = t
-	case *ThemeFamily:
-		if t != nil && len(t.Themes) > 0 {
-			resolved = t.Themes[0]
-		}
-	}
-	if resolved == nil || resolved.Name == "" {
-		return nil, &TypeError{"invalid theme: expected a Theme or ThemeFamily object, received " + describeThemeValue(theme)}
-	}
-	return resolved, nil
-}
-
-// syntaxSettings are the fields of a resolved syntax scope.
-type syntaxSettings struct {
-	color, fontStyle, fontWeight any
-}
-
-// resolveThemeSyntax keeps the nearest scope's font settings while finding
-// an inherited color.
-func resolveThemeSyntax(syntax *Object, name string) *syntaxSettings {
-	var settings *syntaxSettings
-	for k := name; k != ""; {
-		v := syntax.Value(k)
-		switch x := v.(type) {
-		case string:
-			out := syntaxSettings{color: x}
-			if settings != nil {
-				out.fontStyle, out.fontWeight = settings.fontStyle, settings.fontWeight
-			}
-			return &out
-		case *Object:
-			if settings == nil {
-				settings = &syntaxSettings{x.Value("color"), x.Value("font_style"), x.Value("font_weight")}
-			}
-			if c := x.Value("color"); c != nil {
-				out := *settings
-				out.color = c
-				return &out
-			}
-		}
-		if dot := strings.LastIndexByte(k, '.'); dot < 0 {
-			k = ""
-		} else {
-			k = k[:dot]
-		}
-	}
-	return settings
-}
-
-func syntaxOf(style *Object) *Object {
-	s, _ := style.Value("syntax").(*Object)
-	return s
-}
-
-// resolveThemeStyle resolves colors and font settings shared by HTML and
-// token output.
-func resolveThemeStyle(style *Object, name string) TokenStyle {
-	var color, fontStyle, fontWeight any
-	switch name {
-	case "background":
-		color = ThemeBackground(style)
-	case "foreground":
-		color = ThemeForeground(style)
-	default:
-		if s := resolveThemeSyntax(syntaxOf(style), name); s != nil {
-			color, fontStyle, fontWeight = s.color, s.fontStyle, s.fontWeight
-		}
-		if (fontStyle != nil || fontWeight != nil) && color == nil {
-			color = ThemeForeground(style)
-		}
-	}
-	out := TokenStyle{}
-	if IsThemeColor(color) {
-		c := strings.ToLower(jsTrim(color.(string)))
-		if strings.HasPrefix(c, "#") {
-			if len(c) <= 5 {
-				var sb strings.Builder
-				for _, r := range c {
-					sb.WriteRune(r)
-					if r != '#' {
-						sb.WriteRune(r)
-					}
-				}
-				c = sb.String()
-			}
-			if len(c) == 9 && strings.HasSuffix(c, "ff") {
-				c = c[:7]
-			}
-			// A zero RGBA record inherits the foreground in the Wasm emitter.
-			if c == "#00000000" {
-				c = ""
-			}
-		}
-		out.Color = c
-	}
-	out.Italic = fontStyle == "italic"
-	if fontWeight != nil {
-		w := jsNumber(fontWeight)
-		if w >= 100 && w <= 900 {
-			out.Weight = int(jsRound(w/100) * 100)
-		}
-	}
-	return out
-}
+// cssName turns a token type into a custom-property suffix.
+func cssName(name string) string { return cssNameReplacer.Replace(name) }
 
 func cssVariable(name, prefix string) string {
-	return "var(" + prefix + strings.NewReplacer(".", "-", "_", "-").Replace(name) + ")"
+	return "var(" + prefix + cssName(name) + ")"
 }
 
 // EscapeAttribute escapes a string for a double-quoted HTML attribute.
@@ -489,9 +151,9 @@ func PrepareTheme(theme ThemeSource, cssVariablePrefix string) (*PreparedTheme, 
 
 func prepareCSSPalette(theme *Theme) *PreparedTheme {
 	cfg := theme.CSSVariables
-	prefix := DefaultCSSVariablePrefix
-	if cfg.Prefix != nil {
-		prefix = *cfg.Prefix
+	prefix := cfg.Prefix
+	if prefix == "" {
+		prefix = DefaultCSSVariablePrefix
 	}
 	variable := func(name string) string {
 		if fallback := cfg.Defaults[name]; fallback != "" {
@@ -499,41 +161,36 @@ func prepareCSSPalette(theme *Theme) *PreparedTheme {
 		}
 		return "var(" + prefix + name + ")"
 	}
+	style := &theme.Style
+	rules := style.rulesByScope()
 	styles := make([]*TokenStyle, len(TokenTypes))
-	syntax := syntaxOf(theme.Style)
 	for i := 1; i < len(TokenTypes); i++ {
-		setting := resolveThemeSyntax(syntax, TokenTypes[i])
+		scope, _ := resolveScope(rules, TokenTypes[i])
 		color := "foreground"
-		s := &TokenStyle{}
-		if setting != nil {
-			if setting.color != nil {
-				color = jsString(setting.color)
-			}
-			s.Italic = setting.fontStyle == "italic"
-			if setting.fontWeight != nil {
-				w := jsNumber(setting.fontWeight)
-				if !math.IsNaN(w) {
-					s.Weight = int(jsRound(w/100) * 100)
-				}
-			}
+		if scope.hasColor {
+			color = scope.color
 		}
-		s.Color = variable(color)
-		styles[i] = s
+		styles[i] = &TokenStyle{
+			Color:  variable(color),
+			Italic: scope.fontStyle == "italic",
+			Weight: int(jsRound(float64(scope.fontWeight)/100)) * 100,
+		}
 	}
 	fgName, bgName := "foreground", "background"
-	if v := ThemeForeground(theme.Style); v != nil {
-		fgName = jsString(v)
+	if c, ok := style.firstColor("editor.foreground", "text", "foreground"); ok {
+		fgName = c
 	}
-	if v := ThemeBackground(theme.Style); v != nil {
-		bgName = jsString(v)
+	if c, ok := style.firstColor("editor.background", "background"); ok {
+		bgName = c
 	}
 	p := &PreparedTheme{Name: theme.Name, Styles: styles, Fg: variable(fgName), Bg: variable(bgName)}
 	p.HTMLOpeners = themeHTMLOpeners(styles, p.Fg, p.Bg)
 	p.ansiFn = func() []string {
 		out := make([]string, len(AnsiNames))
 		for i, name := range AnsiNames {
-			if s, ok := theme.Style.Value("terminal.ansi." + name).(string); ok {
-				out[i] = variable(s)
+			key := "terminal.ansi." + name
+			if c, ok := style.Colors[key]; ok && !style.nonString[key] {
+				out[i] = variable(c)
 			} else {
 				out[i] = variable("terminal-ansi-" + strings.Replace(name, "_", "-", 1))
 			}
@@ -565,14 +222,15 @@ func prepareCSSVariables(name, prefix string) *PreparedTheme {
 }
 
 func prepareStyles(theme *Theme) *PreparedTheme {
-	style := theme.Style
+	style := &theme.Style
+	rules := style.rulesByScope()
 	styles := make([]*TokenStyle, len(TokenTypes))
 	table := make([]byte, len(TokenTypes)*5)
 	var fg, bg string
 	usesDisplayP3 := false
 	for i := 1; i < len(TokenTypes); i++ {
 		name := TokenTypes[i]
-		s := resolveThemeStyle(style, name)
+		s := style.resolve(rules, name)
 		o := i * 5
 		if s.Color != "" {
 			if strings.HasPrefix(s.Color, "#") {
@@ -612,7 +270,7 @@ func prepareStyles(theme *Theme) *PreparedTheme {
 		p.Table = nil
 		p.HTMLOpeners = themeHTMLOpeners(styles, fg, bg)
 	}
-	p.ansiFn = func() []string { return ThemeAnsiColors(style) }
+	p.ansiFn = style.AnsiColors
 	return p
 }
 
@@ -649,31 +307,28 @@ var cssNameRe = regexp.MustCompile(`(?i)^[a-z0-9_.-]+$`)
 // hex and numeric Display P3 colors, omits invalid background and
 // foreground colors, uses `inherit` for invalid syntax colors, and skips
 // syntax scopes whose names are not plain dotted identifiers. The 16
-// `terminal-ansi-*` colors use VS Code's terminal colors when missing.
+// `terminal-ansi-*` colors use VS Code's terminal colors when missing. A
+// cssVariablePrefix of "" means DefaultCSSVariablePrefix.
 func ToCSS(theme *Theme, cssVariablePrefix string) string {
 	if cssVariablePrefix == "" {
 		cssVariablePrefix = DefaultCSSVariablePrefix
 	}
-	style := theme.Style
-	if style == nil {
-		return ""
-	}
+	style := &theme.Style
 	var css strings.Builder
-	background := ThemeBackground(style)
-	foreground := ThemeForeground(style)
+	background, foreground := style.Background(), style.Foreground()
 	if IsThemeColor(background) {
-		css.WriteString(cssVariablePrefix + "background: " + jsTrim(background.(string)) + ";")
+		css.WriteString(cssVariablePrefix + "background: " + jsTrim(background) + ";")
 	}
 	if IsThemeColor(foreground) {
-		css.WriteString(cssVariablePrefix + "foreground: " + jsTrim(foreground.(string)) + ";")
+		css.WriteString(cssVariablePrefix + "foreground: " + jsTrim(foreground) + ";")
 	}
-	syntax := syntaxOf(style)
+	rules := style.rulesByScope()
 	seen := map[string]bool{}
 	var names []string
-	for _, name := range syntax.Keys() {
-		if !seen[name] {
-			seen[name] = true
-			names = append(names, name)
+	for _, r := range style.Syntax {
+		if !seen[r.Scope] {
+			seen[r.Scope] = true
+			names = append(names, r.Scope)
 		}
 	}
 	for _, name := range TokenTypes[1 : len(TokenTypes)-2] {
@@ -686,28 +341,18 @@ func ToCSS(theme *Theme, cssVariablePrefix string) string {
 		if !cssNameRe.MatchString(name) {
 			continue
 		}
-		var color any
-		if s := resolveThemeSyntax(syntax, name); s != nil {
-			color = s.color
-		}
-		if color == nil {
-			color = foreground
+		color := foreground
+		if scope, _ := resolveScope(rules, name); scope.hasColor {
+			color = scope.color
 		}
 		value := "inherit"
 		if IsThemeColor(color) {
-			value = jsTrim(color.(string))
+			value = jsTrim(color)
 		}
-		css.WriteString(cssVariablePrefix + strings.NewReplacer(".", "-", "_", "-").Replace(name) + ": " + value + ";")
+		css.WriteString(cssVariablePrefix + cssName(name) + ": " + value + ";")
 	}
-	for i, c := range ThemeAnsiColors(style) {
+	for i, c := range style.AnsiColors() {
 		css.WriteString(cssVariablePrefix + "terminal-ansi-" + strings.Replace(AnsiNames[i], "_", "-", 1) + ": " + c + ";")
 	}
 	return css.String()
-}
-
-// ResolveThemeStyle resolves the color and font settings of a token type,
-// such as "keyword.control", or of "foreground" or "background", as the
-// highlighter applies them.
-func ResolveThemeStyle(style *Object, name string) TokenStyle {
-	return resolveThemeStyle(style, name)
 }

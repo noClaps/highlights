@@ -2,7 +2,6 @@ package highlights
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -10,10 +9,6 @@ import (
 	"sync"
 	"time"
 )
-
-// TokenNames lists `$Token` names in slot order; a raw record's token ID
-// indexes it.
-var TokenNames = TokenTypes
 
 // Position is a zero-based UTF-16 position; Character may equal the line
 // length.
@@ -108,11 +103,6 @@ type LineTokens struct {
 	BracketIgnoredRanges [][2]int
 }
 
-// ErrDisposed is returned after Dispose.
-var ErrDisposed = errors.New("tokenizer is disposed")
-
-var errUpdating = errors.New("applyEdits and reset cannot be called from onDeferTokenize during an update; use pause, flush, or the reads instead")
-
 type normalizedEdit struct {
 	sl, sc, el, ec int
 	newText        string
@@ -156,7 +146,7 @@ type LiveTokenizer struct {
 
 func checkRenderRange(r *LineRange) error {
 	if r != nil && (r.Start < 0 || r.End < r.Start) {
-		return &TypeError{"renderRange must be [startLine, endLine] with 0 <= startLine <= endLine"}
+		return newError(ErrInvalidArgument, "renderRange must be [startLine, endLine] with 0 <= startLine <= endLine")
 	}
 	return nil
 }
@@ -248,7 +238,7 @@ func createStaged(code string, langID int) (*Highlighter, error) {
 
 func (t *LiveTokenizer) live() (*Highlighter, error) {
 	if t.hl == nil {
-		return nil, ErrDisposed
+		return nil, ErrClosed
 	}
 	return t.hl, nil
 }
@@ -366,22 +356,23 @@ func (t *LiveTokenizer) resume() error {
 	return nil
 }
 
-// Dispose releases the engine instance and drops deferred work; later
-// calls return ErrDisposed.
-func (t *LiveTokenizer) Dispose() {
+// Close releases the engine instance and drops deferred work; later calls
+// return ErrClosed. It always returns nil.
+func (t *LiveTokenizer) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.hl == nil {
-		return
+		return nil
 	}
 	t.deferGeneration++
 	t.hl = nil
 	t.materializing = nil
+	return nil
 }
 
 func (t *LiveTokenizer) checkLine(hl *Highlighter, line int) error {
 	if line < 0 || line >= int(hl.m.ExportLiveLineCount()) {
-		return &RangeError{fmt.Sprintf("line %d out of range", line)}
+		return newError(ErrOutOfRange, fmt.Sprintf("line %d out of range", line))
 	}
 	return nil
 }
@@ -547,7 +538,7 @@ func (t *LiveTokenizer) ApplyEdits(edits []TextEdit, opts *LiveUpdateOptions) (*
 		return nil, err
 	}
 	if t.updating {
-		return nil, errUpdating
+		return nil, ErrReentrantUpdate
 	}
 	var renderRange *LineRange
 	if opts != nil {
@@ -593,7 +584,7 @@ func (t *LiveTokenizer) Reset(code string, opts *LiveUpdateOptions) (*LiveTokeni
 		return nil, err
 	}
 	if t.updating {
-		return nil, errUpdating
+		return nil, ErrReentrantUpdate
 	}
 	var renderRange *LineRange
 	if opts != nil {
@@ -814,17 +805,17 @@ func (t *LiveTokenizer) validate(hl *Highlighter, edits []TextEdit) ([]normalize
 		start, end := edit.Range.Start, edit.Range.End
 		for _, pos := range []Position{start, end} {
 			if pos.Line < 0 || pos.Character < 0 {
-				return nil, &TypeError{"positions must be non-negative integers"}
+				return nil, newError(ErrInvalidArgument, "positions must be non-negative integers")
 			}
 			if pos.Line >= lineCount {
-				return nil, &RangeError{fmt.Sprintf("line %d out of range", pos.Line)}
+				return nil, newError(ErrOutOfRange, fmt.Sprintf("line %d out of range", pos.Line))
 			}
 			if pos.Character > int(hl.m.ExportLiveLineLen(uint32(pos.Line))) {
-				return nil, &RangeError{fmt.Sprintf("character %d past the end of line %d", pos.Character, pos.Line)}
+				return nil, newError(ErrOutOfRange, fmt.Sprintf("character %d past the end of line %d", pos.Character, pos.Line))
 			}
 		}
 		if start.Line > end.Line || (start.Line == end.Line && start.Character > end.Character) {
-			return nil, &RangeError{"range start is after its end"}
+			return nil, newError(ErrOutOfRange, "range start is after its end")
 		}
 		items = append(items, normalizedEdit{start.Line, start.Character, end.Line, end.Character, toLiveText(edit.NewText)})
 	}
@@ -844,11 +835,11 @@ func (t *LiveTokenizer) validate(hl *Highlighter, edits []TextEdit) ([]normalize
 	for i := 1; i < len(items); i++ {
 		prev, cur := items[i-1], items[i]
 		if prev.el > cur.sl || (prev.el == cur.sl && prev.ec > cur.sc) {
-			return nil, &RangeError{"edit ranges overlap"}
+			return nil, newError(ErrOutOfRange, "edit ranges overlap")
 		}
 		// two inserts at one position have no defined order
 		if prev == (normalizedEdit{cur.sl, cur.sc, cur.el, cur.ec, prev.newText}) && prev.sl == prev.el && prev.sc == prev.ec {
-			return nil, &RangeError{"edit ranges overlap"}
+			return nil, newError(ErrOutOfRange, "edit ranges overlap")
 		}
 	}
 	lastLine := -1

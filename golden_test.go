@@ -335,10 +335,10 @@ func (r *replayer) decode(raw json.RawMessage) any {
 // resolve replaces the recorder's tagged values.
 func (r *replayer) resolve(v any) any {
 	switch x := v.(type) {
-	case *Object:
-		if x.Len() == 1 {
-			k := x.Keys()[0]
-			val := x.Value(k)
+	case *object:
+		if len(x.keys) == 1 {
+			k := x.keys[0]
+			val := x.value(k)
 			switch k {
 			case "$undef":
 				return undefined{}
@@ -381,9 +381,9 @@ func (r *replayer) resolve(v any) any {
 				return x
 			}
 		}
-		out := &Object{}
-		for _, k := range x.Keys() {
-			out.Set(k, r.resolve(x.Value(k)))
+		out := &object{}
+		for _, k := range x.keys {
+			out.set(k, r.resolve(x.value(k)))
 		}
 		return out
 	case []any:
@@ -492,13 +492,13 @@ func bytesValue(b []byte) jsjson.Obj {
 	return jsjson.O("$bytes", base64.StdEncoding.EncodeToString(b))
 }
 
+// errorName maps an error kind to the JavaScript error the TypeScript
+// package throws.
 func errorName(err error) string {
-	var te *TypeError
-	var re *RangeError
 	switch {
-	case errors.As(err, &te):
+	case errors.Is(err, ErrInvalidTheme), errors.Is(err, ErrInvalidArgument):
 		return "TypeError"
-	case errors.As(err, &re):
+	case errors.Is(err, ErrUnknownLanguage), errors.Is(err, ErrOutOfRange):
 		return "RangeError"
 	}
 	return "Error"
@@ -572,49 +572,19 @@ func (r *replayer) theme(e *event) ThemeSource {
 		return f
 	}
 	v := r.decode(e.JSON)
-	obj, ok := v.(*Object)
+	obj, ok := v.(*object)
 	if !ok {
 		return nil
 	}
 	return themeFromObject(obj)
 }
 
-func themeFromObject(obj *Object) *Theme {
-	t := &Theme{}
-	t.Name, _ = obj.Value("name").(string)
-	t.Appearance, _ = obj.Value("appearance").(string)
-	t.Style, _ = obj.Value("style").(*Object)
-	switch c := obj.Value("cssVariables").(type) {
-	case bool:
-		if c {
-			t.CSSVariables = &CSSVariables{All: true}
-		}
-	case *Object:
-		cfg := &CSSVariables{}
-		if p, ok := c.Value("prefix").(string); ok {
-			cfg.Prefix = &p
-		}
-		if d, ok := c.Value("defaults").(*Object); ok {
-			cfg.Defaults = map[string]string{}
-			for _, k := range d.Keys() {
-				if s, ok := d.Value(k).(string); ok {
-					cfg.Defaults[k] = s
-				}
-			}
-		}
-		t.CSSVariables = cfg
-	}
-	return t
-}
 
 func (r *replayer) themeArg(v any) ThemeSource {
 	switch x := v.(type) {
 	case *Theme:
 		if x == nil {
 			skip("invalid theme value")
-		}
-		if x.Style == nil && (x.CSSVariables == nil || !x.CSSVariables.All) && x.Name != "" {
-			// JavaScript reads a missing style as {}; so does the port
 		}
 		return x
 	case *ThemeFamily:
@@ -632,13 +602,13 @@ func (r *replayer) themeArg(v any) ThemeSource {
 }
 
 func (r *replayer) options(v any) Options {
-	obj, ok := v.(*Object)
+	obj, ok := v.(*object)
 	if !ok {
 		skip("options are not an object")
 	}
 	var o Options
-	for _, k := range obj.Keys() {
-		val := obj.Value(k)
+	for _, k := range obj.keys {
+		val := obj.value(k)
 		switch k {
 		case "lang":
 			s, ok := val.(string)
@@ -655,19 +625,19 @@ func (r *replayer) options(v any) Options {
 			if val == nil {
 				continue
 			}
-			m, ok := val.(*Object)
+			m, ok := val.(*object)
 			if !ok {
 				skip("themes is not an object")
 			}
 			o.Themes = map[string]ThemeSource{}
-			for _, name := range m.Keys() {
+			for _, name := range m.keys {
 				if name == "" {
 					skip("empty theme key")
 				}
-				if m.Value(name) == nil {
+				if m.value(name) == nil {
 					continue
 				}
-				o.Themes[name] = r.themeArg(m.Value(name))
+				o.Themes[name] = r.themeArg(m.value(name))
 			}
 		case "defaultColor":
 			switch d := val.(type) {
@@ -877,7 +847,7 @@ func (r *replayer) hlCall(e *event) {
 		if isString {
 			n = h.writeString(engineText(s), offset)
 		} else {
-			n = h.WriteInput(b, offset)
+			n = h.writeInput(b, offset)
 		}
 		r.check(e, n, nil)
 	case "tokenizeLineRecords":
@@ -889,7 +859,7 @@ func (r *replayer) hlCall(e *event) {
 				reset = &b
 			}
 		}
-		recs, err := h.TokenizeLineRecords(langID, length, reset)
+		recs, err := h.tokenizeLineRecords(langID, length, reset)
 		r.check(e, u32s(recs), err)
 	default:
 		r.t.Fatalf("unknown highlighter method %s", e.Name)
@@ -994,30 +964,37 @@ func (r *replayer) fnCall(e *event) {
 		id, err := LangID(s)
 		r.check(e, id, err)
 	case "isThemeColor":
-		v := arg(0)
-		if _, ok := v.(undefined); ok {
-			v = nil
-		}
-		r.check(e, IsThemeColor(jsValue(v)), nil)
+		// JavaScript accepts any value; only strings can be colors
+		s, ok := arg(0).(string)
+		r.check(e, ok && IsThemeColor(s), nil)
 	case "themeForeground", "themeBackground":
-		style, ok := arg(0).(*Object)
+		o, ok := arg(0).(*object)
 		if !ok {
 			skip("style of an unsupported type")
 		}
-		var v any
+		style := styleFromObject(o)
+		keys := []string{"editor.background", "background"}
 		if e.Name == "themeForeground" {
-			v = ThemeForeground(style)
-		} else {
-			v = ThemeBackground(style)
+			keys = []string{"editor.foreground", "text", "foreground"}
 		}
-		r.check(e, r.encAny(v), nil)
+		for _, k := range keys {
+			if _, ok := style.Colors[k]; ok && style.nonString[k] {
+				skip("a non-string color")
+			}
+		}
+		if c, ok := style.firstColor(keys...); ok {
+			r.check(e, r.str(c), nil)
+		} else {
+			r.check(e, undef, nil)
+		}
 	case "resolveThemeStyle":
-		style, ok := arg(0).(*Object)
+		o, ok := arg(0).(*object)
 		name, ok2 := arg(1).(string)
 		if !ok || !ok2 {
 			skip("resolveThemeStyle arguments of unsupported types")
 		}
-		r.check(e, r.encTokenStyle(resolveThemeStyle(style, name)), nil)
+		style := styleFromObject(o)
+		r.check(e, r.encTokenStyle(style.Resolve(name)), nil)
 	case "prepareTheme":
 		theme := r.themeArg(arg(0))
 		prefix := ""
@@ -1043,8 +1020,8 @@ func (r *replayer) fnCall(e *event) {
 			skip("toCSS of a family")
 		}
 		prefix := ""
-		if o, ok := arg(1).(*Object); ok {
-			if p, ok := o.Value("cssVariablePrefix").(string); ok {
+		if o, ok := arg(1).(*object); ok {
+			if p, ok := o.value("cssVariablePrefix").(string); ok {
 				if p == "" {
 					skip("empty prefix")
 				}
@@ -1065,13 +1042,6 @@ func (r *replayer) fnCall(e *event) {
 	}
 }
 
-// jsValue maps decoded JSON to the shapes theme functions accept.
-func jsValue(v any) any {
-	if f, ok := v.(float64); ok {
-		return f
-	}
-	return v
-}
 
 func (r *replayer) encAny(v any) any {
 	switch x := v.(type) {
@@ -1083,10 +1053,10 @@ func (r *replayer) encAny(v any) any {
 		return r.str(x)
 	case float64, bool:
 		return x
-	case *Object:
+	case *object:
 		o := jsjson.Obj{}
-		for _, k := range x.Keys() {
-			val := x.Value(k)
+		for _, k := range x.keys {
+			val := x.value(k)
 			if _, ok := val.(undefined); ok {
 				continue
 			}
@@ -1169,7 +1139,7 @@ func (r *replayer) streamCall(e *event) {
 		var err error
 		switch c := args[0].(type) {
 		case string:
-			lines, err = st.PushCode(c)
+			lines, err = st.Push(c)
 		case []byte:
 			lines, err = st.PushBytes(c)
 		default:
@@ -1188,7 +1158,7 @@ func (r *replayer) streamCall(e *event) {
 		}
 		r.check(e, r.encLines(lines), nil)
 	case "dispose":
-		st.Dispose()
+		st.Close()
 		r.check(e, undef, nil)
 	default:
 		r.t.Fatalf("unknown stream method %s", e.Name)
@@ -1258,23 +1228,23 @@ func (r *replayer) liveCall(e *event, c *cursor) {
 	clk := &clock{values: e.Clock}
 	switch e.K {
 	case "lv.new":
-		obj, ok := r.decode(e.Opts).(*Object)
+		obj, ok := r.decode(e.Opts).(*object)
 		if !ok {
 			skip("options are not an object")
 		}
 		opts := LiveTokenizerOptions{Options: r.options(obj)}
-		if code, ok := obj.Get("code"); ok {
+		if code, ok := obj.get("code"); ok {
 			s, isString := code.(string)
 			if !isString {
 				skip("code is not a string")
 			}
 			opts.Code = s
 		}
-		if rr, ok := obj.Get("renderRange"); ok {
+		if rr, ok := obj.get("renderRange"); ok {
 			opts.RenderRange = r.renderRange(rr)
 		}
 		var lr *liveReplay
-		if _, ok := obj.Get("onDeferTokenize"); ok {
+		if _, ok := obj.get("onDeferTokenize"); ok {
 			opts.OnDeferTokenize = r.deferCallback(c)
 		}
 		opts.Schedule = func(func()) {}
@@ -1335,9 +1305,9 @@ func (r *replayer) liveCall(e *event, c *cursor) {
 		switch x := v.(type) {
 		case undefined:
 			return nil
-		case *Object:
+		case *object:
 			o := &LiveUpdateOptions{}
-			if rr, ok := x.Get("renderRange"); ok {
+			if rr, ok := x.get("renderRange"); ok {
 				o.RenderRange = r.renderRange(rr)
 			}
 			return o
@@ -1368,7 +1338,7 @@ func (r *replayer) liveCall(e *event, c *cursor) {
 	case "resume":
 		r.check(e, undef, lt.Resume())
 	case "dispose":
-		lt.Dispose()
+		lt.Close()
 		r.check(e, undef, nil)
 	case "getLineLength":
 		n, err := lt.LineLength(lineArg())
@@ -1432,31 +1402,31 @@ func (r *replayer) edits(v any) []TextEdit {
 	}
 	out := make([]TextEdit, len(arr))
 	pos := func(v any) Position {
-		o, ok := v.(*Object)
+		o, ok := v.(*object)
 		if !ok {
 			skip("position is not an object")
 		}
-		l, ok1 := o.Value("line").(float64)
-		ch, ok2 := o.Value("character").(float64)
+		l, ok1 := o.value("line").(float64)
+		ch, ok2 := o.value("character").(float64)
 		if !ok1 || !ok2 || l != math.Trunc(l) || ch != math.Trunc(ch) || math.IsInf(l, 0) || math.IsInf(ch, 0) {
 			skip("position is not integral")
 		}
 		return Position{int(l), int(ch)}
 	}
 	for i, x := range arr {
-		o, ok := x.(*Object)
+		o, ok := x.(*object)
 		if !ok {
 			skip("edit is not an object")
 		}
-		rg, ok := o.Value("range").(*Object)
+		rg, ok := o.value("range").(*object)
 		if !ok {
 			skip("edit range is not an object")
 		}
-		text, ok := o.Value("newText").(string)
+		text, ok := o.value("newText").(string)
 		if !ok {
 			skip("newText is not a string")
 		}
-		out[i] = TextEdit{Range{pos(rg.Value("start")), pos(rg.Value("end"))}, text}
+		out[i] = TextEdit{Range{pos(rg.value("start")), pos(rg.value("end"))}, text}
 	}
 	return out
 }

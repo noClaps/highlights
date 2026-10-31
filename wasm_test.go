@@ -1,18 +1,17 @@
-package highlights_test
+package highlights
 
 // Ports of the engine tests in tools/record/ts/test/wasm_test.ts.
 
 import (
 	"testing"
 
-	highlights "highlights"
 	"highlights/internal/engine"
 	"highlights/internal/fixtures/kwtest"
 )
 
 func TestHighlighterWritesInputAtMemInput(t *testing.T) {
-	if got := int(kwtest.New().ExportGlobalInput()); got != highlights.InputPtr {
-		t.Fatalf("$mem.input = %d, InputPtr = %d", got, highlights.InputPtr)
+	if got := int(kwtest.New().ExportGlobalInput()); got != inputPtr {
+		t.Fatalf("$mem.input = %d, inputPtr = %d", got, inputPtr)
 	}
 }
 

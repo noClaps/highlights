@@ -102,84 +102,68 @@ func TestBundledThemesMatchShikiAndPierreCatalogsAndMetadata(t *testing.T) {
 		if theme.Name != i.DisplayName || theme.Appearance != i.Type {
 			t.Errorf("%s: name %q appearance %q, want %q %q", id, theme.Name, theme.Appearance, i.DisplayName, i.Type)
 		}
-		style := theme.Style
-		syntax, _ := style.Value("syntax").(*highlights.Object)
-		if syntax.Len() == 0 {
+		style := &theme.Style
+		if len(style.Syntax) == 0 {
 			t.Errorf("%s: no syntax scopes", id)
 		}
-		if !isColor(highlights.ThemeBackground(style)) || !isColor(highlights.ThemeForeground(style)) {
+		if !isColor(style.Background()) || !isColor(style.Foreground()) {
 			t.Errorf("%s: background or foreground is not a color", id)
 		}
-		for _, key := range style.Keys() {
-			if s, ok := style.Value(key).(string); ok && !isColor(s) {
-				t.Errorf("%s: %s = %q", id, key, s)
+		for key, c := range style.Colors {
+			if !isColor(c) {
+				t.Errorf("%s: %s = %q", id, key, c)
 			}
 		}
-		if players, ok := style.Value("players").([]any); ok {
-			for _, p := range players {
-				player := p.(*highlights.Object)
-				for _, key := range player.Keys() {
-					if !isColor(player.Value(key)) {
-						t.Errorf("%s: player %s", id, key)
-					}
+		for _, p := range style.Players {
+			for key, c := range map[string]string{"cursor": p.Cursor, "selection": p.Selection, "background": p.Background} {
+				if c != "" && !isColor(c) {
+					t.Errorf("%s: player %s", id, key)
 				}
 			}
 		}
-		for _, scope := range syntax.Keys() {
-			switch settings := syntax.Value(scope).(type) {
-			case string:
-				if !isColor(settings) {
-					t.Errorf("%s: %s", id, scope)
-				}
-			case *highlights.Object:
-				if c, ok := settings.Get("color"); ok && !isColor(c) {
-					t.Errorf("%s: %s color", id, scope)
-				}
-				if fs, ok := settings.Get("font_style"); ok && fs != "normal" && fs != "italic" {
-					t.Errorf("%s: %s font_style %v", id, scope, fs)
-				}
-				if fw, ok := settings.Get("font_weight"); ok {
-					w, isNum := fw.(float64)
-					if !isNum || w < 100 || w > 900 || int(w)%100 != 0 || w != float64(int(w)) {
-						t.Errorf("%s: %s font_weight %v", id, scope, fw)
-					}
-				}
+		for _, r := range style.Syntax {
+			if r.Color != "" && !isColor(r.Color) {
+				t.Errorf("%s: %s color", id, r.Scope)
+			}
+			if r.FontStyle != "" && r.FontStyle != "normal" && r.FontStyle != "italic" {
+				t.Errorf("%s: %s font_style %q", id, r.Scope, r.FontStyle)
+			}
+			if w := r.FontWeight; w != 0 && (w < 100 || w > 900 || w%100 != 0) {
+				t.Errorf("%s: %s font_weight %d", id, r.Scope, w)
 			}
 		}
 		for _, scope := range highlights.TokenTypes[1 : len(highlights.TokenTypes)-2] {
-			var color any = highlights.ResolveThemeStyle(style, scope).Color
-			if color == "" {
-				color = nil
-				if scope == "text.jsx" {
-					color = highlights.ThemeForeground(style)
-				}
+			color := style.Resolve(scope).Color
+			if color == "" && scope == "text.jsx" {
+				color = style.Foreground()
 			}
 			if !isColor(color) {
 				t.Errorf("%s: missing %s", id, scope)
 			}
 		}
-		background := highlights.ResolveThemeStyle(style, "background").Color
+		background := style.Resolve("background").Color
 		for _, pair := range [][2]string{{"created", "green"}, {"deleted", "red"}, {"modified", "blue"}} {
-			color := style.Value(pair[0])
-			if color == nil {
-				color = style.Value("terminal.ansi." + pair[1])
+			color, ok := style.Colors[pair[0]]
+			if !ok {
+				color = style.Colors["terminal.ansi."+pair[1]]
 			}
 			if !isColor(color) {
 				t.Errorf("%s: %s", id, pair[0])
 				continue
 			}
-			if highlights.ResolveThemeStyle(highlights.NewObject("foreground", color), "foreground").Color == background {
+			visible := highlights.ThemeStyle{Colors: map[string]string{"foreground": color}}
+			if visible.Resolve("foreground").Color == background {
 				t.Errorf("%s: invisible %s", id, pair[0])
 			}
 		}
 	}
 	for name, colors := range pierreColors {
-		style := themes.ByName[name].Style
-		if highlights.ThemeBackground(style) != colors["editor.background"] {
-			t.Errorf("%s: background %v, want %s", name, highlights.ThemeBackground(style), colors["editor.background"])
+		style := &themes.ByName[name].Style
+		if style.Background() != colors["editor.background"] {
+			t.Errorf("%s: background %v, want %s", name, style.Background(), colors["editor.background"])
 		}
-		if highlights.ThemeForeground(style) != colors["editor.foreground"] {
-			t.Errorf("%s: foreground %v, want %s", name, highlights.ThemeForeground(style), colors["editor.foreground"])
+		if style.Foreground() != colors["editor.foreground"] {
+			t.Errorf("%s: foreground %v, want %s", name, style.Foreground(), colors["editor.foreground"])
 		}
 	}
 }

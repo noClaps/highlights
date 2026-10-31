@@ -15,8 +15,7 @@ import (
 const (
 	pageSize = rt.PageSize
 	themePtr = 64 // $mem.themeTable in src/memory.wat
-	// InputPtr is $mem.input in src/memory.wat, where input bytes start.
-	InputPtr = 81920
+	inputPtr = 81920 // $mem.input in internal/engine/wat/memory.wat
 )
 
 // Options configure highlighting and tokenization.
@@ -56,7 +55,7 @@ func Languages() map[string]int {
 func LangID(lang string) (int, error) {
 	id, ok := languageIDs[strings.ToLower(lang)]
 	if !ok {
-		return 0, &RangeError{"unknown lang: " + lang}
+		return 0, newError(ErrUnknownLanguage, "unknown lang: "+lang)
 	}
 	return id, nil
 }
@@ -92,24 +91,21 @@ func newMachine() *engine.Machine {
 	return m
 }
 
-// Machine exposes the engine instance for tests and tools.
-func (h *Highlighter) Machine() *engine.Machine { return h.m }
-
-// Pages returns the instance's memory size in Wasm pages.
-func (h *Highlighter) Pages() int { return len(h.m.Mem) / pageSize }
+// pages returns the instance's memory size in Wasm pages.
+func (h *Highlighter) pages() int { return len(h.m.Mem) / pageSize }
 
 func (h *Highlighter) growMemoryIfNeeded(n int) {
-	needed := (InputPtr + n + pageSize - 1) / pageSize
+	needed := (inputPtr + n + pageSize - 1) / pageSize
 	if pages := len(h.m.Mem) / pageSize; needed > pages {
 		rt.Grow(&h.m.Mem, uint32(needed-pages))
 	}
 }
 
-// WriteInput writes input bytes at a byte offset in the text buffer and
-// returns their length.
-func (h *Highlighter) WriteInput(input []byte, offset int) int {
+// writeInput writes bytes at an offset in the input buffer and returns
+// their length.
+func (h *Highlighter) writeInput(input []byte, offset int) int {
 	h.growMemoryIfNeeded(offset + len(input) + 96)
-	copy(h.m.Mem[InputPtr+offset:], input)
+	copy(h.m.Mem[inputPtr+offset:], input)
 	return len(input)
 }
 
@@ -118,7 +114,7 @@ func (h *Highlighter) WriteInput(input []byte, offset int) int {
 // if the bytes do not fit, by three bytes per remaining UTF-16 unit.
 func (h *Highlighter) writeString(input string, offset int) int {
 	h.growMemoryIfNeeded(offset + utf16Len(input) + 96)
-	if avail := len(h.m.Mem) - 96 - (InputPtr + offset); len(input) > avail {
+	if avail := len(h.m.Mem) - 96 - (inputPtr + offset); len(input) > avail {
 		written := 0
 		for written < len(input) {
 			_, size := utf8.DecodeRuneInString(input[written:])
@@ -129,7 +125,7 @@ func (h *Highlighter) writeString(input string, offset int) int {
 		}
 		h.growMemoryIfNeeded(offset + written + utf16Len(input[written:])*3 + 96)
 	}
-	copy(h.m.Mem[InputPtr+offset:], input)
+	copy(h.m.Mem[inputPtr+offset:], input)
 	return len(input)
 }
 
@@ -153,7 +149,7 @@ func (h *Highlighter) run(langID, mode, inputLength int, reset *bool) (err error
 	mem[0] = byte(langID)
 	mem[1] = byte(mode)
 	binary.LittleEndian.PutUint32(mem[2:], uint32(inputLength))
-	mem[InputPtr+inputLength] = 0 // NUL sentinel
+	mem[inputPtr+inputLength] = 0 // NUL sentinel
 	defer func() {
 		if r := recover(); r != nil {
 			err = trapError(r)
@@ -244,13 +240,13 @@ func (h *Highlighter) codeToHTML(s string, b []byte, isString bool, opts Options
 	if isString {
 		inputLength = h.writeString(engineText(s), 0)
 	} else {
-		inputLength = h.WriteInput(b, 0)
+		inputLength = h.writeInput(b, 0)
 	}
 	le := binary.LittleEndian
 	switch {
 	case blob != nil:
 		h.growMemoryIfNeeded(inputLength + len(blob) + 96)
-		blobPtr := (InputPtr + inputLength + 47) &^ 15
+		blobPtr := (inputPtr + inputLength + 47) &^ 15
 		copy(h.m.Mem[blobPtr:], blob)
 		le.PutUint32(h.m.Mem[14:], uint32(blobPtr))
 		le.PutUint32(h.m.Mem[18:], uint32(len(blob)))
@@ -262,7 +258,7 @@ func (h *Highlighter) codeToHTML(s string, b []byte, isString bool, opts Options
 		}
 		bytes := h.htmlPrefixBytes
 		h.growMemoryIfNeeded(inputLength + len(bytes) + 96)
-		prefixPtr := (InputPtr + inputLength + 47) &^ 15
+		prefixPtr := (inputPtr + inputLength + 47) &^ 15
 		copy(h.m.Mem[prefixPtr:], bytes)
 		le.PutUint32(h.m.Mem[14:], uint32(prefixPtr))
 		le.PutUint32(h.m.Mem[18:], uint32(len(bytes)))
@@ -281,11 +277,11 @@ func (h *Highlighter) codeToHTML(s string, b []byte, isString bool, opts Options
 	return h.output(), nil
 }
 
-// TokenizeLineRecords lexes inputLength bytes already written with
-// WriteInput and returns UTF-16 token records: (endUtf16, tokenID) pairs,
+// tokenizeLineRecords lexes inputLength bytes already written with
+// writeInput and returns UTF-16 token records: (endUtf16, tokenID) pairs,
 // with tokenID 0xffffffff marking a line terminator. A non-nil reset starts
 // or continues a stream. The slice aliases engine memory.
-func (h *Highlighter) TokenizeLineRecords(langID, inputLength int, reset *bool) ([]uint32, error) {
+func (h *Highlighter) tokenizeLineRecords(langID, inputLength int, reset *bool) ([]uint32, error) {
 	if err := h.run(langID, 3, inputLength, reset); err != nil {
 		return nil, err
 	}
@@ -326,7 +322,7 @@ func (h *Highlighter) codeToTokens(code, engine string, opts Options) (*TokensRe
 		if err != nil {
 			return nil, err
 		}
-		recs, err := h.TokenizeLineRecords(langID, h.writeString(engine, 0), nil)
+		recs, err := h.tokenizeLineRecords(langID, h.writeString(engine, 0), nil)
 		if err != nil {
 			return nil, err
 		}
@@ -343,7 +339,7 @@ var sharedPool = sync.Pool{New: func() any { return NewHighlighter() }}
 func getShared() *Highlighter { return sharedPool.Get().(*Highlighter) }
 
 func putShared(h *Highlighter) {
-	if h.Pages() <= 128 {
+	if h.pages() <= 128 {
 		sharedPool.Put(h)
 	}
 }
@@ -381,9 +377,6 @@ var (
 	streamPoolMu sync.Mutex
 	streamPool   *Highlighter
 )
-
-// ErrStreamEnded is returned after a stream has ended or been disposed.
-var ErrStreamEnded = errors.New("stream has ended")
 
 // StreamTokenizer converts text or UTF-8 chunks to themed token lines, one
 // slice per completed line. An isolated engine instance scans each
@@ -464,10 +457,10 @@ func (s *StreamTokenizer) PushBytes(chunk []byte) ([][]ThemedToken, error) {
 	return lines[:len(lines)-1], nil
 }
 
-// PushCode appends text and returns tokens for each completed line. A
+// Push appends text and returns tokens for each completed line. A
 // nonempty chunk first flushes buffered bytes. The final line stays
 // buffered until a newline or End.
-func (s *StreamTokenizer) PushCode(chunk string) ([][]ThemedToken, error) {
+func (s *StreamTokenizer) Push(chunk string) ([][]ThemedToken, error) {
 	if s.hl == nil {
 		return nil, ErrStreamEnded
 	}
@@ -506,7 +499,7 @@ func (s *StreamTokenizer) End() ([][]ThemedToken, error) {
 	if s.hl == nil {
 		return nil, ErrStreamEnded
 	}
-	defer s.Dispose()
+	defer s.Close()
 	if len(s.pendingBytes) > 0 {
 		return s.tokenizeBytes(s.pendingBytes, s.tail+s.pendingSurrogate)
 	}
@@ -520,15 +513,15 @@ func (s *StreamTokenizer) End() ([][]ThemedToken, error) {
 	return s.tokenizeText(code)
 }
 
-// Dispose releases the engine instance and discards buffered input; later
-// calls return ErrStreamEnded.
-func (s *StreamTokenizer) Dispose() {
+// Close releases the engine instance and discards buffered input; later
+// calls return ErrStreamEnded. It always returns nil.
+func (s *StreamTokenizer) Close() error {
 	hl := s.hl
 	if hl == nil {
-		return
+		return nil
 	}
 	streamPoolMu.Lock()
-	if streamPool == nil && hl.Pages() <= 16 {
+	if streamPool == nil && hl.pages() <= 16 {
 		streamPool = hl
 	}
 	streamPoolMu.Unlock()
@@ -536,6 +529,7 @@ func (s *StreamTokenizer) Dispose() {
 	s.pendingBytes = nil
 	s.pendingSurrogate = ""
 	s.tail = ""
+	return nil
 }
 
 func (s *StreamTokenizer) tokenizeBytes(input []byte, prefix string) ([][]ThemedToken, error) {
@@ -549,7 +543,7 @@ func (s *StreamTokenizer) tokenizeText(raw string) ([][]ThemedToken, error) {
 	if s.ansi == nil {
 		n := s.hl.writeString(engine, 0)
 		reset := !s.streamStarted
-		recs, err := s.hl.TokenizeLineRecords(s.langID, n, &reset)
+		recs, err := s.hl.tokenizeLineRecords(s.langID, n, &reset)
 		if err != nil {
 			return nil, err
 		}
