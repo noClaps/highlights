@@ -149,3 +149,17 @@ func TestListsLanguagesAndThemes(t *testing.T) {
 		t.Errorf("themes missing pierre-dark or github-light:\n%s", out)
 	}
 }
+
+func BenchmarkANSI(b *testing.B) {
+	code, err := os.ReadFile("../../internal/engine/engine_gen.go")
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(int64(len(code)))
+	for b.Loop() {
+		var out bytes.Buffer
+		if status := run([]string{"-l", "go", "-color", "always"}, bytes.NewReader(code), &out, &out, true); status != 0 {
+			b.Fatal(out.String())
+		}
+	}
+}

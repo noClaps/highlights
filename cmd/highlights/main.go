@@ -215,33 +215,46 @@ func useColor(when string, terminal bool) (bool, error) {
 	return false, usageError{fmt.Sprintf("unknown -color %q: want auto, always or never", when)}
 }
 
-// writeANSI writes the tokens with 24-bit color escapes, resetting the
-// style at the end of each line so that a line never bleeds into the next.
+// writeANSI writes the tokens with 24-bit color escapes. A style is written
+// only where it changes, and reset at the end of each line so that a line
+// never bleeds into the next.
 func writeANSI(out io.Writer, res *highlights.TokensResult, background bool) error {
 	w := bufio.NewWriter(out)
 	prefix := ""
 	if background {
 		prefix = sgrColor(48, res.Bg)
 	}
+	// a theme has few styles, so each escape is built once
+	type style struct {
+		color string
+		font  highlights.FontStyle
+	}
+	escapes := map[style]string{}
 	for i, line := range res.Tokens {
 		if i > 0 {
 			w.WriteByte('\n')
 		}
-		if len(line) == 0 {
-			continue
-		}
+		current := ""
 		for _, t := range line {
-			color := t.Color
-			if color == "" {
-				color = res.Fg
+			s := style{t.Color, t.FontStyle}
+			if s.color == "" {
+				s.color = res.Fg
 			}
-			sgr := prefix + sgrColor(38, color) + sgrFont(t.FontStyle)
-			if sgr == "" {
-				w.WriteString(t.Content)
-				continue
+			sgr, ok := escapes[s]
+			if !ok {
+				sgr = prefix + sgrColor(38, s.color) + sgrFont(s.font)
+				escapes[s] = sgr
 			}
-			w.WriteString(sgr)
+			if sgr != current {
+				if current != "" {
+					w.WriteString("\x1b[0m")
+				}
+				w.WriteString(sgr)
+				current = sgr
+			}
 			w.WriteString(t.Content)
+		}
+		if current != "" {
 			w.WriteString("\x1b[0m")
 		}
 	}
