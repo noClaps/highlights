@@ -52,6 +52,11 @@ type label struct {
 	broken bool
 	// breakStmt, when set, is the statement that leaves this block
 	breakStmt string
+	// inline holds the short code after the block that a branch to it can
+	// run in place, ending in its own branch; targets are the labels that
+	// code branches to, resolved where the block is
+	inline  []*wat.Sexpr
+	targets []*label
 }
 
 type fgen struct {
@@ -69,6 +74,9 @@ type fgen struct {
 	terminalEnd int // output length after a top-level loop that never exits
 	labelNames  map[string]bool
 	dead        map[*wat.Sexpr]bool // stores whose value is never read
+	// pendingInline is the inlinable code after the block being generated
+	pendingInline []*wat.Sexpr
+	inlineDepth   int
 }
 
 func generate(mod *Module, opts Options) (string, []byte) {
@@ -568,12 +576,66 @@ func (g *fgen) spill() {
 }
 
 func (g *fgen) genSeq(nodes []*wat.Sexpr) {
-	for _, n := range nodes {
+	for i, n := range nodes {
 		if g.unreachable {
 			return
 		}
+		g.noteInline(n, nodes[i+1:])
 		g.genInstr(n)
 	}
+}
+
+// noteInline offers the code after a block to the block: when it is at
+// most three simple statements and a branch, branches to the block can
+// run it in place instead of jumping.
+func (g *fgen) noteInline(n *wat.Sexpr, rest []*wat.Sexpr) {
+	g.pendingInline = nil
+	if !n.IsList || n.Head() != "block" {
+		return
+	}
+	for k, r := range rest {
+		if k > 3 {
+			return
+		}
+		if isJump(r) {
+			g.pendingInline = rest[:k+1]
+			return
+		}
+		if !isSimple(r) {
+			return
+		}
+	}
+}
+
+// isJump reports an unconditional branch without a value, or a return.
+func isJump(n *wat.Sexpr) bool {
+	if !n.IsList {
+		return false
+	}
+	switch n.Head() {
+	case "br":
+		return len(n.List) == 2 && !n.List[1].IsList
+	case "return":
+		return isSimple(n)
+	}
+	return false
+}
+
+// isSimple reports an instruction without control flow.
+func isSimple(n *wat.Sexpr) bool {
+	if !n.IsList {
+		return true
+	}
+	switch n.Head() {
+	case "block", "loop", "if", "br", "br_if", "br_table", "unreachable", "call_indirect":
+		return false
+	}
+	for _, c := range n.List[1:] {
+		if !isSimple(c) {
+			return false
+		}
+	}
+	return true
 }
 
 func constValue(t ValType, c uint64) value {
@@ -642,6 +704,37 @@ func (g *fgen) jump(l *label, v *value) []string {
 		out = append(out, l.resTemp+" = "+trimParens(g.asValue(*v)))
 	}
 	return append(out, "goto "+l.goName)
+}
+
+// emitJump writes a branch to l: the block's short tail in place when its
+// branch targets resolve to the same labels here, or a jump statement.
+func (g *fgen) emitJump(l *label, v *value) {
+	if l.inline != nil && v == nil && g.inlineDepth < 4 && g.sameTargets(l) {
+		base := len(g.stack)
+		g.inlineDepth++
+		g.genSeq(l.inline)
+		g.inlineDepth--
+		g.stack = g.stack[:base]
+		g.unreachable = true
+		return
+	}
+	for _, st := range g.jump(l, v) {
+		g.line("%s", st)
+	}
+}
+
+func (g *fgen) sameTargets(l *label) bool {
+	k := 0
+	for _, r := range l.inline {
+		if r.Head() != "br" {
+			continue
+		}
+		if t, _ := g.findLabel(r.List[1].Atom); t != l.targets[k] {
+			return false
+		}
+		k++
+	}
+	return true
 }
 
 // takesValue reports whether a branch to l carries a value.
@@ -753,6 +846,16 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
 		return
 	}
 	l := g.newLabel(name, false, result)
+	if inline := g.pendingInline; inline != nil && result == "" {
+		l.inline = inline
+		for _, r := range inline {
+			if r.Head() == "br" {
+				t, _ := g.findLabel(r.List[1].Atom)
+				l.targets = append(l.targets, t)
+			}
+		}
+	}
+	g.pendingInline = nil
 	if result == "" && len(body) == 1 && body[0].IsList && body[0].Head() == "loop" {
 		loopName, loopResult, loopBody := g.blockHeader(body[0].List[1:])
 		if loopResult == "" {
@@ -1106,6 +1209,7 @@ func (g *fgen) genSeqTail(nodes []*wat.Sexpr, tail []*label) {
 			return
 		}
 		rest := nodes[i+1:]
+		g.noteInline(n, rest)
 		if len(tail) > 0 && n.IsList {
 			switch n.Head() {
 			case "br":
@@ -1478,9 +1582,7 @@ func (g *fgen) apply(head string, imms []string) {
 			x := g.pop()
 			v = &x
 		}
-		for _, st := range g.jump(l, v) {
-			g.line("%s", st)
-		}
+		g.emitJump(l, v)
 		g.unreachable = true
 	case "br_if":
 		c := g.pop()
@@ -1497,9 +1599,8 @@ func (g *fgen) apply(head string, imms []string) {
 		}
 		g.line("if %s {", trimParens(g.asBool(c)))
 		g.depth++
-		for _, st := range g.jump(l, v) {
-			g.line("%s", st)
-		}
+		g.emitJump(l, v)
+		g.unreachable = false
 		g.depth--
 		g.line("}")
 		if v != nil {
@@ -1519,9 +1620,8 @@ func (g *fgen) apply(head string, imms []string) {
 				g.line("case %d:", i)
 			}
 			g.depth++
-			for _, st := range g.jump(l, nil) {
-				g.line("%s", st)
-			}
+			g.emitJump(l, nil)
+			g.unreachable = false
 			g.depth--
 		}
 		g.line("}")

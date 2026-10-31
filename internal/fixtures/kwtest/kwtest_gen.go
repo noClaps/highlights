@@ -2038,22 +2038,21 @@ lines:
 	line:
 		for {
 			if p >= m.End {
-				break line
+				continue lines
 			}
 			c = rt.Ld8(m.Mem, int(p))
 			p = p + 1
 			if c == 10 {
-				break line
+				continue lines
 			}
 			if c == 13 {
 				if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 10) {
 					p = p + 1
 				}
-				break line
+				continue lines
 			}
 			continue line
 		}
-		continue lines
 	}
 	m.Ptr = m.End
 	m.EmitTok(m.StreamHl, lhs, m.Ptr)
@@ -2429,13 +2428,12 @@ func (m *Machine) StringDollarAt(seg uint32, dialect uint32, nested uint32) uint
 			t5 = m.LexIsIdentStart(t4)
 			t6 = m.TemplateByte(m.Ptr + 1)
 			if (rt.Clz32((rt.B2u(t2) & (rt.B2u(t3 == 46) & (t5 & rt.B2u(t6 != 36))))) >> 5) != 0 {
-				break name
+				m.EmitTok(58, at, m.Ptr)
+				return m.Ptr
 			}
 			m.Ptr = m.Ptr + 1
 			continue name
 		}
-		m.EmitTok(58, at, m.Ptr)
-		return m.Ptr
 	}
 	m.Ptr = m.Ptr + 1
 	return seg
