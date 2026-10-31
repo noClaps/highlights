@@ -27,6 +27,7 @@ package watgo
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -289,13 +290,32 @@ func parseModule(code string) *Module {
 }
 
 // pascal turns a WAT name such as "lexScanIdent" or "is_id_start" into an
-// exported Go name: "LexScanIdent", "IsIdStart".
+// exported Go name: "LexScanIdent", "IsIDStart".
+// initialismRe matches a word Go spells in capitals inside a mixed-case
+// name: an initial capital followed by a capital, digit or the end.
+var initialismRe = regexp.MustCompile(`(Id|Lhs|Rhs|Eof|Css|Html|Json|Url|Uri|Xml|Http|Sql|Ascii|Api|Utf8|Utf16|Ttl|Uid|Uuid)([A-Z0-9]|$)`)
+
+// initialisms writes the initialisms in a camel-case name in capitals:
+// nextId is nextID.
+func initialisms(name string) string {
+	for {
+		out := initialismRe.ReplaceAllStringFunc(name, func(m string) string {
+			sub := initialismRe.FindStringSubmatch(m)
+			return strings.ToUpper(sub[1]) + sub[2]
+		})
+		if out == name {
+			return out
+		}
+		name = out
+	}
+}
+
 func pascal(s string) string {
 	c := camel(s)
 	if c == "" {
 		return "X"
 	}
-	return strings.ToUpper(c[:1]) + c[1:]
+	return initialisms(strings.ToUpper(c[:1]) + c[1:])
 }
 
 // camel turns a WAT name into a Go name that starts as the WAT name does:
@@ -319,7 +339,7 @@ func camel(s string) string {
 		upper = false
 		sb.WriteRune(r)
 	}
-	return sb.String()
+	return initialisms(sb.String())
 }
 
 func unquote(s string) string {

@@ -24,7 +24,7 @@ type Machine struct {
 	Imports             Imports
 	SrcBase             uint32
 	DocStart            uint32
-	Eof                 uint32
+	EOF                 uint32
 	End                 uint32
 	Ptr                 uint32
 	LiveLimit           uint32
@@ -34,8 +34,8 @@ type Machine struct {
 	Cap                 uint32
 	SpanHl              uint32
 	SpanVal             uint64
-	CssVariables        bool
-	HtmlOpeners         uint32
+	CSSVariables        bool
+	HTMLOpeners         uint32
 	ThemeBlob           uint32
 	MultiBlob           uint32
 	MultiSlots          uint32
@@ -289,8 +289,8 @@ func (m *Machine) ScanFind3(p, a, b, c uint32) uint32 {
 	return rt.Sel32(p < m.End, p, m.End)
 }
 
-// Utf8SpanEnd is $utf8SpanEnd.
-func (m *Machine) Utf8SpanEnd(e, stop uint32) uint32 {
+// UTF8SpanEnd is $utf8SpanEnd.
+func (m *Machine) UTF8SpanEnd(e, stop uint32) uint32 {
 	if e > stop {
 		e = stop
 	}
@@ -361,8 +361,8 @@ func (m *Machine) EmitColor(rec uint32) {
 	m.EmitRgba(rt.Ld32(m.Mem, rec))
 }
 
-// EmitCssVariable is $emitCssVariable.
-func (m *Machine) EmitCssVariable(hl, prefixLength uint32) {
+// EmitCSSVariable is $emitCssVariable.
+func (m *Machine) EmitCSSVariable(hl, prefixLength uint32) {
 	var entry, n uint32
 	rt.Copy(m.Mem, m.Out, 8706, 4)
 	m.Out += 4
@@ -427,8 +427,8 @@ func (m *Machine) EmitSpanOpen(hl uint32) {
 		m.Out = slot + 1
 		rt.Copy(m.Mem, m.Out, 8639, 19)
 		m.Out += 19
-		if m.CssVariables {
-			m.EmitCssVariable(hl, 0)
+		if m.CSSVariables {
+			m.EmitCSSVariable(hl, 0)
 		} else {
 			rec = m.ThemeRec(hl)
 			if rt.Ld32(m.Mem, rec) != 0 {
@@ -445,7 +445,7 @@ func (m *Machine) EmitSpanOpen(hl uint32) {
 		m.Mem[slot] = byte(length)
 		m.Out = save
 	}
-	if m.CssVariables {
+	if m.CSSVariables {
 		prefixLength = rt.Ld32(m.Mem, 18)
 		rt.Copy(m.Mem, m.Out, slot+1, 23)
 		m.Out += 23
@@ -468,21 +468,21 @@ func (m *Machine) SetSpan(hl uint32) {
 	var slot, length uint32
 	m.SpanHl = hl
 	if m.ThemeBlob != 0 {
-		if m.HtmlOpeners != 0 {
+		if m.HTMLOpeners != 0 {
 			if m.SpanVal != 0 {
 				rt.St64(m.Mem, m.Out, 0x3e6e6170732f3c)
 				m.Out += 7
 			}
 			m.SpanVal = uint64(hl)
 			if hl != 0 {
-				m.CopyHtmlOpener(hl)
+				m.CopyHTMLOpener(hl)
 			}
 		} else {
 			m.MultiSetSpan(hl)
 		}
 		return
 	}
-	if m.CssVariables {
+	if m.CSSVariables {
 		t0 = uint64(hl)
 	} else {
 		t0 = rt.Ld64(m.Mem, m.ThemeRec(hl)) & 0xffffffffff
@@ -501,7 +501,7 @@ func (m *Machine) SetSpan(hl uint32) {
 	}
 	slot = 8744 + hl*66
 	length = uint32(m.Mem[slot])
-	if length == 0 || m.CssVariables {
+	if length == 0 || m.CSSVariables {
 		m.EmitSpanOpen(hl)
 		return
 	}
@@ -517,14 +517,22 @@ func (m *Machine) EscCopy(lhs, rhs uint32) {
 	var c, mask, k, rem, dst, limit uint32
 	var w rt.V128
 	dst = m.Out
-	limit = rt.Sel32(rhs-lhs <= 4096, rhs, lhs+4096)
+	if rhs-lhs <= 4096 {
+		limit = rhs
+	} else {
+		limit = lhs + 4096
+	}
 outer:
 	for {
 		if lhs >= rhs {
 			break
 		}
 		if lhs >= limit {
-			limit = rt.Sel32(rhs-lhs <= 4096, rhs, lhs+4096)
+			if rhs-lhs <= 4096 {
+				limit = rhs
+			} else {
+				limit = lhs + 4096
+			}
 			m.Out = dst
 			m.EnsureCap((limit-lhs)*5 + 16)
 		}
@@ -604,7 +612,7 @@ func (m *Machine) RecFindSpecial(p uint32) uint32 {
 	var mask uint32
 	var w rt.V128
 	for {
-		if p >= m.Eof {
+		if p >= m.EOF {
 			break
 		}
 		w = rt.LdV(m.Mem, p)
@@ -615,7 +623,7 @@ func (m *Machine) RecFindSpecial(p uint32) uint32 {
 		}
 		p += 16
 	}
-	return rt.Sel32(p < m.Eof, p, m.Eof)
+	return rt.Sel32(p < m.EOF, p, m.EOF)
 }
 
 // RecLinesPost is $recLinesPost.
@@ -735,7 +743,9 @@ func (m *Machine) EmitTok(hl, lhs, rhs uint32) {
 		return
 	}
 	length = rhs - lhs
-	length = rt.Sel32(length < 4096, length, 4096)
+	if length >= 4096 {
+		length = 4096
+	}
 	m.EnsureCap(length*5 + m.SpanReserve)
 	if hl != m.SpanHl {
 		m.SetSpan(hl)
@@ -771,7 +781,7 @@ func (m *Machine) EmitGap(lhs, rhs uint32) {
 func (m *Machine) LexEmitLeadingContinuation() {
 	var lhs uint32
 	lhs = m.Ptr
-	m.Ptr = m.Utf8SpanEnd(m.Ptr, m.End)
+	m.Ptr = m.UTF8SpanEnd(m.Ptr, m.End)
 	m.EmitGap(lhs, m.Ptr)
 }
 
@@ -968,13 +978,13 @@ func (m *Machine) MultiRenderOpen(hl uint32) {
 // MultiSetSpan is $multiSetSpan.
 func (m *Machine) MultiSetSpan(hl uint32) {
 	var i, open uint32
-	var rec, any_ uint64
+	var rec, anyRec uint64
 	var same bool
 	open = uint32(m.SpanVal)
 	same = true
 	for {
 		rec = rt.Ld64(m.Mem, m.MultiRec(i, hl)) & 0xffffffffff
-		any_ |= rec
+		anyRec |= rec
 		if open != 0 {
 			same = same && rec == rt.Ld64(m.Mem, m.MultiRec(i, open))&0xffffffffff
 		}
@@ -984,13 +994,13 @@ func (m *Machine) MultiSetSpan(hl uint32) {
 		}
 	}
 	if open != 0 {
-		if same && any_ != 0 {
+		if same && anyRec != 0 {
 			return
 		}
 		rt.St64(m.Mem, m.Out, 0x3e6e6170732f3c)
 		m.Out += 7
 	}
-	if any_ == 0 {
+	if anyRec == 0 {
 		m.SpanVal = 0
 		return
 	}
@@ -1071,17 +1081,17 @@ func (m *Machine) MultiPrologue() {
 func (m *Machine) Prologue() {
 	var rec uint32
 	m.EnsureCap(128)
-	if m.CssVariables {
+	if m.CSSVariables {
 		m.EnsureCap(128 + rt.Ld32(m.Mem, 18)*2)
 	}
 	rt.Copy(m.Mem, m.Out, 8608, 31)
 	m.Out += 31
 	rec = m.ThemeRec(TokenBackground)
-	if m.CssVariables || rt.Ld32(m.Mem, rec) != 0 {
+	if m.CSSVariables || rt.Ld32(m.Mem, rec) != 0 {
 		rt.Copy(m.Mem, m.Out, 8658, 17)
 		m.Out += 17
-		if m.CssVariables {
-			m.EmitCssVariable(TokenBackground, rt.Ld32(m.Mem, 18))
+		if m.CSSVariables {
+			m.EmitCSSVariable(TokenBackground, rt.Ld32(m.Mem, 18))
 		} else {
 			m.EmitColor(rec)
 		}
@@ -1089,11 +1099,11 @@ func (m *Machine) Prologue() {
 		m.Out++
 	}
 	rec = m.ThemeRec(TokenForeground)
-	if m.CssVariables || rt.Ld32(m.Mem, rec) != 0 {
+	if m.CSSVariables || rt.Ld32(m.Mem, rec) != 0 {
 		rt.St64(m.Mem, m.Out, 0x3a726f6c6f63)
 		m.Out += 6
-		if m.CssVariables {
-			m.EmitCssVariable(TokenForeground, rt.Ld32(m.Mem, 18))
+		if m.CSSVariables {
+			m.EmitCSSVariable(TokenForeground, rt.Ld32(m.Mem, 18))
 			m.Mem[m.Out] = ';'
 			m.Out++
 		} else {
@@ -1116,26 +1126,30 @@ func (m *Machine) Epilogue() {
 func (m *Machine) HlBegin() {
 	var offset uint32
 	var changed rt.V128
-	m.CssVariables = m.Mem[1] == 1
+	m.CSSVariables = m.Mem[1] == 1
 	m.Tokens = m.Mem[1] == 3
-	m.HtmlOpeners = rt.Sel32(m.Mem[1] == 4, rt.Ld32(m.Mem, 14), 0)
-	m.ThemeBlob = m.HtmlOpeners | rt.B2u(m.Mem[1] == 2)
-	m.Eof = m.SrcBase + rt.Ld32(m.Mem, 2)
-	m.End = m.Eof
+	if m.Mem[1] == 4 {
+		m.HTMLOpeners = rt.Ld32(m.Mem, 14)
+	} else {
+		m.HTMLOpeners = 0
+	}
+	m.ThemeBlob = m.HTMLOpeners | rt.B2u(m.Mem[1] == 2)
+	m.EOF = m.SrcBase + rt.Ld32(m.Mem, 2)
+	m.End = m.EOF
 	m.Ptr = m.SrcBase
-	m.Out = (m.Eof + 47) & 0xfffffff0
-	if m.CssVariables || m.ThemeBlob != 0 {
+	m.Out = (m.EOF + 47) & 0xfffffff0
+	if m.CSSVariables || m.ThemeBlob != 0 {
 		m.Out += rt.Ld32(m.Mem, 18)
 	}
 	rt.St32(m.Mem, 6, m.Out)
 	m.Cap = uint32(len(m.Mem)/rt.PageSize)*0x10000 - 16
 	m.SpanHl = 0xffffffff
 	m.SpanVal = 0
-	m.SpanReserve = 96 + rt.Sel32(m.CssVariables, rt.Ld32(m.Mem, 18), 0)
-	if m.HtmlOpeners != 0 {
-		m.SpanReserve = rt.Ld32(m.Mem, m.HtmlOpeners)
-		m.EnsureCap(rt.Ld32(m.Mem, m.HtmlOpeners+8))
-		m.CopyHtmlOpener(0)
+	m.SpanReserve = 96 + rt.Sel32(m.CSSVariables, rt.Ld32(m.Mem, 18), 0)
+	if m.HTMLOpeners != 0 {
+		m.SpanReserve = rt.Ld32(m.Mem, m.HTMLOpeners)
+		m.EnsureCap(rt.Ld32(m.Mem, m.HTMLOpeners+8))
+		m.CopyHTMLOpener(0)
 		return
 	}
 	if m.ThemeBlob != 0 {
@@ -1159,21 +1173,21 @@ func (m *Machine) HlBegin() {
 				break
 			}
 		}
-		if rt.AnyTrue(changed) || m.SpanCacheMode != rt.B2u(m.CssVariables) {
+		if rt.AnyTrue(changed) || m.SpanCacheMode != rt.B2u(m.CSSVariables) {
 			rt.Fill(m.Mem, 8744, 0, 4818)
 			rt.Copy(m.Mem, 13568, 64, 384)
-			m.SpanCacheMode = rt.B2u(m.CssVariables)
+			m.SpanCacheMode = rt.B2u(m.CSSVariables)
 		}
 		m.Prologue()
 	}
 }
 
-// CopyHtmlOpener is $copyHtmlOpener.
-func (m *Machine) CopyHtmlOpener(hl uint32) {
+// CopyHTMLOpener is $copyHtmlOpener.
+func (m *Machine) CopyHTMLOpener(hl uint32) {
 	var slot, length uint32
-	slot = m.HtmlOpeners + 4 + hl<<3
+	slot = m.HTMLOpeners + 4 + hl<<3
 	length = rt.Ld32(m.Mem, slot+4)
-	rt.Copy(m.Mem, m.Out, m.HtmlOpeners+rt.Ld32(m.Mem, slot), length)
+	rt.Copy(m.Mem, m.Out, m.HTMLOpeners+rt.Ld32(m.Mem, slot), length)
 	m.Out += length
 }
 
@@ -1319,7 +1333,11 @@ func (m *Machine) LexScanNumberBody(hex uint32) {
 			continue
 		}
 		if c == '.' {
-			next = rt.Sel32(m.Ptr+1 < m.End, uint32(m.Mem[m.Ptr+1]), 0)
+			if m.Ptr+1 < m.End {
+				next = uint32(m.Mem[m.Ptr+1])
+			} else {
+				next = 0
+			}
 			if !m.LexIsDigit(next) {
 				break
 			}
@@ -1343,7 +1361,11 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 	m.LexScanNumber()
 	if lhs+1 < m.End && m.Mem[lhs] == '0' && uint32(m.Mem[lhs+1])|32 == 120 {
 		if m.Ptr < m.End {
-			next = rt.Sel32(m.Ptr+1 < m.End, uint32(m.Mem[m.Ptr+1]), 0)
+			if m.Ptr+1 < m.End {
+				next = uint32(m.Mem[m.Ptr+1])
+			} else {
+				next = 0
+			}
 			if rt.B2u(m.Mem[m.Ptr] == '.')&(m.LexIsHex(next)|rt.B2u(next|32 == 112)) != 0 {
 				if requireExponent != 0 || next|32 == 112 {
 					p = m.Ptr + 1
@@ -1381,7 +1403,7 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 // LexEscapeEnd is $lexEscapeEnd.
 func (m *Machine) LexEscapeEnd(p uint32) uint32 {
 	var e uint32
-	e = m.Utf8SpanEnd(p+2, m.End)
+	e = m.UTF8SpanEnd(p+2, m.End)
 	if e == p+2 && m.Mem[p+1] == '\r' && e < m.End && m.Mem[e] == '\n' {
 		e++
 	}
@@ -1424,7 +1446,7 @@ func (m *Machine) LexString(quote, multiline, hl uint32) {
 	lhs = m.Ptr
 	m.Ptr++
 	status = m.LexStringBody(quote, multiline, hl, lhs)
-	if rt.B2u(m.Streaming)&rt.B2u(m.Ptr == m.Eof)&rt.B2u(status != 1)&(multiline|rt.B2u(status == 2)) != 0 {
+	if rt.B2u(m.Streaming)&rt.B2u(m.Ptr == m.EOF)&rt.B2u(status != 1)&(multiline|rt.B2u(status == 2)) != 0 {
 		m.StreamMode = 2
 		m.StreamA = quote
 		m.StreamB = multiline
@@ -1451,7 +1473,7 @@ func (m *Machine) LexRawString(quote, multiline, hl uint32) {
 	lhs = m.Ptr
 	m.Ptr++
 	closed = m.LexRawStringBody(quote, multiline, hl, lhs)
-	if rt.B2u(m.Streaming)&multiline&rt.B2u(!closed && m.Ptr == m.Eof) != 0 {
+	if rt.B2u(m.Streaming)&multiline&rt.B2u(!closed && m.Ptr == m.EOF) != 0 {
 		m.StreamMode = 3
 		m.StreamA = quote
 		m.StreamB = multiline
@@ -1462,7 +1484,11 @@ func (m *Machine) LexRawString(quote, multiline, hl uint32) {
 // LexCEscapeEnd is $lexCEscapeEnd.
 func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 	var c, e uint32
-	c = rt.Sel32(p+1 < m.End, uint32(m.Mem[p+1]), 0)
+	if p+1 < m.End {
+		c = uint32(m.Mem[p+1])
+	} else {
+		c = 0
+	}
 	e = p + 2
 	switch {
 	case c == 'u':
@@ -1476,32 +1502,32 @@ func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 			e++
 			for {
 				if e >= m.End {
-					return m.Utf8SpanEnd(e, m.End)
+					return m.UTF8SpanEnd(e, m.End)
 				}
 				c = uint32(m.Mem[e])
 				if c == '\n' || c == '\r' || c == '"' || c == '\'' || c == '\\' {
-					return m.Utf8SpanEnd(e, m.End)
+					return m.UTF8SpanEnd(e, m.End)
 				}
 				e++
 				if c == '}' {
-					return m.Utf8SpanEnd(e, m.End)
+					return m.UTF8SpanEnd(e, m.End)
 				}
 			}
 		}
 		if c-48 <= 7 {
 			for {
 				if e >= m.End || e-p >= 4 {
-					return m.Utf8SpanEnd(e, m.End)
+					return m.UTF8SpanEnd(e, m.End)
 				}
 				if uint32(m.Mem[e])-48 > 7 {
-					return m.Utf8SpanEnd(e, m.End)
+					return m.UTF8SpanEnd(e, m.End)
 				}
 				e++
 			}
 		}
 		e = m.LexEscapeEnd(p)
 	}
-	return m.Utf8SpanEnd(e, m.End)
+	return m.UTF8SpanEnd(e, m.End)
 }
 
 // LexCStringBody is $lexCStringBody.
@@ -1577,7 +1603,11 @@ func (m *Machine) LexCStringResume(q uint32) uint32 {
 	if q != 0 {
 		t1 = q
 		lexCStringBody = m.LexCStringBody(q, TokenString, m.Ptr, 0)
-		t0 = rt.Sel32(lexCStringBody == 2, t1, 0)
+		if lexCStringBody == 2 {
+			t0 = t1
+		} else {
+			t0 = 0
+		}
 	} else {
 		t0 = 0
 	}
@@ -1606,7 +1636,7 @@ func (m *Machine) LexBlockComment(skip, hl uint32) {
 	}
 	m.ScanBlockCommentEnd()
 	m.EmitTok(hl, lhs, m.Ptr)
-	if m.Streaming && m.Ptr == m.Eof && (m.Ptr-lhs < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074) {
+	if m.Streaming && m.Ptr == m.EOF && (m.Ptr-lhs < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074) {
 		m.StreamMode = 1
 		m.StreamHl = hl
 	}
@@ -1614,7 +1644,7 @@ func (m *Machine) LexBlockComment(skip, hl uint32) {
 
 // StreamSetFixed is $streamSetFixed.
 func (m *Machine) StreamSetFixed(delimiter, length, hl uint32) {
-	if m.Streaming && length <= 32 && m.Ptr == m.Eof {
+	if m.Streaming && length <= 32 && m.Ptr == m.EOF {
 		rt.Copy(m.Mem, 13952, delimiter, length)
 		m.StreamMode = 20
 		m.StreamA = length
@@ -1630,12 +1660,12 @@ func (m *Machine) StreamSetFixed32(delimiter, length, hl uint32) {
 }
 
 // StreamSetNested is $streamSetNested.
-func (m *Machine) StreamSetNested(depth, open, close_, hl uint32) {
-	if m.Streaming && depth != 0 && m.Ptr == m.Eof {
+func (m *Machine) StreamSetNested(depth, open, closer, hl uint32) {
+	if m.Streaming && depth != 0 && m.Ptr == m.EOF {
 		m.StreamMode = 21
 		m.StreamA = depth
 		m.StreamB = open
-		m.StreamC = close_
+		m.StreamC = closer
 		m.StreamHl = hl
 	}
 }
@@ -1685,7 +1715,7 @@ func (m *Machine) LineDelimiterEnds(p, trim uint32) bool {
 
 // StreamSetLine is $streamSetLine.
 func (m *Machine) StreamSetLine(delimiter, length, trim, hl uint32) {
-	if m.Streaming && length <= 32 && m.Ptr == m.Eof {
+	if m.Streaming && length <= 32 && m.Ptr == m.EOF {
 		rt.Copy(m.Mem, 13952, delimiter, length)
 		m.StreamMode = 22
 		m.StreamA = length
@@ -1696,7 +1726,7 @@ func (m *Machine) StreamSetLine(delimiter, length, trim, hl uint32) {
 
 // StreamSetRegion is $streamSetRegion.
 func (m *Machine) StreamSetRegion(kind uint32) {
-	if m.Streaming && m.Ptr == m.Eof {
+	if m.Streaming && m.Ptr == m.EOF {
 		m.StreamRegionKind = kind
 		m.StreamRegionStarted = false
 	}
@@ -1742,13 +1772,13 @@ func (m *Machine) StreamResumeFixed() bool {
 }
 
 // LexNestedScan is $lexNestedScan.
-func (m *Machine) LexNestedScan(depth, open, close_ uint32) uint32 {
+func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 	var mask uint32
 	var w, w1, o0, o1, c0, c1 rt.V128
 	o0 = rt.Splat8(open)
 	o1 = rt.Splat8(open >> 8)
-	c0 = rt.Splat8(close_)
-	c1 = rt.Splat8(close_ >> 8)
+	c0 = rt.Splat8(closer)
+	c1 = rt.Splat8(closer >> 8)
 	for {
 		for {
 			if m.Ptr >= m.End {
@@ -1782,16 +1812,16 @@ func (m *Machine) LexNestedScan(depth, open, close_ uint32) uint32 {
 }
 
 // LexNestedBlockComment is $lexNestedBlockComment.
-func (m *Machine) LexNestedBlockComment(open, close_, hl uint32) {
+func (m *Machine) LexNestedBlockComment(open, closer, hl uint32) {
 	var lhs, depth uint32
 	lhs = m.Ptr
 	m.Ptr += 2
 	if m.Ptr > m.End {
 		m.Ptr = m.End
 	}
-	depth = m.LexNestedScan(1, open, close_)
+	depth = m.LexNestedScan(1, open, closer)
 	m.EmitTok(hl, lhs, m.Ptr)
-	m.StreamSetNested(depth, open, close_, hl)
+	m.StreamSetNested(depth, open, closer, hl)
 }
 
 // StreamResumeNested is $streamResumeNested.
@@ -1948,7 +1978,7 @@ func (m *Machine) LexSkipSpaceAt(p uint32) uint32 {
 
 // LexEmitIncludeDirective is $lexEmitIncludeDirective.
 func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
-	var p, word, header, close_ uint32
+	var p, word, header, closer uint32
 	p = lhs + 1
 	for {
 		if p >= rhs {
@@ -1990,12 +2020,12 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
 		return false
 	}
 	if m.Mem[p] == '<' {
-		close_ = 62
+		closer = 62
 	} else {
 		if m.Mem[p] != '"' {
 			return false
 		}
-		close_ = 34
+		closer = 34
 	}
 	header = p
 	p++
@@ -2003,7 +2033,7 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
 		if p >= rhs {
 			break
 		}
-		if uint32(m.Mem[p]) == close_ {
+		if uint32(m.Mem[p]) == closer {
 			p++
 			break
 		}
@@ -2261,20 +2291,20 @@ const (
 	TokenPreproc                  = 27
 	TokenPrimary                  = 28
 	TokenProperty                 = 29
-	TokenPropertyJsonKey          = 30
+	TokenPropertyJSONKey          = 30
 	TokenPunctuation              = 31
 	TokenPunctuationBracket       = 32
-	TokenPunctuationBracketHtml   = 33
+	TokenPunctuationBracketHTML   = 33
 	TokenPunctuationBracketJsx    = 34
 	TokenPunctuationDelimiter     = 35
-	TokenPunctuationDelimiterHtml = 36
+	TokenPunctuationDelimiterHTML = 36
 	TokenPunctuationDelimiterJsx  = 37
 	TokenPunctuationListMarker    = 38
 	TokenPunctuationMarkup        = 39
 	TokenPunctuationSpecial       = 40
 	TokenSelector                 = 41
 	TokenSelectorClass            = 42
-	TokenSelectorId               = 43
+	TokenSelectorID               = 43
 	TokenString                   = 44
 	TokenStringEscape             = 45
 	TokenStringRegex              = 46
@@ -2296,7 +2326,7 @@ const (
 	TokenHint                     = 62
 	TokenKeywordJsdoc             = 63
 	TokenLinkText                 = 64
-	TokenLinkUri                  = 65
+	TokenLinkURI                  = 65
 	TokenSelectorPseudo           = 66
 	TokenTagComponentJsx          = 67
 	TokenTypeJsdoc                = 68

@@ -40,28 +40,30 @@ func SplitTopLevelForms(text string) []Form {
 			start := i
 			depth := 0
 			inStr, inComment := false, false
+		scan:
 			for ; i < len(text); i++ {
 				d := text[i]
-				if inComment {
+				switch {
+				case inComment:
 					if d == '\n' {
 						inComment = false
 					}
-				} else if inStr {
+				case inStr:
 					if d == '\\' {
 						i++
 					} else if d == '"' {
 						inStr = false
 					}
-				} else if d == '"' {
+				case d == '"':
 					inStr = true
-				} else if d == ';' && i+1 < len(text) && text[i+1] == ';' {
+				case d == ';' && i+1 < len(text) && text[i+1] == ';':
 					inComment = true
-				} else if d == '(' {
+				case d == '(':
 					depth++
-				} else if d == ')' {
+				case d == ')':
 					depth--
 					if depth == 0 {
-						break
+						break scan
 					}
 				}
 			}
@@ -133,13 +135,14 @@ func ParseSexpr(src string) []*Sexpr {
 			depth := 1
 			i += 2
 			for i < len(src) && depth > 0 {
-				if src[i] == '(' && i+1 < len(src) && src[i+1] == ';' {
+				switch {
+				case src[i] == '(' && i+1 < len(src) && src[i+1] == ';':
 					depth++
 					i += 2
-				} else if src[i] == ';' && i+1 < len(src) && src[i+1] == ')' {
+				case src[i] == ';' && i+1 < len(src) && src[i+1] == ')':
 					depth--
 					i += 2
-				} else {
+				default:
 					i++
 				}
 			}
@@ -258,6 +261,7 @@ func ReplaceForm(code, head string, fn func(inner string, at int) string) string
 		depth := 0
 		inStr, inComment := false, false
 		j := at
+	scan:
 		for ; j < len(code); j++ {
 			d := code[j]
 			if inComment {
@@ -274,16 +278,17 @@ func ReplaceForm(code, head string, fn func(inner string, at int) string) string
 				}
 				continue
 			}
-			if d == '"' {
+			switch {
+			case d == '"':
 				inStr = true
-			} else if d == ';' && j+1 < len(code) && code[j+1] == ';' {
+			case d == ';' && j+1 < len(code) && code[j+1] == ';':
 				inComment = true
-			} else if d == '(' {
+			case d == '(':
 				depth++
-			} else if d == ')' {
+			case d == ')':
 				depth--
 				if depth == 0 {
-					break
+					break scan
 				}
 			}
 		}
@@ -307,7 +312,8 @@ func stripComments(src string) string {
 	i := 0
 	for i < len(src) {
 		c := src[i]
-		if c == '"' {
+		switch {
+		case c == '"':
 			i++
 			for i < len(src) && src[i] != '"' {
 				if src[i] == '\\' {
@@ -317,30 +323,31 @@ func stripComments(src string) string {
 				}
 			}
 			i++
-		} else if c == ';' && i+1 < len(src) && src[i+1] == ';' {
+		case c == ';' && i+1 < len(src) && src[i+1] == ';':
 			out.WriteString(src[last:i])
 			for i < len(src) && src[i] != '\n' {
 				i++
 			}
 			last = i
-		} else if c == '(' && i+1 < len(src) && src[i+1] == ';' {
+		case c == '(' && i+1 < len(src) && src[i+1] == ';':
 			out.WriteString(src[last:i])
 			depth := 1
 			i += 2
 			for i < len(src) && depth > 0 {
-				if src[i] == '(' && i+1 < len(src) && src[i+1] == ';' {
+				switch {
+				case src[i] == '(' && i+1 < len(src) && src[i+1] == ';':
 					depth++
 					i += 2
-				} else if src[i] == ';' && i+1 < len(src) && src[i+1] == ')' {
+				case src[i] == ';' && i+1 < len(src) && src[i+1] == ')':
 					depth--
 					i += 2
-				} else {
+				default:
 					i++
 				}
 			}
 			out.WriteString(" ")
 			last = i
-		} else {
+		default:
 			i++
 		}
 	}
@@ -362,17 +369,18 @@ func branchOperands(code, head string) map[int]bool {
 	var stack []*frame
 	for i := 0; i < len(code); i++ {
 		c := code[i]
-		if c == '"' {
+		switch {
+		case c == '"':
 			for i++; i < len(code) && code[i] != '"'; i++ {
 				if code[i] == '\\' {
 					i++
 				}
 			}
-		} else if c == ';' && i+1 < len(code) && code[i+1] == ';' {
+		case c == ';' && i+1 < len(code) && code[i+1] == ';':
 			for i < len(code) && code[i] != '\n' {
 				i++
 			}
-		} else if c == '(' {
+		case c == '(':
 			end := i + 64
 			if end > len(code) {
 				end = len(code)
@@ -390,7 +398,7 @@ func branchOperands(code, head string) map[int]bool {
 				}
 			}
 			stack = append(stack, &frame{head: name, lastAt: -1})
-		} else if c == ')' {
+		case c == ')':
 			if len(stack) > 0 {
 				f := stack[len(stack)-1]
 				stack = stack[:len(stack)-1]

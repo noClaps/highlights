@@ -109,8 +109,8 @@ func engineRaw(m *engine.Machine, extra map[string]func(m *engine.Machine, args 
 			return m.CallExport(name, args)
 		},
 		setEnv: func(pop func(string) uint32) {
-			m.Imports.IsIdStart = func(*engine.Machine, uint32, uint32) uint32 { return pop("is_id_start") }
-			m.Imports.IsIdContinue = func(*engine.Machine, uint32, uint32) uint32 { return pop("is_id_continue") }
+			m.Imports.IsIDStart = func(*engine.Machine, uint32, uint32) uint32 { return pop("is_id_start") }
+			m.Imports.IsIDContinue = func(*engine.Machine, uint32, uint32) uint32 { return pop("is_id_continue") }
 		},
 	}
 }
@@ -727,7 +727,7 @@ func (r *replayer) harness(src *moduleSrc) func(*engine.Machine) {
 			if m.Ptr > m.End {
 				panic("unreachable")
 			}
-			m.End = m.Eof
+			m.End = m.EOF
 			fn(m)
 			m.HlEnd()
 		}
@@ -1526,7 +1526,7 @@ func customHarness(content string) func(*engine.Machine) {
 			m.HlBegin()
 			m.End = m.Ptr + (m.End-m.Ptr)>>1
 			m.HlTsx()
-			m.End = m.Eof
+			m.End = m.EOF
 			m.HlTsx()
 			m.HlEnd()
 		}

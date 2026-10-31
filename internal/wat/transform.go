@@ -1546,30 +1546,32 @@ func checkDataSegments(code, path string, limit int) {
 		length := 0
 		for ; i < len(code) && depth != 0; i++ {
 			c := code[i]
-			if inComment {
+			switch {
+			case inComment:
 				if c == '\n' {
 					inComment = false
 				}
-			} else if inStr {
-				if c == '\\' {
+			case inStr:
+				switch {
+				case c == '\\':
 					if i+3 <= len(code) && hexPairRe.MatchString(code[i+1:i+3]) {
 						i += 2
 					} else {
 						i++
 					}
 					length++
-				} else if c == '"' {
+				case c == '"':
 					inStr = false
-				} else {
+				default:
 					length++
 				}
-			} else if c == '"' {
+			case c == '"':
 				inStr = true
-			} else if c == ';' && i+1 < len(code) && code[i+1] == ';' {
+			case c == ';' && i+1 < len(code) && code[i+1] == ';':
 				inComment = true
-			} else if c == '(' {
+			case c == '(':
 				depth++
-			} else if c == ')' {
+			case c == ')':
 				depth--
 			}
 		}

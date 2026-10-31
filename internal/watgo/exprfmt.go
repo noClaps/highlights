@@ -267,23 +267,22 @@ func tidyLine(line string) string {
 		if err != nil {
 			return line
 		}
-		// x = x op y is x op= y, and x++ or x-- for a step of one
-		if e.op != "" && e.op != "!" && precedence[e.op] >= 4 && e.args[0].leaf == target {
-			rhs := e.args[1]
-			if rhs.leaf == "1" && (e.op == "+" || e.op == "-") {
-				return indent + target + e.op + e.op
-			}
-			// x = x & ^y clears y's bits: x &^= y
-			if e.op == "&" && rhs.op == "u^" {
-				return indent + target + " &^= " + rhs.args[0].print()
-			}
-			// x += B2u(c) counts c: if c { x++ }
-			if rhs.fn == "rt.B2u" && !rhs.index && len(rhs.args) == 1 && (e.op == "+" || e.op == "-") {
-				return indent + "if " + rhs.args[0].print() + " {\n" + indent + "\t" + target + e.op + e.op + "\n" + indent + "}"
-			}
-			return indent + target + " " + e.op + "= " + rhs.print()
+		op, rhs := "", e
+		if e.op != "" && e.op != "!" && e.op != "u^" && precedence[e.op] >= 4 && e.args[0].leaf == target {
+			op, rhs = e.op, e.args[1]
 		}
-		return indent + target + " = " + e.print()
+		// x += B2u(c) counts c: if c { x++ }
+		if rhs.fn == "rt.B2u" && !rhs.index && len(rhs.args) == 1 && (op == "+" || op == "-") {
+			return indent + "if " + rhs.args[0].print() + " {\n" + indent + "\t" + target + op + op + "\n" + indent + "}"
+		}
+		// Go has no conditional expression: a select assigns in if/else
+		if isSelect(rhs) {
+			return indent + selectStmt(indent, target, op, rhs) + "\n" + indent + "}"
+		}
+		if s := update(target, op, rhs); s != "" {
+			return indent + s
+		}
+		return ""
 	}
 	for _, re := range []*regexp.Regexp{ifRe, switchRe} {
 		if m := re.FindStringSubmatch(line); m != nil {
@@ -297,6 +296,54 @@ func tidyLine(line string) string {
 		return m[1] + tidyExpr(m[2])
 	}
 	return line
+}
+
+func isSelect(e *expr) bool {
+	return (e.fn == "rt.Sel32" || e.fn == "rt.Sel64") && !e.index && len(e.args) == 3
+}
+
+// selectStmt writes target op= sel as an if statement without its closing
+// brace; a select in the else arm continues it as an else if.
+func selectStmt(indent, target, op string, sel *expr) string {
+	c, a, b := sel.args[0], sel.args[1], sel.args[2]
+	then := update(target, op, a)
+	if isSelect(b) && then != "" {
+		return "if " + c.print() + " {\n" + indent + "\t" + then + "\n" + indent + "} else " + selectStmt(indent, target, op, b)
+	}
+	els := update(target, op, b)
+	switch {
+	case els == "":
+		return "if " + c.print() + " {\n" + indent + "\t" + then
+	case then == "":
+		return "if " + negate(c.print()) + " {\n" + indent + "\t" + els
+	}
+	return "if " + c.print() + " {\n" + indent + "\t" + then + "\n" + indent + "} else {\n" + indent + "\t" + els
+}
+
+// update writes target op= v as a statement: x++ or x-- for a step of
+// one, x &^= y for a mask cleared, and "" when it changes nothing.
+func update(target, op string, v *expr) string {
+	if op == "" && v.op != "" && v.op != "!" && v.op != "u^" && precedence[v.op] >= 4 && v.args[0].leaf == target {
+		op, v = v.op, v.args[1]
+	}
+	minusOne := v.leaf == "0xffffffff" || v.leaf == "4294967295" || v.leaf == "0xffffffffffffffff" || v.leaf == "18446744073709551615"
+	switch {
+	case op == "" && v.leaf == target:
+		return ""
+	case op == "":
+		return target + " = " + v.print()
+	case v.leaf == "0" && (op == "+" || op == "-" || op == "|" || op == "^" || op == "<<" || op == ">>"):
+		return ""
+	case v.leaf == "1" && (op == "+" || op == "-"):
+		return target + op + op
+	case minusOne && op == "+":
+		return target + "--"
+	case minusOne && op == "-":
+		return target + "++"
+	case op == "&" && v.op == "u^":
+		return target + " &^= " + v.args[0].print()
+	}
+	return target + " " + op + "= " + v.print()
 }
 
 var tempAssignRe = regexp.MustCompile(`^(\t*)(t\d+) = (.+)$`)

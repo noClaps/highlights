@@ -615,7 +615,8 @@ var localAlternatives = map[string]string{
 	"len": "length", "type": "typ", "string": "str", "func": "fn", "range": "rng",
 	"default": "def", "case": "kase", "select": "sel", "map": "mapping",
 	"max": "maximum", "min": "minimum", "copy": "dup", "new": "fresh",
-	"bits": "bitSet", "rt": "rtv",
+	"bits": "bitSet", "rt": "rtv", "close": "closer", "m": "mode", "any": "anyRec",
+	"arg": "argument", "cap": "capacity", "for": "forKw", "import": "importKw",
 }
 
 var tempName = regexp.MustCompile(`^(t|p|v)\d+$`)
@@ -720,6 +721,8 @@ func (g *fgen) genFunc() string {
 	loopEnds := g.terminalEnd == g.out.Len()
 	body = tidyBody(body)
 	body = collapseElseIf(body)
+	body = dropEmptyIfs(body)
+	body = outdentElse(body)
 	body = switchChains(body)
 	body = unlabelBranches(body)
 	body = dropUnreadTemps(body, g.temps, g.pure)
@@ -741,7 +744,7 @@ func (g *fgen) genFunc() string {
 	// one declaration per type, in first-use order; variables the body
 	// never mentions are left out, and ones it only assigns are marked
 	// used, as Go requires
-	vars := append(locals, g.temps...)
+	vars := slices.Concat(locals, g.temps)
 	var order []string
 	byType := map[string][]string{}
 	var unused []string
@@ -833,9 +836,12 @@ func (g *fgen) returned(v value) string {
 
 // tidyBody reprints expressions and folds single-use call temporaries.
 func tidyBody(body string) string {
-	lines := strings.Split(body, "\n")
-	for i, l := range lines {
-		lines[i] = tidyLine(l)
+	var lines []string
+	for _, l := range strings.Split(body, "\n") {
+		// a statement may tidy into several lines, or none
+		if t := tidyLine(l); t != "" || l == "" {
+			lines = append(lines, strings.Split(t, "\n")...)
+		}
 	}
 	for {
 		uses := map[string]int{}
@@ -850,7 +856,14 @@ func tidyBody(body string) string {
 		}
 		lines = folded
 	}
-	return strings.Join(lines, "\n")
+	// folding writes statements that tidy further
+	var out []string
+	for _, l := range lines {
+		if t := tidyLine(l); t != "" || l == "" {
+			out = append(out, strings.Split(t, "\n")...)
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 // explicitReturn ends a function body with a return, so a block just
@@ -908,6 +921,94 @@ func collapseElseIf(body string) string {
 			out = append(out, indent+"}")
 			lines = append(out, lines[k+2:]...)
 			changed = true
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// dropEmptyIfs removes an if whose arms folding emptied, when its
+// condition calls nothing.
+func dropEmptyIfs(body string) string {
+	lines := strings.Split(body, "\n")
+	for changed := true; changed; {
+		changed = false
+		var out []string
+		for i := 0; i < len(lines); i++ {
+			l := lines[i]
+			if i+1 < len(lines) {
+				t := strings.TrimLeft(l, "\t")
+				indent := l[:len(l)-len(t)]
+				next := lines[i+1]
+				// an empty else arm
+				if t == "} else {" && next == indent+"}" {
+					out = append(out, next)
+					i++
+					changed = true
+					continue
+				}
+				if m := ifOpenRe.FindStringSubmatch(l); m != nil && next == indent+"}" && !methodCallRe.MatchString(m[2]) {
+					i++
+					changed = true
+					continue
+				}
+			}
+			out = append(out, l)
+		}
+		lines = out
+	}
+	return strings.Join(lines, "\n")
+}
+
+var methodCallRe = regexp.MustCompile(`\bm\.\w+\(`)
+
+// outdentElse drops the else of an if whose first arm ends in a jump,
+// moving the else arm's statements after the if.
+func outdentElse(body string) string {
+	lines := strings.Split(body, "\n")
+	for changed := true; changed; {
+		changed = false
+		for i, l := range lines {
+			t := strings.TrimLeft(l, "\t")
+			if t != "} else {" || i == 0 {
+				continue
+			}
+			indent := l[:len(l)-len(t)]
+			last := strings.TrimLeft(lines[i-1], "\t")
+			if lines[i-1] != indent+"\t"+last || !(last == "continue" || last == "break" || last == "return" ||
+				strings.HasPrefix(last, "continue ") || strings.HasPrefix(last, "break ") || strings.HasPrefix(last, "return ") || strings.HasPrefix(last, "panic(")) {
+				continue
+			}
+			// the if must start plainly, not as an else if, and its else
+			// arm must end the statement
+			start := i - 1
+			for start >= 0 && !strings.HasPrefix(lines[start], indent+"if ") {
+				if strings.HasPrefix(lines[start], indent+"}") || (lines[start] != "" && !strings.HasPrefix(lines[start], indent+"\t")) {
+					start = -1
+					break
+				}
+				start--
+			}
+			if start < 0 {
+				continue
+			}
+			end := i + 1
+			for end < len(lines) && lines[end] != indent+"}" {
+				if lines[end] != "" && !strings.HasPrefix(lines[end], indent+"\t") {
+					end = len(lines)
+				}
+				end++
+			}
+			if end >= len(lines) {
+				continue
+			}
+			out := append([]string{}, lines[:i]...)
+			out = append(out, indent+"}")
+			for _, a := range lines[i+1 : end] {
+				out = append(out, strings.TrimPrefix(a, "\t"))
+			}
+			lines = append(out, lines[end+1:]...)
+			changed = true
+			break
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -1824,6 +1925,13 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
 	}
 }
 
+// namesLoop reports whether the loop body written after head still
+// branches to the loop by name.
+func namesLoop(text, head, name string) bool {
+	_, body, _ := strings.Cut(text, head)
+	return strings.Contains(body, "continue "+name+"\n") || strings.Contains(body, "break "+name+"\n")
+}
+
 var doWhileRe = regexp.MustCompile(`\n(\t+)if (.*) \{\n\t+continue (\w+)\n\t+\}\n$`)
 
 var byteSwitchRe = regexp.MustCompile(`^\$byteSwitch\d+_default$`)
@@ -1979,8 +2087,7 @@ func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, blocks ..
 		text := strings.TrimSuffix(g.out.String(), trailing)
 		g.out.Reset()
 		g.out.WriteString(text)
-		inBody := text[strings.Index(text, head):]
-		l.used = strings.Contains(inBody, "continue "+l.goName+"\n") || strings.Contains(inBody, "break "+l.goName+"\n")
+		l.used = namesLoop(text, head, l.goName)
 	}
 	// a loop that ends `if c { continue }` and leaves otherwise is a
 	// do-while: it ends `if !c { break }`
@@ -1992,8 +2099,7 @@ func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, blocks ..
 		g.line("if %s {", negate(m[2]))
 		g.line("\tbreak")
 		g.line("}")
-		inBody := text[strings.Index(text, head):]
-		l.used = strings.Contains(inBody, "continue "+l.goName+"\n") || strings.Contains(inBody, "break "+l.goName+"\n")
+		l.used = namesLoop(text, head, l.goName)
 		l.broken = true
 		fallthroughReachable = false
 	}

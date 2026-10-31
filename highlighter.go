@@ -86,8 +86,8 @@ func NewHighlighter() *Highlighter {
 
 func newMachine() *engine.Machine {
 	m := engine.New()
-	m.Imports.IsIdStart = func(m *engine.Machine, ptr, n uint32) uint32 { return idClass(m.Mem, ptr, n, 0) }
-	m.Imports.IsIdContinue = func(m *engine.Machine, ptr, n uint32) uint32 { return idClass(m.Mem, ptr, n, 2) }
+	m.Imports.IsIDStart = func(m *engine.Machine, ptr, n uint32) uint32 { return idClass(m.Mem, ptr, n, 0) }
+	m.Imports.IsIDContinue = func(m *engine.Machine, ptr, n uint32) uint32 { return idClass(m.Mem, ptr, n, 2) }
 	return m
 }
 
@@ -155,13 +155,14 @@ func (h *Highlighter) run(langID, mode, inputLength int, reset *bool) (err error
 			err = trapError(r)
 		}
 	}()
-	if reset == nil && h.entry != nil {
+	switch {
+	case reset == nil && h.entry != nil:
 		h.entry(h.m)
-	} else if reset == nil {
+	case reset == nil:
 		h.m.Highlight()
-	} else if *reset {
+	case *reset:
 		h.m.HighlightStream(1)
-	} else {
+	default:
 		h.m.HighlightStream(0)
 	}
 	return nil
