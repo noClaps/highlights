@@ -309,6 +309,13 @@ func trimParens(expr string) string {
 				depth--
 			case '"':
 				return expr
+			case '\'':
+				// skip a rune literal such as '(' or '\''
+				j := i + 1
+				if j < len(expr) && expr[j] == '\\' {
+					j++
+				}
+				i = j + 1
 			}
 			if depth == 0 && i < len(expr)-1 {
 				return expr
@@ -427,13 +434,16 @@ func (g *fgen) genFunc() string {
 	// the function body is the outermost branch target: branching to it
 	// returns
 	g.labels = append(g.labels, &label{result: result, isFunc: true})
-	g.genSeq(f.Body)
+	g.genSeq(explicitReturn(f.Body, result))
 	if !g.unreachable && result != "" {
 		v := g.pop()
 		g.line("return %s", trimParens(g.asValue(v)))
 	}
 	g.labels = g.labels[:0]
-	body := g.out.String()
+	body := strings.TrimSuffix(g.out.String(), "\treturn\n")
+	loopEnds := g.terminalEnd == g.out.Len()
+	body = tidyBody(body)
+	body = collapseElseIf(body)
 
 	var sb strings.Builder
 	name := f.Name
@@ -444,13 +454,17 @@ func (g *fgen) genFunc() string {
 		fmt.Fprintf(&sb, "// %s is %s.\n", f.GoName, name)
 	}
 	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", f.GoName, strings.Join(params, ", "), resultType(f))
-	// one declaration per type, in first-use order; unread variables are
-	// marked used, as Go requires
+	// one declaration per type, in first-use order; variables the body
+	// never mentions are left out, and ones it only assigns are marked
+	// used, as Go requires
 	vars := append(locals, g.temps...)
 	var order []string
 	byType := map[string][]string{}
 	var unused []string
 	for _, v := range vars {
+		if !regexp.MustCompile(`\b` + v.Name + `\b`).MatchString(body) {
+			continue
+		}
 		typ := "bool"
 		if v.Type != "bool" {
 			typ = v.Type.goType()
@@ -459,7 +473,7 @@ func (g *fgen) genFunc() string {
 			order = append(order, typ)
 		}
 		byType[typ] = append(byType[typ], v.Name)
-		if !regexp.MustCompile(`\b`+v.Name+`\b`).MatchString(body) || !readsVar(body, v.Name) {
+		if !readsVar(body, v.Name) {
 			unused = append(unused, v.Name)
 		}
 	}
@@ -470,11 +484,89 @@ func (g *fgen) genFunc() string {
 		fmt.Fprintf(&sb, "\t_ = %s\n", u)
 	}
 	sb.WriteString(body)
-	if result != "" && !endsTerminating(body) && g.terminalEnd != len(body) {
+	if result != "" && !endsTerminating(body) && !loopEnds {
 		sb.WriteString("\tpanic(rt.Trap(\"unreachable\"))\n")
 	}
 	sb.WriteString("}\n\n")
 	return sb.String()
+}
+
+var wordRe = regexp.MustCompile(`\bt\d+\b`)
+
+// tidyBody reprints expressions and folds single-use call temporaries.
+func tidyBody(body string) string {
+	lines := strings.Split(body, "\n")
+	for i, l := range lines {
+		lines[i] = tidyLine(l)
+	}
+	for {
+		uses := map[string]int{}
+		for _, l := range lines {
+			for _, w := range wordRe.FindAllString(l, -1) {
+				uses[w]++
+			}
+		}
+		folded := foldTemps(lines, uses)
+		if len(folded) == len(lines) {
+			break
+		}
+		lines = folded
+	}
+	return strings.Join(lines, "\n")
+}
+
+// explicitReturn ends a function body with a return, so a block just
+// before it can run the return in place of a jump to the end.
+func explicitReturn(body []*wat.Sexpr, result ValType) []*wat.Sexpr {
+	ret := &wat.Sexpr{Atom: "return"}
+	if result == "" {
+		return append(slices.Clone(body), &wat.Sexpr{IsList: true, List: []*wat.Sexpr{ret}})
+	}
+	if n := len(body); n > 0 && isSimple(body[n-1]) && body[n-1].Head() != "return" {
+		out := slices.Clone(body[:n-1])
+		return append(out, &wat.Sexpr{IsList: true, List: []*wat.Sexpr{ret, body[n-1]}})
+	}
+	return body
+}
+
+// collapseElseIf turns `} else {` holding a single if statement into
+// `} else if`.
+func collapseElseIf(body string) string {
+	lines := strings.Split(body, "\n")
+	for changed := true; changed; {
+		changed = false
+		for i := 0; i+1 < len(lines); i++ {
+			trimmed := strings.TrimLeft(lines[i], "\t")
+			if trimmed != "} else {" {
+				continue
+			}
+			indent := lines[i][:len(lines[i])-len(trimmed)]
+			inner := indent + "\t"
+			if !strings.HasPrefix(lines[i+1], inner+"if ") || strings.HasPrefix(lines[i+1], inner+"\t") {
+				continue
+			}
+			// the inner if ends at the first `}` at its own indentation
+			k := i + 2
+			for k < len(lines) && lines[k] != inner+"}" {
+				if lines[k] != "" && !strings.HasPrefix(lines[k], inner) {
+					k = len(lines)
+				}
+				k++
+			}
+			if k+1 >= len(lines) || lines[k+1] != indent+"}" {
+				continue
+			}
+			out := append([]string{}, lines[:i]...)
+			out = append(out, indent+"} else "+strings.TrimLeft(lines[i+1], "\t"))
+			for _, l := range lines[i+2 : k] {
+				out = append(out, strings.TrimPrefix(l, "\t"))
+			}
+			out = append(out, indent+"}")
+			lines = append(out, lines[k+2:]...)
+			changed = true
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // deadSets finds stores whose value is never read. A function the
@@ -977,6 +1069,12 @@ func (g *fgen) genByteSwitch(name string, body []*wat.Sexpr) bool {
 	return true
 }
 
+var byteExprRe = regexp.MustCompile(`^(?:rt\.Ld8\(.*\)|m\.[A-Za-z0-9]*Byte\(.*\)|(?:c|ch|b|q|c\d|quote|delim|close|open|next|prev|term|sep|first|last|lead)\d*_?)$`)
+
+// isByteExpr guesses whether an expression holds a byte: a byte load, a
+// call to a *Byte function, or a local named like one.
+func isByteExpr(e string) bool { return byteExprRe.MatchString(e) }
+
 // byteLiteral writes a byte as a rune literal when it is printable.
 func byteLiteral(b int) string {
 	switch {
@@ -1016,6 +1114,15 @@ func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, block *la
 	g.genSeq(body)
 	g.labels = g.labels[:len(g.labels)-1]
 	fallthroughReachable := !g.unreachable
+	// a continue at the end of the loop body is how a Go loop body ends
+	// anyway
+	if trailing := strings.Repeat("\t", g.depth+1) + "continue " + l.goName + "\n"; !fallthroughReachable && strings.HasSuffix(g.out.String(), trailing) {
+		text := strings.TrimSuffix(g.out.String(), trailing)
+		g.out.Reset()
+		g.out.WriteString(text)
+		inBody := text[strings.Index(text, head):]
+		l.used = strings.Contains(inBody, "continue "+l.goName+"\n") || strings.Contains(inBody, "break "+l.goName+"\n")
+	}
 	if fallthroughReachable {
 		if result != "" {
 			v := g.pop()
@@ -1285,10 +1392,13 @@ func topLevelComparison(e string) (string, int) {
 		case ')':
 			depth--
 		case '\'':
-			// a rune literal
-			if j := strings.IndexByte(e[i+1:], '\''); j >= 0 {
-				i += j + 1
+			// skip a rune literal such as '(' or '\''
+			j := i + 1
+			if j < len(e) && e[j] == '\\' {
+				j++
 			}
+			i = j + 1
+			continue
 		}
 		if depth != 0 || i+1 >= len(e) {
 			continue
@@ -1768,6 +1878,14 @@ func (g *fgen) binary(op binOp, a, b value) value {
 		return value{expr: "(" + a.expr + join + b.expr + ")", typ: I32, isBool: true, stable: stable}
 	}
 	av, bv := g.asValue(a), g.asValue(b)
+	if op.isCmp && op.typ == I32 {
+		// a byte compared with a printable constant reads as a rune literal
+		if b.isConst && isByteExpr(a.expr) {
+			bv = byteLiteral(int(b.c))
+		} else if a.isConst && isByteExpr(b.expr) {
+			av = byteLiteral(int(a.c))
+		}
+	}
 	if op.isCmp {
 		if op.signed {
 			st := signedType(op.typ)
