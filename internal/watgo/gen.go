@@ -57,6 +57,8 @@ type label struct {
 	broken bool
 	// breakStmt, when set, is the statement that leaves this block
 	breakStmt string
+	// jumped is set when a goto names this block
+	jumped bool
 	// inline holds the short code after the block that a branch to it can
 	// run in place, ending in its own branch; targets are the labels that
 	// code branches to, resolved where the block is
@@ -997,6 +999,7 @@ func (g *fgen) jump(l *label, v *value) []string {
 		return []string{"break " + l.breaks.goName}
 	}
 	l.used = true
+	l.jumped = true
 	var out []string
 	if l.result != "" {
 		out = append(out, l.resTemp+" = "+trimParens(g.asValue(*v)))
@@ -1007,7 +1010,7 @@ func (g *fgen) jump(l *label, v *value) []string {
 // emitJump writes a branch to l: the block's short tail in place when its
 // branch targets resolve to the same labels here, or a jump statement.
 func (g *fgen) emitJump(l *label, v *value) {
-	if l.inline != nil && v == nil && g.inlineDepth < 4 && g.sameTargets(l) {
+	if l.inline != nil && l.breaks == nil && l.breakStmt == "" && v == nil && g.inlineDepth < 4 && g.sameTargets(l) {
 		base := len(g.stack)
 		g.inlineDepth++
 		g.genSeq(l.inline)
@@ -1155,12 +1158,28 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
 		}
 	}
 	g.pendingInline = nil
-	if result == "" && len(body) == 1 && body[0].IsList && body[0].Head() == "loop" {
-		loopName, loopResult, loopBody := g.blockHeader(body[0].List[1:])
+	// a block that ends with a loop ends where the loop does: inside the
+	// loop, a branch to the block breaks out of it
+	if n := len(body); result == "" && n > 0 && body[n-1].IsList && body[n-1].Head() == "loop" {
+		loopName, loopResult, loopBody := g.blockHeader(body[n-1].List[1:])
 		if loopResult == "" {
 			g.labels = append(g.labels, l)
-			g.genLoop(loopName, "", loopBody, l)
+			if n > 1 {
+				g.withEnd(nil, nil, func() { g.genSeq(body[:n-1]) })
+			}
+			reachedLoop := !g.unreachable
+			if reachedLoop {
+				g.childCont = cont
+				g.genLoop(loopName, "", loopBody, l)
+			}
 			g.labels = g.labels[:len(g.labels)-1]
+			if l.jumped {
+				// jumps from before the loop land after it
+				g.depth--
+				g.line("%s:", l.goName)
+				g.depth++
+				g.unreachable = false
+			}
 			return
 		}
 	}

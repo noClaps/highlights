@@ -138,23 +138,21 @@ func (m *Machine) ThemeRec(hl uint32) uint32 {
 func (m *Machine) ScanToLineEnd() {
 	var mask uint32
 	var w rt.V128
+wide:
 	for {
 		if m.Ptr >= m.End {
-			if m.Ptr > m.End {
-				m.Ptr = m.End
-			}
-			return
+			break wide
 		}
 		w = rt.LdV(m.Mem, int(m.Ptr))
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, rt.Splat8(13))))
 		if mask != 0 {
 			m.Ptr += rt.Ctz32(mask)
-			if m.Ptr > m.End {
-				m.Ptr = m.End
-			}
-			return
+			break wide
 		}
 		m.Ptr += 16
+	}
+	if m.Ptr > m.End {
+		m.Ptr = m.End
 	}
 }
 
@@ -162,25 +160,23 @@ func (m *Machine) ScanToLineEnd() {
 func (m *Machine) ScanBlockCommentEnd() {
 	var mask uint32
 	var stars rt.V128
+wide:
 	for {
 		if m.Ptr >= m.End {
-			if m.Ptr > m.End {
-				m.Ptr = m.End
-			}
-			return
+			break wide
 		}
 		stars = rt.Eq8(rt.LdV(m.Mem, int(m.Ptr)), rt.Splat8(42))
 		if rt.AnyTrue(stars) {
 			mask = rt.Bitmask8(rt.And(stars, rt.Eq8(rt.LdV(m.Mem, int(m.Ptr)+1), rt.Splat8(47))))
 			if mask != 0 {
 				m.Ptr += rt.Ctz32(mask) + 2
-				if m.Ptr > m.End {
-					m.Ptr = m.End
-				}
-				return
+				break wide
 			}
 		}
 		m.Ptr += 16
+	}
+	if m.Ptr > m.End {
+		m.Ptr = m.End
 	}
 }
 
@@ -201,10 +197,7 @@ wide:
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, qv), rt.Eq8(w, ev)), rt.Or(rt.Eq8(w, nv), rt.Eq8(w, rv))))
 		if mask != 0 {
 			p += rt.Ctz32(mask)
-			if p > stop {
-				p = stop
-			}
-			return p
+			break wide
 		}
 		p += 16
 		if p < stop {
@@ -237,23 +230,21 @@ func (m *Machine) ScanWhitespace() {
 	if rt.Clz32(rt.B2u(c == ' ' || c-9 <= 4))>>5 != 0 {
 		return
 	}
+wide:
 	for {
 		if m.Ptr >= m.End {
-			if m.Ptr > m.End {
-				m.Ptr = m.End
-			}
-			return
+			break wide
 		}
 		w = rt.LdV(m.Mem, int(m.Ptr))
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(32)), rt.LeU8(rt.Sub8(w, rt.Splat8(9)), rt.Splat8(4)))) ^ 65535
 		if mask != 0 {
 			m.Ptr += rt.Ctz32(mask)
-			if m.Ptr > m.End {
-				m.Ptr = m.End
-			}
-			return
+			break wide
 		}
 		m.Ptr += 16
+	}
+	if m.Ptr > m.End {
+		m.Ptr = m.End
 	}
 }
 
@@ -270,10 +261,7 @@ wide:
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), w), rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9)), rt.Or(rt.Eq8(w, rt.Splat8(95)), rt.Eq8(w, rt.Splat8(x)))))) ^ 65535
 		if mask != 0 {
 			m.Ptr += rt.Ctz32(mask)
-			if m.Ptr > m.End {
-				m.Ptr = m.End
-			}
-			return
+			break wide
 		}
 		m.Ptr += 16
 		if m.Ptr < m.End {
@@ -299,7 +287,7 @@ simd:
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(a)), rt.Eq8(w, rt.Splat8(b))), rt.Eq8(w, rt.Splat8(c))))
 		if mask != 0 {
 			p += rt.Ctz32(mask)
-			return rt.Sel32(p < m.End, p, m.End)
+			break simd
 		}
 		p += 16
 		if p < m.End {
@@ -315,15 +303,17 @@ func (m *Machine) Utf8SpanEnd(e uint32, stop uint32) uint32 {
 	if e > stop {
 		e = stop
 	}
+l:
 	for {
 		if e >= stop {
-			return e
+			break l
 		}
 		if rt.Ld8(m.Mem, int(e))&192 != 128 {
-			return e
+			break l
 		}
 		e++
 	}
+	return e
 }
 
 // ScanHexRun is $scanHexRun.
@@ -333,16 +323,18 @@ func (m *Machine) ScanHexRun(p uint32, maximum uint32) uint32 {
 	if stop > m.End {
 		stop = m.End
 	}
+l:
 	for {
 		if p >= stop {
-			return p
+			break l
 		}
 		c = rt.Ld8(m.Mem, int(p))
 		if c-48 > 9 && (c|32)-97 > 5 {
-			return p
+			break l
 		}
 		p++
 	}
+	return p
 }
 
 // StreamClearCheckpoints is $streamClearCheckpoints.
@@ -541,14 +533,14 @@ func (m *Machine) EscCopy(lhs uint32, rhs uint32) {
 outer:
 	for {
 		if lhs >= rhs {
-			m.Out = dst
-			return
+			break outer
 		}
 		if lhs >= limit {
 			limit = rt.Sel32(rhs-lhs <= 4096, rhs, lhs+4096)
 			m.Out = dst
 			m.EnsureCap((limit-lhs)*5 + 16)
 		}
+	wide:
 		for {
 			w = rt.LdV(m.Mem, int(lhs))
 			rt.StV(m.Mem, int(dst), w)
@@ -559,19 +551,7 @@ outer:
 				if k < rem {
 					dst += k
 					lhs += k
-					c = rt.Ld8(m.Mem, int(lhs))
-					if c == '&' {
-						rt.St64(m.Mem, int(dst), 0x3b706d6126)
-						dst += 5
-					} else if c == '<' {
-						rt.St32(m.Mem, int(dst), 0x3b746c26)
-						dst += 4
-					} else {
-						rt.St32(m.Mem, int(dst), 0x3b746726)
-						dst += 4
-					}
-					lhs++
-					continue outer
+					break wide
 				}
 			}
 			if rem <= 16 {
@@ -582,7 +562,20 @@ outer:
 			dst += 16
 			lhs += 16
 		}
+		c = rt.Ld8(m.Mem, int(lhs))
+		if c == '&' {
+			rt.St64(m.Mem, int(dst), 0x3b706d6126)
+			dst += 5
+		} else if c == '<' {
+			rt.St32(m.Mem, int(dst), 0x3b746c26)
+			dst += 4
+		} else {
+			rt.St32(m.Mem, int(dst), 0x3b746726)
+			dst += 4
+		}
+		lhs++
 	}
+	m.Out = dst
 }
 
 // RecTok is $recTok.
@@ -622,18 +615,20 @@ func (m *Machine) RecStreamEnd() {
 func (m *Machine) RecFindSpecial(p uint32) uint32 {
 	var mask uint32
 	var w rt.V128
+wide:
 	for {
 		if p >= m.Eof {
-			return rt.Sel32(p < m.Eof, p, m.Eof)
+			break wide
 		}
 		w = rt.LdV(m.Mem, int(p))
 		mask = rt.Bitmask8(rt.Or(w, rt.Eq8(w, rt.Splat8(10))))
 		if mask != 0 {
 			p += rt.Ctz32(mask)
-			return rt.Sel32(p < m.Eof, p, m.Eof)
+			break wide
 		}
 		p += 16
 	}
+	return rt.Sel32(p < m.Eof, p, m.Eof)
 }
 
 // RecLinesPost is $recLinesPost.
@@ -649,7 +644,7 @@ func (m *Machine) RecLinesPost() {
 records:
 	for {
 		if rec >= oldEnd {
-			return
+			break records
 		}
 		e = rt.Ld32(m.Mem, int(rec))
 		hl = rt.Ld32(m.Mem, int(rec)+4)
@@ -659,40 +654,13 @@ records:
 			p = m.SrcBase + lastEnd + delta
 			rhs = m.SrcBase + e
 			next = m.SrcBase + next
+		bytes:
 			for {
 				if p >= rhs {
-					next -= m.SrcBase
-					delta = p - m.SrcBase - char
-					e -= delta
-					if e > lastEnd {
-						if hl == lastHl {
-							rt.St32(m.Mem, int(m.Out-8), e)
-						} else {
-							rt.St32(m.Mem, int(m.Out), e)
-							rt.St32(m.Mem, int(m.Out)+4, hl)
-							m.Out += 8
-							lastHl = hl
-						}
-						lastEnd = e
-					}
-					continue records
+					break bytes
 				}
 				if rhs <= next {
-					next -= m.SrcBase
-					delta = p - m.SrcBase - char
-					e -= delta
-					if e > lastEnd {
-						if hl == lastHl {
-							rt.St32(m.Mem, int(m.Out-8), e)
-						} else {
-							rt.St32(m.Mem, int(m.Out), e)
-							rt.St32(m.Mem, int(m.Out)+4, hl)
-							m.Out += 8
-							lastHl = hl
-						}
-						lastEnd = e
-					}
-					continue records
+					break bytes
 				}
 				char += next - p
 				p = next
@@ -755,6 +723,8 @@ records:
 				}
 				next = m.RecFindSpecial(p)
 			}
+			next -= m.SrcBase
+			delta = p - m.SrcBase - char
 		}
 		e -= delta
 		if e > lastEnd {
@@ -1323,9 +1293,10 @@ func (m *Machine) SigFnAngleDrop(n uint32) {
 // SigAngleOps is $sigAngleOps.
 func (m *Machine) SigAngleOps(p uint32, e uint32) {
 	var c uint32
+l:
 	for {
 		if p >= e {
-			return
+			break l
 		}
 		c = rt.Ld8(m.Mem, int(p))
 		if c == '<' {
@@ -1385,7 +1356,7 @@ func (m *Machine) LexScanNumberBody(hex uint32) {
 l:
 	for {
 		if m.Ptr >= m.End {
-			return
+			break l
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
 		if m.LexIsIdentContinue(c) != 0 {
@@ -1396,7 +1367,7 @@ l:
 		if c == '.' {
 			next = rt.Sel32(m.Ptr+1 < m.End, rt.Ld8(m.Mem, int(m.Ptr)+1), 0)
 			if m.LexIsDigit(next) == 0 {
-				return
+				break l
 			}
 			prev = c
 			m.Ptr++
@@ -1407,14 +1378,14 @@ l:
 			m.Ptr++
 			continue l
 		}
-		return
+		break l
 	}
 }
 
 // LexScanHexNumber is $lexScanHexNumber.
 func (m *Machine) LexScanHexNumber(requireExponent uint32) {
-	var lhs, next, p, c, t1, t3, t4, t6 uint32
-	var t0, t2, t5 bool
+	var lhs, next, p, c, t1, t2, t4 uint32
+	var t0, t3 bool
 	lhs = m.Ptr
 	m.LexScanNumber()
 	if lhs+1 < m.End && rt.Ld8(m.Mem, int(lhs)) == '0' && rt.Ld8(m.Mem, int(lhs)+1)|32 == 120 {
@@ -1425,50 +1396,32 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 			if rt.B2u(t0)&(t1|rt.B2u(next|32 == 112)) != 0 {
 				if requireExponent|rt.B2u(next|32 == 112) != 0 {
 					p = m.Ptr + 1
+				fraction:
 					for {
 						if p >= m.End {
-							if p >= m.End || rt.Ld8(m.Mem, int(p))|32 != 112 {
-								return
-							}
-							p++
-							if p < m.End {
-								c = rt.Ld8(m.Mem, int(p))
-								if c == '+' || c == '-' {
-									p++
-								}
-							}
-							t2 = p >= m.End
-							t3 = m.LexIsDigit(rt.Ld8(m.Mem, int(p)))
-							if t2 || t3 == 0 {
-								return
-							}
-							m.Ptr++
-							m.LexScanNumberBody(1)
-							return
+							break fraction
 						}
 						c = rt.Ld8(m.Mem, int(p))
-						t4 = m.LexIsHex(c)
-						if rt.Clz32(t4|rt.B2u(c == '_'))>>5 != 0 {
-							if p >= m.End || rt.Ld8(m.Mem, int(p))|32 != 112 {
-								return
-							}
-							p++
-							if p < m.End {
-								c = rt.Ld8(m.Mem, int(p))
-								if c == '+' || c == '-' {
-									p++
-								}
-							}
-							t5 = p >= m.End
-							t6 = m.LexIsDigit(rt.Ld8(m.Mem, int(p)))
-							if t5 || t6 == 0 {
-								return
-							}
-							m.Ptr++
-							m.LexScanNumberBody(1)
-							return
+						t2 = m.LexIsHex(c)
+						if rt.Clz32(t2|rt.B2u(c == '_'))>>5 != 0 {
+							break fraction
 						}
 						p++
+					}
+					if p >= m.End || rt.Ld8(m.Mem, int(p))|32 != 112 {
+						return
+					}
+					p++
+					if p < m.End {
+						c = rt.Ld8(m.Mem, int(p))
+						if c == '+' || c == '-' {
+							p++
+						}
+					}
+					t3 = p >= m.End
+					t4 = m.LexIsDigit(rt.Ld8(m.Mem, int(p)))
+					if t3 || t4 == 0 {
+						return
 					}
 				}
 				m.Ptr++
@@ -1491,22 +1444,20 @@ func (m *Machine) LexEscapeEnd(p uint32) uint32 {
 // LexStringBody is $lexStringBody.
 func (m *Machine) LexStringBody(quote uint32, multiline uint32, hl uint32, seg uint32) uint32 {
 	var c, e, status uint32
+l:
 	for {
 		m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, quote, 1, rt.B2u(multiline == 0))
 		if m.Ptr >= m.End {
-			m.EmitTok(hl, seg, m.Ptr)
-			return status
+			break l
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
 		if c == quote {
 			m.Ptr++
 			status = 1
-			m.EmitTok(hl, seg, m.Ptr)
-			return status
+			break l
 		}
 		if c != '\\' {
-			m.EmitTok(hl, seg, m.Ptr)
-			return status
+			break l
 		}
 		m.EmitTok(hl, seg, m.Ptr)
 		e = m.LexEscapeEnd(m.Ptr)
@@ -1517,6 +1468,8 @@ func (m *Machine) LexStringBody(quote uint32, multiline uint32, hl uint32, seg u
 		}
 		seg = m.Ptr
 	}
+	m.EmitTok(hl, seg, m.Ptr)
+	return status
 }
 
 // LexString is $lexString.
@@ -1607,11 +1560,11 @@ func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 func (m *Machine) LexCStringBody(q uint32, hl uint32, seg uint32, suffix uint32) uint32 {
 	var c, e, status, t2 uint32
 	var t1 bool
+scan:
 	for {
 		m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, q, 1, 1)
 		if m.Ptr >= m.End {
-			m.EmitTok(hl, seg, m.Ptr)
-			return status
+			break scan
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
 		if c == q {
@@ -1624,12 +1577,10 @@ func (m *Machine) LexCStringBody(q uint32, hl uint32, seg uint32, suffix uint32)
 				}
 			}
 			status = 1
-			m.EmitTok(hl, seg, m.Ptr)
-			return status
+			break scan
 		}
 		if c != '\\' {
-			m.EmitTok(hl, seg, m.Ptr)
-			return status
+			break scan
 		}
 		m.EmitTok(hl, seg, m.Ptr)
 		e = m.LexCEscapeEnd(m.Ptr)
@@ -1638,10 +1589,11 @@ func (m *Machine) LexCStringBody(q uint32, hl uint32, seg uint32, suffix uint32)
 		seg = e
 		if m.Ptr == m.End && (rt.Ld8(m.Mem, int(m.Ptr-1)) == '\n' || rt.Ld8(m.Mem, int(m.Ptr-1)) == '\r') {
 			status = 2
-			m.EmitTok(hl, seg, m.Ptr)
-			return status
+			break scan
 		}
 	}
+	m.EmitTok(hl, seg, m.Ptr)
+	return status
 }
 
 // LexCString is $lexCString.
@@ -1661,18 +1613,19 @@ func (m *Machine) LexLineByteBefore(p uint32) uint32 {
 back:
 	for {
 		if p <= m.SrcBase {
-			return 0
+			break back
 		}
 		p--
 		c = rt.Ld8(m.Mem, int(p))
 		if c == '\n' || c == '\r' {
-			return 0
+			break back
 		}
 		if c == ' ' || c == '\t' {
 			continue back
 		}
 		return c
 	}
+	return 0
 }
 
 // LexCStringResume is $lexCStringResume.
@@ -1751,25 +1704,22 @@ func (m *Machine) LexHeredocArgument(p uint32) uint32 {
 	if c == '"' || c == '\'' {
 		return 1
 	}
+name:
 	for {
 		if p >= m.End {
-			p = m.LexSkipSpaceAt(p)
-			if p >= m.End {
-				return 1
-			}
-			c = rt.Ld8(m.Mem, int(p))
-			return rt.B2u(c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#')
+			break name
 		}
 		if m.LexIsIdentContinue(rt.Ld8(m.Mem, int(p))) == 0 {
-			p = m.LexSkipSpaceAt(p)
-			if p >= m.End {
-				return 1
-			}
-			c = rt.Ld8(m.Mem, int(p))
-			return rt.B2u(c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#')
+			break name
 		}
 		p++
 	}
+	p = m.LexSkipSpaceAt(p)
+	if p >= m.End {
+		return 1
+	}
+	c = rt.Ld8(m.Mem, int(p))
+	return rt.B2u(c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#')
 }
 
 // LineDelimiterEnds is $lineDelimiterEnds.
@@ -1819,43 +1769,35 @@ search:
 	for {
 		p = m.LexFindByte(p, rt.Ld8(m.Mem, 13952))
 		if p+m.StreamA > m.End {
-			m.Ptr = m.End
-			m.EmitTok(m.StreamHl, lhs, m.Ptr)
-			return 1
+			break search
 		}
 		i = 1
 		matched = 1
+	compare:
 		for {
 			if i >= m.StreamA {
-				if m.StreamB != 0 && p > lhs && rt.Ld8(m.Mem, int(p-1)) == m.StreamB {
-					matched = 0
-				}
-				if matched != 0 {
-					m.Ptr = p + m.StreamA
-					m.EmitTok(m.StreamHl, lhs, m.Ptr)
-					m.StreamMode = 0
-					return 0
-				}
-				p++
-				continue search
+				break compare
 			}
 			if rt.Ld8(m.Mem, int(p+i)) != rt.Ld8(m.Mem, int(13952+i)) {
 				matched = 0
-				if m.StreamB != 0 && p > lhs && rt.Ld8(m.Mem, int(p-1)) == m.StreamB {
-					matched = 0
-				}
-				if matched != 0 {
-					m.Ptr = p + m.StreamA
-					m.EmitTok(m.StreamHl, lhs, m.Ptr)
-					m.StreamMode = 0
-					return 0
-				}
-				p++
-				continue search
+				break compare
 			}
 			i++
 		}
+		if m.StreamB != 0 && p > lhs && rt.Ld8(m.Mem, int(p-1)) == m.StreamB {
+			matched = 0
+		}
+		if matched != 0 {
+			m.Ptr = p + m.StreamA
+			m.EmitTok(m.StreamHl, lhs, m.Ptr)
+			m.StreamMode = 0
+			return 0
+		}
+		p++
 	}
+	m.Ptr = m.End
+	m.EmitTok(m.StreamHl, lhs, m.Ptr)
+	return 1
 }
 
 // LexNestedScan is $lexNestedScan.
@@ -1868,48 +1810,36 @@ func (m *Machine) LexNestedScan(depth uint32, open uint32, close_ uint32) uint32
 	c1 = rt.Splat8(close_ >> 8)
 scan:
 	for {
+	wide:
 		for {
 			if m.Ptr >= m.End {
-				if m.Ptr+1 >= m.End {
-					m.Ptr = m.End
-					return depth
-				}
-				if rt.Ld16(m.Mem, int(m.Ptr)) == open {
-					depth++
-					m.Ptr += 2
-					continue scan
-				}
-				depth--
-				m.Ptr += 2
-				if depth == 0 {
-					return depth
-				}
-				continue scan
+				break wide
 			}
 			w = rt.LdV(m.Mem, int(m.Ptr))
 			w1 = rt.LdV(m.Mem, int(m.Ptr)+1)
 			mask = rt.Bitmask8(rt.Or(rt.And(rt.Eq8(w, o0), rt.Eq8(w1, o1)), rt.And(rt.Eq8(w, c0), rt.Eq8(w1, c1))))
 			if mask != 0 {
 				m.Ptr += rt.Ctz32(mask)
-				if m.Ptr+1 >= m.End {
-					m.Ptr = m.End
-					return depth
-				}
-				if rt.Ld16(m.Mem, int(m.Ptr)) == open {
-					depth++
-					m.Ptr += 2
-					continue scan
-				}
-				depth--
-				m.Ptr += 2
-				if depth == 0 {
-					return depth
-				}
-				continue scan
+				break wide
 			}
 			m.Ptr += 16
 		}
+		if m.Ptr+1 >= m.End {
+			m.Ptr = m.End
+			break scan
+		}
+		if rt.Ld16(m.Mem, int(m.Ptr)) == open {
+			depth++
+			m.Ptr += 2
+			continue scan
+		}
+		depth--
+		m.Ptr += 2
+		if depth == 0 {
+			break scan
+		}
 	}
+	return depth
 }
 
 // LexNestedBlockComment is $lexNestedBlockComment.
@@ -1946,9 +1876,7 @@ func (m *Machine) StreamResumeLine() uint32 {
 lines:
 	for {
 		if p >= m.End {
-			m.Ptr = m.End
-			m.EmitTok(m.StreamHl, lhs, m.Ptr)
-			return 1
+			break lines
 		}
 		candidate = p
 		if m.StreamB&3 != 0 {
@@ -2001,23 +1929,27 @@ lines:
 				return 0
 			}
 		}
+	line:
 		for {
 			if p >= m.End {
-				continue lines
+				break line
 			}
 			c = rt.Ld8(m.Mem, int(p))
 			p++
 			if c == '\n' {
-				continue lines
+				break line
 			}
 			if c == '\r' {
 				if p < m.End && rt.Ld8(m.Mem, int(p)) == '\n' {
 					p++
 				}
-				continue lines
+				break line
 			}
 		}
 	}
+	m.Ptr = m.End
+	m.EmitTok(m.StreamHl, lhs, m.Ptr)
+	return 1
 }
 
 // StreamResumeCommon is $streamResumeCommon.
@@ -2063,16 +1995,18 @@ func (m *Machine) StreamResumeCommon() uint32 {
 // LexSkipSpaceAt is $lexSkipSpaceAt.
 func (m *Machine) LexSkipSpaceAt(p uint32) uint32 {
 	var c uint32
+l:
 	for {
 		if p >= m.End {
-			return p
+			break l
 		}
 		c = rt.Ld8(m.Mem, int(p))
 		if c != ' ' && c != '\t' {
-			return p
+			break l
 		}
 		p++
 	}
+	return p
 }
 
 // LexEmitIncludeDirective is $lexEmitIncludeDirective.
@@ -2133,22 +2067,21 @@ space2:
 	}
 	header = p
 	p++
+headerByte:
 	for {
 		if p >= rhs {
-			m.EmitTok(TokenPreproc, lhs, header)
-			m.EmitTok(TokenString, header, p)
-			m.EmitTok(TokenPreproc, p, rhs)
-			return 1
+			break headerByte
 		}
 		if rt.Ld8(m.Mem, int(p)) == close_ {
 			p++
-			m.EmitTok(TokenPreproc, lhs, header)
-			m.EmitTok(TokenString, header, p)
-			m.EmitTok(TokenPreproc, p, rhs)
-			return 1
+			break headerByte
 		}
 		p++
 	}
+	m.EmitTok(TokenPreproc, lhs, header)
+	m.EmitTok(TokenString, header, p)
+	m.EmitTok(TokenPreproc, p, rhs)
+	return 1
 }
 
 // LexKeywordLookup is $lexKeywordLookup.
@@ -2195,14 +2128,16 @@ func (m *Machine) LexLowerCopy(lhs uint32, rhs uint32, dst uint32) uint32 {
 	if n > 31 {
 		return 0
 	}
+wide:
 	for {
 		if i >= n {
-			return n
+			break wide
 		}
 		w = rt.LdV(m.Mem, int(lhs+i))
 		rt.StV(m.Mem, int(dst+i), rt.Or(w, rt.And(rt.LeU8(rt.Sub8(w, rt.Splat8(65)), rt.Splat8(25)), rt.Splat8(32))))
 		i += 16
 	}
+	return n
 }
 
 // LexFindEither is $lexFindEither.
@@ -2218,7 +2153,7 @@ simd:
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(a)), rt.Eq8(w, rt.Splat8(b))))
 		if mask != 0 {
 			p += rt.Ctz32(mask)
-			return rt.Sel32(p < m.End, p, m.End)
+			break simd
 		}
 		p += 16
 		if p < m.End {
@@ -2240,7 +2175,7 @@ simd:
 		mask = rt.Bitmask8(rt.Eq8(rt.LdV(m.Mem, int(p)), rt.Splat8(a)))
 		if mask != 0 {
 			p += rt.Ctz32(mask)
-			return rt.Sel32(p < m.End, p, m.End)
+			break simd
 		}
 		p += 16
 		if p < m.End {
@@ -2254,9 +2189,10 @@ simd:
 // LexIsTypeGlue is $lexIsTypeGlue.
 func (m *Machine) LexIsTypeGlue(lhs uint32, rhs uint32) uint32 {
 	var c uint32
+l:
 	for {
 		if lhs >= rhs {
-			return 1
+			break l
 		}
 		c = rt.Ld8(m.Mem, int(lhs))
 		if c != '<' && c != '>' && c != '?' {
@@ -2264,14 +2200,16 @@ func (m *Machine) LexIsTypeGlue(lhs uint32, rhs uint32) uint32 {
 		}
 		lhs++
 	}
+	return 1
 }
 
 // LexGapHasBreak is $lexGapHasBreak.
 func (m *Machine) LexGapHasBreak(p uint32, stop uint32) uint32 {
 	var c uint32
+l:
 	for {
 		if p >= stop {
-			return 0
+			break l
 		}
 		c = rt.Ld8(m.Mem, int(p))
 		if c == '\n' || c == '\r' {
@@ -2279,6 +2217,7 @@ func (m *Machine) LexGapHasBreak(p uint32, stop uint32) uint32 {
 		}
 		p++
 	}
+	return 0
 }
 
 // LexIsConstCase is $lexIsConstCase.
@@ -2287,9 +2226,10 @@ func (m *Machine) LexIsConstCase(lhs uint32, rhs uint32) uint32 {
 	if rhs-lhs < 2 {
 		return 0
 	}
+l:
 	for {
 		if lhs >= rhs {
-			return upper
+			break l
 		}
 		c = rt.Ld8(m.Mem, int(lhs))
 		if c-65 <= 25 {
@@ -2302,6 +2242,7 @@ func (m *Machine) LexIsConstCase(lhs uint32, rhs uint32) uint32 {
 		}
 		lhs++
 	}
+	return upper
 }
 
 // TemplateByte is $templateByte.
@@ -2345,6 +2286,7 @@ func (m *Machine) StringDollarAt(seg uint32, dialect uint32, nested uint32) uint
 	if t1&rt.B2u(c2 != '$') != 0 {
 		m.EmitTok(TokenString, seg, m.Ptr)
 		m.Ptr++
+	name:
 		for {
 			m.ScanIdentRun(95)
 			t2 = dialect == 16
@@ -2353,11 +2295,12 @@ func (m *Machine) StringDollarAt(seg uint32, dialect uint32, nested uint32) uint
 			t5 = m.LexIsIdentStart(t4)
 			t6 = m.TemplateByte(m.Ptr + 1)
 			if rt.Clz32(rt.B2u(t2)&rt.B2u(t3 == 46)&t5&rt.B2u(t6 != 36))>>5 != 0 {
-				m.EmitTok(TokenVariable, at, m.Ptr)
-				return m.Ptr
+				break name
 			}
 			m.Ptr++
 		}
+		m.EmitTok(TokenVariable, at, m.Ptr)
+		return m.Ptr
 	}
 	m.Ptr++
 	return seg
