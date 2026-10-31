@@ -45,6 +45,24 @@ documentation and examples (`go doc highlights`).
 (a goroutine by default) and calls `OnDeferTokenize` without holding its
 lock, so the callback may call any method.
 
+## Command
+
+`cmd/highlights` prints a file, or standard input, with syntax highlighting:
+
+```sh
+go install ./cmd/highlights
+highlights main.go
+git show HEAD:main.go | highlights -l go | less -R
+highlights -f html -t github-light main.go > main.html
+```
+
+The language comes from the file name (`main.go`, `Dockerfile`), or from
+`-l`; standard input and unknown names are plain text. `-t` picks a bundled
+theme (`-list-themes`) or reads a theme JSON file, and `-f` chooses `ansi`
+(24-bit terminal colors, the default) or `html`. ANSI output is colored only
+on a terminal unless `-color always`, and never when `NO_COLOR` is set; `-bg`
+also paints the theme's background.
+
 ## How the port is built
 
 The lexers are written in WebAssembly Text, in `internal/engine/wat` (the

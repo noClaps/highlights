@@ -4,6 +4,7 @@ package themes
 
 import (
 	"embed"
+	"strings"
 
 	highlights "highlights"
 )
@@ -17,6 +18,20 @@ func load(name string) *highlights.Theme {
 		panic(err)
 	}
 	return highlights.MustParseTheme(b)
+}
+
+// Names returns the names of the bundled themes, sorted, as JSON accepts
+// them.
+func Names() []string {
+	entries, err := data.ReadDir("data")
+	if err != nil {
+		panic(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, strings.TrimSuffix(e.Name(), ".json"))
+	}
+	return names
 }
 
 // JSON returns a bundled theme's source file.
