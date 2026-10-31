@@ -69,9 +69,10 @@ type event struct {
 		Name   any               `json:"name"`
 		Themes []json.RawMessage `json:"themes"`
 	} `json:"family"`
-	Table map[string]string `json:"table"`
-	OK    *bool             `json:"ok"`
-	Error string            `json:"error"`
+	Table     map[string]string `json:"table"`
+	Inherited bool              `json:"inherited"`
+	OK        *bool             `json:"ok"`
+	Error     string            `json:"error"`
 }
 
 // undefined is JavaScript's undefined in decoded arguments.
@@ -113,20 +114,22 @@ func engineRaw(m *engine.Machine, extra map[string]func(m *engine.Machine, args 
 }
 
 type replayer struct {
-	t        *testing.T
-	file     string
-	strs     map[string]string
-	strIDs   map[string]string
-	themes   map[string]ThemeSource
-	modules  map[string]*moduleSrc
-	hls      map[string]*Highlighter
-	streams  map[string]*StreamTokenizer
-	lives    map[string]*liveReplay
-	raws     map[string]*rawMachine
-	shadows  map[*Highlighter][]byte
-	compared int
-	skipped  int
-	skips    map[string]int
+	t       *testing.T
+	file    string
+	strs    map[string]string
+	strIDs  map[string]string
+	themes  map[string]ThemeSource
+	modules map[string]*moduleSrc
+	hls     map[string]*Highlighter
+	streams map[string]*StreamTokenizer
+	lives   map[string]*liveReplay
+	raws    map[string]*rawMachine
+	shadows map[*Highlighter][]byte
+	// inherited instances were used by an earlier test file
+	inherited map[*Highlighter]bool
+	compared  int
+	skipped   int
+	skips     map[string]int
 }
 
 type liveReplay struct {
@@ -191,6 +194,7 @@ func replayFile(t *testing.T, path, file string) {
 		hls: map[string]*Highlighter{}, streams: map[string]*StreamTokenizer{},
 		lives: map[string]*liveReplay{}, raws: map[string]*rawMachine{},
 		shadows: map[*Highlighter][]byte{}, skips: map[string]int{},
+		inherited: map[*Highlighter]bool{},
 	}
 	seen := map[string]int{}
 	for _, e := range events {
@@ -274,7 +278,11 @@ func (r *replayer) run(e *event, c *cursor) {
 	case "theme":
 		r.themes[e.ID] = r.theme(e)
 	case "hl":
-		r.hls[e.ID] = r.newHighlighter(e)
+		h := r.newHighlighter(e)
+		r.hls[e.ID] = h
+		if e.Inherited && h != nil {
+			r.inherited[h] = true
+		}
 	case "hl.call":
 		r.hlCall(e)
 	case "fn":
@@ -384,6 +392,7 @@ func (r *replayer) expand(text string) string {
 var strRefRe = regexp.MustCompile(`\{"\$str":"(s\d+)"\}`)
 
 func (r *replayer) str(s string) any {
+	s = joinSurrogatePairs(s)
 	if utf16Len(s) > 256 {
 		if id, ok := r.strIDs[s]; ok {
 			return jsjson.O("$str", id)
@@ -794,28 +803,6 @@ func (r *replayer) input(v any) (string, []byte, bool) {
 	return "", nil, false
 }
 
-// jsString converts a recorded string argument as TextEncoder would.
-func jsText(s string) string {
-	if hasWTF8Surrogate(s) {
-		return strings.ToValidUTF8(replaceSurrogates(s), "�")
-	}
-	return s
-}
-
-func replaceSurrogates(s string) string {
-	var sb strings.Builder
-	for i := 0; i < len(s); {
-		if i+2 < len(s) && s[i] == 0xed && s[i+1] >= 0xa0 && s[i+1] <= 0xbf {
-			sb.WriteString("�")
-			i += 3
-			continue
-		}
-		sb.WriteByte(s[i])
-		i++
-	}
-	return sb.String()
-}
-
 func (r *replayer) hlCall(e *event) {
 	h := r.hl(e.HL)
 	if e.Mem != nil {
@@ -833,7 +820,7 @@ func (r *replayer) hlCall(e *event) {
 		var out []byte
 		var err error
 		if isString {
-			out, err = h.codeToHTML(jsText(s), nil, true, opts)
+			out, err = h.codeToHTML(s, nil, true, opts)
 		} else {
 			out, err = h.codeToHTML("", b, false, opts)
 		}
@@ -844,7 +831,7 @@ func (r *replayer) hlCall(e *event) {
 		var res *TokensResult
 		var err error
 		if isString {
-			res, err = h.CodeToTokens(jsText(s), opts)
+			res, err = h.CodeToTokens(s, opts)
 		} else {
 			res, err = h.CodeToTokensBytes(b, opts)
 		}
@@ -863,7 +850,7 @@ func (r *replayer) hlCall(e *event) {
 		}
 		var n int
 		if isString {
-			n = h.writeString(jsText(s), offset)
+			n = h.writeString(engineText(s), offset)
 		} else {
 			n = h.WriteInput(b, offset)
 		}
@@ -883,7 +870,12 @@ func (r *replayer) hlCall(e *event) {
 		r.t.Fatalf("unknown highlighter method %s", e.Name)
 	}
 	if e.MemAfter != nil || e.MemAfterHash != "" {
-		r.checkValue(e, "memory", memDiff(before, h.m.Mem), nil, e.MemAfter, e.MemAfterHash)
+		if r.inherited[h] {
+			r.skipped++
+			r.skips["memory of an instance an earlier test file used"]++
+		} else {
+			r.checkValue(e, "memory", memDiff(before, h.m.Mem), nil, e.MemAfter, e.MemAfterHash)
+		}
 	}
 }
 
@@ -1157,9 +1149,6 @@ func (r *replayer) streamCall(e *event) {
 		var err error
 		switch c := args[0].(type) {
 		case string:
-			if hasWTF8Surrogate(c) {
-				skip("stream text with lone surrogates")
-			}
 			lines, err = st.PushCode(c)
 		case []byte:
 			lines, err = st.PushBytes(c)

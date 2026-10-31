@@ -202,3 +202,111 @@ func toLiveText(s string) string {
 	}
 	return sb.String()
 }
+
+// surrogateAt returns the surrogate a three-byte WTF-8 sequence at s[i]
+// encodes, or 0.
+func surrogateAt(s string, i int) rune {
+	if i+2 < len(s) && s[i] == 0xed && s[i+1] >= 0xa0 && s[i+1] <= 0xbf && s[i+2] >= 0x80 && s[i+2] <= 0xbf {
+		return 0xd000 | rune(s[i+1]&0x3f)<<6 | rune(s[i+2]&0x3f)
+	}
+	return 0
+}
+
+// normalizeText prepares text the way JavaScript strings behave. content
+// keeps each lone surrogate as WTF-8, for token content; engine replaces
+// each with U+FFFD, as TextEncoder does, for the lexer. Both join WTF-8
+// surrogate pairs and replace other malformed bytes as the WHATWG decoder
+// does, so their UTF-16 offsets agree.
+func normalizeText(s string) (content, engine string) {
+	if utf8.ValidString(s) {
+		return s, s
+	}
+	var c, e strings.Builder
+	for i := 0; i < len(s); {
+		if hi := surrogateAt(s, i); hi != 0 {
+			if lo := surrogateAt(s, i+3); hi < 0xdc00 && lo >= 0xdc00 {
+				r := 0x10000 + (hi-0xd800)<<10 + (lo - 0xdc00)
+				c.WriteRune(r)
+				e.WriteRune(r)
+				i += 6
+				continue
+			}
+			c.WriteString(s[i : i+3])
+			e.WriteString("�")
+			i += 3
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r != utf8.RuneError || size > 1 {
+			c.WriteString(s[i : i+size])
+			e.WriteString(s[i : i+size])
+			i += size
+			continue
+		}
+		_, w := maximalSubpart(s[i:])
+		c.WriteString("\uFFFD")
+		e.WriteString("\uFFFD")
+		i += w
+	}
+	return c.String(), e.String()
+}
+
+// maximalSubpart returns U+FFFD and the length of the maximal invalid
+// subpart at the start of s, as the WHATWG decoder defines it.
+func maximalSubpart(s string) (rune, int) {
+	c := s[0]
+	n, lo, hi := 0, byte(0x80), byte(0xbf)
+	switch {
+	case c >= 0xc2 && c <= 0xdf:
+		n = 1
+	case c == 0xe0:
+		n, lo = 2, 0xa0
+	case c >= 0xe1 && c <= 0xec, c == 0xee, c == 0xef:
+		n = 2
+	case c == 0xed:
+		n, hi = 2, 0x9f
+	case c == 0xf0:
+		n, lo = 3, 0x90
+	case c >= 0xf1 && c <= 0xf3:
+		n = 3
+	case c == 0xf4:
+		n, hi = 3, 0x8f
+	default:
+		return utf8.RuneError, 1
+	}
+	j := 1
+	for k := 0; k < n; k++ {
+		if j >= len(s) || s[j] < lo || s[j] > hi {
+			break
+		}
+		j++
+		lo, hi = 0x80, 0xbf
+	}
+	return utf8.RuneError, j
+}
+
+// engineText is the lexer form of normalizeText.
+func engineText(s string) string {
+	_, e := normalizeText(s)
+	return e
+}
+
+// joinSurrogatePairs joins WTF-8 surrogate pairs into UTF-8.
+func joinSurrogatePairs(s string) string {
+	if utf8.ValidString(s) || !strings.Contains(s, "\xed") {
+		return s
+	}
+	var sb strings.Builder
+	for i := 0; i < len(s); {
+		if hi := surrogateAt(s, i); hi >= 0xd800 && hi < 0xdc00 {
+			if lo := surrogateAt(s, i+3); lo >= 0xdc00 {
+				sb.WriteRune(0x10000 + (hi-0xd800)<<10 + (lo - 0xdc00))
+				i += 6
+				continue
+			}
+		}
+		sb.WriteByte(s[i])
+		i++
+	}
+	return sb.String()
+}

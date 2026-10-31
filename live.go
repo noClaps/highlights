@@ -438,7 +438,7 @@ func lineText(hl *Highlighter, line int) string {
 	if n == 0 {
 		return ""
 	}
-	return string(hl.m.Mem[ptr : ptr+n])
+	return joinSurrogatePairs(string(hl.m.Mem[ptr : ptr+n]))
 }
 
 func lineRecords(hl *Highlighter, line int, count int) (data []uint32, wide bool) {
@@ -732,7 +732,7 @@ func (t *LiveTokenizer) workSlice(hl *Highlighter, endLine int, deadline float64
 			for to < byteLength && hl.m.Mem[ptr+to]&0xc0 == 0x80 {
 				to++
 			}
-			current.text += string(hl.m.Mem[ptr+current.byte : ptr+to])
+			current.text += joinSurrogatePairs(string(hl.m.Mem[ptr+current.byte : ptr+to]))
 			current.byte = to
 			if to < byteLength || expired() {
 				continue

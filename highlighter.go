@@ -113,8 +113,22 @@ func (h *Highlighter) WriteInput(input []byte, offset int) int {
 	return len(input)
 }
 
+// writeString writes valid UTF-8 text. Memory grows as the TypeScript host
+// grows it around TextEncoder.encodeInto: first by the UTF-16 length, then,
+// if the bytes do not fit, by three bytes per remaining UTF-16 unit.
 func (h *Highlighter) writeString(input string, offset int) int {
-	h.growMemoryIfNeeded(offset + len(input) + 96)
+	h.growMemoryIfNeeded(offset + utf16Len(input) + 96)
+	if avail := len(h.m.Mem) - 96 - (InputPtr + offset); len(input) > avail {
+		written := 0
+		for written < len(input) {
+			_, size := utf8.DecodeRuneInString(input[written:])
+			if written+size > avail {
+				break
+			}
+			written += size
+		}
+		h.growMemoryIfNeeded(offset + written + utf16Len(input[written:])*3 + 96)
+	}
 	copy(h.m.Mem[InputPtr+offset:], input)
 	return len(input)
 }
@@ -190,13 +204,13 @@ func (h *Highlighter) codeToHTML(s string, b []byte, isString bool, opts Options
 		if err != nil {
 			return nil, err
 		}
-		code := s
-		if !isString {
-			code, _ = decodeUTF8(b)
+		var code string
+		if isString {
+			code, _ = normalizeText(s)
 		} else {
-			code = toValidText(code)
+			code, _ = decodeUTF8(b)
 		}
-		return []byte(ansiHTML(code, set, prefix)), nil
+		return []byte(engineText(ansiHTML(code, set, prefix))), nil
 	}
 	langID, err := LangID(opts.Lang)
 	if err != nil {
@@ -228,7 +242,7 @@ func (h *Highlighter) codeToHTML(s string, b []byte, isString bool, opts Options
 	}
 	var inputLength int
 	if isString {
-		inputLength = h.writeString(s, 0)
+		inputLength = h.writeString(engineText(s), 0)
 	} else {
 		inputLength = h.WriteInput(b, 0)
 	}
@@ -284,18 +298,21 @@ func (h *Highlighter) TokenizeLineRecords(langID, inputLength int, reset *bool) 
 }
 
 // CodeToTokens tokenizes code into Shiki-compatible themed tokens, one
-// slice per line. Malformed UTF-8 is replaced before lexing.
+// slice per line. Malformed UTF-8 is replaced before lexing. Lone
+// surrogates encoded as WTF-8 stay in token content, as in JavaScript
+// strings, and lex as U+FFFD.
 func (h *Highlighter) CodeToTokens(code string, opts Options) (*TokensResult, error) {
-	return h.codeToTokens(toValidText(code), opts)
+	content, engine := normalizeText(code)
+	return h.codeToTokens(content, engine, opts)
 }
 
 // CodeToTokensBytes is CodeToTokens for UTF-8 bytes.
 func (h *Highlighter) CodeToTokensBytes(code []byte, opts Options) (*TokensResult, error) {
 	s, _ := decodeUTF8(code)
-	return h.codeToTokens(s, opts)
+	return h.codeToTokens(s, s, opts)
 }
 
-func (h *Highlighter) codeToTokens(code string, opts Options) (*TokensResult, error) {
+func (h *Highlighter) codeToTokens(code, engine string, opts Options) (*TokensResult, error) {
 	set, err := resolveOptionThemes(&opts.ThemeOptions)
 	if err != nil {
 		return nil, err
@@ -309,7 +326,7 @@ func (h *Highlighter) codeToTokens(code string, opts Options) (*TokensResult, er
 		if err != nil {
 			return nil, err
 		}
-		recs, err := h.TokenizeLineRecords(langID, h.writeString(code, 0), nil)
+		recs, err := h.TokenizeLineRecords(langID, h.writeString(engine, 0), nil)
 		if err != nil {
 			return nil, err
 		}
@@ -469,7 +486,6 @@ func (s *StreamTokenizer) PushCode(chunk string) ([][]ThemedToken, error) {
 		s.pendingSurrogate = chunk[len(chunk)-cut:]
 		chunk = chunk[:len(chunk)-cut]
 	}
-	chunk = toValidText(chunk)
 	end := strings.LastIndexByte(chunk, '\n') + 1
 	if end == 0 {
 		s.tail += chunk
@@ -494,7 +510,7 @@ func (s *StreamTokenizer) End() ([][]ThemedToken, error) {
 	if len(s.pendingBytes) > 0 {
 		return s.tokenizeBytes(s.pendingBytes, s.tail+s.pendingSurrogate)
 	}
-	s.tail += toValidText(s.pendingSurrogate)
+	s.tail += s.pendingSurrogate
 	s.pendingSurrogate = ""
 	if s.tail == "" {
 		return [][]ThemedToken{{}}, nil
@@ -524,13 +540,14 @@ func (s *StreamTokenizer) Dispose() {
 
 func (s *StreamTokenizer) tokenizeBytes(input []byte, prefix string) ([][]ThemedToken, error) {
 	code, _ := decodeUTF8(input)
-	return s.tokenizeText(toValidText(prefix) + code)
+	return s.tokenizeText(prefix + code)
 }
 
-func (s *StreamTokenizer) tokenizeText(code string) ([][]ThemedToken, error) {
+func (s *StreamTokenizer) tokenizeText(raw string) ([][]ThemedToken, error) {
+	code, engine := normalizeText(raw)
 	var lines [][]ThemedToken
 	if s.ansi == nil {
-		n := s.hl.writeString(code, 0)
+		n := s.hl.writeString(engine, 0)
 		reset := !s.streamStarted
 		recs, err := s.hl.TokenizeLineRecords(s.langID, n, &reset)
 		if err != nil {
@@ -555,8 +572,13 @@ func lastIndexByte(b []byte, c byte) int {
 }
 
 // incompleteSuffix returns the length of a trailing incomplete but valid
-// UTF-8 prefix, which a later chunk can complete.
+// UTF-8 prefix or a WTF-8 high surrogate, which a later chunk can complete.
 func incompleteSuffix(s string) int {
+	if n := len(s); n >= 3 {
+		if hi := surrogateAt(s, n-3); hi >= 0xd800 && hi < 0xdc00 {
+			return 3
+		}
+	}
 	for n := 1; n <= 3 && n <= len(s); n++ {
 		c := s[len(s)-n]
 		if c < 0x80 {

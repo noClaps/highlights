@@ -83,6 +83,8 @@ process.on('exit', () => {
 // ---- identities ----
 
 const idsByFile = new Map<string, Map<object, string>>();
+// the file in which each object was first seen
+const firstFile = new WeakMap<object, string>();
 let nextId = 1;
 function idOf(obj: object, prefix: string, define?: (id: string) => Ev): string {
   // ids are per file so each file replays on its own
@@ -95,7 +97,14 @@ function idOf(obj: object, prefix: string, define?: (id: string) => Ev): string 
   if (id === undefined) {
     id = `${prefix}${nextId++}`;
     ids.set(obj, id);
-    if (define !== undefined) sink.push(define(id));
+    const first = firstFile.get(obj);
+    if (first === undefined) firstFile.set(obj, currentFile);
+    if (define !== undefined) {
+      const ev = define(id);
+      // an instance an earlier file used has memory the replay cannot know
+      if (first !== undefined && first !== currentFile) ev.inherited = true;
+      sink.push(ev);
+    }
   }
   return id;
 }
