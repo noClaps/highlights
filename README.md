@@ -47,21 +47,18 @@ lock, so the callback may call any method.
 
 ## Command
 
-`cmd/highlights` prints a file, or standard input, with syntax highlighting:
+`cmd/highlights` writes a file, or standard input, as highlighted HTML: the
+same `<pre>` block with inline styles that `CodeToHTML` returns.
 
 ```sh
 go install ./cmd/highlights
-highlights main.go
-git show HEAD:main.go | highlights -l go | less -R
-highlights -f html -t github-light main.go > main.html
+highlights main.go > main.html
+git show HEAD:main.go | highlights -l go -t github-light
 ```
 
 The language comes from the file name (`main.go`, `Dockerfile`), or from
 `-l`; standard input and unknown names are plain text. `-t` picks a bundled
-theme (`-list-themes`) or reads a theme JSON file, and `-f` chooses `ansi`
-(24-bit terminal colors, the default) or `html`. ANSI output is colored only
-on a terminal unless `-color always`, and never when `NO_COLOR` is set; `-bg`
-also paints the theme's background.
+theme (`-list-themes`) or reads a theme JSON file.
 
 ## How the port is built
 
