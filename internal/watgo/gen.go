@@ -518,7 +518,24 @@ func paramDecls(f *Func) string {
 	for i, p := range f.Params {
 		parts = append(parts, fmt.Sprintf("p%d %s", i, p.Type.goType()))
 	}
-	return strings.Join(parts, ", ")
+	return combineParams(parts)
+}
+
+// combineParams joins "name type" declarations, writing a run of one type
+// once: a, b uint32.
+func combineParams(decls []string) string {
+	var out []string
+	for i, d := range decls {
+		name, typ, _ := strings.Cut(d, " ")
+		if i+1 < len(decls) {
+			if _, next, _ := strings.Cut(decls[i+1], " "); next == typ {
+				out = append(out, name)
+				continue
+			}
+		}
+		out = append(out, name+" "+typ)
+	}
+	return strings.Join(out, ", ")
 }
 
 func resultType(f *Func) string {
@@ -703,7 +720,10 @@ func (g *fgen) genFunc() string {
 	loopEnds := g.terminalEnd == g.out.Len()
 	body = tidyBody(body)
 	body = collapseElseIf(body)
+	body = switchChains(body)
+	body = unlabelBranches(body)
 	body = dropUnreadTemps(body, g.temps, g.pure)
+	body = g.nameTemps(body, params, locals)
 
 	var sb strings.Builder
 	name := f.Name
@@ -717,7 +737,7 @@ func (g *fgen) genFunc() string {
 	if g.boolFuncs[f.GoName] {
 		results = " bool"
 	}
-	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", f.GoName, strings.Join(params, ", "), results)
+	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", f.GoName, combineParams(params), results)
 	// one declaration per type, in first-use order; variables the body
 	// never mentions are left out, and ones it only assigns are marked
 	// used, as Go requires
@@ -893,6 +913,145 @@ func collapseElseIf(body string) string {
 	return strings.Join(lines, "\n")
 }
 
+// switchChains writes an if with three or more arms as a switch with
+// a case per condition. A chain whose arms hold an unlabeled break stays,
+// since in a switch the break would leave the switch.
+func switchChains(body string) string {
+	lines := strings.Split(body, "\n")
+	var out []string
+	for i := 0; i < len(lines); i++ {
+		m := ifOpenRe.FindStringSubmatch(lines[i])
+		if m == nil {
+			out = append(out, lines[i])
+			continue
+		}
+		indent := m[1]
+		heads := []int{i}
+		end := -1
+		breaks := false
+		// the indentation of each for or switch open inside the arms, whose
+		// breaks are their own
+		var inner []string
+		for k := i + 1; k < len(lines); k++ {
+			l := lines[k]
+			if l == indent+"}" {
+				end = k
+				break
+			}
+			if strings.HasPrefix(l, indent+"} else if ") || l == indent+"} else {" {
+				heads = append(heads, k)
+				continue
+			}
+			if l != "" && !strings.HasPrefix(l, indent+"\t") {
+				break
+			}
+			trimmed := strings.TrimLeft(l, "\t")
+			ind := l[:len(l)-len(trimmed)]
+			switch {
+			case strings.HasPrefix(trimmed, "for ") || strings.HasPrefix(trimmed, "switch "):
+				inner = append(inner, ind)
+			case len(inner) > 0 && l == inner[len(inner)-1]+"}":
+				inner = inner[:len(inner)-1]
+			case trimmed == "break" && len(inner) == 0:
+				breaks = true
+			}
+		}
+		if end < 0 || breaks || len(heads) < 3 {
+			out = append(out, lines[i])
+			continue
+		}
+		out = append(out, indent+"switch {")
+		for j, h := range heads {
+			switch {
+			case j == 0:
+				out = append(out, indent+"case "+m[2]+":")
+			case lines[h] == indent+"} else {":
+				out = append(out, indent+"default:")
+			default:
+				c := strings.TrimSuffix(strings.TrimPrefix(lines[h], indent+"} else if "), " {")
+				out = append(out, indent+"case "+c+":")
+			}
+			next := end
+			if j+1 < len(heads) {
+				next = heads[j+1]
+			}
+			// arms keep their own chains, written in later passes
+			if h+1 < next {
+				out = append(out, switchChains(strings.Join(lines[h+1:next], "\n")))
+			}
+		}
+		out = append(out, indent+"}")
+		i = end
+	}
+	return strings.Join(out, "\n")
+}
+
+// unlabelBranches drops the label of a break or continue that names the
+// innermost loop, where Go needs none: a continue may cross a switch, a
+// break may not. Labels nothing names any more go too.
+func unlabelBranches(body string) string {
+	lines := strings.Split(body, "\n")
+	type frame struct{ kind, label string }
+	var stack []frame
+	pending := ""
+	for i, l := range lines {
+		t := strings.TrimLeft(l, "\t")
+		if m := labelLineRe.FindStringSubmatch(t); m != nil && m[1] != "default" {
+			pending = m[1]
+			continue
+		}
+		if m := branchLineRe.FindStringSubmatch(t); m != nil {
+			for k := len(stack) - 1; k >= 0; k-- {
+				f := stack[k]
+				if f.kind == "for" {
+					if f.label == m[2] {
+						lines[i] = l[:len(l)-len(t)] + m[1]
+					}
+					break
+				}
+				if f.kind == "switch" && m[1] == "break" {
+					break
+				}
+			}
+		}
+		if strings.HasPrefix(t, "}") {
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		}
+		if strings.HasSuffix(t, "{") {
+			kind := "block"
+			switch {
+			case strings.HasPrefix(t, "for ") || t == "for {":
+				kind = "for"
+			case strings.HasPrefix(t, "switch ") || strings.HasPrefix(t, "select "):
+				kind = "switch"
+			}
+			stack = append(stack, frame{kind, pending})
+		}
+		pending = ""
+	}
+	body = strings.Join(lines, "\n")
+	// a label nothing names is dropped with its line
+	var out []string
+	for _, l := range strings.Split(body, "\n") {
+		if m := labelLineRe.FindStringSubmatch(strings.TrimLeft(l, "\t")); m != nil && m[1] != "default" {
+			if !regexp.MustCompile(`\b(break|continue|goto) ` + m[1] + `\b`).MatchString(body) {
+				continue
+			}
+		}
+		out = append(out, l)
+	}
+	return strings.Join(out, "\n")
+}
+
+var (
+	labelLineRe  = regexp.MustCompile(`^(\w+):$`)
+	branchLineRe = regexp.MustCompile(`^(break|continue) (\w+)$`)
+)
+
+var ifOpenRe = regexp.MustCompile(`^(\t*)if (.*) \{$`)
+
 // deadSets finds stores whose value is never read. A function the
 // analysis cannot follow keeps all its stores.
 func deadSets(body []*wat.Sexpr) (dead map[*wat.Sexpr]bool) {
@@ -924,6 +1083,72 @@ func dropUnreadTemps(body string, temps []Local, pure map[string]bool) string {
 		})
 	}
 	return body
+}
+
+// nameTemps renames each temporary after what it holds or where it goes:
+// the function whose result it holds, or the parameter it is passed to.
+func (g *fgen) nameTemps(body string, params []string, locals []Local) string {
+	taken := map[string]bool{"m": true}
+	for _, p := range params {
+		taken[strings.Fields(p)[0]] = true
+	}
+	for _, l := range locals {
+		taken[l.Name] = true
+	}
+	for _, w := range identRe.FindAllString(body, -1) {
+		taken[w] = true
+	}
+	for i, t := range g.temps {
+		if !strings.Contains(body, t.Name) {
+			continue
+		}
+		name := ""
+		if m := regexp.MustCompile(`(?m)^\t*` + t.Name + ` = (?:rt\.B2u\()?m\.(\w+)\(`).FindStringSubmatch(body); m != nil {
+			name = lowerFirst(m[1])
+		} else if f, k := g.argOf(body, t.Name); f != nil && f.Params[k].Name != "" {
+			name = camel(f.Params[k].Name[1:])
+		}
+		if name == "" || goReserved[name] || tempName.MatchString(name) {
+			continue
+		}
+		if alt, ok := localAlternatives[name]; ok {
+			name = alt
+		}
+		for base, n := name, 2; taken[name]; n++ {
+			name = fmt.Sprintf("%s%d", base, n)
+		}
+		taken[name] = true
+		body = regexp.MustCompile(`\b`+t.Name+`\b`).ReplaceAllString(body, name)
+		g.temps[i].Name = name
+	}
+	return body
+}
+
+var identRe = regexp.MustCompile(`\b[A-Za-z_]\w*\b`)
+
+// argOf finds a call that takes temp as a whole argument and returns the
+// callee and the argument's position.
+func (g *fgen) argOf(body, temp string) (*Func, int) {
+	re := regexp.MustCompile(`m\.(\w+)\(([^()]*\b` + temp + `\b[^()]*)\)`)
+	for _, m := range re.FindAllStringSubmatch(body, -1) {
+		f := g.mod.funcByGoName(m[1])
+		if f == nil {
+			continue
+		}
+		for k, a := range strings.Split(m[2], ", ") {
+			if a == temp && k < len(f.Params) {
+				return f, k
+			}
+		}
+	}
+	return nil, 0
+}
+
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
 }
 
 // topCallRe matches a statement that is one method call.
@@ -1052,6 +1277,9 @@ func (g *fgen) asBool(v value) string {
 	}
 	if v.cond != "" {
 		return v.cond
+	}
+	if v.byteExpr != "" {
+		return "(" + v.byteExpr + " != 0)"
 	}
 	if v.isConst {
 		return strconv.FormatBool(v.c != 0)

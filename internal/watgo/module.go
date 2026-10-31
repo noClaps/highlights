@@ -108,8 +108,20 @@ type Module struct {
 	Table     []string // function references for call_indirect
 
 	used                 map[string]bool // Machine field and method names
+	byGoName             map[string]*Func
 	pendingExports       [][2]string
 	pendingGlobalExports [][2]string
+}
+
+// funcByGoName returns the function with the given Go name, or nil.
+func (m *Module) funcByGoName(name string) *Func {
+	if m.byGoName == nil {
+		m.byGoName = map[string]*Func{}
+		for _, f := range m.Funcs {
+			m.byGoName[f.GoName] = f
+		}
+	}
+	return m.byGoName[name]
 }
 
 // Parse reads an expanded WAT module.

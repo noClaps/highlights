@@ -126,7 +126,7 @@
     (global.set $streamRegionKind (i32.const 0))
     (if (global.get $streaming)
       (then
-        (if (i32.and (i32.eq (local.get $stop) (local.get $save)) (i32.eq (local.get $stop) (global.get $eof)))
+        (if (i32.and (i32.eq (local.get $stop) (local.get $save)) (i32.eq (local.get $save) (global.get $eof)))
           (then
             (global.set $streamRegionKind (i32.const 29))
             (global.set $streamRegionStarted (local.get $info)))

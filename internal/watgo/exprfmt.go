@@ -95,6 +95,14 @@ func (p *exprParser) unary() (*expr, error) {
 		return nil, errUnparsed
 	}
 	switch p.s[p.pos] {
+	case '^':
+		// unary complement, kept apart from binary xor as "u^"
+		p.pos++
+		x, err := p.unary()
+		if err != nil {
+			return nil, err
+		}
+		return &expr{op: "u^", args: []*expr{x}}, nil
 	case '!':
 		p.pos++
 		x, err := p.unary()
@@ -183,6 +191,12 @@ func (e *expr) print() string {
 			parts[i] = a.print()
 		}
 		return e.fn + "(" + strings.Join(parts, ", ") + ")"
+	case e.op == "u^":
+		x := e.args[0]
+		if x.op != "" && x.op != "!" && x.op != "u^" {
+			return "^(" + x.print() + ")"
+		}
+		return "^" + x.print()
 	case e.op == "!":
 		x := e.args[0]
 		if x.op != "" && x.op != "!" {
@@ -193,7 +207,7 @@ func (e *expr) print() string {
 	prec := precedence[e.op]
 	side := func(x *expr, right bool) string {
 		s := x.print()
-		if x.op == "" || x.op == "!" {
+		if x.op == "" || x.op == "!" || x.op == "u^" {
 			return s
 		}
 		xp := precedence[x.op]
@@ -258,6 +272,14 @@ func tidyLine(line string) string {
 			rhs := e.args[1]
 			if rhs.leaf == "1" && (e.op == "+" || e.op == "-") {
 				return indent + target + e.op + e.op
+			}
+			// x = x & ^y clears y's bits: x &^= y
+			if e.op == "&" && rhs.op == "u^" {
+				return indent + target + " &^= " + rhs.args[0].print()
+			}
+			// x += B2u(c) counts c: if c { x++ }
+			if rhs.fn == "rt.B2u" && !rhs.index && len(rhs.args) == 1 && (e.op == "+" || e.op == "-") {
+				return indent + "if " + rhs.args[0].print() + " {\n" + indent + "\t" + target + e.op + e.op + "\n" + indent + "}"
 			}
 			return indent + target + " " + e.op + "= " + rhs.print()
 		}
