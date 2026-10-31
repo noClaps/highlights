@@ -16,22 +16,38 @@ type RangeError struct{ Message string }
 
 func (e *RangeError) Error() string { return e.Message }
 
-// utf16Len returns the UTF-16 length of valid UTF-8 text.
+// decodeUnit decodes the code point at s[i] and returns its UTF-16 length
+// and byte size. A three-byte surrogate encoding (WTF-8) is one unit, and
+// any other malformed byte counts as one replacement character.
+func decodeUnit(s string, i int) (units, size int) {
+	c := s[i]
+	if c < 0x80 {
+		return 1, 1
+	}
+	r, size := utf8.DecodeRuneInString(s[i:])
+	if r != utf8.RuneError || size > 1 {
+		if r >= 0x10000 {
+			return 2, size
+		}
+		return 1, size
+	}
+	if c == 0xed && i+2 < len(s) && s[i+1] >= 0xa0 && s[i+1] <= 0xbf && s[i+2] >= 0x80 && s[i+2] <= 0xbf {
+		return 1, 3
+	}
+	return 1, 1
+}
+
+// utf16Len returns the UTF-16 length of UTF-8 or WTF-8 text.
 func utf16Len(s string) int {
 	n := 0
 	for i := 0; i < len(s); {
-		c := s[i]
-		if c < 0x80 {
+		if s[i] < 0x80 {
 			n++
 			i++
 			continue
 		}
-		r, size := utf8.DecodeRuneInString(s[i:])
-		if r >= 0x10000 {
-			n += 2
-		} else {
-			n++
-		}
+		u, size := decodeUnit(s, i)
+		n += u
 		i += size
 	}
 	return n
@@ -72,12 +88,8 @@ func (t *utf16Text) byteOffset(u int) int {
 			t.b++
 			continue
 		}
-		r, size := utf8.DecodeRuneInString(t.s[t.b:])
-		if r >= 0x10000 {
-			t.u += 2
-		} else {
-			t.u++
-		}
+		u, size := decodeUnit(t.s, t.b)
+		t.u += u
 		t.b += size
 	}
 	return t.b
@@ -157,4 +169,36 @@ func toValidText(s string) string {
 	}
 	out, _ := decodeUTF8([]byte(s))
 	return out
+}
+
+// toLiveText keeps UTF-8 and WTF-8 surrogate encodings and replaces any
+// other malformed byte with U+FFFD, matching what a JavaScript string can
+// hold.
+func toLiveText(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	var sb strings.Builder
+	for i := 0; i < len(s); {
+		c := s[i]
+		if c < 0x80 {
+			sb.WriteByte(c)
+			i++
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r != utf8.RuneError || size > 1 {
+			sb.WriteString(s[i : i+size])
+			i += size
+			continue
+		}
+		if _, n := decodeUnit(s, i); n == 3 {
+			sb.WriteString(s[i : i+3])
+			i += 3
+			continue
+		}
+		sb.WriteString("\uFFFD")
+		i++
+	}
+	return sb.String()
 }
