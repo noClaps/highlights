@@ -132,7 +132,25 @@ type replayer struct {
 	compared  int
 	skipped   int
 	skips     map[string]int
+	// updating is set while a test named in GOLDEN_UPDATE runs: values that
+	// differ from the recording are collected in updates, not reported
+	updating bool
+	updates  map[*event]map[string]any
 }
+
+// GOLDEN_UPDATE names subtests, such as
+// "conformance_test/python: malformed runs leave no state behind", whose
+// recordings are rewritten from this port's results. It is for a
+// deliberate change of behavior; the README lists each one.
+var goldenUpdate = func() map[string]bool {
+	names := map[string]bool{}
+	for _, n := range strings.Split(os.Getenv("GOLDEN_UPDATE"), ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			names[n] = true
+		}
+	}
+	return names
+}()
 
 type liveReplay struct {
 	lt *LiveTokenizer
@@ -230,11 +248,16 @@ func replayFile(t *testing.T, path, file string) {
 			}
 			t.Run(name, func(t *testing.T) {
 				r.t = t
+				r.updating = goldenUpdate[file+"/"+name]
 				r.runList(e.Ev)
+				r.updating = false
 			})
 		}
 	}
 	r.t = t
+	if len(r.updates) > 0 {
+		rewriteRecording(t, path, events, r.updates)
+	}
 	if r.skipped > 0 {
 		keys := make([]string, 0, len(r.skips))
 		for k := range r.skips {
@@ -504,6 +527,141 @@ func errorName(err error) string {
 	return "Error"
 }
 
+// record notes a value for the recording when it differs from it, in the
+// recording's form: inline up to 64 bytes, else as a hash.
+func (r *replayer) record(e *event, what, text string, out json.RawMessage, outHash string) {
+	sum := sha256.Sum256([]byte(text))
+	hash := hex.EncodeToString(sum[:])[:16]
+	if (outHash != "" && hash == outHash) || (outHash == "" && text == string(out)) {
+		return
+	}
+	field := map[string]string{"out": "out", "memory": "memAfter"}[what]
+	if field == "" {
+		r.t.Fatalf("%s %s: cannot update %s", e.K, e.Name, what)
+	}
+	if r.updates == nil {
+		r.updates = map[*event]map[string]any{}
+	}
+	u := r.updates[e]
+	if u == nil {
+		u = map[string]any{}
+		r.updates[e] = u
+	}
+	u[field], u[field+"Hash"] = nil, nil
+	if len(text) > 64 {
+		u[field+"Hash"] = hash
+	} else {
+		u[field] = json.RawMessage(text)
+	}
+	r.t.Logf("%s %s: %s rewritten", e.K, e.Name, what)
+}
+
+// rewriteRecording writes a recording with the updated values. Only the
+// lines of tests holding an update are decoded and encoded again.
+func rewriteRecording(t *testing.T, path string, events []event, updates map[*event]map[string]any) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := gzip.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := io.ReadAll(zr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lines [][]byte
+	for _, l := range bytes.Split(plain, []byte("\n")) {
+		if len(bytes.TrimSpace(l)) > 0 {
+			lines = append(lines, l)
+		}
+	}
+	if len(lines) != len(events) {
+		t.Fatalf("%s: %d lines for %d events", path, len(lines), len(events))
+	}
+	for i := range events {
+		for _, p := range updatePaths(events[i].Ev, nil, updates) {
+			lines[i] = setAt(t, lines[i], p.at, p.values)
+		}
+	}
+	var out bytes.Buffer
+	zw, _ := gzip.NewWriterLevel(&out, 6)
+	for _, l := range lines {
+		zw.Write(l)
+		zw.Write([]byte("\n"))
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, out.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("rewrote %d calls in %s", len(updates), path)
+}
+
+// setAt sets fields of the event at an index path through the "ev" lists
+// of a JSON object; a nil value removes the field. Only the objects on the
+// path are decoded, so every other value keeps its bytes, and with them
+// the key order the comparison sees.
+func setAt(t *testing.T, raw []byte, at []int, values map[string]any) []byte {
+	var node map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &node); err != nil {
+		t.Fatal(err)
+	}
+	if len(at) == 0 {
+		for k, v := range values {
+			switch v := v.(type) {
+			case nil:
+				delete(node, k)
+			case json.RawMessage:
+				node[k] = v
+			default:
+				node[k] = encodeJSON(t, v)
+			}
+		}
+	} else {
+		var evs []json.RawMessage
+		if err := json.Unmarshal(node["ev"], &evs); err != nil {
+			t.Fatal(err)
+		}
+		evs[at[0]] = setAt(t, evs[at[0]], at[1:], values)
+		node["ev"] = encodeJSON(t, evs)
+	}
+	return encodeJSON(t, node)
+}
+
+// encodeJSON encodes v without escaping HTML, which json.Marshal would do
+// even inside raw values.
+func encodeJSON(t *testing.T, v any) []byte {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		t.Fatal(err)
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
+}
+
+type updatePath struct {
+	at     []int
+	values map[string]any
+}
+
+// updatePaths finds the updated events among evs and their nested events,
+// as index paths through the "ev" lists.
+func updatePaths(evs []event, at []int, updates map[*event]map[string]any) []updatePath {
+	var paths []updatePath
+	for i := range evs {
+		here := append(append([]int(nil), at...), i)
+		if u, ok := updates[&evs[i]]; ok {
+			paths = append(paths, updatePath{here, u})
+		}
+		paths = append(paths, updatePaths(evs[i].Ev, here, updates)...)
+	}
+	return paths
+}
+
 // check compares a Go result or error with the recorded one.
 func (r *replayer) check(e *event, got any, err error) {
 	r.checkValue(e, "out", got, err, e.Out, e.OutHash)
@@ -528,6 +686,10 @@ func (r *replayer) checkValue(e *event, what string, got any, err error, out jso
 		return
 	}
 	text := jsjson.Marshal(got)
+	if r.updating {
+		r.record(e, what, text, out, outHash)
+		return
+	}
 	if outHash != "" {
 		sum := sha256.Sum256([]byte(text))
 		if hex.EncodeToString(sum[:])[:16] != outHash {

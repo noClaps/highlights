@@ -222,7 +222,9 @@
   ;; dedicated groups so the caller can prime the next name as a definition.
   ;; raise is missing on purpose: it shares its hash features (first two
   ;; bytes, last byte, length) with range, so no table geometry holds both;
-  ;; $pyWordHl matches it with a direct compare instead. match and case are
+  ;; $pyWordHl matches it with a direct compare instead. So it does as, the
+  ;; `import x as y`, `with f() as x` and `except E as e` keyword, which the
+  ;; table's memory range has no room left for. match and case are
   ;; soft keywords and live in $pySoftKeyword, which needs the line position.
   (keyword-table $pyWords $mem.pythonWords $mem.rWords
     (group $Token.boolean "True" "False")                       ;; 1: booleans
@@ -249,14 +251,18 @@
     (local.set $hl (keyword-table.value $pyWords (local.get $lhs) (local.get $rhs)))
     (if (i32.eq (local.get $hl) (i32.const -1))
       (then
-        ;; raise, kept out of the table (see above); wide loads stay inside
-        ;; the input buffer slack
+        ;; raise and as, kept out of the table (see above); wide loads stay
+        ;; inside the input buffer slack
         (if
-          (i32.and
-            (i32.eq (i32.sub (local.get $rhs) (local.get $lhs)) (i32.const 5))
-            (i64.eq
-              (i64.and (i64.load (local.get $lhs)) (i64.const 0x000000ffffffffff))
-              (i64.const "raise")))
+          (i32.or
+            (i32.and
+              (i32.eq (i32.sub (local.get $rhs) (local.get $lhs)) (i32.const 5))
+              (i64.eq
+                (i64.and (i64.load (local.get $lhs)) (i64.const 0x000000ffffffffff))
+                (i64.const "raise")))
+            (i32.and
+              (i32.eq (i32.sub (local.get $rhs) (local.get $lhs)) (i32.const 2))
+              (i32.eq (i32.load16_u (local.get $lhs)) (i32.const "as"))))
           (then (return (enum.get $Token.keyword.control))))
         (return (enum.get $Token.none))))
     (local.get $hl))

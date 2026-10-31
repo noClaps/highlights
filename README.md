@@ -136,6 +136,29 @@ describe them). Rather than run Wasm, the Go port translates the WAT to Go:
   from five language tests, plus unit tests of the runtime helpers. Checks
   of the Binaryen optimizer and of zero-copy JavaScript views have no Go
   counterpart.
+- `lexer_test.go`, which pins the departures below.
+
+## Departures from `@pierre/highlights`
+
+The port matches the original's output except where a lexer bug was fixed:
+
+- Python highlights `as` as a keyword (`import numpy as np`,
+  `with open(p) as f`, `except E as e`); the original colored it as a name.
+
+A fix changes the output of recorded tests, so their recordings are
+rewritten from this port's results. `GOLDEN_UPDATE` names the subtests, comma
+separated, as `<file>/<test name>`:
+
+```sh
+GOLDEN_UPDATE="conformance_test/python: malformed runs leave no state behind" go test -run 'TestGolden$' .
+```
+
+Only the values that differ are rewritten, and only those lines of the
+recording change. The whole suite must run, since files share instances.
+Before the `as` fix was re-recorded, every value in the two affected tests
+was compared between the engine before and after the change: the only
+differences were `as` becoming a keyword, in five HTML outputs and the eight
+memory snapshots that hold them.
 
 ## License
 

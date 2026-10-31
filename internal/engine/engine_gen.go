@@ -25810,7 +25810,7 @@ func (m *Machine) PyStreamResume() bool {
 func (m *Machine) PyWordHl(lhs, rhs uint32) uint32 {
 	hl := m.LexKeywordValue(lhs, rhs, 25472, 31, 78)
 	if hl == 0xffffffff {
-		if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6573696172 {
+		if (rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6573696172) || (rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 29537) {
 			return TokenKeywordControl
 		}
 		return TokenNone
