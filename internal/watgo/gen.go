@@ -3037,6 +3037,30 @@ func (g *fgen) apply(head string, imms []string) {
 			}
 			return
 		}
+		if a.typ == I32 && zeroOrOne(a) && zeroOrOne(b) {
+			// a choice between conditions is a condition
+			cond := g.asBool(c)
+			var e string
+			switch {
+			case a.isConst && b.isConst:
+				e = map[bool]string{true: cond, false: negate(cond)}[a.c == 1]
+				if a.c == b.c {
+					e = strconv.FormatBool(a.c == 1)
+				}
+			case a.isConst && a.c == 1:
+				e = cond + " || " + g.asBool(b)
+			case a.isConst:
+				e = negate(cond) + " && " + g.asBool(b)
+			case b.isConst && b.c == 1:
+				e = negate(cond) + " || " + g.asBool(a)
+			case b.isConst:
+				e = cond + " && " + g.asBool(a)
+			default:
+				e = "(" + cond + " && " + g.asBool(a) + ") || (" + negate(cond) + " && " + g.asBool(b) + ")"
+			}
+			g.push(value{expr: "(" + e + ")", typ: I32, isBool: true, stable: a.stable && b.stable && c.stable})
+			return
+		}
 		helper := map[ValType]string{I32: "rt.Sel32", I64: "rt.Sel64", V128: "rt.SelV"}[a.typ]
 		g.push(value{expr: fmt.Sprintf("%s(%s, %s, %s)", helper, g.asBool(c), g.asValue(a), g.asValue(b)), typ: a.typ, stable: a.stable && b.stable && c.stable})
 	case "i32.eqz", "i64.eqz":

@@ -1585,11 +1585,7 @@ func (m *Machine) LexCStringResume(q bool) uint32 {
 	if q {
 		t1 = q
 		lexCStringBody = m.LexCStringBody(rt.B2u(q), TokenString, m.Ptr, false)
-		if lexCStringBody == 2 {
-			t0 = rt.B2u(t1)
-		} else {
-			t0 = 0
-		}
+		t0 = rt.B2u(lexCStringBody == 2 && t1)
 	} else {
 		t0 = 0
 	}

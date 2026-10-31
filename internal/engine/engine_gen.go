@@ -3014,7 +3014,6 @@ func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
 
 // StylusStart is $stylusStart.
 func (m *Machine) StylusStart(c, nested uint32) uint32 {
-	var v uint32
 	if !(m.CSSIdentStart(c) || c == '-' || c == '$') {
 		return 0xffffffff
 	}
@@ -3025,11 +3024,7 @@ func (m *Machine) StylusStart(c, nested uint32) uint32 {
 	q := m.LexSkipSpaceAt(p)
 	c = m.TemplateByte(q)
 	c2 := m.TemplateByte(q + 1)
-	if c == '=' {
-		v = rt.B2u(c2 != '=')
-	} else {
-		v = rt.B2u(c2 == '=' && m.Mem[c+1424]&8 != 0)
-	}
+	v := rt.B2u((c == '=' && c2 != '=') || (c != '=' && c2 == '=' && m.Mem[c+1424]&8 != 0))
 	if v != 0 {
 		m.EmitTok(TokenVariable, lhs, p)
 		m.EmitGap(p, q)
@@ -12948,11 +12943,7 @@ func (m *Machine) HlAsm() {
 				hl = TokenVariableSpecial
 			}
 			m.EmitTok(hl, lhs, m.Ptr)
-			if hl == TokenLabel {
-				expectMnemonic = 1
-			} else {
-				expectMnemonic = 0
-			}
+			expectMnemonic = rt.B2u(hl == TokenLabel)
 			continue
 		}
 		hl = TokenOperator
@@ -13185,8 +13176,8 @@ func (m *Machine) BashWordHl(group uint32) uint32 {
 }
 
 // BashIsPunctWordStart is $bashIsPunctWordStart.
-func (m *Machine) BashIsPunctWordStart(c, c2 uint32) uint32 {
-	return rt.B2u(m.LexIsIdentStart(c2) && c2 != '$') | rt.Sel32(c == '-', rt.B2u(c2 == '-'), rt.B2u(c2-46 <= 1))
+func (m *Machine) BashIsPunctWordStart(c, c2 uint32) bool {
+	return (m.LexIsIdentStart(c2) && c2 != '$') || (c == '-' && c2 == '-') || (c != '-' && c2-46 <= 1)
 }
 
 // BashIsSpecialParam is $bashIsSpecialParam.
@@ -13627,7 +13618,7 @@ func (m *Machine) HlBash() {
 						t0 = 1
 					} else {
 						if c-45 <= 2 || c == '~' {
-							bashIsPunctWordStart = m.BashIsPunctWordStart(c, c2)
+							bashIsPunctWordStart = rt.B2u(m.BashIsPunctWordStart(c, c2))
 						} else {
 							bashIsPunctWordStart = rt.B2u(c == '\\')
 						}
@@ -15485,7 +15476,7 @@ func (m *Machine) TmplMarkup(state, dialect uint32) uint32 {
 		}
 		m.Ptr = m.HTMLNameEnd(lhs)
 		m.EmitTok(TokenAttribute, lhs, m.Ptr)
-		state = state&0xffffffe8 | 2 | rt.Sel32(razor, rt.B2u(c == '@'), rt.B2u(state&32 != 0 && c == ':' && m.TemplateByte(p) != ':'))<<4
+		state = state&0xffffffe8 | 2 | rt.B2u((razor && c == '@') || (!razor && state&32 != 0 && c == ':' && m.TemplateByte(p) != ':'))<<4
 	}
 	return state
 }
@@ -26524,7 +26515,7 @@ func (m *Machine) HlGnuplot() {
 					hl = TokenAttribute
 				}
 				if cmd == 2 && rhs == lhs+1 && m.Mem[c+3984]&4 != 0 {
-					if rt.Sel32(c == 'l' || c == 'p', rt.B2u(!(m.Mem[pc+2192]&32 != 0 || pc == 41 || pc == 93 || pc == 58)), rt.B2u(m.LexIsIdentContinue(pc) || pc == 40 || pc == 34 || pc == 39)) != 0 {
+					if ((c == 'l' || c == 'p') && !(m.Mem[pc+2192]&32 != 0 || pc == 41 || pc == 93 || pc == 58)) || (!(c == 'l' || c == 'p') && (m.LexIsIdentContinue(pc) || pc == 40 || pc == 34 || pc == 39)) {
 						hl = TokenAttribute
 					}
 				}
@@ -28634,7 +28625,7 @@ func (m *Machine) JinjaRaw(state, dialect uint32) uint32 {
 			q = p + 2
 			q = m.LexSkipSpaceAt(q + rt.B2u(m.JinjaTrim(m.TemplateByte(q), dialect, 2)))
 			w = rt.Ld64(m.Mem, q)
-			if q+length <= m.End && !m.LexIsIdentContinue(m.TemplateByte(q+length)) && rt.Sel32(kind == 1, rt.B2u(w&0xffffffffffff == 0x776172646e65), rt.Sel32(kind == 2, rt.B2u(w == 0x6162726576646e65 && rt.Ld32(m.Mem, q+8)&0xffffff == 0x6d6974), rt.B2u(w == 0x656d6d6f63646e65 && rt.Ld16(m.Mem, q+8) == 29806)))&1 != 0 {
+			if q+length <= m.End && !m.LexIsIdentContinue(m.TemplateByte(q+length)) && ((kind == 1 && w&0xffffffffffff == 0x776172646e65) || (kind != 1 && ((kind == 2 && w == 0x6162726576646e65 && rt.Ld32(m.Mem, q+8)&0xffffff == 0x6d6974) || (kind != 2 && w == 0x656d6d6f63646e65 && rt.Ld16(m.Mem, q+8) == 29806)))) {
 				m.EmitTok(hl, lhs, p)
 				m.Ptr = p
 				return 0
@@ -41173,7 +41164,7 @@ func (m *Machine) HlPowerquery() {
 			m.Ptr = lhs + 1
 			for {
 				c2 = m.TemplateByte(m.Ptr)
-				if rt.Sel32(c == '.', rt.B2u(c2 == '.'), (uint32(m.Mem[c2+5008])>>2)&1) == 0 {
+				if !((c == '.' && c2 == '.') || (c != '.' && m.Mem[c2+5008]&4 != 0)) {
 					break
 				}
 				p = m.TemplateByte(m.Ptr + 1)
@@ -44677,7 +44668,7 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 							m.EmitTok(TokenKeywordImport, lhs, m.Ptr)
 							term = 4
 						} else {
-							m.EmitTok(rt.Sel32(p > 1, TokenAttribute, TokenNone), lhs, m.Ptr)
+							m.EmitTok(rt.B2u(p > 1), lhs, m.Ptr)
 						}
 						continue
 					}
@@ -46206,7 +46197,7 @@ func (m *Machine) HlSolidity() {
 					hl = hl*10 + (uint32(m.Mem[p]) - 48)
 					p++
 				}
-				if p == rhs && rt.Sel32(c2 != 0, rt.B2u(hl <= 32), rt.B2u(hl <= 256 && hl&7 == 0))&1 != 0 {
+				if p == rhs && ((c2 != 0 && hl <= 32) || (c2 == 0 && hl <= 256 && hl&7 == 0)) {
 					kind = TokenTypeBuiltin
 				}
 			}
@@ -47814,7 +47805,7 @@ func (m *Machine) TomlScanDigits(p, base uint32) uint32 {
 		}
 		c = uint32(m.Mem[p])
 		p++
-		if rt.Sel32(base == 16, rt.B2u(m.LexIsHex(c)), rt.B2u(c-48 < base)) != 0 {
+		if (base == 16 && m.LexIsHex(c)) || (base != 16 && c-48 < base) {
 			q = p
 			continue
 		}
@@ -48577,7 +48568,7 @@ func (m *Machine) HlTypst() {
 		top = uint32(stack & 7)
 		atom = false
 		if top == 5 {
-			if !(c == '(' || c == '[' || rt.Sel32(c == '.', rt.B2u(c2 >= 128 || (c2|32)-97 <= 25 || c2 == '_'), rt.B2u(m.Mem[lhs-1] == '.')) != 0) {
+			if !(c == '(' || c == '[' || (c == '.' && (c2 >= 128 || (c2|32)-97 <= 25 || c2 == '_')) || (c != '.' && m.Mem[lhs-1] == '.')) {
 				stack >>= 3
 				m.Ptr = lhs
 				mid = rt.B2u(!first)
@@ -48660,7 +48651,7 @@ func (m *Machine) HlTypst() {
 					}
 				}
 				v = m.TemplateByte(p)
-				if (v == 32 || v == 9) && rt.Sel32(m.LexIsDigit(c), rt.B2u(m.Mem[p-1] == '.'), rt.B2u(c == '-' || c == '+' || c == '/'))&1 != 0 {
+				if ((m.LexIsDigit(c) && m.Mem[p-1] == '.') || (!m.LexIsDigit(c) && (c == '-' || c == '+' || c == '/'))) && (v == 32 || v == 9) {
 					m.Ptr = p
 					m.EmitTok(TokenPunctuationListMarker, lhs, p)
 					if c == '/' {
@@ -50708,8 +50699,8 @@ func (m *Machine) ZigIdentEnd(p uint32) uint32 {
 }
 
 // ZigIsDigitForBase is $zigIsDigitForBase.
-func (m *Machine) ZigIsDigitForBase(c, base uint32) uint32 {
-	return rt.Sel32(base == 16, rt.B2u(m.LexIsHex(c)), rt.B2u(c-48 < base))
+func (m *Machine) ZigIsDigitForBase(c, base uint32) bool {
+	return (base == 16 && m.LexIsHex(c)) || (base != 16 && c-48 < base)
 }
 
 // ZigScanDigits is $zigScanDigits.
@@ -50719,14 +50710,14 @@ func (m *Machine) ZigScanDigits(p, base uint32) uint32 {
 		if p >= m.End {
 			break
 		}
-		if m.ZigIsDigitForBase(uint32(m.Mem[p]), base) != 0 {
+		if m.ZigIsDigitForBase(uint32(m.Mem[p]), base) {
 			p++
 			continue
 		}
 		if p == start || m.Mem[p] != '_' {
 			break
 		}
-		if p+1 >= m.End || m.ZigIsDigitForBase(uint32(m.Mem[p+1]), base) == 0 {
+		if p+1 >= m.End || !m.ZigIsDigitForBase(uint32(m.Mem[p+1]), base) {
 			break
 		}
 		p++
@@ -50984,13 +50975,13 @@ func (m *Machine) HlZig() {
 					base = 16
 				}
 			}
-			if base != 10 && m.ZigIsDigitForBase(m.ZigByte(lhs+2), base)&1 != 0 {
+			if base != 10 && m.ZigIsDigitForBase(m.ZigByte(lhs+2), base) {
 				m.Ptr = m.ZigScanDigits(lhs+2, base)
 			} else {
 				base = 10
 				m.Ptr = m.ZigScanDigits(lhs, 10)
 			}
-			if (base == 10 || base == 16) && m.ZigByte(m.Ptr) == '.' && m.ZigIsDigitForBase(m.ZigByte(m.Ptr+1), base)&1 != 0 {
+			if (base == 10 || base == 16) && m.ZigByte(m.Ptr) == '.' && m.ZigIsDigitForBase(m.ZigByte(m.Ptr+1), base) {
 				m.Ptr = m.ZigScanDigits(m.Ptr+1, base)
 			}
 			c = m.ZigByte(m.Ptr) | 32
@@ -52477,7 +52468,7 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 	if sLine > 0 {
 		pSlot = m.LvSlot(sLine - 1)
 		pFlags = rt.Ld32(m.Mem, pSlot+24)
-		if pFlags&19 == 17 && rt.Sel32(L != 0, rt.B2u(m.Mem[scratch] == '\n'), rt.B2u(finalTerm == 1))&1 != 0 {
+		if pFlags&19 == 17 && ((L != 0 && m.Mem[scratch] == '\n') || (L == 0 && finalTerm == 1)) {
 			pText = rt.Ld32(m.Mem, pSlot)
 			pLen = rt.Ld32(m.Mem, pSlot+4)
 			w = m.LvAlloc(pLen + 1 + L)
