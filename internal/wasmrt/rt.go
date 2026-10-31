@@ -33,14 +33,6 @@ func B2u64(b bool) uint64 {
 	return 0
 }
 
-// Copy implements memory.copy.
-func Copy(mem []byte, dst, src, n uint32) {
-	if uint64(src)+uint64(n) > uint64(len(mem)) || uint64(dst)+uint64(n) > uint64(len(mem)) {
-		panic(Trap("out of bounds memory access"))
-	}
-	copy(mem[dst:dst+n], mem[src:src+n])
-}
-
 // Fill implements memory.fill.
 func Fill(mem []byte, dst, v, n uint32) {
 	if uint64(dst)+uint64(n) > uint64(len(mem)) {

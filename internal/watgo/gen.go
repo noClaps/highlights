@@ -94,9 +94,11 @@ type fgen struct {
 	nonBool bool
 	// boolLocals are the Go names of i32 locals taken to hold only 0 or 1,
 	// declared bool; notBool collects those assigned another value
-	boolLocals  map[string]bool
-	notBool     map[string]bool
-	code        string // the generated function
+	boolLocals map[string]bool
+	notBool    map[string]bool
+	code       string // the generated function
+	// tempHint names temporaries made for a purpose
+	tempHint    map[string]string
 	fn          *Func
 	out         strings.Builder
 	depth       int
@@ -1584,15 +1586,9 @@ func (g *fgen) nameTemps(body string, params []string, locals []Local) string {
 		if !strings.Contains(body, t.Name) {
 			continue
 		}
-		name := ""
-		if m := regexp.MustCompile(`(?m)^\t*` + t.Name + ` = (?:rt\.B2u\()?m\.(\w+)\(`).FindStringSubmatch(body); m != nil {
-			name = lowerFirst(m[1])
-		} else if f, k := g.argOf(body, t.Name); f != nil && f.Params[k].Name != "" {
-			name = camel(f.Params[k].Name[1:])
-		} else if regexp.MustCompile(`(?m)^\t*` + t.Name + ` = rt\.Grow\(`).MatchString(body) {
-			name = "oldPages"
-		} else {
-			name = roleName(body, t.Name)
+		name := g.tempHint[t.Name]
+		if name == "" {
+			name = g.tempName(body, t.Name)
 		}
 		if name == "" || goReserved[name] || tempName.MatchString(name) {
 			continue
@@ -1669,6 +1665,22 @@ func (g *fgen) foldCopies(body string, locals []Local) string {
 }
 
 var copyRe = regexp.MustCompile(`^(\w+) = (t\d+)$`)
+
+// tempName names a temporary after what it holds or where it goes: the
+// function whose result it holds, the parameter it is passed to, or its
+// role.
+func (g *fgen) tempName(body, temp string) string {
+	if m := regexp.MustCompile(`(?m)^\t*` + temp + ` = (?:rt\.B2u\()?m\.(\w+)\(`).FindStringSubmatch(body); m != nil {
+		return lowerFirst(m[1])
+	}
+	if f, k := g.argOf(body, temp); f != nil && f.Params[k].Name != "" {
+		return camel(f.Params[k].Name[1:])
+	}
+	if regexp.MustCompile(`(?m)^\t*` + temp + ` = rt\.Grow\(`).MatchString(body) {
+		return "oldPages"
+	}
+	return roleName(body, temp)
+}
 
 // roleName names a temporary by how it is read: "result" when only
 // returned, "cond" when only tested by an if.
@@ -1858,6 +1870,33 @@ func (g *fgen) asBool(v value) string {
 		return strconv.FormatBool(v.c != 0)
 	}
 	return "(" + v.expr + " != 0)"
+}
+
+// named binds a value written twice to a temporary with a name, unless it
+// is a constant or a plain name already.
+func (g *fgen) named(v value, name string) value {
+	if v.isConst || identOnlyRe.MatchString(v.expr) {
+		return v
+	}
+	t := g.newTemp(v.typ)
+	g.line("%s = %s", t, trimParens(g.asValue(v)))
+	if g.tempHint == nil {
+		g.tempHint = map[string]string{}
+	}
+	g.tempHint[t] = name
+	return value{expr: t, typ: v.typ, stable: true}
+}
+
+var identOnlyRe = regexp.MustCompile(`^[A-Za-z_][\w.]*$`)
+
+// memRange writes the memory slice of n bytes from at.
+func (g *fgen) memRange(at, n value) string {
+	a := trimParens(g.asValue(at))
+	end := tidyExpr("(" + a + ") + (" + trimParens(g.asValue(n)) + ")")
+	if at.isConst && n.isConst {
+		end = strconv.FormatUint(at.c+n.c, 10)
+	}
+	return "m.Mem[" + a + ":" + end + "]"
 }
 
 // readsState reports an operand that reads memory, globals or calls a
@@ -3429,13 +3468,19 @@ func (g *fgen) apply(head string, imms []string) {
 		src := g.pop()
 		dst := g.pop()
 		g.spillIf(readsState)
-		g.line("rt.Copy(m.Mem, %s, %s, %s)", g.asValue(dst), g.asValue(src), g.asValue(n))
+		// slicing past the memory or past 2^32 panics, as memory.copy traps
+		dst, src = g.named(dst, "dst"), g.named(src, "src")
+		g.line("copy(%s, %s)", g.memRange(dst, n), g.memRange(src, n))
 	case "memory.fill":
 		n := g.pop()
 		v := g.pop()
 		dst := g.pop()
 		g.spillIf(readsState)
-		g.line("rt.Fill(m.Mem, %s, %s, %s)", g.asValue(dst), g.asValue(v), g.asValue(n))
+		if v.isConst && v.c&0xff == 0 {
+			g.line("clear(%s)", g.memRange(g.named(dst, "dst"), n))
+		} else {
+			g.line("rt.Fill(m.Mem, %s, %s, %s)", g.asValue(dst), g.asValue(v), g.asValue(n))
+		}
 	case "memory.size":
 		g.push(value{expr: "uint32(len(m.Mem) / rt.PageSize)", typ: I32})
 	case "memory.grow":
