@@ -252,7 +252,7 @@ func (h *Highlighter) codeToHTML(s string, b []byte, isString bool, opts Options
 		le.PutUint32(h.m.Mem[18:], uint32(len(blob)))
 	case table == nil:
 		if !h.htmlPrefixSet || h.htmlPrefix != prefix {
-			h.htmlPrefixBytes = []byte(EscapeAttribute(prefix))
+			h.htmlPrefixBytes = []byte(escapeAttribute(prefix))
 			h.htmlPrefix = prefix
 			h.htmlPrefixSet = true
 		}

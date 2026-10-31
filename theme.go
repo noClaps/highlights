@@ -27,8 +27,8 @@ func cssVariable(name, prefix string) string {
 	return "var(" + prefix + cssName(name) + ")"
 }
 
-// EscapeAttribute escapes a string for a double-quoted HTML attribute.
-func EscapeAttribute(value string) string {
+// escapeAttribute escapes a string for a double-quoted HTML attribute.
+func escapeAttribute(value string) string {
 	return attrEscaper.Replace(value)
 }
 
@@ -282,7 +282,7 @@ func themeHTMLOpeners(styles []*TokenStyle, fg, bg string) []byte {
 	if fg != "" {
 		root += "color:" + fg
 	}
-	openers := []string{`<pre class="highlights" style="` + EscapeAttribute(root) + `"><code>`}
+	openers := []string{`<pre class="highlights" style="` + escapeAttribute(root) + `"><code>`}
 	for i := 1; i < len(TokenTypes); i++ {
 		s := styles[i]
 		color := "inherit"
@@ -296,7 +296,7 @@ func themeHTMLOpeners(styles []*TokenStyle, fg, bg string) []byte {
 		if s != nil && s.Weight != 0 {
 			css += ";font-weight:" + strconv.Itoa(s.Weight)
 		}
-		openers = append(openers, `<span style="`+EscapeAttribute(css)+`">`)
+		openers = append(openers, `<span style="`+escapeAttribute(css)+`">`)
 	}
 	return packHTMLOpeners(openers)
 }

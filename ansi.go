@@ -24,7 +24,7 @@ var cubeLevels = []int{0, 95, 135, 175, 215, 255}
 // ansiStyle holds the token fields for one SGR state.
 type ansiStyle struct {
 	color, bgColor string
-	fontStyle      int
+	fontStyle      FontStyle
 	htmlStyle      HTMLStyle
 }
 
@@ -196,7 +196,7 @@ func ansiStyleFor(state *ansiState, themes []resolvedTheme, prefix string) *ansi
 		return s
 	}
 	fg, bg, flags := state.fg, state.bg, state.flags
-	fontStyle := 0
+	fontStyle := FontStyle(0)
 	if flags&ansiItalic != 0 {
 		fontStyle |= FontItalic
 	}
@@ -246,17 +246,17 @@ func ansiStyleFor(state *ansiState, themes []resolvedTheme, prefix string) *ansi
 		s.color, s.bgColor, s.fontStyle = colors[0].color, colors[0].bg, fontStyle
 	} else {
 		var font []StyleProperty
-		if fontStyle&1 != 0 {
+		if fontStyle&FontItalic != 0 {
 			font = append(font, StyleProperty{"font-style", "italic"})
 		}
-		if fontStyle&2 != 0 {
+		if fontStyle&FontBold != 0 {
 			font = append(font, StyleProperty{"font-weight", "bold"})
 		}
-		if fontStyle&12 != 0 {
+		if fontStyle&(FontUnderline|FontStrikethrough) != 0 {
 			deco := "line-through"
-			if fontStyle&12 == 12 {
+			if fontStyle&(FontUnderline|FontStrikethrough) == FontUnderline|FontStrikethrough {
 				deco = "underline line-through"
-			} else if fontStyle&4 != 0 {
+			} else if fontStyle&FontUnderline != 0 {
 				deco = "underline"
 			}
 			font = append(font, StyleProperty{"text-decoration", deco})
@@ -422,7 +422,7 @@ func ansiHTML(code string, set *themeSet, prefix string) string {
 		}
 	}
 	var sb strings.Builder
-	sb.WriteString(`<pre class="highlights" style="` + EscapeAttribute(root) + `"><code>`)
+	sb.WriteString(`<pre class="highlights" style="` + escapeAttribute(root) + `"><code>`)
 	lf := -1
 	for i, line := range lines {
 		if i > 0 {
@@ -434,7 +434,7 @@ func ansiHTML(code string, set *themeSet, prefix string) string {
 			}
 		}
 		for _, t := range line {
-			sb.WriteString(`<span style="` + EscapeAttribute(t.HTMLStyle.CSS()) + `">`)
+			sb.WriteString(`<span style="` + escapeAttribute(t.HTMLStyle.CSS()) + `">`)
 			sb.WriteString(htmlEscaper.Replace(t.Content))
 			sb.WriteString("</span>")
 		}

@@ -440,12 +440,12 @@ func (r *replayer) encToken(t ThemedToken) jsjson.Obj {
 		o = append(o, jsjson.Pair{Key: "bgColor", Value: r.str(t.BgColor)})
 	}
 	if t.HTMLStyle == nil {
-		o = append(o, jsjson.Pair{Key: "fontStyle", Value: t.FontStyle})
+		o = append(o, jsjson.Pair{Key: "fontStyle", Value: int(t.FontStyle)})
 	} else {
 		o = append(o, jsjson.Pair{Key: "htmlStyle", Value: r.encStyle(t.HTMLStyle)})
 	}
 	if t.Type != 0 {
-		o = append(o, jsjson.Pair{Key: "type", Value: t.Type})
+		o = append(o, jsjson.Pair{Key: "type", Value: int(t.Type)})
 	}
 	return o
 }

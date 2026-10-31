@@ -72,20 +72,28 @@ func (s HTMLStyle) MarshalJSON() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// Shiki font style flags.
+// FontStyle holds Shiki's font style flags.
+type FontStyle int
+
+// Font style flags.
 const (
-	FontItalic        = 1
-	FontBold          = 2
-	FontUnderline     = 4
-	FontStrikethrough = 8
+	FontItalic FontStyle = 1 << iota
+	FontBold
+	FontUnderline
+	FontStrikethrough
 )
 
-// Standard token types, matching TextMate's StandardTokenType.
+// TokenType is a standard token type, matching TextMate's
+// StandardTokenType. Bracket matching ignores brackets in comments,
+// strings, and regular expressions.
+type TokenType int
+
+// Standard token types.
 const (
-	TokenTypeOther   = 0
-	TokenTypeComment = 1
-	TokenTypeString  = 2
-	TokenTypeRegex   = 3
+	TokenTypeOther TokenType = iota
+	TokenTypeComment
+	TokenTypeString
+	TokenTypeRegex
 )
 
 // ThemedToken is a Shiki-compatible styled run within one line. Offsets use
@@ -98,24 +106,23 @@ type ThemedToken struct {
 	Color string
 	// BgColor is set only for `ansi`.
 	BgColor string
-	// FontStyle holds Shiki's flags. It applies when HTMLStyle is nil.
-	FontStyle int
+	// FontStyle applies when HTMLStyle is nil.
+	FontStyle FontStyle
 	// HTMLStyle holds styles for multiple themes; nil for a single theme.
 	HTMLStyle HTMLStyle
-	// Type is a standard token type: 0 other, 1 comment, 2 string, 3 regex.
-	Type int
+	Type      TokenType
 }
 
 // MarshalJSON encodes the token with Shiki's field names.
 func (t ThemedToken) MarshalJSON() ([]byte, error) {
 	type token struct {
-		Content   string    `json:"content"`
-		Offset    int       `json:"offset"`
-		Color     string    `json:"color,omitempty"`
-		BgColor   string    `json:"bgColor,omitempty"`
-		FontStyle *int      `json:"fontStyle,omitempty"`
-		HTMLStyle HTMLStyle `json:"htmlStyle,omitempty"`
-		Type      int       `json:"type,omitempty"`
+		Content   string     `json:"content"`
+		Offset    int        `json:"offset"`
+		Color     string     `json:"color,omitempty"`
+		BgColor   string     `json:"bgColor,omitempty"`
+		FontStyle *FontStyle `json:"fontStyle,omitempty"`
+		HTMLStyle HTMLStyle  `json:"htmlStyle,omitempty"`
+		Type      TokenType  `json:"type,omitempty"`
 	}
 	out := token{t.Content, t.Offset, t.Color, t.BgColor, nil, t.HTMLStyle, t.Type}
 	if t.HTMLStyle == nil {
@@ -167,8 +174,8 @@ type themeSet struct {
 }
 
 // standardTypes maps each token slot to Shiki's ThemedToken.type.
-var standardTypes = func() []int {
-	out := make([]int, len(TokenTypes))
+var standardTypes = func() []TokenType {
+	out := make([]TokenType, len(TokenTypes))
 	for i, name := range TokenTypes {
 		switch {
 		case name == "string.regex":
@@ -498,7 +505,7 @@ func (set *themeSet) multiThemeBlob(prefix string) []byte {
 	names := make([][]byte, count)
 	for i, t := range themes {
 		if t.role != roleDefault {
-			names[i] = []byte(EscapeAttribute(prefix + t.color))
+			names[i] = []byte(escapeAttribute(prefix + t.color))
 		}
 	}
 	tablesOffset := 32 + 16*count
@@ -549,9 +556,9 @@ func (set *themeSet) multiThemeHTMLOpeners(prefix string) []byte {
 	if root == "" {
 		root = "background-color:" + meta.bg + ";color:" + meta.fg
 	}
-	openers := []string{`<pre class="highlights" style="` + EscapeAttribute(root) + `"><code>`}
+	openers := []string{`<pre class="highlights" style="` + escapeAttribute(root) + `"><code>`}
 	for hl := 1; hl < len(TokenTypes); hl++ {
-		openers = append(openers, `<span style="`+EscapeAttribute(set.htmlStyle(hl, prefix).CSS())+`">`)
+		openers = append(openers, `<span style="`+escapeAttribute(set.htmlStyle(hl, prefix).CSS())+`">`)
 	}
 	blob := packHTMLOpeners(openers)
 	set.mu.Lock()
