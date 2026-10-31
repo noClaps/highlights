@@ -3700,6 +3700,12 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, sassDepth, urlMask, urlRem, liveRoot, t1, t3, t5, t8, t10, t12, t15, t18, t19, t20, t22, t25, t27 uint32
 	var urlW rt.V128
 	var t2, t7, t9, t11, t14, t17, t21, t24 bool
+	_ = t2
+	_ = t3
+	_ = t9
+	_ = t10
+	_ = t17
+	_ = t18
 	liveRoot = m.LiveEntering
 	m.LiveEntering = 0
 	if m.LiveSuspended != 0 {
@@ -3810,16 +3816,9 @@ next:
 			attr = 0
 			namespace = 0
 			fnPrelude = 0
-			sassDepth = 1 & rt.B2u(m.Ptr > m.SrcBase && (rt.Ld8(m.Mem, int(m.Ptr-1)) == ' ' || rt.Ld8(m.Mem, int(m.Ptr-1)) == '\t'))
+			sassDepth = rt.B2u(m.Ptr > m.SrcBase && (rt.Ld8(m.Mem, int(m.Ptr-1)) == ' ' || rt.Ld8(m.Mem, int(m.Ptr-1)) == '\t'))
 			t2 = c == '=' || c == '+'
 			t3 = m.CssIdentStart(c2)
-			if rt.B2u(false)&rt.B2u(t2)&t3 != 0 {
-				m.Ptr++
-				m.EmitTok(TokenKeyword, lhs, m.Ptr)
-				mode = 1
-				fnPrelude = 1
-				continue next
-			}
 			if c == '@' && c2 != '{' {
 				mode = 1
 				m.Ptr++
@@ -3839,15 +3838,14 @@ next:
 					if m.Ptr > lhs {
 						continue next
 					}
-					goto cssStatement
-				}
-				if c == '&' {
-					t5 = 1
 				} else {
-					t5 = m.CssDecide(depth | sassDepth)
+					if c == '&' {
+						t5 = 1
+					} else {
+						t5 = m.CssDecide(depth | sassDepth)
+					}
+					mode = rt.Sel32(t5 != 0, 0, 2)
 				}
-				mode = rt.Sel32(t5 != 0, 0, 2)
-			cssStatement:
 			}
 		}
 		if interp != 0 {
@@ -3883,7 +3881,7 @@ next:
 		t8 = m.CssIdentStart(c2)
 		t9 = c == '@'
 		t10 = m.CssIdentStart(c2)
-		if rt.B2u(t7)&rt.B2u(true)&t8|rt.B2u(t9)&rt.B2u(false)&(t10|rt.B2u(c2 == '@')) != 0 {
+		if rt.B2u(t7)&1&t8 != 0 {
 			m.Ptr += rt.Sel32(c2 == '@', 2, 1)
 			m.CssScanIdent()
 			m.EmitTok(TokenVariable, lhs, m.Ptr)
@@ -3938,7 +3936,7 @@ next:
 		if mode == 0 {
 			t14 = c == '&'
 			t15 = m.CssIdentStart(c2)
-			if rt.B2u(true)&rt.B2u(t14)&(t15|rt.B2u(c2 == '-')) != 0 {
+			if 1&rt.B2u(t14)&(t15|rt.B2u(c2 == '-')) != 0 {
 				m.Ptr++
 				m.CssScanIdent()
 				m.EmitTok(TokenSelectorClass, lhs, m.Ptr)
@@ -4016,12 +4014,6 @@ next:
 			if mode == 2 {
 				t17 = c == '.' || c == '#'
 				t18 = m.CssIdentStart(c2)
-				if rt.B2u(false)&rt.B2u(t17)&t18 != 0 {
-					m.Ptr++
-					m.CssScanIdent()
-					m.EmitTok(rt.Sel32(c == '.', TokenSelectorClass, TokenSelectorId), lhs, m.Ptr)
-					continue next
-				}
 				t19 = m.CssIdentStart(c)
 				if t19|rt.B2u(c == '-') != 0 {
 					m.CssScanIdent()
@@ -7411,105 +7403,104 @@ func (m *Machine) JsxContentStep() {
 	bound = m.Ptr
 	if tsrx != 0 {
 		p = m.TsrxFinallyAhead(m.Ptr)
-		if p != 0 {
-			m.Ptr = p
-			act = 2
-			goto textDone
-		}
 	}
-text:
-	for {
-		if tsrx != 0 {
-			m.Ptr = m.TsrxContentFind(m.Ptr)
-		} else {
-			m.Ptr = m.ScanFind3(m.Ptr, 60, 123, 38)
-		}
-		if m.Ptr >= m.End {
-			break text
-		}
-		c = rt.Ld8(m.Mem, int(m.Ptr))
-		if c == '<' || c == '{' {
-			break text
-		}
-		if c == '&' {
-			p = m.Ptr + 1
-		e:
-			for {
-				if p >= m.End {
-					break e
-				}
-				c2 = rt.Ld8(m.Mem, int(p))
-				if rt.Clz32(rt.B2u((c2|32)-97 <= 25 || c2-48 <= 9 || c2 == '#'))>>5 != 0 {
-					break e
-				}
-				p++
-			}
-			t4 = p > m.Ptr+1
-			t5 = p < m.End
-			t6 = m.TsxByte(p)
-			if t4 && t5 && t6 == 59 {
-				m.JsxEmit(TokenTextJsx, seg, m.Ptr)
-				m.JsxEmit(TokenStringSpecial, m.Ptr, p+1)
-				m.Ptr = p + 1
-				seg = m.Ptr
+	if p != 0 {
+		m.Ptr = p
+		act = 2
+	} else {
+	text:
+		for {
+			if tsrx != 0 {
+				m.Ptr = m.TsrxContentFind(m.Ptr)
 			} else {
+				m.Ptr = m.ScanFind3(m.Ptr, 60, 123, 38)
+			}
+			if m.Ptr >= m.End {
+				break text
+			}
+			c = rt.Ld8(m.Mem, int(m.Ptr))
+			if c == '<' || c == '{' {
+				break text
+			}
+			if c == '&' {
+				p = m.Ptr + 1
+			e:
+				for {
+					if p >= m.End {
+						break e
+					}
+					c2 = rt.Ld8(m.Mem, int(p))
+					if rt.Clz32(rt.B2u((c2|32)-97 <= 25 || c2-48 <= 9 || c2 == '#'))>>5 != 0 {
+						break e
+					}
+					p++
+				}
+				t4 = p > m.Ptr+1
+				t5 = p < m.End
+				t6 = m.TsxByte(p)
+				if t4 && t5 && t6 == 59 {
+					m.JsxEmit(TokenTextJsx, seg, m.Ptr)
+					m.JsxEmit(TokenStringSpecial, m.Ptr, p+1)
+					m.Ptr = p + 1
+					seg = m.Ptr
+				} else {
+					m.Ptr++
+				}
+				continue text
+			}
+			if c == '\n' {
+				p = m.TsrxFinallyAhead(m.Ptr + 1)
+				if p != 0 {
+					m.Ptr = p
+					act = 2
+					break text
+				}
 				m.Ptr++
+				continue text
 			}
-			continue text
-		}
-		if c == '\n' {
-			p = m.TsrxFinallyAhead(m.Ptr + 1)
-			if p != 0 {
-				m.Ptr = p
-				act = 2
-				break text
+			if c == '@' {
+				t8 = m.TsxByte(m.Ptr + 1)
+				if t8 == 123 {
+					act = 1
+					break text
+				}
+				if m.TsrxDirectiveAt(m.Ptr+1) != 0 {
+					act = 2
+					break text
+				}
+				m.Ptr++
+				continue text
+			}
+			c2 = m.TsxByte(m.Ptr + 1)
+			if c2 == '*' {
+				m.JsxEmit(TokenTextJsx, seg, m.Ptr)
+				seg = m.Ptr
+				m.Ptr += 2
+				m.ScanBlockCommentEnd()
+				m.JsxEmit(TokenComment, seg, m.Ptr)
+				t11 = m.TsxStreaming
+				t12 = m.BlockCommentOpen(seg, m.Ptr)
+				if t11&t12 != 0 {
+					m.TsxStreamMode = 2
+				}
+				seg = m.Ptr
+				bound = m.Ptr
+				continue text
+			}
+			t13 = c2 == '/'
+			t14 = m.TsrxAtBoundary(bound, m.Ptr)
+			if rt.B2u(t13)&t14 != 0 {
+				m.JsxEmit(TokenTextJsx, seg, m.Ptr)
+				seg = m.Ptr
+				m.ScanToLineEnd()
+				m.JsxEmit(TokenComment, seg, m.Ptr)
+				seg = m.Ptr
+				bound = m.Ptr
+				continue text
 			}
 			m.Ptr++
-			continue text
 		}
-		if c == '@' {
-			t8 = m.TsxByte(m.Ptr + 1)
-			if t8 == 123 {
-				act = 1
-				break text
-			}
-			if m.TsrxDirectiveAt(m.Ptr+1) != 0 {
-				act = 2
-				break text
-			}
-			m.Ptr++
-			continue text
-		}
-		c2 = m.TsxByte(m.Ptr + 1)
-		if c2 == '*' {
-			m.JsxEmit(TokenTextJsx, seg, m.Ptr)
-			seg = m.Ptr
-			m.Ptr += 2
-			m.ScanBlockCommentEnd()
-			m.JsxEmit(TokenComment, seg, m.Ptr)
-			t11 = m.TsxStreaming
-			t12 = m.BlockCommentOpen(seg, m.Ptr)
-			if t11&t12 != 0 {
-				m.TsxStreamMode = 2
-			}
-			seg = m.Ptr
-			bound = m.Ptr
-			continue text
-		}
-		t13 = c2 == '/'
-		t14 = m.TsrxAtBoundary(bound, m.Ptr)
-		if rt.B2u(t13)&t14 != 0 {
-			m.JsxEmit(TokenTextJsx, seg, m.Ptr)
-			seg = m.Ptr
-			m.ScanToLineEnd()
-			m.JsxEmit(TokenComment, seg, m.Ptr)
-			seg = m.Ptr
-			bound = m.Ptr
-			continue text
-		}
-		m.Ptr++
 	}
-textDone:
 	m.JsxEmit(TokenTextJsx, seg, m.Ptr)
 	if m.Ptr >= m.End {
 		return

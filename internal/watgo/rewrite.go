@@ -2,6 +2,7 @@ package watgo
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"highlights/internal/wat"
@@ -247,4 +248,74 @@ func nameLabels(nodes []*wat.Sexpr) []*wat.Sexpr {
 		out[i] = walk(x)
 	}
 	return out
+}
+
+// foldConstIfs replaces each statement if whose condition is a constant
+// with the arm it takes, so that arm's statements join the sequence around
+// it.
+func foldConstIfs(nodes []*wat.Sexpr, constOf func(*wat.Sexpr) (uint64, bool)) []*wat.Sexpr {
+	var out []*wat.Sexpr
+	for _, n := range nodes {
+		if !n.IsList {
+			out = append(out, n)
+			continue
+		}
+		if n.Head() == "if" {
+			if taken, ok := takenArm(n, constOf); ok {
+				taken = foldConstIfs(taken, constOf)
+				if label := n.List[1]; !label.IsList && strings.HasPrefix(label.Atom, "$") {
+					out = append(out, list(append([]*wat.Sexpr{atom("block"), label}, taken...)...))
+				} else {
+					out = append(out, taken...)
+				}
+				continue
+			}
+		}
+		head := n.List[:1]
+		if n.Head() == "" {
+			head = nil
+		}
+		out = append(out, list(append(slices.Clone(head), foldConstIfs(n.List[len(head):], constOf)...)...))
+	}
+	return out
+}
+
+// takenArm returns the statements of the arm a statement if takes when its
+// condition is a constant.
+func takenArm(n *wat.Sexpr, constOf func(*wat.Sexpr) (uint64, bool)) ([]*wat.Sexpr, bool) {
+	parts := n.List[1:]
+	if len(parts) > 0 && !parts[0].IsList {
+		parts = parts[1:]
+	}
+	var cond, thenArm, elseArm *wat.Sexpr
+	for _, p := range parts {
+		switch p.Head() {
+		case "result", "type", "param":
+			return nil, false
+		case "then":
+			thenArm = p
+		case "else":
+			elseArm = p
+		default:
+			if cond != nil {
+				return nil, false
+			}
+			cond = p
+		}
+	}
+	if cond == nil {
+		return nil, false
+	}
+	c, ok := constOf(cond)
+	if !ok {
+		return nil, false
+	}
+	arm := thenArm
+	if c == 0 {
+		arm = elseArm
+	}
+	if arm == nil {
+		return nil, true
+	}
+	return arm.List[1:], true
 }

@@ -516,7 +516,7 @@ func (g *fgen) genFunc() string {
 	if len(f.Results) > 0 {
 		fnResult = f.Results[0]
 	}
-	fnBody := nameLabels(explicitReturn(storeBlockResults(f.Body), fnResult))
+	fnBody := nameLabels(explicitReturn(storeBlockResults(foldConstIfs(f.Body, g.constOf)), fnResult))
 	g.dead = deadSets(fnBody)
 	// the function body is the outermost branch target: branching to it
 	// returns
@@ -579,6 +579,48 @@ func (g *fgen) genFunc() string {
 }
 
 var wordRe = regexp.MustCompile(`\bt\d+\b`)
+
+// constOf evaluates a condition built from constants and immutable
+// globals.
+func (g *fgen) constOf(n *wat.Sexpr) (uint64, bool) {
+	if !n.IsList || n.Head() == "" {
+		return 0, false
+	}
+	head, imms, operands := splitInstr(n)
+	args := make([]uint64, len(operands))
+	for i, o := range operands {
+		c, ok := g.constOf(o)
+		if !ok {
+			return 0, false
+		}
+		args[i] = c
+	}
+	switch {
+	case head == "i32.const" && len(imms) == 1:
+		v, err := strconv.ParseInt(imms[0], 0, 64)
+		if err != nil {
+			return 0, false
+		}
+		return uint64(uint32(v)), true
+	case head == "global.get" && len(imms) == 1:
+		gl := g.global(imms[0])
+		if gl.Mutable || gl.Type != I32 {
+			return 0, false
+		}
+		return gl.Init & 0xffffffff, true
+	case head == "i32.eqz" && len(args) == 1:
+		return b2u(args[0] == 0), true
+	case head == "i32.eq" && len(args) == 2:
+		return b2u(args[0] == args[1]), true
+	case head == "i32.ne" && len(args) == 2:
+		return b2u(args[0] != args[1]), true
+	case head == "i32.and" && len(args) == 2:
+		return args[0] & args[1], true
+	case head == "i32.or" && len(args) == 2:
+		return args[0] | args[1], true
+	}
+	return 0, false
+}
 
 // tidyBody reprints expressions and folds single-use call temporaries.
 func tidyBody(body string) string {
@@ -723,6 +765,9 @@ func (g *fgen) numeric(v value) value {
 
 // asValue renders v as a numeric expression.
 func (g *fgen) asValue(v value) string {
+	if v.isBool && v.isConst {
+		return constLiteral(v.typ, v.c)
+	}
 	if v.isBool {
 		if v.typ == I64 {
 			return "rt.B2u64(" + trimParens(v.expr) + ")"
@@ -1212,7 +1257,7 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
 	name, result, body := g.blockHeader(n.List[1:])
 	g.spill()
 	if isLoop {
-		g.genLoop(name, result, body, nil)
+		g.genLoop(name, result, body)
 		return
 	}
 	if result == "" && byteSwitchRe.MatchString(name) && g.genByteSwitch(name, body) {
@@ -1269,7 +1314,7 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
 		failf("%s: block leaves %d values", g.fn.GoName, len(g.stack)-base)
 	}
 	g.stack = g.stack[:base]
-	if l.used {
+	if l.jumped {
 		g.depth--
 		g.line("%s:", l.goName)
 		g.depth++
@@ -1393,12 +1438,21 @@ func byteLiteral(b int) string {
 // genLoop writes a WAT loop as a Go for loop: a branch to the loop
 // continues it, and reaching the end of the body breaks out. block is the
 // block that ends with the loop, if any.
-func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, block *label) {
+func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, blocks ...*label) {
 	cont := g.childCont
 	l := g.newLabel(name, true, result)
-	if block != nil {
-		block.breaks = l
+	var block *label
+	if len(blocks) > 0 {
+		block = blocks[len(blocks)-1]
 	}
+	for _, b := range blocks {
+		b.breaks = l
+	}
+	defer func() {
+		for _, b := range blocks {
+			b.breaks = nil
+		}
+	}()
 	var res string
 	if result != "" {
 		res = g.newTemp(result)
@@ -1531,7 +1585,7 @@ func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
 			// the arms now hold rest, so after them comes what follows the
 			// whole sequence
 			g.ifElse(c, thenBody, elseBody, armTail, base, parentCont)
-			if l.used {
+			if l.jumped {
 				g.line("%s:", l.goName)
 			}
 			g.unreachable = false
@@ -1583,7 +1637,7 @@ func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
 		reachable = true
 	}
 	g.line("}")
-	if l.used {
+	if l.jumped {
 		g.line("%s:", l.goName)
 	}
 	g.unreachable = !reachable && !l.used
@@ -1687,6 +1741,22 @@ func (g *fgen) genSeqTail(nodes []*wat.Sexpr, tail []*label) {
 				if len(rest) == 0 {
 					g.genBlock(n, false, tail)
 					continue
+				}
+			case "loop":
+				// a loop that ends the sequence ends the tail blocks too: a
+				// branch to one of them breaks out of the loop
+				if name, result, body := g.blockHeader(n.List[1:]); len(rest) == 0 && result == "" {
+					var blocks []*label
+					for _, t := range tail {
+						if !t.isLoop && !t.isFunc && t.breaks == nil && t.breakStmt == "" && t.result == "" {
+							blocks = append(blocks, t)
+						}
+					}
+					if len(blocks) > 0 {
+						g.spill()
+						g.genLoop(name, "", body, blocks...)
+						continue
+					}
 				}
 			}
 		}
@@ -2201,6 +2271,10 @@ func (g *fgen) binary(op binOp, a, b value) value {
 			return g.numeric(b)
 		}
 	}
+	// x&0 is 0; operands have no side effects, calls being in temporaries
+	if op.goOp == "&" && ((a.isConst && a.c == 0) || (b.isConst && b.c == 0)) {
+		return constValue(op.typ, 0)
+	}
 	if a.isConst && b.isConst {
 		r := op.fold(a.c, b.c)
 		if op.isCmp {
@@ -2215,7 +2289,7 @@ func (g *fgen) binary(op binOp, a, b value) value {
 		if a.isConst {
 			x, k = b, a
 		}
-		if k.isBool && x.isBool {
+		if k.c <= 1 && x.isBool {
 			absorbs := (k.c != 0) == (op.goOp == "|")
 			if !absorbs {
 				return x

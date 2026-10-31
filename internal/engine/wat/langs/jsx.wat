@@ -489,115 +489,114 @@
       ;; TSRX: `finally {` as the first word of the run heads a try clause; the
       ;; blanks before it are text, as they are when the run holds no clause
       (if (local.get $tsrx)
+        (then (local.set $p (call $tsrxFinallyAhead (global.get $ptr)))))
+      (if (local.get $p)
         (then
-          (local.set $p (call $tsrxFinallyAhead (global.get $ptr)))
-          (if (local.get $p)
-            (then
-              (global.set $ptr (local.get $p))
-              (local.set $act (i32.const 2))
-              (br $textDone)))))
-      (loop $text
-        (if (local.get $tsrx)
-          (then (global.set $ptr (call $tsrxContentFind (global.get $ptr))))
-          (else
-            (global.set $ptr
-              (call $scanFind3 (global.get $ptr) (i32.const "<") (i32.const "{") (i32.const "&")))))
-        (br_if $textDone (i32.ge_u (global.get $ptr) (global.get $end)))
-        (local.set $c (i32.load8_u (global.get $ptr)))
-        (br_if $textDone
-          (i32.or (i32.eq (local.get $c) (i32.const "<")) (i32.eq (local.get $c) (i32.const "{"))))
-        (if (i32.eq (local.get $c) (i32.const "&"))
-          (then
-            (local.set $p (i32.add (global.get $ptr) (i32.const 1)))
-            (block $eDone
-              (loop $e
-                (br_if $eDone (i32.ge_u (local.get $p) (global.get $end)))
-                (local.set $c2 (i32.load8_u (local.get $p)))
-                (br_if $eDone
-                  (i32.eqz
-                    (i32.or
-                      (i32.or
-                        (i32.le_u
-                          (i32.sub (i32.or (local.get $c2) (i32.const 32)) (i32.const "a"))
-                          (i32.const 25))
-                        (i32.le_u (i32.sub (local.get $c2) (i32.const "0")) (i32.const 9)))
-                      (i32.eq (local.get $c2) (i32.const "#")))))
-                (local.set $p (i32.add (local.get $p) (i32.const 1)))
-                (br $e)))
-            (if
-              (i32.and
-                (i32.gt_u (local.get $p) (i32.add (global.get $ptr) (i32.const 1)))
-                (i32.and
-                  (i32.lt_u (local.get $p) (global.get $end))
-                  (i32.eq (call $tsxByte (local.get $p)) (i32.const ";"))))
+          (global.set $ptr (local.get $p))
+          (local.set $act (i32.const 2)))
+        (else
+          (loop $text
+            (if (local.get $tsrx)
+              (then (global.set $ptr (call $tsrxContentFind (global.get $ptr))))
+              (else
+                (global.set $ptr
+                  (call $scanFind3 (global.get $ptr) (i32.const "<") (i32.const "{") (i32.const "&")))))
+            (br_if $textDone (i32.ge_u (global.get $ptr) (global.get $end)))
+            (local.set $c (i32.load8_u (global.get $ptr)))
+            (br_if $textDone
+              (i32.or (i32.eq (local.get $c) (i32.const "<")) (i32.eq (local.get $c) (i32.const "{"))))
+            (if (i32.eq (local.get $c) (i32.const "&"))
+              (then
+                (local.set $p (i32.add (global.get $ptr) (i32.const 1)))
+                (block $eDone
+                  (loop $e
+                    (br_if $eDone (i32.ge_u (local.get $p) (global.get $end)))
+                    (local.set $c2 (i32.load8_u (local.get $p)))
+                    (br_if $eDone
+                      (i32.eqz
+                        (i32.or
+                          (i32.or
+                            (i32.le_u
+                              (i32.sub (i32.or (local.get $c2) (i32.const 32)) (i32.const "a"))
+                              (i32.const 25))
+                            (i32.le_u (i32.sub (local.get $c2) (i32.const "0")) (i32.const 9)))
+                          (i32.eq (local.get $c2) (i32.const "#")))))
+                    (local.set $p (i32.add (local.get $p) (i32.const 1)))
+                    (br $e)))
+                (if
+                  (i32.and
+                    (i32.gt_u (local.get $p) (i32.add (global.get $ptr) (i32.const 1)))
+                    (i32.and
+                      (i32.lt_u (local.get $p) (global.get $end))
+                      (i32.eq (call $tsxByte (local.get $p)) (i32.const ";"))))
+                  (then
+                    (call $jsxEmit (enum.get $Token.text.jsx) (local.get $seg) (global.get $ptr))
+                    (call $jsxEmit
+                      (enum.get $Token.string.special)
+                      (global.get $ptr)
+                      (i32.add (local.get $p) (i32.const 1)))
+                    (global.set $ptr (i32.add (local.get $p) (i32.const 1)))
+                    (local.set $seg (global.get $ptr)))
+                  (else
+                    ;; a bare `&`: plain text
+                    (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))))
+                (br $text)))
+            ;; TSRX text specials: LF, `@`, `/`
+            (if (i32.eq (local.get $c) (i32.const 10))
+              (then
+                ;; `finally {` after a line's indentation heads a try clause
+                (local.set $p (call $tsrxFinallyAhead (i32.add (global.get $ptr) (i32.const 1))))
+                (if (local.get $p)
+                  (then
+                    (global.set $ptr (local.get $p))
+                    (local.set $act (i32.const 2))
+                    (br $textDone)))
+                (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+                (br $text)))
+            (if (i32.eq (local.get $c) (i32.const "@"))
+              (then
+                (if (i32.eq (call $tsxByte (i32.add (global.get $ptr) (i32.const 1))) (i32.const "{"))
+                  (then
+                    (local.set $act (i32.const 1))
+                    (br $textDone)))
+                (if (call $tsrxDirectiveAt (i32.add (global.get $ptr) (i32.const 1)))
+                  (then
+                    (local.set $act (i32.const 2))
+                    (br $textDone)))
+                (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+                (br $text)))
+            ;; `/`: a block comment anywhere, a line comment at a boundary
+            (local.set $c2 (call $tsxByte (i32.add (global.get $ptr) (i32.const 1))))
+            (if (i32.eq (local.get $c2) (i32.const "*"))
               (then
                 (call $jsxEmit (enum.get $Token.text.jsx) (local.get $seg) (global.get $ptr))
-                (call $jsxEmit
-                  (enum.get $Token.string.special)
-                  (global.get $ptr)
-                  (i32.add (local.get $p) (i32.const 1)))
-                (global.set $ptr (i32.add (local.get $p) (i32.const 1)))
-                (local.set $seg (global.get $ptr)))
-              (else
-                ;; a bare `&`: plain text
-                (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))))
-            (br $text)))
-        ;; TSRX text specials: LF, `@`, `/`
-        (if (i32.eq (local.get $c) (i32.const 10))
-          (then
-            ;; `finally {` after a line's indentation heads a try clause
-            (local.set $p (call $tsrxFinallyAhead (i32.add (global.get $ptr) (i32.const 1))))
-            (if (local.get $p)
-              (then
-                (global.set $ptr (local.get $p))
-                (local.set $act (i32.const 2))
-                (br $textDone)))
-            (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
-            (br $text)))
-        (if (i32.eq (local.get $c) (i32.const "@"))
-          (then
-            (if (i32.eq (call $tsxByte (i32.add (global.get $ptr) (i32.const 1))) (i32.const "{"))
-              (then
-                (local.set $act (i32.const 1))
-                (br $textDone)))
-            (if (call $tsrxDirectiveAt (i32.add (global.get $ptr) (i32.const 1)))
-              (then
-                (local.set $act (i32.const 2))
-                (br $textDone)))
-            (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
-            (br $text)))
-        ;; `/`: a block comment anywhere, a line comment at a boundary
-        (local.set $c2 (call $tsxByte (i32.add (global.get $ptr) (i32.const 1))))
-        (if (i32.eq (local.get $c2) (i32.const "*"))
-          (then
-            (call $jsxEmit (enum.get $Token.text.jsx) (local.get $seg) (global.get $ptr))
-            (local.set $seg (global.get $ptr))
-            (global.set $ptr (i32.add (global.get $ptr) (i32.const 2)))
-            (call $scanBlockCommentEnd)
-            (call $jsxEmit (enum.get $Token.comment) (local.get $seg) (global.get $ptr))
-            ;; open at the chunk end: the next chunk resumes the comment
+                (local.set $seg (global.get $ptr))
+                (global.set $ptr (i32.add (global.get $ptr) (i32.const 2)))
+                (call $scanBlockCommentEnd)
+                (call $jsxEmit (enum.get $Token.comment) (local.get $seg) (global.get $ptr))
+                ;; open at the chunk end: the next chunk resumes the comment
+                (if
+                  (i32.and
+                    (global.get $tsxStreaming)
+                    (call $blockCommentOpen (local.get $seg) (global.get $ptr)))
+                  (then (global.set $tsxStreamMode (i32.const 2))))
+                (local.set $seg (global.get $ptr))
+                (local.set $bound (global.get $ptr))
+                (br $text)))
             (if
               (i32.and
-                (global.get $tsxStreaming)
-                (call $blockCommentOpen (local.get $seg) (global.get $ptr)))
-              (then (global.set $tsxStreamMode (i32.const 2))))
-            (local.set $seg (global.get $ptr))
-            (local.set $bound (global.get $ptr))
-            (br $text)))
-        (if
-          (i32.and
-            (i32.eq (local.get $c2) (i32.const "/"))
-            (call $tsrxAtBoundary (local.get $bound) (global.get $ptr)))
-          (then
-            (call $jsxEmit (enum.get $Token.text.jsx) (local.get $seg) (global.get $ptr))
-            (local.set $seg (global.get $ptr))
-            (call $scanToLineEnd)
-            (call $jsxEmit (enum.get $Token.comment) (local.get $seg) (global.get $ptr))
-            (local.set $seg (global.get $ptr))
-            (local.set $bound (global.get $ptr))
-            (br $text)))
-        (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
-        (br $text)))
+                (i32.eq (local.get $c2) (i32.const "/"))
+                (call $tsrxAtBoundary (local.get $bound) (global.get $ptr)))
+              (then
+                (call $jsxEmit (enum.get $Token.text.jsx) (local.get $seg) (global.get $ptr))
+                (local.set $seg (global.get $ptr))
+                (call $scanToLineEnd)
+                (call $jsxEmit (enum.get $Token.comment) (local.get $seg) (global.get $ptr))
+                (local.set $seg (global.get $ptr))
+                (local.set $bound (global.get $ptr))
+                (br $text)))
+            (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+            (br $text)))))
     (call $jsxEmit (enum.get $Token.text.jsx) (local.get $seg) (global.get $ptr))
     (if (i32.ge_u (global.get $ptr) (global.get $end))
       (then (return)))
