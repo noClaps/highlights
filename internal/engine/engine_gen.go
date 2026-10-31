@@ -35981,8 +35981,8 @@ l:
 
 // MakeDollar is $makeDollar.
 func (m *Machine) MakeDollar(nest uint32) {
-	var lhs, c, hl, open, close_, depth, rhs, p, t6, t8, t10 uint32
-	var t9 bool
+	var lhs, c, hl, open, close_, depth, rhs, p, t4, t6, t8 uint32
+	var t7 bool
 	lhs = m.Ptr
 	c = m.TemplateByte(m.Ptr + 1)
 	m.Ptr = lhs + 2
@@ -35993,7 +35993,87 @@ func (m *Machine) MakeDollar(nest uint32) {
 		}
 	} else {
 		if c == '(' || c == '{' {
-			goto ref
+			open = c
+			close_ = rt.Sel32(c == '(', 41, 125)
+			m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
+			lhs = m.Ptr
+			m.Ptr = m.LexSkipSpaceAt(m.Ptr)
+			m.EmitGap(lhs, m.Ptr)
+			lhs = m.Ptr
+			c = m.TemplateByte(m.Ptr)
+			if rt.Ld8(m.Mem, int(c)+4496)&4 != 0 {
+				m.Ptr++
+				t4 = m.TemplateByte(m.Ptr)
+				if t4|2 == 70 {
+					m.Ptr++
+				}
+				m.EmitTok(TokenVariableSpecial, lhs, m.Ptr)
+			} else {
+				m.ScanIdentRun(45)
+				rhs = m.Ptr
+				if rhs > lhs {
+					p = m.LexSkipSpaceAt(rhs)
+					t6 = m.TemplateByte(p)
+					t7 = t6 != close_
+					t8 = m.LexKeywordLookup(lhs, rhs, 22464, 15, 53)
+					if t7 && (t8 == 5 || (rhs-lhs == 9 && rt.Ld64(m.Mem, int(lhs)) == 0x6966657270646461 && rt.Ld8(m.Mem, int(lhs)+8) == 'x')) {
+						m.EmitTok(TokenFunction, lhs, rhs)
+					} else {
+						m.EmitTok(TokenVariable, lhs, rhs)
+					}
+				}
+			}
+			lhs = m.Ptr
+		l:
+			for {
+				if m.Ptr >= m.End {
+					break l
+				}
+				c = rt.Ld8(m.Mem, int(m.Ptr))
+				if c == '\n' || c == '\r' {
+					break l
+				}
+				if c == '$' && nest < 64 {
+					m.EmitTok(TokenNone, lhs, m.Ptr)
+					m.MakeDollar(nest + 1)
+					lhs = m.Ptr
+					continue l
+				}
+				hl = TokenPunctuationDelimiter
+				if !(c == ',' && depth == 0) {
+					if c == open {
+						depth++
+					}
+					if c == close_ {
+						hl = TokenPunctuationSpecial
+						if depth == 0 {
+							m.EmitTok(TokenNone, lhs, m.Ptr)
+							lhs = m.Ptr
+							m.Ptr++
+							m.EmitTok(hl, lhs, m.Ptr)
+							lhs = m.Ptr
+							if hl == TokenPunctuationDelimiter {
+								continue l
+							}
+							return
+						}
+						depth--
+					}
+					m.Ptr = m.Utf8SpanEnd(m.Ptr+1, m.End)
+					continue l
+				}
+				m.EmitTok(TokenNone, lhs, m.Ptr)
+				lhs = m.Ptr
+				m.Ptr++
+				m.EmitTok(hl, lhs, m.Ptr)
+				lhs = m.Ptr
+				if hl == TokenPunctuationDelimiter {
+					continue l
+				}
+				return
+			}
+			m.EmitTok(TokenNone, lhs, m.Ptr)
+			return
 		}
 		if rt.Ld8(m.Mem, int(c)+4496)&4 != 0 {
 			hl = TokenVariableSpecial
@@ -36005,88 +36085,6 @@ func (m *Machine) MakeDollar(nest uint32) {
 		}
 	}
 	m.EmitTok(hl, lhs, m.Ptr)
-	return
-ref:
-	open = c
-	close_ = rt.Sel32(c == '(', 41, 125)
-	m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
-	lhs = m.Ptr
-	m.Ptr = m.LexSkipSpaceAt(m.Ptr)
-	m.EmitGap(lhs, m.Ptr)
-	lhs = m.Ptr
-	c = m.TemplateByte(m.Ptr)
-	if rt.Ld8(m.Mem, int(c)+4496)&4 != 0 {
-		m.Ptr++
-		t6 = m.TemplateByte(m.Ptr)
-		if t6|2 == 70 {
-			m.Ptr++
-		}
-		m.EmitTok(TokenVariableSpecial, lhs, m.Ptr)
-	} else {
-		m.ScanIdentRun(45)
-		rhs = m.Ptr
-		if rhs > lhs {
-			p = m.LexSkipSpaceAt(rhs)
-			t8 = m.TemplateByte(p)
-			t9 = t8 != close_
-			t10 = m.LexKeywordLookup(lhs, rhs, 22464, 15, 53)
-			if t9 && (t10 == 5 || (rhs-lhs == 9 && rt.Ld64(m.Mem, int(lhs)) == 0x6966657270646461 && rt.Ld8(m.Mem, int(lhs)+8) == 'x')) {
-				m.EmitTok(TokenFunction, lhs, rhs)
-			} else {
-				m.EmitTok(TokenVariable, lhs, rhs)
-			}
-		}
-	}
-	lhs = m.Ptr
-l:
-	for {
-		if m.Ptr >= m.End {
-			break l
-		}
-		c = rt.Ld8(m.Mem, int(m.Ptr))
-		if c == '\n' || c == '\r' {
-			break l
-		}
-		if c == '$' && nest < 64 {
-			m.EmitTok(TokenNone, lhs, m.Ptr)
-			m.MakeDollar(nest + 1)
-			lhs = m.Ptr
-			continue l
-		}
-		hl = TokenPunctuationDelimiter
-		if !(c == ',' && depth == 0) {
-			if c == open {
-				depth++
-			}
-			if c == close_ {
-				hl = TokenPunctuationSpecial
-				if depth == 0 {
-					m.EmitTok(TokenNone, lhs, m.Ptr)
-					lhs = m.Ptr
-					m.Ptr++
-					m.EmitTok(hl, lhs, m.Ptr)
-					lhs = m.Ptr
-					if hl == TokenPunctuationDelimiter {
-						continue l
-					}
-					return
-				}
-				depth--
-			}
-			m.Ptr = m.Utf8SpanEnd(m.Ptr+1, m.End)
-			continue l
-		}
-		m.EmitTok(TokenNone, lhs, m.Ptr)
-		lhs = m.Ptr
-		m.Ptr++
-		m.EmitTok(hl, lhs, m.Ptr)
-		lhs = m.Ptr
-		if hl == TokenPunctuationDelimiter {
-			continue l
-		}
-		return
-	}
-	m.EmitTok(TokenNone, lhs, m.Ptr)
 }
 
 // MakeQuoted is $makeQuoted.

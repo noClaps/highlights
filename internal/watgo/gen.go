@@ -779,6 +779,23 @@ func (g *fgen) noteInline(n *wat.Sexpr, rest []*wat.Sexpr) {
 	if !n.IsList || n.Head() != "block" {
 		return
 	}
+	// a block that only a branch leaves, with one branch to it: the code
+	// after it moves to that branch, whatever its size
+	if body := blockBody(n); len(body) > 0 && endsInJump(body[len(body)-1]) && countBranches(body, n.List[1].Atom) == 1 {
+		for k, r := range rest {
+			if isJump(r) {
+				g.pendingInline = rest[:k+1]
+				return
+			}
+			if !inlinable(r) {
+				break
+			}
+		}
+		if c := g.contOf(rest); c != nil {
+			g.pendingInline = c
+			return
+		}
+	}
 	size := 0
 	for k, r := range rest {
 		if isJump(r) {
@@ -846,6 +863,58 @@ func (g *fgen) withEnd(end *wat.Sexpr, cont []*wat.Sexpr, write func()) {
 }
 
 func brTo(label string) *wat.Sexpr { return list(atom("br"), atom(label)) }
+
+// blockBody returns the statements of a named block without a result.
+func blockBody(n *wat.Sexpr) []*wat.Sexpr {
+	if len(n.List) < 3 || n.List[1].IsList || !strings.HasPrefix(n.List[1].Atom, "$") {
+		return nil
+	}
+	body := n.List[2:]
+	if len(body) > 0 && body[0].IsList && (body[0].Head() == "result" || body[0].Head() == "type") {
+		return nil
+	}
+	return body
+}
+
+// endsInJump reports a statement after which control never falls through.
+func endsInJump(n *wat.Sexpr) bool {
+	switch n.Head() {
+	case "br", "return", "unreachable", "br_table":
+		return true
+	}
+	return false
+}
+
+// countBranches counts the branches to label in nodes, not counting
+// those that an inner block of the same name captures.
+func countBranches(nodes []*wat.Sexpr, label string) int {
+	count := 0
+	var walk func(n *wat.Sexpr)
+	walk = func(n *wat.Sexpr) {
+		if !n.IsList {
+			return
+		}
+		switch n.Head() {
+		case "block", "loop", "if":
+			if len(n.List) > 1 && !n.List[1].IsList && n.List[1].Atom == label {
+				return
+			}
+		case "br", "br_if", "br_table":
+			for _, a := range n.List[1:] {
+				if !a.IsList && a.Atom == label {
+					count++
+				}
+			}
+		}
+		for _, c := range n.List[1:] {
+			walk(c)
+		}
+	}
+	for _, n := range nodes {
+		walk(n)
+	}
+	return count
+}
 
 // inlineBudget bounds the WAT nodes a duplicated tail may hold.
 const inlineBudget = 160
