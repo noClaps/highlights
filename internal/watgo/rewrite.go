@@ -121,13 +121,34 @@ func rewritableNode(n *wat.Sexpr, label string) bool {
 	// a branch with a value may only be a statement of a sequence
 	if !sequence[n.Head()] {
 		for _, c := range n.List[1:] {
-			if c.IsList && c.Head() == "br" && len(c.List) == 3 && c.List[1].Atom == label {
+			if c.IsList && (isValueBr(c, label) || isValueBrIf(c, label)) {
 				return false
+			}
+		}
+	} else {
+		for _, c := range n.List[1:] {
+			if isValueBrIf(c, label) {
+				// a statement br_if with a constant: if not taken, its value
+				// is left behind unused, or generation fails for lack of it
+				for _, k := range c.List[2:] {
+					if !rewritableNode(k, label) {
+						return false
+					}
+				}
 			}
 		}
 	}
 	switch n.Head() {
-	case "br_if", "br_table":
+	case "br_if":
+		if isValueBrIf(n, label) {
+			return true
+		}
+		for _, a := range n.List[1:] {
+			if !a.IsList && a.Atom == label {
+				return false
+			}
+		}
+	case "br_table":
 		for _, a := range n.List[1:] {
 			if !a.IsList && a.Atom == label {
 				return false
@@ -157,7 +178,21 @@ func storeBranches(n *wat.Sexpr, label string, set func(*wat.Sexpr) *wat.Sexpr) 
 	if n.IsList && n.Head() == "br" && len(n.List) == 3 && n.List[1].Atom == label {
 		return []*wat.Sexpr{set(storeOne(n.List[2], label, set)), list(atom("br"), atom(label))}
 	}
+	if isValueBrIf(n, label) {
+		return []*wat.Sexpr{list(atom("if"), storeOne(n.List[3], label, set),
+			list(atom("then"), set(n.List[2]), list(atom("br"), atom(label))))}
+	}
 	return []*wat.Sexpr{storeOne(n, label, set)}
+}
+
+func isValueBr(n *wat.Sexpr, label string) bool {
+	return n.IsList && n.Head() == "br" && len(n.List) == 3 && n.List[1].Atom == label
+}
+
+// isValueBrIf reports `(br_if $label (i32.const v) cond)`.
+func isValueBrIf(n *wat.Sexpr, label string) bool {
+	return n.IsList && n.Head() == "br_if" && len(n.List) == 4 && n.List[1].Atom == label &&
+		(n.List[2].Head() == "i32.const" || n.List[2].Head() == "i64.const")
 }
 
 // sequence lists the forms whose operands are statements.
@@ -172,6 +207,11 @@ func storeOne(n *wat.Sexpr, label string, set func(*wat.Sexpr) *wat.Sexpr) *wat.
 		// a branch as a statement of a nested sequence
 		if sequence[n.Head()] && c.IsList && c.Head() == "br" && len(c.List) == 3 && c.List[1].Atom == label {
 			out.List = append(out.List, set(storeOne(c.List[2], label, set)), list(atom("br"), atom(label)))
+			continue
+		}
+		if sequence[n.Head()] && isValueBrIf(c, label) {
+			out.List = append(out.List, list(atom("if"), storeOne(c.List[3], label, set),
+				list(atom("then"), set(c.List[2]), list(atom("br"), atom(label)))))
 			continue
 		}
 		out.List = append(out.List, storeOne(c, label, set))

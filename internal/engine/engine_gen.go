@@ -18336,7 +18336,7 @@ scan:
 
 // CoffeeJs is $coffeeJs.
 func (m *Machine) CoffeeJs(triple uint32) uint32 {
-	var c, p, save, t0, t4, t6, t7 uint32
+	var c, p, save, t3, t5, t6 uint32
 line:
 	for {
 		p = m.Ptr
@@ -18353,14 +18353,12 @@ line:
 					m.Ptr = p
 				}
 				if p >= m.End {
-					t0 = 0
-					goto done
+					return 0
 				}
 				if rt.Ld8(m.Mem, int(p)) == '`' {
 					m.Ptr = p + rt.Sel32(triple != 0, 3, 1)
 					m.EmitTok(TokenPunctuationSpecial, p, m.Ptr)
-					t0 = 1
-					goto done
+					return 1
 				}
 				m.Ptr = p + 1
 				m.EmitGap(p, m.Ptr)
@@ -18369,11 +18367,11 @@ line:
 			if rt.Ld8(m.Mem, int(p)) == '\\' {
 				c = m.TemplateByte(p + 1)
 				if c == '\n' || c == '\r' {
-					t4 = p + 1
+					t3 = p + 1
 				} else {
-					t4 = m.LexEscapeEnd(p)
+					t3 = m.LexEscapeEnd(p)
 				}
-				p = t4
+				p = t3
 				continue find
 			}
 			if rt.Ld8(m.Mem, int(p)) != '`' {
@@ -18386,14 +18384,12 @@ line:
 					m.Ptr = p
 				}
 				if p >= m.End {
-					t0 = 0
-					goto done
+					return 0
 				}
 				if rt.Ld8(m.Mem, int(p)) == '`' {
 					m.Ptr = p + rt.Sel32(triple != 0, 3, 1)
 					m.EmitTok(TokenPunctuationSpecial, p, m.Ptr)
-					t0 = 1
-					goto done
+					return 1
 				}
 				m.Ptr = p + 1
 				m.EmitGap(p, m.Ptr)
@@ -18409,22 +18405,20 @@ line:
 					m.Ptr = p
 				}
 				if p >= m.End {
-					t0 = 0
-					goto done
+					return 0
 				}
 				if rt.Ld8(m.Mem, int(p)) == '`' {
 					m.Ptr = p + rt.Sel32(triple != 0, 3, 1)
 					m.EmitTok(TokenPunctuationSpecial, p, m.Ptr)
-					t0 = 1
-					goto done
+					return 1
 				}
 				m.Ptr = p + 1
 				m.EmitGap(p, m.Ptr)
 				continue line
 			}
-			t6 = m.TemplateByte(p + 1)
-			t7 = m.TemplateByte(p + 2)
-			if t6 == 96 && t7 == 96 {
+			t5 = m.TemplateByte(p + 1)
+			t6 = m.TemplateByte(p + 2)
+			if t5 == 96 && t6 == 96 {
 				if m.Ptr < p {
 					save = m.End
 					m.End = p
@@ -18434,14 +18428,12 @@ line:
 					m.Ptr = p
 				}
 				if p >= m.End {
-					t0 = 0
-					goto done
+					return 0
 				}
 				if rt.Ld8(m.Mem, int(p)) == '`' {
 					m.Ptr = p + rt.Sel32(triple != 0, 3, 1)
 					m.EmitTok(TokenPunctuationSpecial, p, m.Ptr)
-					t0 = 1
-					goto done
+					return 1
 				}
 				m.Ptr = p + 1
 				m.EmitGap(p, m.Ptr)
@@ -18450,8 +18442,6 @@ line:
 			p++
 		}
 	}
-done:
-	return t0
 }
 
 // HlCoffee is $hlCoffee.
@@ -29036,23 +29026,21 @@ func (m *Machine) HamlRubyLine(stop uint32) uint32 {
 
 // HamlParen is $hamlParen.
 func (m *Machine) HamlParen(stop uint32) uint32 {
-	var c, lhs, t0, t4, t6 uint32
+	var c, lhs, t3, t5 uint32
 attr:
 	for {
 		lhs = m.Ptr
 		m.Ptr = m.LexSkipSpaceAt(m.Ptr)
 		m.EmitGap(lhs, m.Ptr)
 		if m.Ptr >= stop {
-			t0 = 0xffffffff
-			goto done
+			return 0xffffffff
 		}
 		lhs = m.Ptr
 		c = rt.Ld8(m.Mem, int(lhs))
 		m.Ptr = lhs + 1
 		if c == ')' {
 			m.EmitTok(TokenPunctuationBracket, lhs, m.Ptr)
-			t0 = 0
-			goto done
+			return 0
 		}
 		if c == '=' {
 			m.EmitTok(TokenOperator, lhs, m.Ptr)
@@ -29069,8 +29057,8 @@ attr:
 		for {
 			c = m.TemplateByte(m.Ptr)
 			if m.Ptr >= stop {
-				t4 = m.LexLineByteBefore(lhs)
-				if t4 == 61 {
+				t3 = m.LexLineByteBefore(lhs)
+				if t3 == 61 {
 					c = m.Ptr
 					m.Ptr = lhs
 					m.HamlRuby(c)
@@ -29081,8 +29069,8 @@ attr:
 				continue attr
 			}
 			if c == ')' || c == '=' || c == ' ' || c == '\t' {
-				t6 = m.LexLineByteBefore(lhs)
-				if t6 == 61 {
+				t5 = m.LexLineByteBefore(lhs)
+				if t5 == 61 {
 					c = m.Ptr
 					m.Ptr = lhs
 					m.HamlRuby(c)
@@ -29095,8 +29083,6 @@ attr:
 			m.Ptr++
 		}
 	}
-done:
-	return t0
 }
 
 // HamlTag is $hamlTag.
@@ -44090,40 +44076,38 @@ scan:
 
 // PugAttrs is $pugAttrs.
 func (m *Machine) PugAttrs(stop uint32) uint32 {
-	var c, lhs, t0, t5, t7, t12 uint32
-	var t3, t4, t11 bool
+	var c, lhs, t4, t6, t11 uint32
+	var t2, t3, t10 bool
 attr:
 	for {
 		lhs = m.Ptr
 		m.Ptr = m.LexSkipSpaceAt(m.Ptr)
 		m.EmitGap(lhs, m.Ptr)
 		if m.Ptr >= stop {
-			t0 = 0xffffffff
-			goto done
+			return 0xffffffff
 		}
 		lhs = m.Ptr
 		c = rt.Ld8(m.Mem, int(lhs))
 		m.Ptr = lhs + 1
 		if c == ')' {
 			m.EmitTok(TokenPunctuationBracket, lhs, m.Ptr)
-			t0 = 0
-			goto done
+			return 0
 		}
 		if c == ',' {
 			m.EmitTok(TokenPunctuationDelimiter, lhs, m.Ptr)
 			continue attr
 		}
-		t3 = c == '='
-		t4 = c == '!'
-		t5 = m.TemplateByte(m.Ptr)
-		if t3 || (t4 && t5 == 61) {
+		t2 = c == '='
+		t3 = c == '!'
+		t4 = m.TemplateByte(m.Ptr)
+		if t2 || (t3 && t4 == 61) {
 			m.Ptr += rt.B2u(c == '!')
 			m.EmitTok(TokenOperator, lhs, m.Ptr)
 			lhs = m.Ptr
 			m.Ptr = m.LexSkipSpaceAt(m.Ptr)
 			m.EmitGap(lhs, m.Ptr)
-			t7 = m.PugValueEnd(m.Ptr, stop)
-			m.PugJs(t7)
+			t6 = m.PugValueEnd(m.Ptr, stop)
+			m.PugJs(t6)
 			continue attr
 		}
 		for {
@@ -44143,9 +44127,9 @@ attr:
 				m.EmitTok(TokenAttribute, lhs, m.Ptr)
 				continue attr
 			}
-			t11 = c == '!'
-			t12 = m.TemplateByte(m.Ptr + 1)
-			if t11 && t12 == 61 {
+			t10 = c == '!'
+			t11 = m.TemplateByte(m.Ptr + 1)
+			if t10 && t11 == 61 {
 				m.Ptr = m.Utf8SpanEnd(m.Ptr, stop)
 				m.EmitTok(TokenAttribute, lhs, m.Ptr)
 				continue attr
@@ -44153,8 +44137,6 @@ attr:
 			m.Ptr++
 		}
 	}
-done:
-	return t0
 }
 
 // PugText is $pugText.
