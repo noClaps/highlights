@@ -15,8 +15,10 @@ import (
 type expr struct {
 	op   string // binary or unary operator; "" for a leaf or call
 	leaf string // identifier, number, or rune literal
-	fn   string // callee of a call or conversion
+	fn   string // callee of a call or conversion, or the indexed slice
 	args []*expr
+	// index is set when fn[args[0]] indexes a slice rather than calling
+	index bool
 }
 
 var errUnparsed = errors.New("unparsed")
@@ -122,6 +124,19 @@ func (p *exprParser) unary() (*expr, error) {
 		return nil, errUnparsed
 	}
 	p.pos += len(m)
+	if p.pos < len(p.s) && p.s[p.pos] == '[' {
+		p.pos++
+		i, err := p.binary(1)
+		if err != nil {
+			return nil, err
+		}
+		p.space()
+		if p.pos >= len(p.s) || p.s[p.pos] != ']' {
+			return nil, errUnparsed
+		}
+		p.pos++
+		return &expr{fn: m, args: []*expr{i}, index: true}, nil
+	}
 	if p.pos < len(p.s) && p.s[p.pos] == '(' {
 		p.pos++
 		call := &expr{fn: m, args: []*expr{}}
@@ -160,6 +175,8 @@ func (e *expr) print() string {
 	switch {
 	case e.leaf != "":
 		return e.leaf
+	case e.index:
+		return e.fn + "[" + e.args[0].print() + "]"
 	case e.fn != "":
 		parts := make([]string, len(e.args))
 		for i, a := range e.args {
@@ -221,7 +238,7 @@ func tidyExpr(s string) string {
 }
 
 var (
-	assignRe = regexp.MustCompile(`^(\t*)([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?) = (.+)$`)
+	assignRe = regexp.MustCompile(`^(\t*)([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?(?:\[[^\[\]]*\])?) = (.+)$`)
 	ifRe     = regexp.MustCompile(`^(\t*(?:\} else )?if )(.+)( \{)$`)
 	returnRe = regexp.MustCompile(`^(\t*return )(.+)$`)
 	switchRe = regexp.MustCompile(`^(\t*switch )(.+)( \{)$`)

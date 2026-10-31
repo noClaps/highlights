@@ -38,6 +38,8 @@ type value struct {
 	stable  bool // unaffected by later side effects
 	named   bool // expr is the name of a constant
 	flag    bool // a number known to be 0 or 1
+	// byteExpr is set for a byte load: the byte itself, m.Mem[i]
+	byteExpr string
 	// call is set for a call's result temporary: the statement that
 	// assigned it
 	call string
@@ -1661,7 +1663,7 @@ func (g *fgen) genByteSwitch(name string, body []*wat.Sexpr) bool {
 	return true
 }
 
-var byteExprRe = regexp.MustCompile(`^(?:rt\.Ld8\(.*\)|m\.[A-Za-z0-9]*Byte\(.*\)|(?:c|ch|b|q|c\d|quote|delim|close|open|next|prev|term|sep|first|last|lead)\d*_?)$`)
+var byteExprRe = regexp.MustCompile(`^(?:uint32\(m\.Mem\[.*\]\)|m\.[A-Za-z0-9]*Byte\(.*\)|(?:c|ch|b|q|c\d|quote|delim|close|open|next|prev|term|sep|first|last|lead)\d*_?)$`)
 
 // isByteExpr guesses whether an expression holds a byte: a byte load, a
 // call to a *Byte function, or a local named like one.
@@ -2136,9 +2138,9 @@ func addrExpr(addr value, off int) string {
 		return strconv.FormatUint(addr.c+uint64(off), 10)
 	}
 	if off == 0 {
-		return "int(" + addr.expr + ")"
+		return trimParens(addr.expr)
 	}
-	return fmt.Sprintf("int(%s)+%d", addr.expr, off)
+	return tidyExpr(fmt.Sprintf("(%s)+%d", addr.expr, off))
 }
 
 type binOp struct {
@@ -2274,14 +2276,33 @@ func (g *fgen) apply(head string, imms []string) {
 	}
 	if op, ok := loads[head]; ok {
 		addr := g.pop()
-		g.push(value{expr: fmt.Sprintf("%s(m.Mem, %s)", op.helper, addrExpr(addr, memOffset(imms))), typ: op.typ})
+		at := addrExpr(addr, memOffset(imms))
+		if head == "i32.load8_u" || head == "i64.load8_u" {
+			// a byte is an index into memory
+			b := "m.Mem[" + at + "]"
+			g.push(value{expr: op.typ.goType() + "(" + b + ")", typ: op.typ, byteExpr: b})
+			return
+		}
+		g.push(value{expr: fmt.Sprintf("%s(m.Mem, %s)", op.helper, at), typ: op.typ})
 		return
 	}
 	if op, ok := stores[head]; ok {
 		v := g.pop()
 		addr := g.pop()
 		g.spill()
-		g.line("%s(m.Mem, %s, %s)", op.helper, addrExpr(addr, memOffset(imms)), trimParens(g.asValue(v)))
+		at := addrExpr(addr, memOffset(imms))
+		if head == "i32.store8" || head == "i64.store8" {
+			b := "byte(" + trimParens(g.asValue(v)) + ")"
+			switch {
+			case v.byteExpr != "":
+				b = v.byteExpr
+			case v.isConst && !v.named:
+				b = byteLiteral(int(v.c & 0xff))
+			}
+			g.line("m.Mem[%s] = %s", at, b)
+			return
+		}
+		g.line("%s(m.Mem, %s, %s)", op.helper, at, trimParens(g.asValue(v)))
 		return
 	}
 	switch head {
@@ -2605,6 +2626,12 @@ func (g *fgen) binary(op binOp, a, b value) value {
 			bv = byteLiteral(int(b.c))
 		} else if a.isConst && !a.named && isByteExpr(b.expr) {
 			av = byteLiteral(int(a.c))
+		}
+		// a loaded byte compares with a byte constant as it is
+		if a.byteExpr != "" && b.isConst && !b.named && b.c <= 255 && !op.signed {
+			av = a.byteExpr
+		} else if b.byteExpr != "" && a.isConst && !a.named && a.c <= 255 && !op.signed {
+			bv = b.byteExpr
 		}
 	}
 	if op.isCmp {
