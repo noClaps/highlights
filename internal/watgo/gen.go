@@ -68,6 +68,7 @@ type label struct {
 
 type fgen struct {
 	mod         *Module
+	pure        map[string]bool // Go names of functions without side effects
 	fn          *Func
 	out         strings.Builder
 	depth       int
@@ -246,11 +247,12 @@ func generate(mod *Module, opts Options) (string, []byte) {
 	w("\t}\n\treturn 0, false\n}\n\nfunc arg(args []uint64, i int) uint64 {\n\tif i < len(args) {\n\t\treturn args[i]\n\t}\n\treturn 0\n}\n\n")
 
 	consts := newEnumConsts(opts.Enums, mod)
+	pure := pureFuncs(mod)
 	for _, f := range mod.Funcs {
 		if f.Import != nil {
 			continue
 		}
-		g := &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts}
+		g := &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts, pure: pure}
 		sb.WriteString(g.genFunc())
 	}
 	sb.WriteString(consts.declarations())
@@ -516,7 +518,7 @@ func (g *fgen) genFunc() string {
 	if len(f.Results) > 0 {
 		fnResult = f.Results[0]
 	}
-	fnBody := nameLabels(explicitReturn(storeBlockResults(foldConstIfs(f.Body, g.constOf)), fnResult))
+	fnBody := nameLabels(explicitReturn(storeBlockResults(foldConstIfs(restoreEqz(f.Body), g.constOf)), fnResult))
 	g.dead = deadSets(fnBody)
 	// the function body is the outermost branch target: branching to it
 	// returns
@@ -531,6 +533,7 @@ func (g *fgen) genFunc() string {
 	loopEnds := g.terminalEnd == g.out.Len()
 	body = tidyBody(body)
 	body = collapseElseIf(body)
+	body = dropUnreadTemps(body, g.temps, g.pure)
 
 	var sb strings.Builder
 	name := f.Name
@@ -717,6 +720,85 @@ func deadSets(body []*wat.Sexpr) (dead map[*wat.Sexpr]bool) {
 
 // readsVar reports whether a body uses a variable other than as the target
 // of an assignment.
+// dropUnreadTemps removes the assignments to temporaries that nothing
+// reads, which folding a constant condition leaves behind; a call to a
+// function with side effects keeps its statement.
+func dropUnreadTemps(body string, temps []Local, pure map[string]bool) string {
+	for _, t := range temps {
+		if !strings.Contains(body, t.Name) || readsVar(body, t.Name) {
+			continue
+		}
+		re := regexp.MustCompile(`(?m)^(\t*)` + t.Name + ` = (.*)\n`)
+		body = re.ReplaceAllStringFunc(body, func(line string) string {
+			m := re.FindStringSubmatch(line)
+			if c := topCallRe.FindStringSubmatch(m[2]); c != nil && !pure[c[1]] {
+				return m[1] + m[2] + "\n"
+			}
+			return ""
+		})
+	}
+	return body
+}
+
+// topCallRe matches a statement that is one method call.
+var topCallRe = regexp.MustCompile(`^m\.(\w+)\(.*\)$`)
+
+// pureFuncs returns the Go names of the functions that neither write
+// memory or globals nor call a function that does. A trap is not counted
+// as a side effect, as loads are not.
+func pureFuncs(mod *Module) map[string]bool {
+	impure := map[*Func]bool{}
+	for _, f := range mod.Funcs {
+		if f.Import != nil {
+			impure[f] = true
+		}
+	}
+	var effects func(n *wat.Sexpr) bool
+	effects = func(n *wat.Sexpr) bool {
+		if !n.IsList {
+			return false
+		}
+		head := n.Head()
+		switch {
+		case head == "global.set", head == "call_indirect", head == "unreachable",
+			strings.Contains(head, ".store"), strings.HasPrefix(head, "memory."):
+			return true
+		case head == "call" && len(n.List) > 1:
+			if f := mod.FuncByRef[n.List[1].Atom]; f == nil || impure[f] {
+				return true
+			}
+		}
+		for _, c := range n.List[1:] {
+			if effects(c) {
+				return true
+			}
+		}
+		return false
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, f := range mod.Funcs {
+			if impure[f] {
+				continue
+			}
+			for _, n := range f.Body {
+				if effects(n) {
+					impure[f] = true
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	pure := map[string]bool{}
+	for _, f := range mod.Funcs {
+		if !impure[f] {
+			pure[f.GoName] = true
+		}
+	}
+	return pure
+}
+
 func readsVar(body, name string) bool {
 	re := regexp.MustCompile(`\b` + name + `\b( =[^=])?`)
 	for _, m := range re.FindAllStringSubmatchIndex(body, -1) {
@@ -1325,6 +1407,8 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
 	}
 }
 
+var doWhileRe = regexp.MustCompile(`\n(\t+)if (.*) \{\n\t+continue (\w+)\n\t+\}\n$`)
+
 var byteSwitchRe = regexp.MustCompile(`^\$byteSwitch\d+_default$`)
 
 // genByteSwitch writes the block ladder that the preprocessor expands a
@@ -1480,6 +1564,21 @@ func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, blocks ..
 		g.out.WriteString(text)
 		inBody := text[strings.Index(text, head):]
 		l.used = strings.Contains(inBody, "continue "+l.goName+"\n") || strings.Contains(inBody, "break "+l.goName+"\n")
+	}
+	// a loop that ends `if c { continue }` and leaves otherwise is a
+	// do-while: it ends `if !c { break }`
+	indent := strings.Repeat("\t", g.depth+1)
+	if m := doWhileRe.FindStringSubmatch(g.out.String()); fallthroughReachable && result == "" && m != nil && m[1] == indent && m[3] == l.goName {
+		text := strings.TrimSuffix(g.out.String(), m[0][1:])
+		g.out.Reset()
+		g.out.WriteString(text)
+		g.line("if %s {", negate(m[2]))
+		g.line("\tbreak")
+		g.line("}")
+		inBody := text[strings.Index(text, head):]
+		l.used = strings.Contains(inBody, "continue "+l.goName+"\n") || strings.Contains(inBody, "break "+l.goName+"\n")
+		l.broken = true
+		fallthroughReachable = false
 	}
 	if fallthroughReachable {
 		if result != "" {

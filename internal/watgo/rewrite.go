@@ -319,3 +319,25 @@ func takenArm(n *wat.Sexpr, constOf func(*wat.Sexpr) (uint64, bool)) ([]*wat.Sex
 	}
 	return arm.List[1:], true
 }
+
+// restoreEqz turns `(i32.shr_u (i32.clz X) (i32.const 5))`, the branchless
+// form the preprocessor gives a negated and/or, back into `(i32.eqz X)`,
+// which reads as a comparison with zero in Go.
+func restoreEqz(nodes []*wat.Sexpr) []*wat.Sexpr {
+	out := make([]*wat.Sexpr, len(nodes))
+	for i, n := range nodes {
+		if !n.IsList {
+			out[i] = n
+			continue
+		}
+		if n.Head() == "i32.shr_u" && len(n.List) == 3 {
+			x, k := n.List[1], n.List[2]
+			if x.Head() == "i32.clz" && len(x.List) == 2 && k.Head() == "i32.const" && len(k.List) == 2 && k.List[1].Atom == "5" {
+				out[i] = list(atom("i32.eqz"), restoreEqz(x.List[1:])[0])
+				continue
+			}
+		}
+		out[i] = list(restoreEqz(n.List)...)
+	}
+	return out
+}
