@@ -58,3 +58,25 @@ func TestVectorOpsMatchLaneDefinitions(t *testing.T) {
 		}
 	}
 }
+
+func TestTopBitMasksMatchFullMasks(t *testing.T) {
+	r := rand.New(rand.NewSource(3))
+	for range 20000 {
+		var a, b [16]byte
+		for i := range a {
+			a[i] = byte(r.Intn(256))
+			b[i] = byte(r.Intn(256))
+			if r.Intn(3) == 0 {
+				b[i] = a[i]
+			}
+		}
+		va, vb := Bytes16(a), Bytes16(b)
+		high := V128{0x8080808080808080, 0x8080808080808080}
+		if got, want := va.EqHi8(vb), va.Eq8(vb).And(high); got != want {
+			t.Fatalf("EqHi8(%x, %x) = %x, want %x", a, b, toBytes(got), toBytes(want))
+		}
+		if got, want := va.GeHi8(vb), va.GeU8(vb).And(high); got != want {
+			t.Fatalf("GeHi8(%x, %x) = %x, want %x", a, b, toBytes(got), toBytes(want))
+		}
+	}
+}

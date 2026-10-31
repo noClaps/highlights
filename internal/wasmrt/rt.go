@@ -110,13 +110,17 @@ func (a V128) AnyTrue() bool { return a.Lo|a.Hi != 0 }
 func fill(m uint64) uint64 { return (m - m>>7) | m }
 
 // zeroBytes sets 0xff in each byte of x that is zero.
-func zeroBytes(x uint64) uint64 {
-	t := ((x & low7) + low7) | x
-	return fill(^t & high)
-}
+func zeroBytes(x uint64) uint64 { return fill(zeroHigh(x)) }
 
 // Eq8 implements i8x16.eq.
 func (a V128) Eq8(b V128) V128 { return V128{zeroBytes(a.Lo ^ b.Lo), zeroBytes(a.Hi ^ b.Hi)} }
+
+// EqHi8 is Eq8 with only the top bit of each lane set, for a result that
+// only Bitmask8, AnyTrue, Or and And read.
+func (a V128) EqHi8(b V128) V128 { return V128{zeroHigh(a.Lo ^ b.Lo), zeroHigh(a.Hi ^ b.Hi)} }
+
+// zeroHigh sets the top bit of each byte of x that is zero.
+func zeroHigh(x uint64) uint64 { return ^(((x & low7) + low7) | x) & high }
 
 // Ne8 implements i8x16.ne.
 func (a V128) Ne8(b V128) V128 { return a.Eq8(b).Not() }
@@ -134,10 +138,16 @@ func (a V128) Add8(b V128) V128 { return V128{add8(a.Lo, b.Lo), add8(a.Hi, b.Hi)
 // geMask sets 0xff in each byte lane where x >= y, unsigned. For lanes
 // whose high bits differ, x's high bit decides; otherwise the borrow-free
 // difference of the low seven bits does.
-func geMask(x, y uint64) uint64 {
+func geMask(x, y uint64) uint64 { return fill(geHigh(x, y)) }
+
+// geHigh sets the top bit of each byte lane where x >= y, unsigned.
+func geHigh(x, y uint64) uint64 {
 	d := (x | high) - (y &^ high)
-	return fill(((x &^ y) | (^(x ^ y) & d)) & high)
+	return ((x &^ y) | (^(x ^ y) & d)) & high
 }
+
+// GeHi8 is GeU8 with only the top bit of each lane set, as EqHi8 is.
+func (a V128) GeHi8(b V128) V128 { return V128{geHigh(a.Lo, b.Lo), geHigh(a.Hi, b.Hi)} }
 
 // GeU8 implements i8x16.ge_u.
 func (a V128) GeU8(b V128) V128 { return V128{geMask(a.Lo, b.Lo), geMask(a.Hi, b.Hi)} }

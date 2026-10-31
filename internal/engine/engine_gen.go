@@ -642,7 +642,7 @@ func (m *Machine) ScanToLineEnd() {
 			break
 		}
 		w = rt.LdV(m.Mem[m.Ptr:])
-		mask = w.Eq8(rt.Splat8(10)).Or(w.Eq8(rt.Splat8(13))).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(10)).Or(w.EqHi8(rt.Splat8(13))).Bitmask8()
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break
@@ -708,7 +708,7 @@ func (m *Machine) scanFindSpecialSlow(p, stop, q, esc, nl uint32) uint32 {
 	rv = rt.Splat8(choice3)
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Eq8(qv).Or(w.Eq8(ev)).Or(w.Eq8(nv).Or(w.Eq8(rv))).Bitmask8()
+		mask = w.EqHi8(qv).Or(w.EqHi8(ev)).Or(w.EqHi8(nv).Or(w.EqHi8(rv))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -754,7 +754,7 @@ func (m *Machine) scanWhitespaceSlow() {
 			break
 		}
 		w = rt.LdV(mem[m.Ptr:])
-		mask = w.Eq8(rt.Splat8(32)).Or(w.Sub8(rt.Splat8(9)).LeU8(rt.Splat8(4))).Bitmask8() ^ 65535
+		mask = w.EqHi8(rt.Splat8(32)).Or(rt.Splat8(4).GeHi8(w.Sub8(rt.Splat8(9)))).Bitmask8() ^ 65535
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break
@@ -809,7 +809,7 @@ func (m *Machine) scanFind3Slow(p, a, b, c uint32) uint32 {
 	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Eq8(rt.Splat8(a)).Or(w.Eq8(rt.Splat8(b))).Or(w.Eq8(rt.Splat8(c))).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(a)).Or(w.EqHi8(rt.Splat8(b))).Or(w.EqHi8(rt.Splat8(c))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -1086,7 +1086,7 @@ outer:
 		for {
 			w = rt.LdV(m.Mem[lhs:])
 			rt.StV(m.Mem[dst:], w)
-			mask = w.And(rt.Splat8(253)).Eq8(rt.Splat8(60)).Or(w.Eq8(rt.Splat8(38))).Bitmask8()
+			mask = w.And(rt.Splat8(253)).EqHi8(rt.Splat8(60)).Or(w.EqHi8(rt.Splat8(38))).Bitmask8()
 			rem = limit - lhs
 			if mask != 0 {
 				k = uint32(bits.TrailingZeros32(mask))
@@ -1251,12 +1251,12 @@ func (m *Machine) RecLinesPost() {
 				} else {
 					for {
 						w = rt.LdV(m.Mem[p:])
-						step = uint32(bits.TrailingZeros32(w.Eq8(rt.Splat8(10)).Bitmask8() | 0x10000))
+						step = uint32(bits.TrailingZeros32(w.EqHi8(rt.Splat8(10)).Bitmask8() | 0x10000))
 						if rhs-p < step {
 							step = rhs - p
 						}
 						b = uint32(1)<<(step&31) - 1
-						char += uint32(bits.OnesCount32(b&w.GtS8(rt.Splat8(0xffffffbf)).Bitmask8())) + uint32(bits.OnesCount32(b&w.GeU8(rt.Splat8(240)).Bitmask8()))
+						char += uint32(bits.OnesCount32(b&w.GtS8(rt.Splat8(0xffffffbf)).Bitmask8())) + uint32(bits.OnesCount32(b&w.GeHi8(rt.Splat8(240)).Bitmask8()))
 						p += step
 						if step != 16 {
 							break
@@ -2362,7 +2362,7 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 			}
 			w = rt.LdV(mem[m.Ptr:])
 			w1 = rt.LdV(mem[m.Ptr+1:])
-			mask = w.Eq8(o0).And(w1.Eq8(o1)).Or(w.Eq8(c0).And(w1.Eq8(c1))).Bitmask8()
+			mask = w.EqHi8(o0).And(w1.EqHi8(o1)).Or(w.EqHi8(c0).And(w1.EqHi8(c1))).Bitmask8()
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask))
 				break
@@ -2688,7 +2688,7 @@ func (m *Machine) lexFindEitherSlow(p, a, b uint32) uint32 {
 	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Eq8(rt.Splat8(a)).Or(w.Eq8(rt.Splat8(b))).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(a)).Or(w.EqHi8(rt.Splat8(b))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -2716,7 +2716,7 @@ func (m *Machine) LexFindByte(p, a uint32) uint32 {
 func (m *Machine) lexFindByteSlow(p, a uint32) uint32 {
 	var mask uint32
 	for {
-		mask = rt.LdV(m.Mem[p:]).Eq8(rt.Splat8(a)).Bitmask8()
+		mask = rt.LdV(m.Mem[p:]).EqHi8(rt.Splat8(a)).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -2997,7 +2997,7 @@ scan:
 		}
 		for {
 			w = rt.LdV(mem[p:])
-			mask = w.Eq8(rt.Splat8(10)).Or(w.Eq8(rt.Splat8(13))).Or(w.Eq8(rt.Splat8(123)).Or(w.Eq8(rt.Splat8(125))).Or(w.Eq8(rt.Splat8(59)).Or(w.Eq8(rt.Splat8(47)))).Or(w.Eq8(rt.Splat8(34)).Or(w.Eq8(rt.Splat8(39))).Or(w.Eq8(rt.Splat8(58))))).Bitmask8()
+			mask = w.EqHi8(rt.Splat8(10)).Or(w.EqHi8(rt.Splat8(13))).Or(w.EqHi8(rt.Splat8(123)).Or(w.EqHi8(rt.Splat8(125))).Or(w.EqHi8(rt.Splat8(59)).Or(w.EqHi8(rt.Splat8(47)))).Or(w.EqHi8(rt.Splat8(34)).Or(w.EqHi8(rt.Splat8(39))).Or(w.EqHi8(rt.Splat8(58))))).Bitmask8()
 			rem = stop - p
 			if rem < 16 {
 				mask &= uint32(1)<<(rem&31) - 1
@@ -3653,7 +3653,7 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 									break
 								}
 								urlW = rt.LdV(m.Mem[m.Ptr:])
-								urlMask = urlW.Sub8(rt.Splat8(9)).LeU8(rt.Splat8(4)).Or(urlW.Eq8(rt.Splat8(32))).Or(urlW.Eq8(rt.Splat8(34)).Or(urlW.Eq8(rt.Splat8(39))).Or(urlW.Eq8(rt.Splat8(41)))).Bitmask8()
+								urlMask = rt.Splat8(4).GeHi8(urlW.Sub8(rt.Splat8(9))).Or(urlW.EqHi8(rt.Splat8(32))).Or(urlW.EqHi8(rt.Splat8(34)).Or(urlW.EqHi8(rt.Splat8(39))).Or(urlW.EqHi8(rt.Splat8(41)))).Bitmask8()
 								urlRem = m.End - m.Ptr
 								if urlRem < 16 {
 									urlMask &= uint32(1)<<(urlRem&31) - 1
@@ -4207,7 +4207,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 									break
 								}
 								urlW = rt.LdV(m.Mem[m.Ptr:])
-								urlMask = urlW.Sub8(rt.Splat8(9)).LeU8(rt.Splat8(4)).Or(urlW.Eq8(rt.Splat8(32))).Or(urlW.Eq8(rt.Splat8(34)).Or(urlW.Eq8(rt.Splat8(39))).Or(urlW.Eq8(rt.Splat8(41)))).Bitmask8()
+								urlMask = rt.Splat8(4).GeHi8(urlW.Sub8(rt.Splat8(9))).Or(urlW.EqHi8(rt.Splat8(32))).Or(urlW.EqHi8(rt.Splat8(34)).Or(urlW.EqHi8(rt.Splat8(39))).Or(urlW.EqHi8(rt.Splat8(41)))).Bitmask8()
 								urlRem = m.End - m.Ptr
 								if urlRem < 16 {
 									urlMask &= uint32(1)<<(urlRem&31) - 1
@@ -4405,7 +4405,7 @@ wide:
 		}
 		rem = m.End - m.Ptr
 		w = rt.LdV(m.Mem[m.Ptr:])
-		mask = w.Eq8(rt.Splat8(62)).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(62)).Bitmask8()
 		if rem < 16 {
 			mask &= uint32(1)<<(rem&31) - 1
 		}
@@ -8406,7 +8406,7 @@ func (m *Machine) tsrxContentFindSlow(p uint32) uint32 {
 	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Eq8(rt.Splat8(60)).Or(w.Eq8(rt.Splat8(123))).Or(w.Eq8(rt.Splat8(38)).Or(w.Eq8(rt.Splat8(64)))).Or(w.Eq8(rt.Splat8(47)).Or(w.Eq8(rt.Splat8(10)))).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(60)).Or(w.EqHi8(rt.Splat8(123))).Or(w.EqHi8(rt.Splat8(38)).Or(w.EqHi8(rt.Splat8(64)))).Or(w.EqHi8(rt.Splat8(47)).Or(w.EqHi8(rt.Splat8(10)))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -10162,7 +10162,7 @@ func (m *Machine) markdownFindEitherSlow(p, stop, c uint32) uint32 {
 	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Eq8(rt.Splat8(c)).Or(w.Eq8(rt.Splat8(96))).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(c)).Or(w.EqHi8(rt.Splat8(96))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -12589,7 +12589,7 @@ func (m *Machine) rstPlainEndSlow(p, stop, a, b, c uint32) uint32 {
 	vc = rt.Splat8(c)
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Eq8(rt.Splat8(42)).Or(w.Eq8(rt.Splat8(96))).Or(w.Eq8(rt.Splat8(124)).Or(w.Eq8(rt.Splat8(92)))).Or(w.Eq8(rt.Splat8(58)).Or(w.Eq8(rt.Splat8(95))).Or(w.Eq8(va).Or(w.Eq8(vb).Or(w.Eq8(vc))))).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(42)).Or(w.EqHi8(rt.Splat8(96))).Or(w.EqHi8(rt.Splat8(124)).Or(w.EqHi8(rt.Splat8(92)))).Or(w.EqHi8(rt.Splat8(58)).Or(w.EqHi8(rt.Splat8(95))).Or(w.EqHi8(va).Or(w.EqHi8(vb).Or(w.EqHi8(vc))))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -14742,7 +14742,7 @@ func (m *Machine) BibFind(p uint32) uint32 {
 			break
 		}
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Eq8(rt.Splat8(123)).Or(w.Eq8(rt.Splat8(125))).Or(w.Eq8(rt.Splat8(34)).Or(w.Eq8(rt.Splat8(92)))).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(123)).Or(w.EqHi8(rt.Splat8(125))).Or(w.EqHi8(rt.Splat8(34)).Or(w.EqHi8(rt.Splat8(92)))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -15977,7 +15977,7 @@ func (m *Machine) tmplFind4Slow(p, a, b, c, d uint32) uint32 {
 	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Eq8(rt.Splat8(a)).Or(w.Eq8(rt.Splat8(b))).Or(w.Eq8(rt.Splat8(c)).Or(w.Eq8(rt.Splat8(d)))).Bitmask8()
+		mask = w.EqHi8(rt.Splat8(a)).Or(w.EqHi8(rt.Splat8(b))).Or(w.EqHi8(rt.Splat8(c)).Or(w.EqHi8(rt.Splat8(d)))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -34675,7 +34675,7 @@ func (m *Machine) HlLatex() {
 				break
 			}
 			w = rt.LdV(m.Mem[p:])
-			mask = w.Sub8(rt.Splat8(35)).LeU8(rt.Splat8(3)).Or(w.Sub8(rt.Splat8(91)).LeU8(rng)).Or(w.Eq8(rt.Splat8(123)).Or(w.Eq8(rt.Splat8(125))).Or(w.Eq8(rt.Splat8(10)).Or(w.Eq8(extra)))).Bitmask8()
+			mask = rt.Splat8(3).GeHi8(w.Sub8(rt.Splat8(35))).Or(rng.GeHi8(w.Sub8(rt.Splat8(91)))).Or(w.EqHi8(rt.Splat8(123)).Or(w.EqHi8(rt.Splat8(125))).Or(w.EqHi8(rt.Splat8(10)).Or(w.EqHi8(extra)))).Bitmask8()
 			if mask != 0 {
 				p += uint32(bits.TrailingZeros32(mask))
 				break
@@ -49758,7 +49758,7 @@ func (m *Machine) TomlBareKeyEnd(p uint32) uint32 {
 			break
 		}
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Or(rt.Splat8(32)).Sub8(rt.Splat8(97)).LeU8(rt.Splat8(25)).Or(w.Sub8(rt.Splat8(48)).LeU8(rt.Splat8(9))).Or(w.Eq8(rt.Splat8(95)).Or(w.Eq8(rt.Splat8(45)))).Bitmask8() ^ 65535
+		mask = rt.Splat8(25).GeHi8(w.Or(rt.Splat8(32)).Sub8(rt.Splat8(97))).Or(rt.Splat8(9).GeHi8(w.Sub8(rt.Splat8(48)))).Or(w.EqHi8(rt.Splat8(95)).Or(w.EqHi8(rt.Splat8(45)))).Bitmask8() ^ 65535
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -50406,7 +50406,7 @@ func (m *Machine) TypstTextEnd(p uint32) uint32 {
 			break
 		}
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Sub8(rt.Splat8(35)).LeU8(rt.Splat8(1)).Or(w.Sub8(rt.Splat8(91)).LeU8(rt.Splat8(5))).Or(w.Eq8(rt.Splat8(42)).Or(w.Eq8(rt.Splat8(47))).Or(w.Eq8(rt.Splat8(60)).Or(w.Eq8(rt.Splat8(64))).Or(w.Sub8(rt.Splat8(10)).LeU8(rt.Splat8(3))))).Bitmask8()
+		mask = rt.Splat8(1).GeHi8(w.Sub8(rt.Splat8(35))).Or(rt.Splat8(5).GeHi8(w.Sub8(rt.Splat8(91)))).Or(w.EqHi8(rt.Splat8(42)).Or(w.EqHi8(rt.Splat8(47))).Or(w.EqHi8(rt.Splat8(60)).Or(w.EqHi8(rt.Splat8(64))).Or(rt.Splat8(3).GeHi8(w.Sub8(rt.Splat8(10)))))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -52770,7 +52770,7 @@ func (m *Machine) ZigIdentEnd(p uint32) uint32 {
 			break
 		}
 		w = rt.LdV(m.Mem[p:])
-		mask = w.Or(rt.Splat8(32)).Sub8(rt.Splat8(97)).LeU8(rt.Splat8(25)).Or(w.Sub8(rt.Splat8(48)).LeU8(rt.Splat8(9)).Or(w.Eq8(rt.Splat8(95)))).Bitmask8() ^ 65535
+		mask = rt.Splat8(25).GeHi8(w.Or(rt.Splat8(32)).Sub8(rt.Splat8(97))).Or(rt.Splat8(9).GeHi8(w.Sub8(rt.Splat8(48))).Or(w.EqHi8(rt.Splat8(95)))).Bitmask8() ^ 65535
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -54427,8 +54427,8 @@ func (m *Machine) LvUTF16Len(p, length uint32) uint32 {
 			break
 		}
 		w = rt.LdV(mem[p:])
-		n += 16 - uint32(bits.OnesCount32(w.And(rt.Splat8(192)).Eq8(rt.Splat8(128)).Bitmask8()))
-		n += uint32(bits.OnesCount32(w.GeU8(rt.Splat8(240)).Bitmask8()))
+		n += 16 - uint32(bits.OnesCount32(w.And(rt.Splat8(192)).EqHi8(rt.Splat8(128)).Bitmask8()))
+		n += uint32(bits.OnesCount32(w.GeHi8(rt.Splat8(240)).Bitmask8()))
 		p += 16
 	}
 	for {

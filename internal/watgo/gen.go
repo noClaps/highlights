@@ -49,6 +49,10 @@ type value struct {
 	// shrOf and shrBy are set for x >> k with a constant k
 	shrOf *value
 	shrBy uint64
+	// hi, for a vector of lane masks, is the same masks with only each
+	// lane's top bit set, which is all Bitmask8 and AnyTrue read and cheaper
+	// to compute than full 0xff lanes
+	hi string
 	// bitOp, lhs and rhs are set for x & y, x | y and x ^ y
 	bitOp    string
 	lhs, rhs *value
@@ -3267,7 +3271,20 @@ func (g *fgen) apply(head string, imms []string) {
 		b := g.pop()
 		a := g.pop()
 		// vector operations are methods of rt.V128
-		g.push(value{expr: fmt.Sprintf("%s.%s(%s)", a.expr, strings.TrimPrefix(helper, "rt."), trimParens(b.expr)), typ: V128, stable: a.stable && b.stable})
+		v := value{expr: fmt.Sprintf("%s.%s(%s)", a.expr, strings.TrimPrefix(helper, "rt."), trimParens(b.expr)), typ: V128, stable: a.stable && b.stable}
+		switch head {
+		case "i8x16.eq":
+			v.hi = fmt.Sprintf("%s.EqHi8(%s)", a.expr, trimParens(b.expr))
+		case "i8x16.ge_u":
+			v.hi = fmt.Sprintf("%s.GeHi8(%s)", a.expr, trimParens(b.expr))
+		case "i8x16.le_u":
+			v.hi = fmt.Sprintf("%s.GeHi8(%s)", b.expr, trimParens(a.expr))
+		case "v128.or", "v128.and":
+			if a.hi != "" && b.hi != "" {
+				v.hi = fmt.Sprintf("%s.%s(%s)", a.hi, strings.TrimPrefix(helper, "rt."), b.hi)
+			}
+		}
+		g.push(v)
 		return
 	}
 	if op, ok := loads[head]; ok {
@@ -3566,9 +3583,15 @@ func (g *fgen) apply(head string, imms []string) {
 		g.push(value{expr: "rt.Splat8(" + g.asValue(a) + ")", typ: V128, stable: a.stable})
 	case "i8x16.bitmask":
 		a := g.pop()
+		if a.hi != "" {
+			a.expr = a.hi
+		}
 		g.push(value{expr: a.expr + ".Bitmask8()", typ: I32, stable: a.stable})
 	case "v128.any_true":
 		a := g.pop()
+		if a.hi != "" {
+			a.expr = a.hi
+		}
 		g.push(value{expr: a.expr + ".AnyTrue()", typ: I32, isBool: true, stable: a.stable})
 	case "i8x16.all_true":
 		a := g.pop()
