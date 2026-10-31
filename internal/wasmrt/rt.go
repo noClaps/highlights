@@ -111,12 +111,12 @@ func Grow(mem *[]byte, n uint32) uint32 {
 	return old
 }
 
-func Clz32(x uint32) uint32    { return uint32(bits.LeadingZeros32(x)) }
-func Ctz32(x uint32) uint32    { return uint32(bits.TrailingZeros32(x)) }
-func Popcnt32(x uint32) uint32 { return uint32(bits.OnesCount32(x)) }
-func Clz64(x uint64) uint64    { return uint64(bits.LeadingZeros64(x)) }
-func Ctz64(x uint64) uint64    { return uint64(bits.TrailingZeros64(x)) }
-func Popcnt64(x uint64) uint64 { return uint64(bits.OnesCount64(x)) }
+func Clz32(x uint32) uint32     { return uint32(bits.LeadingZeros32(x)) }
+func Ctz32(x uint32) uint32     { return uint32(bits.TrailingZeros32(x)) }
+func Popcnt32(x uint32) uint32  { return uint32(bits.OnesCount32(x)) }
+func Clz64(x uint64) uint64     { return uint64(bits.LeadingZeros64(x)) }
+func Ctz64(x uint64) uint64     { return uint64(bits.TrailingZeros64(x)) }
+func Popcnt64(x uint64) uint64  { return uint64(bits.OnesCount64(x)) }
 func Rotl32(x, k uint32) uint32 { return bits.RotateLeft32(x, int(k&31)) }
 func Rotr32(x, k uint32) uint32 { return bits.RotateLeft32(x, -int(k&31)) }
 func Rotl64(x, k uint64) uint64 { return bits.RotateLeft64(x, int(k&63)) }

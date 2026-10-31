@@ -789,20 +789,20 @@ func signedType(t ValType) string {
 }
 
 var simdBin = map[string]string{
-	"i8x16.eq":   "rt.Eq8",
-	"i8x16.ne":   "rt.Ne8",
-	"i8x16.sub":  "rt.Sub8",
-	"i8x16.add":  "rt.Add8",
-	"i8x16.le_u": "rt.LeU8",
-	"i8x16.ge_u": "rt.GeU8",
-	"i8x16.lt_u": "rt.LtU8",
-	"i8x16.gt_u": "rt.GtU8",
-	"i8x16.gt_s": "rt.GtS8",
-	"i8x16.lt_s": "rt.LtS8",
+	"i8x16.eq":    "rt.Eq8",
+	"i8x16.ne":    "rt.Ne8",
+	"i8x16.sub":   "rt.Sub8",
+	"i8x16.add":   "rt.Add8",
+	"i8x16.le_u":  "rt.LeU8",
+	"i8x16.ge_u":  "rt.GeU8",
+	"i8x16.lt_u":  "rt.LtU8",
+	"i8x16.gt_u":  "rt.GtU8",
+	"i8x16.gt_s":  "rt.GtS8",
+	"i8x16.lt_s":  "rt.LtS8",
 	"i8x16.min_u": "rt.MinU8",
-	"v128.or":    "rt.Or",
-	"v128.and":   "rt.And",
-	"v128.xor":   "rt.Xor",
+	"v128.or":     "rt.Or",
+	"v128.and":    "rt.And",
+	"v128.xor":    "rt.Xor",
 	"v128.andnot": "rt.AndNot",
 }
 
