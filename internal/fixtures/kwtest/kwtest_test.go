@@ -18,19 +18,19 @@ var words = func() []string {
 
 func TestKeywordSimdComparesEveryByteAtLengths2Through31(t *testing.T) {
 	m := New()
-	input := int(m.ExportGlobalInput())
+	input := int(Input)
 	for _, word := range words {
 		for _, padding := range []byte{0, 0xff} {
 			for i := 0; i < 64; i++ {
 				m.Mem[input+i] = padding
 			}
 			copy(m.Mem[input:], word)
-			if got := int32(m.ExportLookup(uint32(len(word)))); got != int32(len(word)) {
+			if got := int32(m.Lookup(uint32(len(word)))); got != int32(len(word)) {
 				t.Fatalf("%s: lookup = %d", word, got)
 			}
 			for i := 0; i < len(word); i++ {
 				m.Mem[input+i] ^= 32
-				if got := int32(m.ExportLookup(uint32(len(word)))); got != -1 {
+				if got := int32(m.Lookup(uint32(len(word)))); got != -1 {
 					t.Fatalf("%s, byte %d: lookup = %d", word, i, got)
 				}
 				m.Mem[input+i] ^= 32
@@ -38,7 +38,7 @@ func TestKeywordSimdComparesEveryByteAtLengths2Through31(t *testing.T) {
 		}
 	}
 	for _, n := range []uint32{0, 1, 32, 64} {
-		if got := int32(m.ExportLookup(n)); got != -1 {
+		if got := int32(m.Lookup(n)); got != -1 {
 			t.Fatalf("length %d: lookup = %d", n, got)
 		}
 	}
@@ -46,8 +46,8 @@ func TestKeywordSimdComparesEveryByteAtLengths2Through31(t *testing.T) {
 
 func TestLowercaseSimdPreservesNonLettersAndStaysInsideScratch(t *testing.T) {
 	m := New()
-	input := int(m.ExportGlobalInput())
-	dst := int(m.ExportGlobalScratch())
+	input := int(Input)
+	dst := int(Scratch)
 	for length := 0; length <= 32; length++ {
 		for first := 0; first < 256; first += 16 {
 			in := make([]byte, length)
@@ -62,7 +62,7 @@ func TestLowercaseSimdPreservesNonLettersAndStaysInsideScratch(t *testing.T) {
 			if length > 31 {
 				want = 0
 			}
-			if got := m.ExportLower(uint32(length)); got != want {
+			if got := m.Lower(uint32(length)); got != want {
 				t.Fatalf("length %d: lower = %d", length, got)
 			}
 			if length <= 31 {

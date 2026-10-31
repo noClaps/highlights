@@ -288,7 +288,7 @@ func ReplaceForm(code, head string, fn func(inner string, at int) string) string
 			}
 		}
 		if depth != 0 {
-			panic(fmt.Errorf("Unterminated (%s ...) form at offset %d", head, at))
+			panic(fmt.Errorf("unterminated (%s ...) form at offset %d", head, at))
 		}
 		out.WriteString(code[last:at])
 		out.WriteString(fn(code[at+n:j], at))

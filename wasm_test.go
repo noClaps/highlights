@@ -10,7 +10,7 @@ import (
 )
 
 func TestHighlighterWritesInputAtMemInput(t *testing.T) {
-	if got := int(kwtest.New().ExportGlobalInput()); got != inputPtr {
+	if got := int(kwtest.Input); got != inputPtr {
 		t.Fatalf("$mem.input = %d, inputPtr = %d", got, inputPtr)
 	}
 }
@@ -45,18 +45,18 @@ func TestLiveStateHashingAndComparisonIgnoreBytesBeyondTheState(t *testing.T) {
 			expected = (expected ^ (expected >> 33)) * 0xff51afd7ed558ccd
 			expected = (expected ^ (expected >> 33)) * 0xc4ceb9fe1a85ec53
 			expected ^= expected >> 33
-			if got := m.FlvHash(uint32(a+alignment), uint32(length)); got != expected {
+			if got := m.LvHash(uint32(a+alignment), uint32(length)); got != expected {
 				t.Fatalf("hash(a, %d) = %x, want %x", length, got, expected)
 			}
-			if got := m.FlvHash(uint32(b+alignment), uint32(length)); got != expected {
+			if got := m.LvHash(uint32(b+alignment), uint32(length)); got != expected {
 				t.Fatalf("hash(b, %d) = %x, want %x", length, got, expected)
 			}
-			if m.FlvBytesEq(uint32(a+alignment), uint32(b+alignment), uint32(length)) != 1 {
+			if m.LvBytesEq(uint32(a+alignment), uint32(b+alignment), uint32(length)) != 1 {
 				t.Fatalf("equal(%d) = 0", length)
 			}
 			for i := 0; i < length; i++ {
 				bytes[b+alignment+i] ^= 0xff
-				if m.FlvBytesEq(uint32(a+alignment), uint32(b+alignment), uint32(length)) != 0 {
+				if m.LvBytesEq(uint32(a+alignment), uint32(b+alignment), uint32(length)) != 0 {
 					t.Fatalf("equal(%d) ignores byte %d", length, i)
 				}
 				bytes[b+alignment+i] ^= 0xff
@@ -64,10 +64,10 @@ func TestLiveStateHashingAndComparisonIgnoreBytesBeyondTheState(t *testing.T) {
 		}
 	}
 	n := uint32(len(bytes))
-	if m.FlvHash(n, 0) != m.FlvHash(uint32(a), 0) {
+	if m.LvHash(n, 0) != m.LvHash(uint32(a), 0) {
 		t.Fatal("empty hashes differ")
 	}
-	if m.FlvBytesEq(n, n, 0) != 1 || m.FlvBytesEq(n-16, n-16, 16) != 1 {
+	if m.LvBytesEq(n, n, 0) != 1 || m.LvBytesEq(n-16, n-16, 16) != 1 {
 		t.Fatal("equal at the end of memory")
 	}
 }

@@ -158,11 +158,11 @@ func (h *Highlighter) run(langID, mode, inputLength int, reset *bool) (err error
 	if reset == nil && h.entry != nil {
 		h.entry(h.m)
 	} else if reset == nil {
-		h.m.ExportHighlight()
+		h.m.Highlight()
 	} else if *reset {
-		h.m.ExportHighlightStream(1)
+		h.m.HighlightStream(1)
 	} else {
-		h.m.ExportHighlightStream(0)
+		h.m.HighlightStream(0)
 	}
 	return nil
 }

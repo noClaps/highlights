@@ -175,15 +175,6 @@ func decodeUTF8(b []byte) (string, bool) {
 	return sb.String(), true
 }
 
-// toValidText returns text as valid UTF-8, replacing malformed sequences.
-func toValidText(s string) string {
-	if utf8.ValidString(s) {
-		return s
-	}
-	out, _ := decodeUTF8([]byte(s))
-	return out
-}
-
 // toLiveText keeps UTF-8 and WTF-8 surrogate encodings and replaces any
 // other malformed byte with U+FFFD, matching what a JavaScript string can
 // hold.

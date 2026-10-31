@@ -715,23 +715,23 @@ func (r *replayer) harness(src *moduleSrc) func(*engine.Machine) {
 	if m := langTemplate.FindStringSubmatch(content); m != nil {
 		fn := lexer(m[2])
 		return func(m *engine.Machine) {
-			m.FhlBegin()
+			m.HlBegin()
 			fn(m)
-			m.FhlEnd()
+			m.HlEnd()
 		}
 	}
 	if m := splitTemplate.FindStringSubmatch(content); m != nil {
 		fn := lexer(m[2])
 		return func(m *engine.Machine) {
-			m.FhlBegin()
-			m.Gend = m.Gptr + (uint32(m.Mem[32]) | uint32(m.Mem[33])<<8 | uint32(m.Mem[34])<<16 | uint32(m.Mem[35])<<24)
+			m.HlBegin()
+			m.End = m.Ptr + (uint32(m.Mem[32]) | uint32(m.Mem[33])<<8 | uint32(m.Mem[34])<<16 | uint32(m.Mem[35])<<24)
 			fn(m)
-			if m.Gptr > m.Gend {
+			if m.Ptr > m.End {
 				panic("unreachable")
 			}
-			m.Gend = m.Geof
+			m.End = m.Eof
 			fn(m)
-			m.FhlEnd()
+			m.HlEnd()
 		}
 	}
 	if h := customHarness(content); h != nil {
@@ -1039,37 +1039,6 @@ func (r *replayer) fnCall(e *event) {
 	default:
 		r.t.Fatalf("unknown function %s", e.Name)
 	}
-}
-
-func (r *replayer) encAny(v any) any {
-	switch x := v.(type) {
-	case nil:
-		return undef
-	case undefined:
-		return undef
-	case string:
-		return r.str(x)
-	case float64, bool:
-		return x
-	case *object:
-		o := jsjson.Obj{}
-		for _, k := range x.keys {
-			val := x.value(k)
-			if _, ok := val.(undefined); ok {
-				continue
-			}
-			o = append(o, jsjson.Pair{Key: k, Value: r.encAny(val)})
-		}
-		return o
-	case []any:
-		out := make([]any, len(x))
-		for i, e := range x {
-			out[i] = r.encAny(e)
-		}
-		return out
-	}
-	skip("value of an unsupported type")
-	return nil
 }
 
 func (r *replayer) encTokenStyle(s TokenStyle) jsjson.Obj {
@@ -1473,20 +1442,21 @@ func (r *replayer) rawCall(e *event) {
 	}
 	before := append([]byte(nil), (*rm.mem)...)
 	env := e.Env
-	pop := func(name string) uint32 {
-		for len(env) > 0 {
-			var pair []json.RawMessage
-			_ = json.Unmarshal(env[0], &pair)
-			env = env[1:]
-			var n float64
-			if json.Unmarshal(pair[1], &n) == nil {
-				return uint32(int64(n))
-			}
-			var b bool
-			if json.Unmarshal(pair[1], &b) == nil && b {
-				return 1
-			}
+	// imports return the values the recorded ones did, in order
+	pop := func(string) uint32 {
+		if len(env) == 0 {
 			return 0
+		}
+		var pair []json.RawMessage
+		_ = json.Unmarshal(env[0], &pair)
+		env = env[1:]
+		var n float64
+		if json.Unmarshal(pair[1], &n) == nil {
+			return uint32(int64(n))
+		}
+		var b bool
+		if json.Unmarshal(pair[1], &b) == nil && b {
+			return 1
 		}
 		return 0
 	}
@@ -1555,12 +1525,12 @@ func customHarness(content string) func(*engine.Machine) {
 	// tsx_test.ts scans the first half of the input, then the rest
 	if strings.Contains(content, `(import "../src/langs/tsx.wat")`) && strings.Contains(content, "(local.set $mid") {
 		return func(m *engine.Machine) {
-			m.FhlBegin()
-			m.Gend = m.Gptr + (m.Gend-m.Gptr)>>1
-			m.FhlTsx()
-			m.Gend = m.Geof
-			m.FhlTsx()
-			m.FhlEnd()
+			m.HlBegin()
+			m.End = m.Ptr + (m.End-m.Ptr)>>1
+			m.HlTsx()
+			m.End = m.Eof
+			m.HlTsx()
+			m.HlEnd()
 		}
 	}
 	return nil
@@ -1578,15 +1548,15 @@ func customMachine(src *moduleSrc) *rawMachine {
 		// e2e_test.ts: escape [65536, 65536+len) to 131072
 		return engineRaw(newMachine(), map[string]func(*engine.Machine, []uint64) uint64{
 			"escape": func(m *engine.Machine, args []uint64) uint64 {
-				m.Gout = 131072
-				m.FescCopy(65536, 65536+uint32(args[0]))
-				return uint64(m.Gout - 131072)
+				m.Out = 131072
+				m.EscCopy(65536, 65536+uint32(args[0]))
+				return uint64(m.Out - 131072)
 			},
 		})
 	case strings.Contains(content, `(export "keyword" (func $isKeyword))`):
 		return engineRaw(newMachine(), map[string]func(*engine.Machine, []uint64) uint64{
 			"keyword": func(m *engine.Machine, args []uint64) uint64 {
-				return uint64(m.FisKeyword(uint32(args[0]), uint32(args[1])))
+				return uint64(m.IsKeyword(uint32(args[0]), uint32(args[1])))
 			},
 		})
 	case strings.Contains(content, "(keyword-table $Test "):
@@ -1596,9 +1566,9 @@ func customMachine(src *moduleSrc) *rawMachine {
 			call: func(name string, args []uint64) (uint64, bool) {
 				switch name {
 				case "lookup":
-					return uint64(m.ExportLookup(uint32(args[0]))), true
+					return uint64(m.Lookup(uint32(args[0]))), true
 				case "lower":
-					return uint64(m.ExportLower(uint32(args[0]))), true
+					return uint64(m.Lower(uint32(args[0]))), true
 				}
 				return 0, false
 			},

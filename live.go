@@ -229,9 +229,9 @@ func createStaged(code string, langID int) (*Highlighter, error) {
 	hl := NewHighlighter()
 	bytes := toLiveText(code)
 	err := guard(func() {
-		ptr := hl.m.ExportLiveStage(uint32(len(bytes)))
+		ptr := hl.m.LiveStage(uint32(len(bytes)))
 		copy(hl.m.Mem[ptr:], bytes)
-		hl.m.ExportLiveInitDoc(ptr, uint32(len(bytes)), uint32(langID))
+		hl.m.LiveInitDoc(ptr, uint32(len(bytes)), uint32(langID))
 	})
 	return hl, err
 }
@@ -261,7 +261,7 @@ func (t *LiveTokenizer) LineCount() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(hl.m.ExportLiveLineCount()), nil
+	return int(hl.m.LiveLineCount()), nil
 }
 
 // PendingTokenization reports whether deferred scanning or token
@@ -277,7 +277,7 @@ func (t *LiveTokenizer) PendingTokenization() (bool, error) {
 }
 
 func (t *LiveTokenizer) pending(hl *Highlighter) bool {
-	return t.materializing != nil || hl.m.ExportLiveStats(9) != 0
+	return t.materializing != nil || hl.m.LiveStats(9) != 0
 }
 
 // Flush completes pending lines before endLine and delivers them through
@@ -307,7 +307,7 @@ func (t *LiveTokenizer) flush(endLine int, all bool) error {
 	t.paused = false
 	t.deferGeneration++
 	generation := t.deferGeneration
-	count := int(hl.m.ExportLiveLineCount())
+	count := int(hl.m.LiveLineCount())
 	end := count
 	if !all {
 		end = min(endLine, count)
@@ -371,7 +371,7 @@ func (t *LiveTokenizer) Close() error {
 }
 
 func (t *LiveTokenizer) checkLine(hl *Highlighter, line int) error {
-	if line < 0 || line >= int(hl.m.ExportLiveLineCount()) {
+	if line < 0 || line >= int(hl.m.LiveLineCount()) {
 		return newError(ErrOutOfRange, fmt.Sprintf("line %d out of range", line))
 	}
 	return nil
@@ -388,7 +388,7 @@ func (t *LiveTokenizer) LineLength(line int) (int, error) {
 	if err := t.checkLine(hl, line); err != nil {
 		return 0, err
 	}
-	return int(hl.m.ExportLiveLineLen(uint32(line))), nil
+	return int(hl.m.LiveLineLen(uint32(line))), nil
 }
 
 // LineText returns a line's text, excluding its terminator. Lone
@@ -415,17 +415,17 @@ func (t *LiveTokenizer) Text() (string, error) {
 		return "", err
 	}
 	var sb strings.Builder
-	count := int(hl.m.ExportLiveLineCount())
+	count := int(hl.m.LiveLineCount())
 	for line := 0; line < count; line++ {
 		sb.WriteString(lineText(hl, line))
-		sb.WriteString(eol(hl.m.ExportLiveLineFlags(uint32(line))))
+		sb.WriteString(eol(hl.m.LiveLineFlags(uint32(line))))
 	}
 	return sb.String(), nil
 }
 
 func lineText(hl *Highlighter, line int) string {
-	ptr := hl.m.ExportLiveLineTextPtr(uint32(line))
-	n := hl.m.ExportLiveLineByteLen(uint32(line))
+	ptr := hl.m.LiveLineTextPtr(uint32(line))
+	n := hl.m.LiveLineByteLen(uint32(line))
 	if n == 0 {
 		return ""
 	}
@@ -433,11 +433,11 @@ func lineText(hl *Highlighter, line int) string {
 }
 
 func lineRecords(hl *Highlighter, line int, count int) (data []uint32, wide bool) {
-	wide = hl.m.ExportLiveLineFlags(uint32(line))&4 != 0
+	wide = hl.m.LiveLineFlags(uint32(line))&4 != 0
 	if count == 0 {
 		return nil, wide
 	}
-	ptr := int(hl.m.ExportLiveLineTokPtr(uint32(line)))
+	ptr := int(hl.m.LiveLineTokPtr(uint32(line)))
 	n := count
 	if wide {
 		n *= 2
@@ -460,7 +460,7 @@ func (t *LiveTokenizer) LineRecords(line int) (*LiveTokenRecords, error) {
 	if err := t.checkLine(hl, line); err != nil {
 		return nil, err
 	}
-	data, wide := lineRecords(hl, line, int(hl.m.ExportLiveLineTokCount(uint32(line))))
+	data, wide := lineRecords(hl, line, int(hl.m.LiveLineTokCount(uint32(line))))
 	format := "packed24"
 	if wide {
 		format = "wide32"
@@ -497,7 +497,7 @@ func (t *LiveTokenizer) LineTokens(line int) (*LineTokens, error) {
 	if t.maxLineLength > 0 && length >= t.maxLineLength {
 		return &LineTokens{Tokens: []ThemedToken{t.set.rangeToToken(text.s, 0, 0, t.prefix)}, BracketIgnoredRanges: [][2]int{}}, nil
 	}
-	data, wide := lineRecords(hl, line, int(hl.m.ExportLiveLineTokCount(uint32(line))))
+	data, wide := lineRecords(hl, line, int(hl.m.LiveLineTokCount(uint32(line))))
 	n := len(data)
 	if wide {
 		n /= 2
@@ -551,7 +551,7 @@ func (t *LiveTokenizer) ApplyEdits(edits []TextEdit, opts *LiveUpdateOptions) (*
 	if err != nil {
 		return nil, err
 	}
-	previous := int(hl.m.ExportLiveLineCount())
+	previous := int(hl.m.LiveLineCount())
 	if len(batch) == 0 {
 		if err := t.resume(); err != nil {
 			return nil, err
@@ -596,7 +596,7 @@ func (t *LiveTokenizer) Reset(code string, opts *LiveUpdateOptions) (*LiveTokeni
 	// pending tokens describe the outgoing document; drop them
 	t.deferGeneration++
 	t.paused = false
-	previous := int(old.m.ExportLiveLineCount())
+	previous := int(old.m.LiveLineCount())
 	t.materializing = nil
 	hl, err := createStaged(code, t.langID)
 	if err != nil {
@@ -610,7 +610,7 @@ func (t *LiveTokenizer) Reset(code string, opts *LiveUpdateOptions) (*LiveTokeni
 	if err != nil {
 		return nil, err
 	}
-	count := int(hl.m.ExportLiveLineCount())
+	count := int(hl.m.LiveLineCount())
 	return &LiveTokenizerUpdate{
 		Revision:          t.revision,
 		PreviousLineCount: previous,
@@ -622,11 +622,11 @@ func (t *LiveTokenizer) Reset(code string, opts *LiveUpdateOptions) (*LiveTokeni
 
 func (t *LiveTokenizer) runSlice(hl *Highlighter, renderRange *LineRange) (map[int][]HighlightedToken, error) {
 	if renderRange == nil {
-		err := guard(func() { hl.m.ExportLiveRun(0x7fffffff, 0, 0) })
+		err := guard(func() { hl.m.LiveRun(0x7fffffff, 0, 0) })
 		return map[int][]HighlightedToken{}, err
 	}
 	generation := t.deferGeneration
-	count := int(hl.m.ExportLiveLineCount())
+	count := int(hl.m.LiveLineCount())
 	end := 0
 	if renderRange.Start < count {
 		end = min(renderRange.End, count)
@@ -657,7 +657,7 @@ func (t *LiveTokenizer) deferSlice(generation int) {
 		return
 	}
 	hl := t.hl
-	_, _ = t.workSlice(hl, int(hl.m.ExportLiveLineCount()), t.nowMS()+1, nil)
+	_, _ = t.workSlice(hl, int(hl.m.LiveLineCount()), t.nowMS()+1, nil)
 	if generation == t.deferGeneration && t.hl == hl && !t.paused && t.pending(hl) {
 		t.scheduleSlice(generation)
 	}
@@ -689,18 +689,18 @@ func (t *LiveTokenizer) workSlice(hl *Highlighter, endLine int, deadline float64
 	for generation == t.deferGeneration && !expired() && t.hl == hl {
 		current := t.materializing
 		if current == nil {
-			line := int(hl.m.ExportLiveStats(10))
-			if hl.m.ExportLiveStats(9) == 0 || line >= endLine {
+			line := int(hl.m.LiveStats(10))
+			if hl.m.LiveStats(9) == 0 || line >= endLine {
 				break
 			}
 			work := uint32(4096)
 			if unlimited {
 				work = 0
 			}
-			if err = guard(func() { hl.m.ExportLiveRun(1, uint32(endLine), work) }); err != nil {
+			if err = guard(func() { hl.m.LiveRun(1, uint32(endLine), work) }); err != nil {
 				break
 			}
-			if int(hl.m.ExportLiveStats(10)) == line {
+			if int(hl.m.LiveStats(10)) == line {
 				continue
 			}
 			if t.onDeferTokenize == nil && !inRange(line) {
@@ -716,9 +716,9 @@ func (t *LiveTokenizer) workSlice(hl *Highlighter, endLine int, deadline float64
 		if line >= endLine {
 			break
 		}
-		byteLength := int(hl.m.ExportLiveLineByteLen(uint32(line)))
+		byteLength := int(hl.m.LiveLineByteLen(uint32(line)))
 		if current.byte < byteLength {
-			ptr := int(hl.m.ExportLiveLineTextPtr(uint32(line)))
+			ptr := int(hl.m.LiveLineTextPtr(uint32(line)))
 			to := min(byteLength, current.byte+65536)
 			for to < byteLength && hl.m.Mem[ptr+to]&0xc0 == 0x80 {
 				to++
@@ -729,8 +729,8 @@ func (t *LiveTokenizer) workSlice(hl *Highlighter, endLine int, deadline float64
 				continue
 			}
 		}
-		count := int(hl.m.ExportLiveLineTokCount(uint32(line)))
-		if t.maxLineLength > 0 && int(hl.m.ExportLiveLineLen(uint32(line))) >= t.maxLineLength {
+		count := int(hl.m.LiveLineTokCount(uint32(line)))
+		if t.maxLineLength > 0 && int(hl.m.LiveLineLen(uint32(line))) >= t.maxLineLength {
 			count = 0
 		}
 		data, wide := lineRecords(hl, line, count)
@@ -773,7 +773,7 @@ func (t *LiveTokenizer) workSlice(hl *Highlighter, endLine int, deadline float64
 }
 
 func (t *LiveTokenizer) readUpdate(hl *Highlighter, previous int, lines map[int][]HighlightedToken) *LiveTokenizerUpdate {
-	base := int(hl.m.ExportLiveChangesPtr())
+	base := int(hl.m.LiveChangesPtr())
 	le := binary.LittleEndian
 	count := int(le.Uint32(hl.m.Mem[base:]))
 	changes := make([]LiveLineChange, count)
@@ -789,7 +789,7 @@ func (t *LiveTokenizer) readUpdate(hl *Highlighter, previous int, lines map[int]
 	return &LiveTokenizerUpdate{
 		Revision:          t.revision,
 		PreviousLineCount: previous,
-		LineCount:         int(hl.m.ExportLiveLineCount()),
+		LineCount:         int(hl.m.LiveLineCount()),
 		LineChanges:       changes,
 		Lines:             lines,
 	}
@@ -799,7 +799,7 @@ func (t *LiveTokenizer) readUpdate(hl *Highlighter, previous int, lines map[int]
 // document. It returns edits in ascending order without no-op replacements,
 // merging edits that share a line.
 func (t *LiveTokenizer) validate(hl *Highlighter, edits []TextEdit) ([]normalizedEdit, error) {
-	lineCount := int(hl.m.ExportLiveLineCount())
+	lineCount := int(hl.m.LiveLineCount())
 	items := make([]normalizedEdit, 0, len(edits))
 	for _, edit := range edits {
 		start, end := edit.Range.Start, edit.Range.End
@@ -810,7 +810,7 @@ func (t *LiveTokenizer) validate(hl *Highlighter, edits []TextEdit) ([]normalize
 			if pos.Line >= lineCount {
 				return nil, newError(ErrOutOfRange, fmt.Sprintf("line %d out of range", pos.Line))
 			}
-			if pos.Character > int(hl.m.ExportLiveLineLen(uint32(pos.Line))) {
+			if pos.Character > int(hl.m.LiveLineLen(uint32(pos.Line))) {
 				return nil, newError(ErrOutOfRange, fmt.Sprintf("character %d past the end of line %d", pos.Character, pos.Line))
 			}
 		}
@@ -873,7 +873,7 @@ func (t *LiveTokenizer) isNoopEdit(hl *Highlighter, e normalizedEdit, readLine f
 	newLen := utf16Len(e.newText)
 	rangeLen := e.ec - e.sc
 	for line := e.sl; line < e.el; line++ {
-		rangeLen += int(hl.m.ExportLiveLineLen(uint32(line))) + int(hl.m.ExportLiveLineFlags(uint32(line))&3)
+		rangeLen += int(hl.m.LiveLineLen(uint32(line))) + int(hl.m.LiveLineFlags(uint32(line))&3)
 		if rangeLen > newLen {
 			return false
 		}
@@ -900,7 +900,7 @@ func (t *LiveTokenizer) isNoopEdit(hl *Highlighter, e normalizedEdit, readLine f
 		}
 		rest = rest[len(part):]
 		if line < e.el {
-			term := eol(hl.m.ExportLiveLineFlags(uint32(line)))
+			term := eol(hl.m.LiveLineFlags(uint32(line)))
 			if !strings.HasPrefix(rest, term) {
 				return false
 			}
@@ -921,7 +921,7 @@ func (t *LiveTokenizer) stageEdits(hl *Highlighter, batch []normalizedEdit) erro
 		undelivered = uint32(t.materializing.line + 1)
 	}
 	err := guard(func() {
-		ptr := int(hl.m.ExportLiveStage(uint32(total)))
+		ptr := int(hl.m.LiveStage(uint32(total)))
 		le := binary.LittleEndian
 		mem := hl.m.Mem
 		textOff := 4 + len(batch)*24
@@ -937,7 +937,7 @@ func (t *LiveTokenizer) stageEdits(hl *Highlighter, batch []normalizedEdit) erro
 			textOff += len(e.newText)
 		}
 		le.PutUint32(mem[ptr:], uint32(len(batch)))
-		hl.m.ExportLiveApplyEdits(uint32(ptr), undelivered)
+		hl.m.LiveApplyEdits(uint32(ptr), undelivered)
 	})
 	t.materializing = nil
 	return err

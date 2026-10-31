@@ -84,6 +84,7 @@ type Module struct {
 	MemExport string
 	Table     []string // function references for call_indirect
 
+	used                 map[string]bool // Machine field and method names
 	pendingExports       [][2]string
 	pendingGlobalExports [][2]string
 }
@@ -111,13 +112,6 @@ func catch(f func()) (err error) {
 
 func failf(format string, args ...any) {
 	panic(fmt.Errorf(format, args...))
-}
-
-func atom(s *wat.Sexpr) string {
-	if s.IsList {
-		return ""
-	}
-	return s.Atom
 }
 
 func parseModule(code string) *Module {
@@ -223,42 +217,72 @@ func parseModule(code string) *Module {
 		g.Exports = append(g.Exports, e[1])
 	}
 	m.Funcs = funcs
-	used := map[string]bool{}
-	for _, f := range funcs {
-		switch {
-		case f.Name != "":
-			f.GoName = "F" + goIdent(f.Name[1:])
-		case len(f.Exports) > 0:
-			f.GoName = "X" + goIdent(f.Exports[0])
-		default:
-			f.GoName = fmt.Sprintf("Func%d", f.Index)
+	// Globals and functions share the Machine's method and field namespace.
+	used := map[string]bool{"Mem": true, "Imports": true, "CallExport": true}
+	claim := func(name, suffix string) string {
+		if used[name] {
+			name += suffix
 		}
-		for used[f.GoName] {
-			f.GoName += "_"
+		for base, n := name, 2; used[name]; n++ {
+			name = fmt.Sprintf("%s%d", base, n)
 		}
-		used[f.GoName] = true
+		used[name] = true
+		return name
 	}
 	for i, g := range m.Globals {
 		switch {
 		case g.Name != "":
-			g.GoName = "G" + goIdent(g.Name[1:])
+			g.GoName = claim(pascal(g.Name[1:]), "Var")
 		case len(g.Exports) > 0:
-			g.GoName = "GX" + goIdent(g.Exports[0])
+			g.GoName = claim(pascal(g.Exports[0]), "Var")
 		default:
-			g.GoName = fmt.Sprintf("Global%d", i)
+			g.GoName = claim(fmt.Sprintf("Global%d", i), "")
 		}
 	}
+	for _, f := range funcs {
+		switch {
+		case f.Name != "":
+			f.GoName = claim(pascal(f.Name[1:]), "Func")
+		case len(f.Exports) > 0:
+			f.GoName = claim(pascal(f.Exports[0]), "Func")
+		default:
+			f.GoName = claim(fmt.Sprintf("Func%d", f.Index), "")
+		}
+	}
+	m.used = used
 	return m
 }
 
-func goIdent(s string) string {
+// pascal turns a WAT name such as "lexScanIdent" or "is_id_start" into an
+// exported Go name: "LexScanIdent", "IsIdStart".
+func pascal(s string) string {
+	c := camel(s)
+	if c == "" {
+		return "X"
+	}
+	return strings.ToUpper(c[:1]) + c[1:]
+}
+
+// camel turns a WAT name into a Go name that starts as the WAT name does:
+// separators drop and the next letter is upper case.
+func camel(s string) string {
 	var sb strings.Builder
-	for i, r := range s {
-		if r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (i > 0 && r >= '0' && r <= '9') {
-			sb.WriteRune(r)
-		} else {
-			sb.WriteString("_")
+	upper := false
+	for _, r := range s {
+		isLetter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+		isDigit := r >= '0' && r <= '9'
+		if !isLetter && !isDigit {
+			upper = sb.Len() > 0
+			continue
 		}
+		if sb.Len() == 0 && isDigit {
+			sb.WriteByte('n')
+		}
+		if upper && r >= 'a' && r <= 'z' {
+			r -= 'a' - 'A'
+		}
+		upper = false
+		sb.WriteRune(r)
 	}
 	return sb.String()
 }
