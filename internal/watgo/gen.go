@@ -430,11 +430,12 @@ func (g *fgen) genFunc() string {
 	if len(f.Results) > 0 {
 		result = f.Results[0]
 	}
-	g.dead = deadSets(f.Body)
+	fnBody := storeBlockResults(f.Body)
+	g.dead = deadSets(fnBody)
 	// the function body is the outermost branch target: branching to it
 	// returns
 	g.labels = append(g.labels, &label{result: result, isFunc: true})
-	g.genSeq(explicitReturn(f.Body, result))
+	g.genSeq(explicitReturn(fnBody, result))
 	if !g.unreachable && result != "" {
 		v := g.pop()
 		g.line("return %s", trimParens(g.asValue(v)))

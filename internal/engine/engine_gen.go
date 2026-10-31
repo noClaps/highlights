@@ -5993,8 +5993,8 @@ func (m *Machine) BraceIsBlock() uint32 {
 
 // ScanToken is $scanToken.
 func (m *Machine) ScanToken() uint32 {
-	var c, c2, bits, kw, take, after, t1, t5, t8, t9, t10, t12, t15, t19, t20, t21, t22, t24, t28, t29, t30, t31, t33, t38, t39 uint32
-	var t0, t11, t37 bool
+	var c, c2, bits, kw, take, after, t1, t5, t8, t9, t11, t14, t18, t19, t20, t21, t23, t27, t28, t29, t30, t32, t37, t38 uint32
+	var t0, t10, t36 bool
 	m.NlBefore = 0
 	if m.TsxStreaming != 0 {
 		m.NlBefore = m.TsxStreamNl
@@ -6075,49 +6075,58 @@ ws:
 	c2 = m.TsxByte(m.Ptr + 1)
 	switch c {
 	case '(':
-		t10 = m.ParenIsCtrl()
-		m.BrkPush(t10)
-		t8 = 265
-		goto takeDone
+		t9 = m.ParenIsCtrl()
+		m.BrkPush(t9)
+		take = 265
+		m.Ptr += take & 7
+		return take >> 3
 	case ')', ']':
 		m.BrkPop()
-		t8 = rt.Sel32(c == ')', 449, 409)
-		goto takeDone
+		take = rt.Sel32(c == ')', 449, 409)
+		m.Ptr += take & 7
+		return take >> 3
 	case '.':
-		t11 = c2 == '.'
-		t12 = m.TsxByte(m.Ptr + 2)
-		if t11 && t12 == 46 {
-			t8 = 499
-			goto takeDone
+		t10 = c2 == '.'
+		t11 = m.TsxByte(m.Ptr + 2)
+		if t10 && t11 == 46 {
+			take = 499
+			m.Ptr += take & 7
+			return take >> 3
 		}
 		if c2-48 <= 9 {
 			m.Ptr++
 			return m.ScanNumber(1)
 		}
-		t8 = 153
-		goto takeDone
+		take = 153
+		m.Ptr += take & 7
+		return take >> 3
 	case ';':
 		m.TernarySet(0)
-		t8 = 473
-		goto takeDone
+		take = 473
+		m.Ptr += take & 7
+		return take >> 3
 	case ',':
-		t8 = 129
-		goto takeDone
+		take = 129
+		m.Ptr += take & 7
+		return take >> 3
 	case ':':
 		kw = m.TernaryCount()
 		if kw != 0 {
 			m.TernarySet(kw - 1)
-			t8 = 1081
-			goto takeDone
+			take = 1081
+			m.Ptr += take & 7
+			return take >> 3
 		}
-		t8 = 121
-		goto takeDone
+		take = 121
+		m.Ptr += take & 7
+		return take >> 3
 	case '{':
-		t15 = m.BraceIsBlock()
-		m.BrkPush(t15)
+		t14 = m.BraceIsBlock()
+		m.BrkPush(t14)
 		m.BraceDepth++
-		t8 = 217
-		goto takeDone
+		take = 217
+		m.Ptr += take & 7
+		return take >> 3
 	case '}':
 		if m.JsTemplateLexSp > 0 && m.BraceDepth == rt.Ld32(m.Mem, int(38944+(m.JsTemplateLexSp-1)<<2)) {
 			m.JsTemplateLexSp--
@@ -6126,14 +6135,16 @@ ws:
 		}
 		m.BrkPop()
 		m.BraceDepth--
-		t8 = 401
-		goto takeDone
+		take = 401
+		m.Ptr += take & 7
+		return take >> 3
 	case '=':
 		if c2 == '>' {
-			t8 = 178
-			goto takeDone
+			take = 178
+			m.Ptr += take & 7
+			return take >> 3
 		}
-		t9 = 190
+		t8 = 190
 		goto family
 	case '/':
 		if c2 == '/' {
@@ -6149,108 +6160,117 @@ ws:
 		if m.RegexpAllowed() != 0 {
 			return m.ScanRegexp()
 		}
-		t9 = 489
+		t8 = 489
 		goto family
 	case '&':
-		t9 = 47
+		t8 = 47
 		goto family
 	case '!':
 		if c2 == '=' {
-			t19 = m.TsxByte(m.Ptr + 2)
-			if t19 == 61 {
-				t8 = 99
-				goto takeDone
+			t18 = m.TsxByte(m.Ptr + 2)
+			if t18 == 61 {
+				take = 99
+				m.Ptr += take & 7
+				return take >> 3
 			}
-			t8 = 106
-			goto takeDone
+			take = 106
+			m.Ptr += take & 7
+			return take >> 3
 		}
-		t8 = 113
-		goto takeDone
+		take = 113
+		m.Ptr += take & 7
+		return take >> 3
 	case '|':
-		t9 = 375
+		t8 = 375
 		goto family
 	case '?':
 		if c2 == '.' {
-			t20 = m.TsxByte(m.Ptr + 2)
-			if t20-48 > 9 {
-				t8 = 322
-				goto takeDone
+			t19 = m.TsxByte(m.Ptr + 2)
+			if t19-48 > 9 {
+				take = 322
+				m.Ptr += take & 7
+				return take >> 3
 			}
 		}
 		if c2 != '?' {
-			t21 = m.EcmaHasTypeScript()
-			if rt.Clz32(t21&rt.B2u(c2 == '(' || c2 == '<'))>>5 != 0 {
-				t22 = m.LexSkipSpaceAt(m.Ptr + 1)
-				after = m.TsxByte(t22)
+			t20 = m.EcmaHasTypeScript()
+			if rt.Clz32(t20&rt.B2u(c2 == '(' || c2 == '<'))>>5 != 0 {
+				t21 = m.LexSkipSpaceAt(m.Ptr + 1)
+				after = m.TsxByte(t21)
 				if rt.Clz32(rt.Ld8(m.Mem, int(after)+1680)&64)>>5 != 0 {
-					t24 = m.TernaryCount()
-					m.TernarySet(t24 + 1)
+					t23 = m.TernaryCount()
+					m.TernarySet(t23 + 1)
 				}
 			}
 		}
-		t9 = 334
+		t8 = 334
 		goto family
 	case '[':
 		m.BrkPush(0)
-		t8 = 225
-		goto takeDone
+		take = 225
+		m.Ptr += take & 7
+		return take >> 3
 	case '"':
 		return m.ScanString(34)
 	case '\'':
 		return m.ScanString(39)
 	case '<':
 		if m.EcmaHasTsrx() != 0 {
-			t28 = m.JsxTopMode()
-			t29 = m.TsrxRawClose(m.Ptr, 1)
-			if rt.B2u(t28 == 5)&t29 != 0 {
+			t27 = m.JsxTopMode()
+			t28 = m.TsrxRawClose(m.Ptr, 1)
+			if rt.B2u(t27 == 5)&t28 != 0 {
 				return 0
 			}
 		}
-		t9 = 263
+		t8 = 263
 		goto family
 	case '>':
 		if c2 == '>' {
-			t30 = m.TsxByte(m.Ptr + 2)
-			if t30 == 62 {
-				t31 = m.TsxByte(m.Ptr + 3)
-				if t31 == 61 {
-					t8 = 564
-					goto takeDone
+			t29 = m.TsxByte(m.Ptr + 2)
+			if t29 == 62 {
+				t30 = m.TsxByte(m.Ptr + 3)
+				if t30 == 61 {
+					take = 564
+					m.Ptr += take & 7
+					return take >> 3
 				}
-				t8 = 459
-				goto takeDone
+				take = 459
+				m.Ptr += take & 7
+				return take >> 3
 			}
 		}
-		t9 = 447
+		t8 = 447
 		goto family
 	case '+':
-		t9 = 395
+		t8 = 395
 		goto family
 	case '-':
-		t9 = 291
+		t8 = 291
 		goto family
 	case '*':
-		t9 = 79
+		t8 = 79
 		goto family
 	case '%':
-		t9 = 537
+		t8 = 537
 		goto family
 	case '^':
-		t9 = 521
+		t8 = 521
 		goto family
 	case '~':
-		t8 = 569
-		goto takeDone
+		take = 569
+		m.Ptr += take & 7
+		return take >> 3
 	case '`':
 		m.Ptr++
 		return m.ScanTemplateBody()
 	case '@':
-		t33 = m.EcmaHasTsrx()
-		if t33&rt.B2u(c2 == '{') != 0 {
+		t32 = m.EcmaHasTsrx()
+		if t32&rt.B2u(c2 == '{') != 0 {
 			m.BrkPush(1)
 			m.BraceDepth++
-			t8 = 218
-			goto takeDone
+			take = 218
+			m.Ptr += take & 7
+			return take >> 3
 		}
 		m.Ptr++
 		m.ScanIdentTail()
@@ -6273,9 +6293,9 @@ ws:
 	}
 	if c >= 128 {
 		bits = m.Utf8Bits(c)
-		t37 = bits != 0
-		t38 = m.IsIdStart(m.Ptr, bits)
-		if rt.B2u(t37)&t38 != 0 {
+		t36 = bits != 0
+		t37 = m.IsIdStart(m.Ptr, bits)
+		if rt.B2u(t36)&t37 != 0 {
 			m.Ptr += bits
 			m.ScanIdentTail()
 			return 26
@@ -6289,28 +6309,28 @@ ws:
 	m.Ptr++
 	return 1
 family:
-	take = t9
+	take = t8
 	kw = take & 0xfffffff8
 	if c2 == c {
 		if take&2 != 0 {
 			if take&4 != 0 {
-				t39 = m.TsxByte(m.Ptr + 2)
-				if t39 == 61 {
-					t8 = kw - 21
-					goto takeDone
+				t38 = m.TsxByte(m.Ptr + 2)
+				if t38 == 61 {
+					take = kw - 21
+					m.Ptr += take & 7
+					return take >> 3
 				}
 			}
-			t8 = kw - 14
-			goto takeDone
+			take = kw - 14
+			m.Ptr += take & 7
+			return take >> 3
 		}
 	}
 	if take&1&rt.B2u(c2 == '=') != 0 {
-		t8 = kw - 6
-		goto takeDone
+		take = kw - 6
+	} else {
+		take = kw | 1
 	}
-	t8 = kw | 1
-takeDone:
-	take = t8
 	m.Ptr += take & 7
 	return take >> 3
 }
