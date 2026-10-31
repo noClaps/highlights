@@ -26,10 +26,24 @@ func decodeUnit(s string, i int) (units, size int) {
 	return 1, 1
 }
 
+// load64 reads eight bytes of s at i as a little-endian word; the compiler
+// turns it into one load.
+func load64(s string, i int) uint64 {
+	_ = s[i+7]
+	return uint64(s[i]) | uint64(s[i+1])<<8 | uint64(s[i+2])<<16 | uint64(s[i+3])<<24 |
+		uint64(s[i+4])<<32 | uint64(s[i+5])<<40 | uint64(s[i+6])<<48 | uint64(s[i+7])<<56
+}
+
 // utf16Len returns the UTF-16 length of UTF-8 or WTF-8 text.
 func utf16Len(s string) int {
 	n := 0
 	for i := 0; i < len(s); {
+		// eight ASCII bytes are eight units
+		if i+8 <= len(s) && load64(s, i)&0x8080808080808080 == 0 {
+			n += 8
+			i += 8
+			continue
+		}
 		if s[i] < 0x80 {
 			n++
 			i++
