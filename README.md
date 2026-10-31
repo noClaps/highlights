@@ -26,17 +26,20 @@ html, err := highlights.CodeToHTML("console.log('Hello world!')", highlights.Opt
 | `codeToHtml`                   | `CodeToHTML`, `CodeToHTMLBytes`                         |
 | `codeToTokens`                 | `CodeToTokens`, `CodeToTokensBytes`                     |
 | `createHighlighter`            | `NewHighlighter` (one engine instance, not concurrent)  |
-| `StreamTokenizer`              | `NewStreamTokenizer`: `PushCode`, `PushBytes`, `End`    |
-| `LiveTokenizer`                | `NewLiveTokenizer`: `ApplyEdits`, `Reset`, `LineTokens` |
+| `StreamTokenizer`              | `NewStreamTokenizer`: `Push`, `PushBytes`, `End`, `Close` |
+| `LiveTokenizer`                | `NewLiveTokenizer`: `ApplyEdits`, `Reset`, `LineTokens`, `Close` |
 | `isSupportedLanguage`          | `IsSupportedLanguage`, `LangID`, `Languages`            |
 | `prepareTheme`, `toCSS`        | `PrepareTheme`, `ToCSS` (`themes.ToCSS`)                |
+| Zed theme objects              | `Theme`, `ThemeStyle` (`Colors`, `Players`, `Syntax`), `ParseTheme` |
 | `@pierre/highlights/themes`    | package `themes`: `themes.PierreDark`, `themes.ByName`  |
 
 The package-level functions are safe for concurrent use; they pool engine
 instances. Offsets in tokens and live-document positions are UTF-16 code
-units, as in Shiki and the Language Server Protocol. Errors that the
-TypeScript package throws are returned as `*TypeError`, `*RangeError`, or
-plain errors with the same messages.
+units, as in Shiki and the Language Server Protocol. Errors keep the
+TypeScript messages and wrap a kind to test with `errors.Is`:
+`ErrUnknownLanguage`, `ErrInvalidTheme`, `ErrInvalidArgument`,
+`ErrOutOfRange`, `ErrStreamEnded`, or `ErrClosed`. See the package
+documentation and examples (`go doc highlights`).
 
 `LiveTokenizer` runs deferred work through `LiveTokenizerOptions.Schedule`
 (a goroutine by default) and calls `OnDeferTokenize` without holding its
@@ -52,7 +55,9 @@ describe them). Rather than run Wasm, the Go port translates the WAT to Go:
 - `internal/wat` ports the WAT preprocessor (`transformWat` in
   `scripts/build.ts`); its output is byte-identical to the TypeScript one.
 - `internal/watgo` translates the expanded module to Go: each Wasm function
-  becomes a method on `engine.Machine`, which owns the linear memory.
+  becomes a method on `engine.Machine`, which owns the linear memory. WAT
+  names become Go names, loops become labeled `for` loops, and other
+  branches become `goto` forward to the end of their block.
   `internal/wasmrt` holds the runtime helpers, including 128-bit vectors.
 - `internal/engine` is the generated engine (`go generate ./internal/engine`
   regenerates it and `tables_gen.go`).

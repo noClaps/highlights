@@ -15,6 +15,7 @@ import (
 // ValType is a Wasm value type.
 type ValType string
 
+// Value types.
 const (
 	I32  ValType = "i32"
 	I64  ValType = "i64"
@@ -159,7 +160,7 @@ func parseModule(code string) *Module {
 				}
 			}
 		case "global":
-			m.Globals = append(m.Globals, parseGlobal(f, len(m.Globals)))
+			m.Globals = append(m.Globals, parseGlobal(f))
 		case "data":
 			m.Data = append(m.Data, parseData(f))
 		case "table":
@@ -349,7 +350,7 @@ body:
 	return fn
 }
 
-func parseGlobal(f *wat.Sexpr, index int) *Global {
+func parseGlobal(f *wat.Sexpr) *Global {
 	g := &Global{}
 	rest := f.List[1:]
 	if len(rest) > 0 && !rest[0].IsList && strings.HasPrefix(rest[0].Atom, "$") {
