@@ -707,12 +707,12 @@ func (m *Machine) ScanFindSpecial(p, stop, q, esc, nl uint32) uint32 {
 
 // ScanWhitespace is $scanWhitespace.
 func (m *Machine) ScanWhitespace() {
-	var c, mask uint32
+	var mask uint32
 	var w rt.V128
 	if m.Ptr >= m.End {
 		return
 	}
-	c = uint32(m.Mem[m.Ptr])
+	c := uint32(m.Mem[m.Ptr])
 	if !(c == ' ' || c-9 <= 4) {
 		return
 	}
@@ -806,8 +806,8 @@ func (m *Machine) UTF8SpanEnd(e, stop uint32) uint32 {
 
 // ScanHexRun is $scanHexRun.
 func (m *Machine) ScanHexRun(p, maximum uint32) uint32 {
-	var c, stop uint32
-	stop = p + maximum
+	var c uint32
+	stop := p + maximum
 	if stop > m.End {
 		stop = m.End
 	}
@@ -842,13 +842,12 @@ func (m *Machine) HexByte(b uint32) {
 
 // EmitRgba is $emitRgba.
 func (m *Machine) EmitRgba(v uint32) {
-	var a uint32
 	m.Mem[m.Out] = '#'
 	m.Out++
 	m.HexByte(v & 255)
 	m.HexByte((v >> 8) & 255)
 	m.HexByte((v >> 16) & 255)
-	a = v >> 24
+	a := v >> 24
 	if a != 255 {
 		m.HexByte(a)
 	}
@@ -861,13 +860,12 @@ func (m *Machine) EmitColor(rec uint32) {
 
 // EmitCSSVariable is $emitCssVariable.
 func (m *Machine) EmitCSSVariable(hl, prefixLength uint32) {
-	var entry, n uint32
 	rt.Copy(m.Mem, m.Out, 8706, 4)
 	m.Out += 4
 	rt.Copy(m.Mem, m.Out, rt.Ld32(m.Mem, 14), prefixLength)
 	m.Out += prefixLength
-	entry = 448 + hl*3
-	n = uint32(m.Mem[entry+2])
+	entry := 448 + hl*3
+	n := uint32(m.Mem[entry+2])
 	rt.Copy(m.Mem, m.Out, rt.Ld16(m.Mem, entry), n)
 	m.Out += n
 	m.Mem[m.Out] = ')'
@@ -876,12 +874,11 @@ func (m *Machine) EmitCSSVariable(hl, prefixLength uint32) {
 
 // EmitFont is $emitFont.
 func (m *Machine) EmitFont(style uint32) {
-	var w uint32
 	if style&16 != 0 {
 		rt.Copy(m.Mem, m.Out, 8675, 18)
 		m.Out += 18
 	}
-	w = style & 15
+	w := style & 15
 	if w != 0 {
 		rt.Copy(m.Mem, m.Out, 8693, 13)
 		m.Out += 13
@@ -917,9 +914,9 @@ func (m *Machine) CloseSpan() {
 
 // EmitSpanOpen is $emitSpanOpen.
 func (m *Machine) EmitSpanOpen(hl uint32) {
-	var slot, length, save, rec, prefixLength uint32
-	slot = 8744 + hl*66
-	length = uint32(m.Mem[slot])
+	var save, rec, prefixLength uint32
+	slot := 8744 + hl*66
+	length := uint32(m.Mem[slot])
 	if length == 0 {
 		save = m.Out
 		m.Out = slot + 1
@@ -962,8 +959,7 @@ func (m *Machine) EmitSpanOpen(hl uint32) {
 
 // SetSpan is $setSpan.
 func (m *Machine) SetSpan(hl uint32) {
-	var val, t0 uint64
-	var slot, length uint32
+	var t0 uint64
 	m.SpanHl = hl
 	if m.ThemeBlob != 0 {
 		if m.HTMLOpeners != 0 {
@@ -985,7 +981,7 @@ func (m *Machine) SetSpan(hl uint32) {
 	} else {
 		t0 = rt.Ld64(m.Mem, m.ThemeRec(hl)) & 0xffffffffff
 	}
-	val = t0
+	val := t0
 	if val == m.SpanVal {
 		return
 	}
@@ -997,8 +993,8 @@ func (m *Machine) SetSpan(hl uint32) {
 	if val == 0 {
 		return
 	}
-	slot = 8744 + hl*66
-	length = uint32(m.Mem[slot])
+	slot := 8744 + hl*66
+	length := uint32(m.Mem[slot])
 	if length == 0 || m.CSSVariables {
 		m.EmitSpanOpen(hl)
 		return
@@ -1012,9 +1008,9 @@ func (m *Machine) SetSpan(hl uint32) {
 
 // EscCopy is $escCopy.
 func (m *Machine) EscCopy(lhs, rhs uint32) {
-	var c, mask, k, rem, dst, limit uint32
+	var c, mask, k, rem, limit uint32
 	var w rt.V128
-	dst = m.Out
+	dst := m.Out
 	if rhs-lhs <= 4096 {
 		limit = rhs
 	} else {
@@ -1126,10 +1122,10 @@ func (m *Machine) RecFindSpecial(p uint32) uint32 {
 
 // RecLinesPost is $recLinesPost.
 func (m *Machine) RecLinesPost() {
-	var rec, oldEnd, e, hl, p, rhs, char, next, delta, b, step, cut, last, prev, lastEnd, lastHl uint32
+	var e, hl, p, rhs, char, next, delta, b, step, cut, last, prev, lastEnd, lastHl uint32
 	var w rt.V128
-	rec = rt.Ld32(m.Mem, 6)
-	oldEnd = m.Out
+	rec := rt.Ld32(m.Mem, 6)
+	oldEnd := m.Out
 	m.Out = (oldEnd + 15) & 0xfffffff0
 	rt.St32(m.Mem, 6, m.Out)
 	m.EnsureCap(oldEnd - rec + 16)
@@ -1232,7 +1228,6 @@ func (m *Machine) RecLinesPost() {
 
 // EmitTok is $emitTok.
 func (m *Machine) EmitTok(hl, lhs, rhs uint32) {
-	var length uint32
 	if lhs >= rhs {
 		return
 	}
@@ -1240,7 +1235,7 @@ func (m *Machine) EmitTok(hl, lhs, rhs uint32) {
 		m.RecTok(hl, rhs)
 		return
 	}
-	length = rhs - lhs
+	length := rhs - lhs
 	if length >= 4096 {
 		length = 4096
 	}
@@ -1253,7 +1248,6 @@ func (m *Machine) EmitTok(hl, lhs, rhs uint32) {
 
 // EmitGap is $emitGap.
 func (m *Machine) EmitGap(lhs, rhs uint32) {
-	var length uint32
 	if lhs >= rhs {
 		return
 	}
@@ -1265,7 +1259,7 @@ func (m *Machine) EmitGap(lhs, rhs uint32) {
 		}
 		return
 	}
-	length = rhs - lhs
+	length := rhs - lhs
 	m.EnsureCap(length + 16)
 	if length <= 16 {
 		rt.StV(m.Mem, m.Out, rt.LdV(m.Mem, lhs))
@@ -1277,8 +1271,7 @@ func (m *Machine) EmitGap(lhs, rhs uint32) {
 
 // LexEmitLeadingContinuation is $lexEmitLeadingContinuation.
 func (m *Machine) LexEmitLeadingContinuation() {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr = m.UTF8SpanEnd(m.Ptr, m.End)
 	m.EmitGap(lhs, m.Ptr)
 }
@@ -1295,17 +1288,15 @@ func (m *Machine) MultiSlot(i uint32) uint32 {
 
 // MultiName is $multiName.
 func (m *Machine) MultiName(i uint32) {
-	var slot, n uint32
-	slot = m.MultiSlot(i)
-	n = rt.Ld32(m.Mem, slot+4)
+	slot := m.MultiSlot(i)
+	n := rt.Ld32(m.Mem, slot+4)
 	rt.Copy(m.Mem, m.Out, m.MultiBlob+rt.Ld32(m.Mem, slot), n)
 	m.Out += n
 }
 
 // MultiColorDecl is $multiColorDecl.
 func (m *Machine) MultiColorDecl(i, rec uint32) {
-	var v uint32
-	v = rt.Ld32(m.Mem, rec)
+	v := rt.Ld32(m.Mem, rec)
 	if v == 0 {
 		return
 	}
@@ -1324,7 +1315,6 @@ func (m *Machine) MultiColorDecl(i, rec uint32) {
 
 // MultiFontDecls is $multiFontDecls.
 func (m *Machine) MultiFontDecls(i, style, named uint32) {
-	var w uint32
 	if style&16 != 0 {
 		if named != 0 {
 			m.MultiName(i)
@@ -1335,7 +1325,7 @@ func (m *Machine) MultiFontDecls(i, style, named uint32) {
 		m.Mem[m.Out+17] = ';'
 		m.Out += 18
 	}
-	w = style & 15
+	w := style & 15
 	if w != 0 {
 		if named != 0 {
 			m.MultiName(i)
@@ -1385,11 +1375,10 @@ func (m *Machine) EmitLightDark(a, b, kw uint32) {
 
 // MultiLightDarkDecls is $multiLightDarkDecls.
 func (m *Machine) MultiLightDarkDecls(hl uint32) {
-	var recA, recB, a, b, sa, sb, common uint32
-	recA = m.MultiRec(0, hl)
-	recB = m.MultiRec(1, hl)
-	a = rt.Ld32(m.Mem, recA)
-	b = rt.Ld32(m.Mem, recB)
+	recA := m.MultiRec(0, hl)
+	recB := m.MultiRec(1, hl)
+	a := rt.Ld32(m.Mem, recA)
+	b := rt.Ld32(m.Mem, recB)
 	if a|b != 0 {
 		if a == 0 {
 			a = rt.Ld32(m.Mem, m.MultiRec(0, TokenForeground))
@@ -1403,9 +1392,9 @@ func (m *Machine) MultiLightDarkDecls(hl uint32) {
 		m.Mem[m.Out] = ';'
 		m.Out++
 	}
-	sa = uint32(m.Mem[recA+4])
-	sb = uint32(m.Mem[recB+4])
-	common = sa & sb & 16
+	sa := uint32(m.Mem[recA+4])
+	sb := uint32(m.Mem[recB+4])
+	common := sa & sb & 16
 	if sa&15 == sb&15 {
 		common |= sa & 15
 	}
@@ -1416,13 +1405,13 @@ func (m *Machine) MultiLightDarkDecls(hl uint32) {
 
 // MultiSpanOpen is $multiSpanOpen.
 func (m *Machine) MultiSpanOpen(hl uint32) {
-	var length, at, save uint32
-	length = rt.Ld16(m.Mem, 8752+hl<<1)
+	var save uint32
+	length := rt.Ld16(m.Mem, 8752+hl<<1)
 	if length != 0 {
 		m.CopyWide(9048+rt.Ld16(m.Mem, 8898+hl<<1), length)
 		return
 	}
-	at = 9048 + rt.Ld32(m.Mem, 8748)
+	at := 9048 + rt.Ld32(m.Mem, 8748)
 	if rt.Ld32(m.Mem, 8748)+m.SpanReserve <= 4520 {
 		save = m.Out
 		m.Out = at
@@ -1475,11 +1464,10 @@ func (m *Machine) MultiRenderOpen(hl uint32) {
 
 // MultiSetSpan is $multiSetSpan.
 func (m *Machine) MultiSetSpan(hl uint32) {
-	var i, open uint32
+	var i uint32
 	var rec, anyRec uint64
-	var same bool
-	open = uint32(m.SpanVal)
-	same = true
+	open := uint32(m.SpanVal)
+	same := true
 	for {
 		rec = rt.Ld64(m.Mem, m.MultiRec(i, hl)) & 0xffffffffff
 		anyRec |= rec
@@ -1577,14 +1565,13 @@ func (m *Machine) MultiPrologue() {
 
 // Prologue is $prologue.
 func (m *Machine) Prologue() {
-	var rec uint32
 	m.EnsureCap(128)
 	if m.CSSVariables {
 		m.EnsureCap(128 + rt.Ld32(m.Mem, 18)*2)
 	}
 	rt.Copy(m.Mem, m.Out, 8608, 31)
 	m.Out += 31
-	rec = m.ThemeRec(TokenBackground)
+	rec := m.ThemeRec(TokenBackground)
 	if m.CSSVariables || rt.Ld32(m.Mem, rec) != 0 {
 		rt.Copy(m.Mem, m.Out, 8658, 17)
 		m.Out += 17
@@ -1682,9 +1669,8 @@ func (m *Machine) HlBegin() {
 
 // CopyHTMLOpener is $copyHtmlOpener.
 func (m *Machine) CopyHTMLOpener(hl uint32) {
-	var slot, length uint32
-	slot = m.HTMLOpeners + 4 + hl<<3
-	length = rt.Ld32(m.Mem, slot+4)
+	slot := m.HTMLOpeners + 4 + hl<<3
+	length := rt.Ld32(m.Mem, slot+4)
 	rt.Copy(m.Mem, m.Out, m.HTMLOpeners+rt.Ld32(m.Mem, slot), length)
 	m.Out += length
 }
@@ -1854,8 +1840,8 @@ func (m *Machine) LexScanNumberBody(hex uint32) {
 
 // LexScanHexNumber is $lexScanHexNumber.
 func (m *Machine) LexScanHexNumber(requireExponent uint32) {
-	var lhs, next, p, c uint32
-	lhs = m.Ptr
+	var next, p, c uint32
+	lhs := m.Ptr
 	m.LexScanNumber()
 	if lhs+1 < m.End && m.Mem[lhs] == '0' && uint32(m.Mem[lhs+1])|32 == 120 {
 		if m.Ptr < m.End {
@@ -1900,8 +1886,7 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 
 // LexEscapeEnd is $lexEscapeEnd.
 func (m *Machine) LexEscapeEnd(p uint32) uint32 {
-	var e uint32
-	e = m.UTF8SpanEnd(p+2, m.End)
+	e := m.UTF8SpanEnd(p+2, m.End)
 	if e == p+2 && m.Mem[p+1] == '\r' && e < m.End && m.Mem[e] == '\n' {
 		e++
 	}
@@ -1940,10 +1925,9 @@ func (m *Machine) LexStringBody(quote, multiline, hl, seg uint32) uint32 {
 
 // LexString is $lexString.
 func (m *Machine) LexString(quote, multiline, hl uint32) {
-	var lhs, status uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr++
-	status = m.LexStringBody(quote, multiline, hl, lhs)
+	status := m.LexStringBody(quote, multiline, hl, lhs)
 	if rt.B2u(m.Streaming)&rt.B2u(m.Ptr == m.EOF)&rt.B2u(status != 1)&(multiline|rt.B2u(status == 2)) != 0 {
 		m.StreamMode = 2
 		m.StreamA = quote
@@ -1966,11 +1950,9 @@ func (m *Machine) LexRawStringBody(quote, multiline, hl, lhs uint32) bool {
 
 // LexRawString is $lexRawString.
 func (m *Machine) LexRawString(quote, multiline, hl uint32) {
-	var lhs uint32
-	var closed bool
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr++
-	closed = m.LexRawStringBody(quote, multiline, hl, lhs)
+	closed := m.LexRawStringBody(quote, multiline, hl, lhs)
 	if rt.B2u(m.Streaming)&multiline&rt.B2u(!closed && m.Ptr == m.EOF) != 0 {
 		m.StreamMode = 3
 		m.StreamA = quote
@@ -1981,13 +1963,13 @@ func (m *Machine) LexRawString(quote, multiline, hl uint32) {
 
 // LexCEscapeEnd is $lexCEscapeEnd.
 func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
-	var c, e uint32
+	var c uint32
 	if p+1 < m.End {
 		c = uint32(m.Mem[p+1])
 	} else {
 		c = 0
 	}
-	e = p + 2
+	e := p + 2
 	switch {
 	case c == 'u':
 		e = m.ScanHexRun(e, 4)
@@ -2066,12 +2048,11 @@ func (m *Machine) LexCStringBody(q, hl, seg, suffix uint32) uint32 {
 
 // LexCString is $lexCString.
 func (m *Machine) LexCString(hl uint32) uint32 {
-	var lhs, q, t0, lexCStringBody uint32
-	lhs = m.Ptr
-	q = uint32(m.Mem[lhs])
+	lhs := m.Ptr
+	q := uint32(m.Mem[lhs])
 	m.Ptr = lhs + 1
-	t0 = q
-	lexCStringBody = m.LexCStringBody(q, hl, lhs, 0)
+	t0 := q
+	lexCStringBody := m.LexCStringBody(q, hl, lhs, 0)
 	return rt.Sel32(lexCStringBody == 2, t0, 0)
 }
 
@@ -2114,8 +2095,7 @@ func (m *Machine) LexCStringResume(q uint32) uint32 {
 
 // LexLineComment is $lexLineComment.
 func (m *Machine) LexLineComment(skip, hl uint32) {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr += skip
 	if m.Ptr > m.End {
 		m.Ptr = m.End
@@ -2126,8 +2106,7 @@ func (m *Machine) LexLineComment(skip, hl uint32) {
 
 // LexBlockComment is $lexBlockComment.
 func (m *Machine) LexBlockComment(skip, hl uint32) {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr += skip
 	if m.Ptr > m.End {
 		m.Ptr = m.End
@@ -2170,8 +2149,7 @@ func (m *Machine) StreamSetNested(depth, open, closer, hl uint32) {
 
 // LexHeredocArgument is $lexHeredocArgument.
 func (m *Machine) LexHeredocArgument(p uint32) bool {
-	var c uint32
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if c == '"' || c == '\'' {
 		return true
 	}
@@ -2194,11 +2172,10 @@ func (m *Machine) LexHeredocArgument(p uint32) bool {
 
 // LineDelimiterEnds is $lineDelimiterEnds.
 func (m *Machine) LineDelimiterEnds(p, trim uint32) bool {
-	var c uint32
 	if p >= m.End {
 		return true
 	}
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if c == '\n' || c == '\r' {
 		return true
 	}
@@ -2232,10 +2209,10 @@ func (m *Machine) StreamSetRegion(kind uint32) {
 
 // StreamResumeFixed is $streamResumeFixed.
 func (m *Machine) StreamResumeFixed() bool {
-	var i, lhs, p uint32
+	var i uint32
 	var matched bool
-	lhs = m.Ptr
-	p = m.Ptr
+	lhs := m.Ptr
+	p := m.Ptr
 	for {
 		p = m.LexFindByte(p, uint32(m.Mem[13952]))
 		if p+m.StreamA > m.End {
@@ -2311,21 +2288,19 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 
 // LexNestedBlockComment is $lexNestedBlockComment.
 func (m *Machine) LexNestedBlockComment(open, closer, hl uint32) {
-	var lhs, depth uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr += 2
 	if m.Ptr > m.End {
 		m.Ptr = m.End
 	}
-	depth = m.LexNestedScan(1, open, closer)
+	depth := m.LexNestedScan(1, open, closer)
 	m.EmitTok(hl, lhs, m.Ptr)
 	m.StreamSetNested(depth, open, closer, hl)
 }
 
 // StreamResumeNested is $streamResumeNested.
 func (m *Machine) StreamResumeNested() bool {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.StreamA = m.LexNestedScan(m.StreamA, m.StreamB, m.StreamC)
 	m.EmitTok(m.StreamHl, lhs, m.Ptr)
 	if m.StreamA == 0 {
@@ -2337,10 +2312,10 @@ func (m *Machine) StreamResumeNested() bool {
 
 // StreamResumeLine is $streamResumeLine.
 func (m *Machine) StreamResumeLine() bool {
-	var c, candidate, i, lhs, p uint32
+	var c, candidate, i uint32
 	var matched bool
-	lhs = m.Ptr
-	p = m.Ptr
+	lhs := m.Ptr
+	p := m.Ptr
 	for {
 		if p >= m.End {
 			break
@@ -2418,9 +2393,9 @@ func (m *Machine) StreamResumeLine() bool {
 
 // StreamResumeCommon is $streamResumeCommon.
 func (m *Machine) StreamResumeCommon() bool {
-	var lhs, status uint32
+	var status uint32
 	var lexRawStringBody bool
-	lhs = m.Ptr
+	lhs := m.Ptr
 	if m.StreamMode == 1 {
 		m.ScanBlockCommentEnd()
 		m.EmitTok(m.StreamHl, lhs, m.Ptr)
@@ -2476,8 +2451,8 @@ func (m *Machine) LexSkipSpaceAt(p uint32) uint32 {
 
 // LexEmitIncludeDirective is $lexEmitIncludeDirective.
 func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
-	var p, word, header, closer uint32
-	p = lhs + 1
+	var closer uint32
+	p := lhs + 1
 	for {
 		if p >= rhs {
 			break
@@ -2487,7 +2462,7 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
 		}
 		p++
 	}
-	word = p
+	word := p
 	if word+6 > rhs {
 		return false
 	}
@@ -2525,7 +2500,7 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
 		}
 		closer = 34
 	}
-	header = p
+	header := p
 	p++
 	for {
 		if p >= rhs {
@@ -2545,19 +2520,18 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
 
 // LexKeywordLookup is $lexKeywordLookup.
 func (m *Machine) LexKeywordLookup(start, end, base, bucketMask, slots uint32) uint32 {
-	var length, h, entry, rec uint32
-	length = end - start
+	length := end - start
 	if length-2 > 29 {
 		return 0
 	}
-	h = rt.Ld16(m.Mem, start) | uint32(m.Mem[end-1])<<16 | length<<24
+	h := rt.Ld16(m.Mem, start) | uint32(m.Mem[end-1])<<16 | length<<24
 	h = (h ^ h>>16) * 0xe51fac89
 	h ^= h >> 24
-	entry = rt.Ld32(m.Mem, base+bucketMask+1+uint32((uint64(rt.Rotl32(h+uint32(m.Mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3) & 0xffffff
+	entry := rt.Ld32(m.Mem, base+bucketMask+1+uint32((uint64(rt.Rotl32(h+uint32(m.Mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3) & 0xffffff
 	if length != entry>>19 {
 		return 0
 	}
-	rec = 0x10000 + entry&16383
+	rec := 0x10000 + entry&16383
 	if uint32(bits.TrailingZeros32(rt.Bitmask8(rt.Ne8(rt.LdV(m.Mem, start), rt.LdV(m.Mem, rec))))) < length {
 		return 0
 	}
@@ -2571,8 +2545,7 @@ func (m *Machine) LexKeywordLookup(start, end, base, bucketMask, slots uint32) u
 
 // LexKeywordValue is $lexKeywordValue.
 func (m *Machine) LexKeywordValue(start, end, base, bucketMask, slots uint32) uint32 {
-	var g uint32
-	g = m.LexKeywordLookup(start, end, base, bucketMask, slots)
+	g := m.LexKeywordLookup(start, end, base, bucketMask, slots)
 	if g == 0 {
 		return 0xffffffff
 	}
@@ -2581,9 +2554,9 @@ func (m *Machine) LexKeywordValue(start, end, base, bucketMask, slots uint32) ui
 
 // LexLowerCopy is $lexLowerCopy.
 func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
-	var n, i uint32
+	var i uint32
 	var w rt.V128
-	n = rhs - lhs
+	n := rhs - lhs
 	if n > 31 {
 		return 0
 	}
@@ -2701,9 +2674,8 @@ func (m *Machine) TemplateByte(p uint32) uint32 {
 
 // StringEscapeAt is $stringEscapeAt.
 func (m *Machine) StringEscapeAt(seg uint32) bool {
-	var e uint32
 	m.EmitTok(TokenString, seg, m.Ptr)
-	e = m.LexEscapeEnd(m.Ptr)
+	e := m.LexEscapeEnd(m.Ptr)
 	m.EmitTok(TokenStringEscape, m.Ptr, e)
 	m.Ptr = e
 	return m.Ptr == m.End && (m.Mem[m.Ptr-1] == '\n' || m.Mem[m.Ptr-1] == '\r')
@@ -2711,9 +2683,8 @@ func (m *Machine) StringEscapeAt(seg uint32) bool {
 
 // StringDollarAt is $stringDollarAt.
 func (m *Machine) StringDollarAt(seg, dialect, nested uint32) uint32 {
-	var at, c2 uint32
-	at = m.Ptr
-	c2 = m.TemplateByte(m.Ptr + 1)
+	at := m.Ptr
+	c2 := m.TemplateByte(m.Ptr + 1)
 	if c2 == '{' && nested == 0 {
 		m.EmitTok(TokenString, seg, m.Ptr)
 		m.Ptr += 2
@@ -2808,10 +2779,9 @@ func (m *Machine) CSSScanNumber() {
 
 // CSSString is $cssString.
 func (m *Machine) CSSString(q, skip uint32) bool {
-	var open bool
-	var seg, c, e uint32
-	open = true
-	seg = m.Ptr
+	var c, e uint32
+	open := true
+	seg := m.Ptr
 	m.Ptr += skip
 	for {
 		m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, q, 1, 1)
@@ -2849,9 +2819,8 @@ func (m *Machine) CSSString(q, skip uint32) bool {
 
 // CSSIsQueryOp is $cssIsQueryOp.
 func (m *Machine) CSSIsQueryOp(lhs, rhs uint32) bool {
-	var length, w uint32
-	length = rhs - lhs
-	w = rt.Ld32(m.Mem, lhs)
+	length := rhs - lhs
+	w := rt.Ld32(m.Mem, lhs)
 	if length == 2 {
 		w &= 65535
 		return w == 29295 || (m.CSSDialect >= 2 && (w == 26217 || w == 28265 || w == 28532))
@@ -2871,10 +2840,10 @@ func (m *Machine) CSSIsQueryOp(lhs, rhs uint32) bool {
 
 // CSSDecide is $cssDecide.
 func (m *Machine) CSSDecide(depth uint32) bool {
-	var p, c, q, mask, rem, colon, stop, interp uint32
+	var c, q, mask, rem, colon, interp uint32
 	var w rt.V128
-	p = m.Ptr
-	stop = m.End
+	p := m.Ptr
+	stop := m.End
 	if depth != 0 {
 		c = uint32(m.Mem[p])
 		if m.CSSIdentStart(c) || c == '-' {
@@ -3001,7 +2970,7 @@ scan:
 
 // CSSDecideAtEnd is $cssDecideAtEnd.
 func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
-	var p, c uint32
+	var c uint32
 	if colon == 0 {
 		return true
 	}
@@ -3011,7 +2980,7 @@ func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
 	if depth == 0 {
 		return true
 	}
-	p = m.Ptr
+	p := m.Ptr
 	for {
 		if p >= stop {
 			break
@@ -3043,18 +3012,17 @@ func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
 
 // StylusStart is $stylusStart.
 func (m *Machine) StylusStart(c, nested uint32) uint32 {
-	var lhs, p, q, v, c2 uint32
-	var name bool
+	var v uint32
 	if !(m.CSSIdentStart(c) || c == '-' || c == '$') {
 		return 0xffffffff
 	}
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr = lhs + 1
 	m.CSSScanIdent()
-	p = m.Ptr
-	q = m.LexSkipSpaceAt(p)
+	p := m.Ptr
+	q := m.LexSkipSpaceAt(p)
 	c = m.TemplateByte(q)
-	c2 = m.TemplateByte(q + 1)
+	c2 := m.TemplateByte(q + 1)
 	if c == '=' {
 		v = rt.B2u(c2 != '=')
 	} else {
@@ -3078,7 +3046,7 @@ func (m *Machine) StylusStart(c, nested uint32) uint32 {
 	}
 	m.Ptr = lhs
 	v = rt.B2u(int32(v) >= 256 || m.ScanFindSpecial(lhs, p, 45, 0, 0) < p)
-	name = m.CSSIdentStart(c2)
+	name := m.CSSIdentStart(c2)
 	if c == ':' && q == p && v == 0 && name {
 		return 0
 	}
@@ -3119,8 +3087,8 @@ func (m *Machine) HlStylus() {
 func (m *Machine) HlCSSImpl(state uint32) uint32 {
 	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, sassDepth, urlMask, urlRem, t1, t4 uint32
 	var urlW rt.V128
-	var liveRoot, cSSDecide, cSSString bool
-	liveRoot = m.LiveEntering
+	var cSSDecide, cSSString bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -3628,9 +3596,9 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 // HlStylusImpl is $hlStylusImpl.
 func (m *Machine) HlStylusImpl(state uint32) uint32 {
 	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, urlMask, urlRem, t2, t5 uint32
-	var sassDepth, liveRoot, cSSDecide, cSSString bool
+	var sassDepth, cSSDecide, cSSString bool
 	var urlW rt.V128
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -4151,8 +4119,7 @@ func (m *Machine) XMLScanName() {
 
 // XMLQuotedBody is $xmlQuotedBody.
 func (m *Machine) XMLQuotedBody(quote, lhs uint32) uint32 {
-	var p uint32
-	p = m.LexFindByte(m.Ptr, quote)
+	p := m.LexFindByte(m.Ptr, quote)
 	if p < m.End {
 		m.Ptr = p + 1
 		quote = 0
@@ -4223,9 +4190,9 @@ wide:
 
 // XMLDoctypeBody is $xmlDoctypeBody.
 func (m *Machine) XMLDoctypeBody(lhs, depth, quote uint32) bool {
-	var c, p, nextQuote, nextStop uint32
+	var c, nextQuote, nextStop uint32
 	var closed bool
-	p = m.Ptr
+	p := m.Ptr
 	for {
 		if p >= m.End {
 			break
@@ -4297,8 +4264,8 @@ func (m *Machine) XMLDoctype(lhs uint32) {
 
 // XMLEntity is $xmlEntity.
 func (m *Machine) XMLEntity() bool {
-	var lhs, c uint32
-	lhs = m.Ptr
+	var c uint32
+	lhs := m.Ptr
 	m.Ptr++
 	for {
 		if m.Ptr >= m.End {
@@ -4397,8 +4364,7 @@ func (m *Machine) XMLAttrs(quote uint32) uint32 {
 // HlXML is $hlXml.
 func (m *Machine) HlXML() {
 	var streamRoot, c, lhs, name uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -4502,9 +4468,8 @@ func (m *Machine) XMLStreamResumeTag() bool {
 
 // RawTextKind is $rawTextKind.
 func (m *Machine) RawTextKind(lhs, rhs uint32) uint32 {
-	var length uint32
 	var w uint64
-	length = rhs - lhs
+	length := rhs - lhs
 	if length-5 <= 1 {
 		w = (rt.Ld64(m.Mem, lhs) | 0x202020202020) & (uint64(1)<<(uint64(length<<3)&63) - 1)
 		return rt.B2u(w == 0x747069726373) | rt.B2u(w == 0x656c797473)<<1
@@ -4514,13 +4479,13 @@ func (m *Machine) RawTextKind(lhs, rhs uint32) uint32 {
 
 // IsRawTextClose is $isRawTextClose.
 func (m *Machine) IsRawTextClose(p, kind uint32) bool {
-	var n, t, tp uint32
+	var n uint32
 	if kind == 1 {
 		n = 7
 	} else {
 		n = 6
 	}
-	tp = p + n + 1
+	tp := p + n + 1
 	if tp > m.End {
 		return false
 	}
@@ -4530,14 +4495,14 @@ func (m *Machine) IsRawTextClose(p, kind uint32) bool {
 	if tp >= m.End {
 		return true
 	}
-	t = uint32(m.Mem[tp])
+	t := uint32(m.Mem[tp])
 	return t == 62 || t == 47 || t == 32 || t-9 <= 4
 }
 
 // HTMLEntity is $htmlEntity.
 func (m *Machine) HTMLEntity() bool {
-	var q, c uint32
-	q = m.Ptr + 1
+	var c uint32
+	q := m.Ptr + 1
 	if q < m.End && m.Mem[q] == '#' {
 		q++
 	}
@@ -4571,8 +4536,7 @@ func (m *Machine) HTMLComment(lhs uint32) {
 
 // HTMLDecl is $htmlDecl.
 func (m *Machine) HTMLDecl(lhs, pi, hl uint32) {
-	var p uint32
-	p = m.Ptr + 2
+	p := m.Ptr + 2
 	for {
 		p = m.LexFindByte(p, 62)
 		if p >= m.End {
@@ -4628,8 +4592,7 @@ func (m *Machine) HTMLValueEnd(q uint32) uint32 {
 
 // HTMLQuotedBody is $htmlQuotedBody.
 func (m *Machine) HTMLQuotedBody(quote, lhs uint32) uint32 {
-	var p uint32
-	p = m.LexFindByte(m.Ptr, quote)
+	p := m.LexFindByte(m.Ptr, quote)
 	if p < m.End {
 		m.Ptr = p + 1
 		quote = 0
@@ -4651,12 +4614,11 @@ func (m *Machine) HTMLLangName(kind, lhs, rhs uint32) uint32 {
 
 // HTMLLangValue is $htmlLangValue.
 func (m *Machine) HTMLLangValue(kind, lhs, rhs uint32) uint32 {
-	var w uint32
 	if kind&64 == 0 {
 		return kind
 	}
 	kind &= 63
-	w = rt.Ld32(m.Mem, lhs) | 0x20202020
+	w := rt.Ld32(m.Mem, lhs) | 0x20202020
 	if rhs-lhs == 6 && w == 0x6c797473 && rt.Ld16(m.Mem, lhs+4)|8224 == 29557 {
 		return 42
 	}
@@ -4780,9 +4742,7 @@ func (m *Machine) HTMLStyleBody(kind uint32) {
 
 // HTMLRawText is $htmlRawText.
 func (m *Machine) HTMLRawText(kind uint32) {
-	var from, to, save uint32
-	var continued bool
-	from = m.Ptr
+	from := m.Ptr
 	for {
 		m.Ptr = m.LexFindByte(m.Ptr, 60)
 		if m.Ptr >= m.End {
@@ -4793,9 +4753,9 @@ func (m *Machine) HTMLRawText(kind uint32) {
 		}
 		m.Ptr++
 	}
-	to = m.Ptr
-	save = m.End
-	continued = m.Streaming && to == save
+	to := m.Ptr
+	save := m.End
+	continued := m.Streaming && to == save
 	if continued {
 		m.StreamSetRegion(kind)
 	}
@@ -4828,15 +4788,14 @@ func (m *Machine) HTMLRawText(kind uint32) {
 
 // HTMLTag is $htmlTag.
 func (m *Machine) HTMLTag(region uint32) {
-	var lhs, q, kind, hTMLAttrs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr++
 	m.EmitTok(TokenPunctuationBracketHTML, lhs, m.Ptr)
-	q = m.HTMLNameEnd(m.Ptr)
-	kind = m.RawTextKind(m.Ptr, q)
+	q := m.HTMLNameEnd(m.Ptr)
+	kind := m.RawTextKind(m.Ptr, q)
 	m.EmitTok(TokenTag, m.Ptr, q)
 	m.Ptr = q
-	hTMLAttrs = m.HTMLAttrs(0, 0, kind, region)
+	hTMLAttrs := m.HTMLAttrs(0, 0, kind, region)
 	m.HTMLTagEnd(hTMLAttrs)
 }
 
@@ -4937,9 +4896,8 @@ func (m *Machine) HTMLTagResumeEnd(status, kind uint32) bool {
 
 // HTMLTagResume is $htmlTagResume.
 func (m *Machine) HTMLTagResume(region uint32) bool {
-	var r uint32
 	m.StreamDepth = 1
-	r = m.HTMLAttrs(m.StreamB, m.StreamC, m.StreamA, region)
+	r := m.HTMLAttrs(m.StreamB, m.StreamC, m.StreamA, region)
 	return m.HTMLTagResumeEnd(r&3, r>>8)
 }
 
@@ -4950,11 +4908,10 @@ func (m *Machine) HTMLStreamResumeTag() bool {
 
 // BraceHTMLRange is $braceHtmlRange.
 func (m *Machine) BraceHTMLRange(from, to, astro uint32) {
-	var save uint32
 	if from >= to {
 		return
 	}
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HTMLLex(12 + astro)
@@ -4964,10 +4921,9 @@ func (m *Machine) BraceHTMLRange(from, to, astro uint32) {
 
 // BraceRawKind is $braceRawKind.
 func (m *Machine) BraceRawKind(p uint32) uint32 {
-	var kind, q uint32
-	var w uint64
-	q = p + 1
-	w = rt.Ld64(m.Mem, q) | 0x202020202020
+	var kind uint32
+	q := p + 1
+	w := rt.Ld64(m.Mem, q) | 0x202020202020
 	if q+6 <= m.End && w&0xffffffffffff == 0x747069726373 {
 		kind = 1
 	} else if q+5 <= m.End && w&0xffffffffff == 0x656c797473 {
@@ -5009,8 +4965,8 @@ func (m *Machine) BraceNextCut(p uint32) uint32 {
 
 // BraceExpression is $braceExpression.
 func (m *Machine) BraceExpression(from, tag, astro uint32) bool {
-	var c, markerEnd, p uint32
-	p = from
+	var c, markerEnd uint32
+	p := from
 	if astro == 0 {
 		m.EmitTok(TokenPunctuationSpecial, from, from+1)
 		p = from + 1
@@ -5086,8 +5042,8 @@ func (m *Machine) BraceBrace(tag, astro uint32) {
 
 // BraceMarkup is $braceMarkup.
 func (m *Machine) BraceMarkup(astro uint32) {
-	var from, p, tag uint32
-	from = m.Ptr
+	var p, tag uint32
+	from := m.Ptr
 	for {
 		p = m.BraceNextCut(from)
 		m.HTMLOpenTag = 0
@@ -5116,16 +5072,14 @@ func (m *Machine) BraceMarkup(astro uint32) {
 
 // BraceStreamResumeTag is $braceStreamResumeTag.
 func (m *Machine) BraceStreamResumeTag(astro uint32) bool {
-	var r bool
-	var save, tag uint32
-	save = m.End
+	save := m.End
 	if m.StreamA == 0 {
 		m.End = m.BraceNextCut(m.Ptr)
 	}
 	m.HTMLOpenTag = 0
-	r = m.HTMLTagResume(12 + astro)
+	r := m.HTMLTagResume(12 + astro)
 	m.End = save
-	tag = m.HTMLOpenTag
+	tag := m.HTMLOpenTag
 	m.HTMLOpenTag = 0
 	if tag != 0 && m.Ptr < m.End && m.Mem[m.Ptr] == '{' {
 		m.BraceBrace(tag, astro)
@@ -5136,19 +5090,18 @@ func (m *Machine) BraceStreamResumeTag(astro uint32) bool {
 
 // AngularKeyword is $angularKeyword.
 func (m *Machine) AngularKeyword(from, to uint32) uint32 {
-	var hl uint32
-	hl = m.LexKeywordValue(from, to, 13984, 15, 37)
+	hl := m.LexKeywordValue(from, to, 13984, 15, 37)
 	return rt.Sel32(int32(hl) >= 0, hl, TokenVariable)
 }
 
 // AngularExpression is $angularExpression.
 func (m *Machine) AngularExpression(state uint32) uint32 {
-	var mode, expr, quote, depth, member, p, c, q, hl uint32
-	mode = state & 63
-	expr = (state >> 7) & 7
-	quote = (state >> 10) & 127
-	depth = (state >> 17) & 4095
-	member = state >> 29
+	var p, c, q, hl uint32
+	mode := state & 63
+	expr := (state >> 7) & 7
+	quote := (state >> 10) & 127
+	depth := (state >> 17) & 4095
+	member := state >> 29
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -5296,8 +5249,8 @@ func (m *Machine) HlAngularHTML() {
 
 // HlTemplateMarkup is $hlTemplateMarkup.
 func (m *Machine) HlTemplateMarkup(state, angular uint32) uint32 {
-	var from, p, c, mode, hl uint32
-	from = m.Ptr
+	var p, c, mode, hl uint32
+	from := m.Ptr
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -5479,12 +5432,10 @@ func (m *Machine) HlTemplateMarkup(state, angular uint32) uint32 {
 
 // EmitCSSTemplateBody is $emitCssTemplateBody.
 func (m *Machine) EmitCSSTemplateBody(from, to uint32) {
-	var savePtr, saveEnd, saveDialect uint32
-	var saveStreaming bool
-	savePtr = m.Ptr
-	saveEnd = m.End
-	saveStreaming = m.Streaming
-	saveDialect = m.CSSDialect
+	savePtr := m.Ptr
+	saveEnd := m.End
+	saveStreaming := m.Streaming
+	saveDialect := m.CSSDialect
 	m.Ptr = from
 	m.End = to
 	m.Streaming = false
@@ -5498,14 +5449,13 @@ func (m *Machine) EmitCSSTemplateBody(from, to uint32) {
 
 // EmitHTMLTemplateBody is $emitHtmlTemplateBody.
 func (m *Machine) EmitHTMLTemplateBody(from, to uint32) {
-	var savePtr, saveEnd, angular, t0, hlTemplateMarkup uint32
-	savePtr = m.Ptr
-	saveEnd = m.End
-	angular = m.JsTemplateState & 0x80000000
+	savePtr := m.Ptr
+	saveEnd := m.End
+	angular := m.JsTemplateState & 0x80000000
 	m.Ptr = from
 	m.End = to
-	t0 = angular
-	hlTemplateMarkup = m.HlTemplateMarkup(m.JsTemplateState&0x7fffffff, rt.B2u(angular != 0))
+	t0 := angular
+	hlTemplateMarkup := m.HlTemplateMarkup(m.JsTemplateState&0x7fffffff, rt.B2u(angular != 0))
 	m.JsTemplateState = t0 | hlTemplateMarkup
 	m.Ptr = savePtr
 	m.End = saveEnd
@@ -5567,7 +5517,6 @@ func (m *Machine) TernaryCount() uint32 {
 
 // TernarySet is $ternarySet.
 func (m *Machine) TernarySet(n uint32) {
-	var at uint32
 	if n > 127 {
 		n = 127
 	}
@@ -5578,7 +5527,7 @@ func (m *Machine) TernarySet(n uint32) {
 	if m.BrkSp > 1024 {
 		return
 	}
-	at = 37631 + m.BrkSp
+	at := 37631 + m.BrkSp
 	m.Mem[at] = byte(uint32(m.Mem[at])&1 | n<<1)
 }
 
@@ -5597,22 +5546,21 @@ func (m *Machine) UTF8Bits(c uint32) uint32 {
 
 // IsKeyword is $isKeyword.
 func (m *Machine) IsKeyword(start, end uint32) uint32 {
-	var length, h, entry, p uint32
-	length = end - start
+	length := end - start
 	if length-2 > 8 {
 		return LexInvalid
 	}
-	h = rt.Ld16(m.Mem, start) | uint32(m.Mem[end-1])<<16 | length<<24
+	h := rt.Ld16(m.Mem, start) | uint32(m.Mem[end-1])<<16 | length<<24
 	h = (h ^ h>>16) * 0xe51fac89
 	h ^= h >> 24
-	entry = rt.Ld16(m.Mem, 27296+(((h>>4)&63+uint32(m.Mem[27296+h&15]))&63)<<1+16)
+	entry := rt.Ld16(m.Mem, 27296+(((h>>4)&63+uint32(m.Mem[27296+h&15]))&63)<<1+16)
 	if entry == 0 {
 		return LexInvalid
 	}
 	if length != entry>>9 {
 		return LexInvalid
 	}
-	p = 27439 + entry&511
+	p := 27439 + entry&511
 	if length <= 8 {
 		if (rt.Ld64(m.Mem, start)^rt.Ld64(m.Mem, p+1))<<(uint64((8-length)<<3)&63) != 0 {
 			return LexInvalid
@@ -5669,8 +5617,7 @@ func (m *Machine) ScanIdentTail() {
 // ScanNumber is $scanNumber.
 func (m *Machine) ScanNumber(seenDot uint32) uint32 {
 	var c, prevC uint32
-	var hex bool
-	hex = m.Mem[m.LHS] == '0' && m.TsxByte(m.LHS+1)|32 == 120
+	hex := m.Mem[m.LHS] == '0' && m.TsxByte(m.LHS+1)|32 == 120
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -5850,8 +5797,7 @@ func (m *Machine) JsxCanStart(t uint32) uint32 {
 
 // AfterModuleSpecifier is $afterModuleSpecifier.
 func (m *Machine) AfterModuleSpecifier() bool {
-	var t uint32
-	t = m.PrevLto
+	t := m.PrevLto
 	return t == LexCtxwordFrom || t == LexKeywordImport || t == LexKeywordExport
 }
 
@@ -5870,7 +5816,7 @@ func (m *Machine) BraceIsBlock() bool {
 
 // ScanToken is $scanToken.
 func (m *Machine) ScanToken() uint32 {
-	var c, c2, bitSet, kw, take, after, isIDStart uint32
+	var c, bitSet, kw, take, after, isIDStart uint32
 	var t7 bool
 	m.NlBefore = 0
 	if m.TsxStreaming {
@@ -5946,7 +5892,7 @@ func (m *Machine) ScanToken() uint32 {
 		m.Ptr++
 		return m.ScanNumber(0)
 	}
-	c2 = m.TsxByte(m.Ptr + 1)
+	c2 := m.TsxByte(m.Ptr + 1)
 	switch c {
 	case '(':
 		m.BrkPush(rt.B2u(m.ParenIsCtrl()))
@@ -6444,8 +6390,8 @@ func (m *Machine) ScanToken() uint32 {
 
 // NextToken is $nextToken.
 func (m *Machine) NextToken() uint32 {
-	var t, c uint32
-	t = m.ScanToken()
+	var c uint32
+	t := m.ScanToken()
 	m.RHS = m.Ptr
 	if m.TsxStreaming && m.Ptr == m.End {
 		if t == LexInvalid {
@@ -6480,12 +6426,12 @@ func (m *Machine) NextToken() uint32 {
 }
 
 // TsxExpressionEnd is $tsxExpressionEnd.
-func (m *Machine) TsxExpressionEnd(from, body uint32) uint32 {
-	var save, to, t, mode, nextToken, t2, jsxValidate, jsxEmitName uint32
+func (m *Machine) TsxExpressionEnd(from, _ uint32) uint32 {
+	var to, t, mode, t2, jsxValidate, jsxEmitName uint32
 	if from >= m.End {
 		return m.End
 	}
-	save = m.Ptr
+	save := m.Ptr
 	m.EcmaFeatures = 3
 	m.Ptr = from
 	m.SourceStart = from
@@ -6501,7 +6447,7 @@ func (m *Machine) TsxExpressionEnd(from, body uint32) uint32 {
 	m.JsxSp = 0
 	m.JsxMute = true
 	m.SigReset()
-	nextToken = m.NextToken()
+	nextToken := m.NextToken()
 	if nextToken != LexLBrace {
 		to = from + 1
 	} else {
@@ -6560,8 +6506,8 @@ func (m *Machine) TsxExpressionEnd(from, body uint32) uint32 {
 
 // EmitEscaped is $emitEscaped.
 func (m *Machine) EmitEscaped(hl, from, to uint32) {
-	var seg, e, c uint32
-	seg = from
+	var e, c uint32
+	seg := from
 	for {
 		from = m.ScanFindSpecial(from, to, 92, 0, 0)
 		if from >= to {
@@ -6610,19 +6556,18 @@ func (m *Machine) BlanksEnd(p, rhs uint32) uint32 {
 
 // JsTemplateOpenState is $jsTemplateOpenState.
 func (m *Machine) JsTemplateOpenState(lhs, rhs uint32) uint32 {
-	var mode, p, c uint32
-	mode = m.JsTemplateMarker
+	mode := m.JsTemplateMarker
 	if mode&0x40000000 != 0 {
 		return 0
 	}
 	if int32(mode) >= 0 {
 		return mode
 	}
-	p = m.BlanksEnd(lhs+1, rhs)
+	p := m.BlanksEnd(lhs+1, rhs)
 	if p >= rhs {
 		return mode
 	}
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if c == '<' || c == '@' || c == '{' || c == '\n' || c == '\r' {
 		return mode
 	}
@@ -6631,9 +6576,8 @@ func (m *Machine) JsTemplateOpenState(lhs, rhs uint32) uint32 {
 
 // EmitTemplate is $emitTemplate.
 func (m *Machine) EmitTemplate(lhs, rhs, dollarBrace, leadBrace, closed uint32) {
-	var p, e, c uint32
-	p = lhs
-	c = uint32(m.Mem[lhs])
+	p := lhs
+	c := uint32(m.Mem[lhs])
 	if leadBrace != 0 {
 		if c == '`' {
 			m.JsTemplateState = m.JsTemplateOpenState(lhs, rhs)
@@ -6646,7 +6590,7 @@ func (m *Machine) EmitTemplate(lhs, rhs, dollarBrace, leadBrace, closed uint32) 
 		p = lhs + 1
 		m.EmitTok(TokenPunctuationSpecial, lhs, p)
 	}
-	e = rhs
+	e := rhs
 	if dollarBrace != 0 {
 		e = rhs - 2
 		if e < p {
@@ -6683,13 +6627,11 @@ func (m *Machine) EmitTemplate(lhs, rhs, dollarBrace, leadBrace, closed uint32) 
 
 // IsParamTag is $isParamTag.
 func (m *Machine) IsParamTag(lhs, rhs uint32) bool {
-	var length uint32
-	var w uint64
-	length = rhs - lhs
+	length := rhs - lhs
 	if length > 8 {
 		return false
 	}
-	w = rt.Ld64(m.Mem, lhs)
+	w := rt.Ld64(m.Mem, lhs)
 	if length < 8 {
 		w &= uint64(1)<<(uint64(length<<3)&63) - 1
 	}
@@ -6703,10 +6645,10 @@ func (m *Machine) DocNameChar(c uint32) bool {
 
 // EmitDocCommentRange is $emitDocCommentRange.
 func (m *Machine) EmitDocCommentRange(lhs, rhs, skip uint32) {
-	var seg, p, e, q, b, c, depth uint32
+	var e, q, b, c, depth uint32
 	var isParam bool
-	seg = lhs
-	p = lhs + skip
+	seg := lhs
+	p := lhs + skip
 scan:
 	for {
 		p = m.ScanFindSpecial(p, rhs, 64, 0, 0)
@@ -6883,8 +6825,7 @@ func (m *Machine) JsxPush(mode, target uint32) {
 
 // JsxTopSlot is $jsxTopSlot.
 func (m *Machine) JsxTopSlot() uint32 {
-	var i uint32
-	i = m.JsxSp - 1
+	i := m.JsxSp - 1
 	if i > 511 {
 		i = 511
 	}
@@ -6983,11 +6924,10 @@ func (m *Machine) JsxSpaceEndAt(p uint32) uint32 {
 
 // JsxValidate is $jsxValidate.
 func (m *Machine) JsxValidate(p uint32) bool {
-	var c, name uint32
 	if p >= m.End {
 		return false
 	}
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if c == '>' {
 		return true
 	}
@@ -6997,7 +6937,7 @@ func (m *Machine) JsxValidate(p uint32) bool {
 	if !m.JsxNameStart(c) {
 		return false
 	}
-	name = p
+	name := p
 	p = m.JsxNameEndAt(p + 1)
 	if m.EcmaHasTypeScript() {
 		if p-name == 5 && rt.Ld32(m.Mem, name) == 0x736e6f63 && m.Mem[name+4] == 't' {
@@ -7034,9 +6974,9 @@ func (m *Machine) JsxValidate(p uint32) bool {
 
 // JsxEmitName is $jsxEmitName.
 func (m *Machine) JsxEmitName() uint32 {
-	var from, c, kind uint32
+	var c, kind uint32
 	var dotted bool
-	from = m.Ptr
+	from := m.Ptr
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -7073,16 +7013,16 @@ func (m *Machine) JsxOpenContainer() {
 
 // JsxTagStep is $jsxTagStep.
 func (m *Machine) JsxTagStep() {
-	var from, c, q, slot uint32
-	from = m.Ptr
+	var q uint32
+	from := m.Ptr
 	m.Ptr = m.JsxSpaceEndAt(m.Ptr)
 	m.JsxGap(from, m.Ptr)
 	if m.Ptr >= m.End {
 		return
 	}
 	from = m.Ptr
-	c = uint32(m.Mem[m.Ptr])
-	slot = m.JsxTopSlot()
+	c := uint32(m.Mem[m.Ptr])
+	slot := m.JsxTopSlot()
 	if c == '>' {
 		m.Ptr++
 		q = rt.Ld32(m.Mem, slot+4)
@@ -7251,11 +7191,10 @@ func (m *Machine) JsxRunBytes(mode uint32) {
 
 // JsxContentStep is $jsxContentStep.
 func (m *Machine) JsxContentStep() {
-	var seg, bound, act, c, c2, p, jsxEmitName uint32
-	var tsrx bool
-	tsrx = m.EcmaHasTsrx()
-	seg = m.Ptr
-	bound = m.Ptr
+	var act, c, c2, p, jsxEmitName uint32
+	tsrx := m.EcmaHasTsrx()
+	seg := m.Ptr
+	bound := m.Ptr
 	if tsrx {
 		p = m.TsrxFinallyAhead(m.Ptr)
 	}
@@ -7401,8 +7340,7 @@ func (m *Machine) IsIdentish(t uint32) bool {
 
 // IsBuiltinConst is $isBuiltinConst.
 func (m *Machine) IsBuiltinConst(lhs, rhs uint32) bool {
-	var length uint32
-	length = rhs - lhs
+	length := rhs - lhs
 	if length == 9 {
 		return rt.Ld64(m.Mem, lhs) == 0x656e696665646e75 && m.Mem[lhs+8] == 'd'
 	}
@@ -7417,10 +7355,8 @@ func (m *Machine) IsBuiltinConst(lhs, rhs uint32) bool {
 
 // IsPredefinedType is $isPredefinedType.
 func (m *Machine) IsPredefinedType(lhs, rhs uint32) bool {
-	var length uint32
-	var w uint64
-	length = rhs - lhs
-	w = rt.Ld64(m.Mem, lhs)
+	length := rhs - lhs
+	w := rt.Ld64(m.Mem, lhs)
 	if length == 3 {
 		return w&0xffffff == 0x796e61
 	}
@@ -7472,8 +7408,7 @@ func (m *Machine) TsByteBefore(p uint32) uint32 {
 
 // TsReturnColonBefore is $tsReturnColonBefore.
 func (m *Machine) TsReturnColonBefore(lhs uint32) bool {
-	var p uint32
-	p = m.TsBlanksBefore(lhs)
+	p := m.TsBlanksBefore(lhs)
 	if m.TsByteBefore(p) != 58 {
 		return false
 	}
@@ -7496,8 +7431,8 @@ func (m *Machine) TsArrowReturnType(prev, lhs uint32) bool {
 
 // TsNewMemberBefore is $tsNewMemberBefore.
 func (m *Machine) TsNewMemberBefore(lhs uint32) bool {
-	var p, c uint32
-	p = lhs
+	var c uint32
+	p := lhs
 	for {
 		if m.TsByteBefore(p) != 46 {
 			break
@@ -7554,8 +7489,8 @@ func (m *Machine) TsTypeSlot(prev, next, lhs uint32) bool {
 
 // SigArrowAhead is $sigArrowAhead.
 func (m *Machine) SigArrowAhead() bool {
-	var p, c uint32
-	p = m.RHS
+	var c uint32
+	p := m.RHS
 	for {
 		c = m.TsxByte(p)
 		if c == 0 {
@@ -7709,18 +7644,15 @@ func (m *Machine) CtxwordHl(prev, t, next uint32) uint32 {
 
 // CtxIdentHl is $ctxIdentHl.
 func (m *Machine) CtxIdentHl(prev, next, lhs, rhs uint32) uint32 {
-	var length uint32
-	var w uint64
-	var name bool
-	length = rhs - lhs
-	w = rt.Ld64(m.Mem, lhs)
+	length := rhs - lhs
+	w := rt.Ld64(m.Mem, lhs)
 	if next == LexLBrace {
 		if prev == LexCtxwordDeclare && length == 6 && w&0xffffffffffff == 0x6c61626f6c67 {
 			return TokenKeyword
 		}
 		return 0xffffffff
 	}
-	name = next == LexIdentifier || (next >= LexCtxwordAs && next != LexCtxwordOf)
+	name := next == LexIdentifier || (next >= LexCtxwordAs && next != LexCtxwordOf)
 	if length == 5 {
 		if name && w&0xffffffffff == 0x676e697375 {
 			return TokenKeywordDeclaration
@@ -7898,9 +7830,8 @@ func (m *Machine) IsConstCase(lhs, rhs uint32) bool {
 
 // Classify is $classify.
 func (m *Machine) Classify(prev, t, next, lhs, rhs uint32) uint32 {
-	var hl uint32
 	m.SigStep(prev, t, next, lhs, rhs)
-	hl = uint32(m.Mem[t+38800])
+	hl := uint32(m.Mem[t+38800])
 	if hl < 254 {
 		return hl
 	}
@@ -7946,12 +7877,11 @@ func (m *Machine) TsrxIdentByte(c uint32) bool {
 
 // TsrxDirectiveKind is $tsrxDirectiveKind.
 func (m *Machine) TsrxDirectiveKind(lhs, rhs uint32) uint32 {
-	var k, length uint32
-	k = m.IsKeyword(lhs, rhs)
+	k := m.IsKeyword(lhs, rhs)
 	if uint32(m.Mem[k+38656])&128 != 0 {
 		return k
 	}
-	length = rhs - lhs
+	length := rhs - lhs
 	if (length == 5 && m.TsrxWord(lhs, 5) == 0x7974706d65) || (length == 7 && m.TsrxWord(lhs, 7) == 0x676e69646e6570) {
 		return LexKeywordElse
 	}
@@ -7960,8 +7890,7 @@ func (m *Machine) TsrxDirectiveKind(lhs, rhs uint32) uint32 {
 
 // TsrxDirectiveAt is $tsrxDirectiveAt.
 func (m *Machine) TsrxDirectiveAt(p uint32) bool {
-	var e uint32
-	e = p
+	e := p
 	for {
 		if e >= m.End {
 			break
@@ -7976,8 +7905,7 @@ func (m *Machine) TsrxDirectiveAt(p uint32) bool {
 
 // TsrxWordKind is $tsrxWordKind.
 func (m *Machine) TsrxWordKind(lhs, rhs uint32) uint32 {
-	var length, c uint32
-	length = rhs - lhs
+	length := rhs - lhs
 	if length == 8 {
 		if rt.Ld64(m.Mem, lhs) != 0x746e656d67617266 {
 			return LexIdentifier
@@ -7990,7 +7918,7 @@ func (m *Machine) TsrxWordKind(lhs, rhs uint32) uint32 {
 			return LexIdentifier
 		}
 	}
-	c = m.TsxByte(m.JsxSpaceEndAt(rhs))
+	c := m.TsxByte(m.JsxSpaceEndAt(rhs))
 	if length == 8 {
 		if m.JsxNameStart(c) || c == '(' || c == '<' {
 			return LexKeywordFunction
@@ -8005,8 +7933,7 @@ func (m *Machine) TsrxWordKind(lhs, rhs uint32) uint32 {
 
 // TsrxForClauseWord is $tsrxForClauseWord.
 func (m *Machine) TsrxForClauseWord(lhs, rhs uint32) bool {
-	var length uint32
-	length = rhs - lhs
+	length := rhs - lhs
 	if length == 5 {
 		return m.TsrxWord(lhs, 5) == 0x7865646e69
 	}
@@ -8018,8 +7945,7 @@ func (m *Machine) TsrxForClauseWord(lhs, rhs uint32) bool {
 
 // TsrxRawKind is $tsrxRawKind.
 func (m *Machine) TsrxRawKind(lhs, rhs uint32) uint32 {
-	var length uint32
-	length = rhs - lhs
+	length := rhs - lhs
 	if length == 6 {
 		if m.TsrxWord(lhs, 6) == 0x747069726373 {
 			return 1
@@ -8035,7 +7961,7 @@ func (m *Machine) TsrxRawKind(lhs, rhs uint32) uint32 {
 
 // TsrxRawClose is $tsrxRawClose.
 func (m *Machine) TsrxRawClose(p, kind uint32) bool {
-	var n, c uint32
+	var n uint32
 	if kind == 1 {
 		n = 8
 	} else {
@@ -8053,7 +7979,7 @@ func (m *Machine) TsrxRawClose(p, kind uint32) bool {
 	if p+n >= m.End {
 		return true
 	}
-	c = uint32(m.Mem[p+n])
+	c := uint32(m.Mem[p+n])
 	return c == '>' || c == '/' || c == ' ' || c-9 <= 4
 }
 
@@ -8100,7 +8026,6 @@ func (m *Machine) TsrxAtBoundary(bound, p uint32) bool {
 
 // TsrxFinallyAhead is $tsrxFinallyAhead.
 func (m *Machine) TsrxFinallyAhead(p uint32) uint32 {
-	var q uint32
 	p = m.JsxSpaceEndAt(p)
 	if p+7 > m.End {
 		return 0
@@ -8108,7 +8033,7 @@ func (m *Machine) TsrxFinallyAhead(p uint32) uint32 {
 	if m.TsrxWord(p, 7) != 0x796c6c616e6966 {
 		return 0
 	}
-	q = p + 7
+	q := p + 7
 	if m.TsrxIdentByte(m.TsxByte(q)) {
 		return 0
 	}
@@ -8117,10 +8042,10 @@ func (m *Machine) TsrxFinallyAhead(p uint32) uint32 {
 
 // TsrxStyleStep is $tsrxStyleStep.
 func (m *Machine) TsrxStyleStep() {
-	var from, p, savePtr, saveEnd, saveDialect, slot, t0, hlCSSImpl uint32
 	var found, saveStreaming bool
-	from = m.Ptr
-	p = from
+	var savePtr, saveEnd, saveDialect, slot, t0, hlCSSImpl uint32
+	from := m.Ptr
+	p := from
 	for {
 		p = m.LexFindByte(p, 60)
 		if p >= m.End {
@@ -8243,13 +8168,13 @@ func (m *Machine) TsxFinishStreamToken(t uint32) {
 
 // TsxResume is $tsxResume.
 func (m *Machine) TsxResume() bool {
-	var mode, from, t, quote uint32
+	var t, quote uint32
 	var c bool
-	mode = m.TsxStreamMode
+	mode := m.TsxStreamMode
 	if mode == 0 {
 		return false
 	}
-	from = m.Ptr
+	from := m.Ptr
 	if mode&1 == 0 {
 		quote = 34
 	} else {
@@ -8324,8 +8249,7 @@ func (m *Machine) EcmaReset() {
 // HlEcmaImpl is $hlEcmaImpl.
 func (m *Machine) HlEcmaImpl(reset uint32) {
 	var curT, curLHS, curRHS, nxtT, nxtLHS, nxtRHS, haveNext, done, mode, cut, metadataMarker, markerBefore, markerLHS, markerRHS, markerWord, markerLen, jsx, exprClose, t2, jsxCanStart, jsxEmitName, t6 uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -8576,14 +8500,13 @@ func (m *Machine) HlTsxExpressionStream(reset, closeLen uint32) uint32 {
 
 // HlTsxExpression is $hlTsxExpression.
 func (m *Machine) HlTsxExpression(closeLen, open, region, tag uint32) uint32 {
-	var closed uint32
 	m.EcmaFeatures = 3
 	m.TsxStreaming = m.Streaming
 	m.TsxStreamExpressionClose = closeLen
 	m.TsxStreamExpressionClosed = 0
 	m.TsxStreamExpressionDepth = 0 - open
 	m.HlEcmaImpl(1)
-	closed = m.TsxStreamExpressionClosed
+	closed := m.TsxStreamExpressionClosed
 	m.TsxStreamExpressionClose = 0
 	m.TsxStreamExpressionClosed = 0
 	if closed == 0 && m.Streaming && m.Ptr == m.EOF {
@@ -8596,8 +8519,7 @@ func (m *Machine) HlTsxExpression(closeLen, open, region, tag uint32) uint32 {
 
 // YamlWordHl is $yamlWordHl.
 func (m *Machine) YamlWordHl(lhs, rhs uint32) uint32 {
-	var n, w uint32
-	n = rhs - lhs
+	n := rhs - lhs
 	if n-1 > 4 {
 		return TokenString
 	}
@@ -8607,7 +8529,7 @@ func (m *Machine) YamlWordHl(lhs, rhs uint32) uint32 {
 	if n == 5 {
 		return rt.Sel32((rt.Ld64(m.Mem, lhs)|0x2020202020)&0xffffffffff == 0x65736c6166, TokenBoolean, TokenString)
 	}
-	w = rt.Ld32(m.Mem, lhs) | 0x20202020
+	w := rt.Ld32(m.Mem, lhs) | 0x20202020
 	if n == 4 {
 		if w == 0x65757274 {
 			return TokenBoolean
@@ -8682,9 +8604,9 @@ func (m *Machine) YamlBlockBodyEnd(p, indent uint32) uint32 {
 
 // YamlBlockScalar is $yamlBlockScalar.
 func (m *Machine) YamlBlockScalar() bool {
-	var bodyEnd, c, comment, indent, lhs, lineEnd, p uint32
-	lhs = m.Ptr
-	p = m.Ptr + 1
+	var c uint32
+	lhs := m.Ptr
+	p := m.Ptr + 1
 	for {
 		if p >= m.End {
 			break
@@ -8695,8 +8617,8 @@ func (m *Machine) YamlBlockScalar() bool {
 		}
 		p++
 	}
-	lineEnd = m.YamlSkipHorizontal(p)
-	comment = lineEnd
+	lineEnd := m.YamlSkipHorizontal(p)
+	comment := lineEnd
 	if lineEnd > p && lineEnd < m.End {
 		if m.Mem[lineEnd] == '#' {
 			lineEnd = m.LexFindEither(lineEnd, 10, 13)
@@ -8705,13 +8627,13 @@ func (m *Machine) YamlBlockScalar() bool {
 	if lineEnd < m.End && m.Mem[lineEnd] != '\n' && m.Mem[lineEnd] != '\r' {
 		return false
 	}
-	indent = m.YamlLineIndent(lhs)
+	indent := m.YamlLineIndent(lhs)
 	m.EmitTok(TokenPunctuationDelimiter, lhs, p)
 	m.EmitGap(p, comment)
 	m.EmitTok(TokenComment, comment, lineEnd)
 	m.Ptr = m.YamlAfterLine(lineEnd)
 	m.EmitGap(lineEnd, m.Ptr)
-	bodyEnd = m.YamlBlockBodyEnd(m.Ptr, indent)
+	bodyEnd := m.YamlBlockBodyEnd(m.Ptr, indent)
 	m.EmitTok(TokenString, m.Ptr, bodyEnd)
 	m.Ptr = bodyEnd
 	if m.Streaming && m.Ptr == m.End {
@@ -8723,8 +8645,7 @@ func (m *Machine) YamlBlockScalar() bool {
 
 // YamlStreamResume is $yamlStreamResume.
 func (m *Machine) YamlStreamResume() bool {
-	var bodyEnd uint32
-	bodyEnd = m.YamlBlockBodyEnd(m.Ptr, m.StreamA)
+	bodyEnd := m.YamlBlockBodyEnd(m.Ptr, m.StreamA)
 	m.EmitTok(TokenString, m.Ptr, bodyEnd)
 	m.Ptr = bodyEnd
 	if m.Ptr == m.End {
@@ -8736,7 +8657,6 @@ func (m *Machine) YamlStreamResume() bool {
 
 // YamlColonEnds is $yamlColonEnds.
 func (m *Machine) YamlColonEnds(p, flow uint32) bool {
-	var c uint32
 	if p >= m.End {
 		return false
 	}
@@ -8747,7 +8667,7 @@ func (m *Machine) YamlColonEnds(p, flow uint32) bool {
 	if p >= m.End {
 		return true
 	}
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if m.LexIsSpace(c) {
 		return true
 	}
@@ -8756,9 +8676,9 @@ func (m *Machine) YamlColonEnds(p, flow uint32) bool {
 
 // YamlScanPlain is $yamlScanPlain.
 func (m *Machine) YamlScanPlain(flow uint32) {
-	var c, mask, rem, start, t0 uint32
+	var c, mask, rem, t0 uint32
 	var v, w rt.V128
-	start = m.Ptr
+	start := m.Ptr
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -8807,19 +8727,18 @@ func (m *Machine) YamlScanPlain(flow uint32) {
 
 // YamlAtLineStart is $yamlAtLineStart.
 func (m *Machine) YamlAtLineStart(p uint32) bool {
-	var c uint32
 	if p <= m.SrcBase {
 		return true
 	}
-	c = uint32(m.Mem[p-1])
+	c := uint32(m.Mem[p-1])
 	return c == '\n' || c == '\r'
 }
 
 // HlYaml is $hlYaml.
 func (m *Machine) HlYaml() {
 	var streamRoot, after, c, flow, hl, lhs, p, quote uint32
-	var commentOk, liveRoot bool
-	liveRoot = m.LiveEntering
+	var commentOk bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -9051,12 +8970,11 @@ func (m *Machine) FrontMatterCloser(closer uint32) {
 
 // AstroTsxRange is $astroTsxRange.
 func (m *Machine) AstroTsxRange(from, to uint32) {
-	var save uint32
 	if from >= to {
 		m.Ptr = to
 		return
 	}
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HlTsx()
@@ -9067,7 +8985,7 @@ func (m *Machine) AstroTsxRange(from, to uint32) {
 // HlAstro is $hlAstro.
 func (m *Machine) HlAstro() {
 	var streamRoot bool
-	var body, closer, lineEnd uint32
+	var closer, lineEnd uint32
 	m.LiveEntering = false
 	m.LexEmitLeadingContinuation()
 	if m.Streaming && m.StreamDepth == 0 {
@@ -9075,7 +8993,7 @@ func (m *Machine) HlAstro() {
 		streamRoot = true
 		m.StreamDepth = rt.B2u(streamRoot)
 	}
-	body = m.FrontMatterOpen()
+	body := m.FrontMatterOpen()
 	if body != 0 {
 		m.EmitTok(TokenPunctuationSpecial, m.Ptr, body)
 		closer = m.FrontMatterClose(body)
@@ -9115,14 +9033,13 @@ func (m *Machine) MarkdownFenceReg() uint32 {
 
 // MarkdownFenceSet is $markdownFenceSet.
 func (m *Machine) MarkdownFenceSet(fence, length, lang uint32) {
-	var slot uint32
 	if m.MarkdownDepth == 0 {
 		m.MarkdownStreamFence = fence
 		m.MarkdownStreamFenceLen = length
 		m.MarkdownStreamLang = lang
 		return
 	}
-	slot = m.MarkdownFenceSlot(m.MarkdownDepth)
+	slot := m.MarkdownFenceSlot(m.MarkdownDepth)
 	rt.St32(m.Mem, slot, fence)
 	rt.St32(m.Mem, slot+4, length)
 	rt.St32(m.Mem, slot+8, lang)
@@ -9130,8 +9047,7 @@ func (m *Machine) MarkdownFenceSet(fence, length, lang uint32) {
 
 // MarkdownFenceClearDeeper is $markdownFenceClearDeeper.
 func (m *Machine) MarkdownFenceClearDeeper() {
-	var from uint32
-	from = m.MarkdownFenceSlot(m.MarkdownDepth + 1)
+	from := m.MarkdownFenceSlot(m.MarkdownDepth + 1)
 	if from < 45200 {
 		rt.Fill(m.Mem, from, 0, 45200-from)
 	}
@@ -9139,7 +9055,7 @@ func (m *Machine) MarkdownFenceClearDeeper() {
 
 // MarkdownCodeRange is $markdownCodeRange.
 func (m *Machine) MarkdownCodeRange(lang, from, to, resume uint32) {
-	var save, saveDoc, saveDepth, saveReset uint32
+	var saveDepth, saveReset uint32
 	m.MarkdownBodyRan = 0
 	if from >= to {
 		m.Ptr = to
@@ -9152,10 +9068,10 @@ func (m *Machine) MarkdownCodeRange(lang, from, to, resume uint32) {
 	}
 	m.MarkdownBodyRan = 1
 	m.MarkdownDepth++
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
-	saveDoc = m.DocStart
+	saveDoc := m.DocStart
 	if rt.B2u(m.Streaming)&resume == 0 {
 		m.DocStart = from
 	} else {
@@ -9283,10 +9199,9 @@ func (m *Machine) MarkdownFenceBody(lang, from, to, quotes, resume uint32) {
 
 // MarkdownFenceCloser is $markdownFenceCloser.
 func (m *Machine) MarkdownFenceCloser(quotes uint32) {
-	var after, lineEnd, markdownQuotePrefix uint32
-	lineEnd = m.MarkdownLineEnd(m.Ptr)
-	after = m.MarkdownAfterLine(lineEnd)
-	markdownQuotePrefix = m.MarkdownQuotePrefix(m.Ptr, lineEnd, quotes)
+	lineEnd := m.MarkdownLineEnd(m.Ptr)
+	after := m.MarkdownAfterLine(lineEnd)
+	markdownQuotePrefix := m.MarkdownQuotePrefix(m.Ptr, lineEnd, quotes)
 	m.EmitTok(TokenPunctuationDelimiter, markdownQuotePrefix, after)
 	m.Ptr = after
 }
@@ -9298,10 +9213,9 @@ func (m *Machine) MarkdownQuotedLines(quotes, lang uint32) bool {
 
 // MarkdownQuotedBody is $markdownQuotedBody.
 func (m *Machine) MarkdownQuotedBody(lang, from, to, quotes, resume uint32) {
-	var after, lineEnd, p, saveEOF uint32
-	var saveStreaming bool
-	saveEOF = m.EOF
-	saveStreaming = m.Streaming
+	var after, lineEnd, p uint32
+	saveEOF := m.EOF
+	saveStreaming := m.Streaming
 	m.Streaming = true
 	for {
 		if from >= to {
@@ -9361,9 +9275,9 @@ func (m *Machine) MarkdownIsPunct(c uint32) bool {
 
 // MarkdownCodeSpanEnd is $markdownCodeSpanEnd.
 func (m *Machine) MarkdownCodeSpanEnd(lhs, lineEnd uint32) uint32 {
-	var count, p, q uint32
-	p = m.MarkdownTickRunEnd(lhs, lineEnd)
-	count = p - lhs
+	var q uint32
+	p := m.MarkdownTickRunEnd(lhs, lineEnd)
+	count := p - lhs
 	for {
 		p = m.ScanFindSpecial(p, lineEnd, 96, 0, 0)
 		if p >= lineEnd {
@@ -9405,12 +9319,11 @@ func (m *Machine) MarkdownAfterLine(p uint32) uint32 {
 
 // MarkdownListMarkerEnd is $markdownListMarkerEnd.
 func (m *Machine) MarkdownListMarkerEnd(p uint32) uint32 {
-	var c, q uint32
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if c == '-' || c == '+' || c == '*' {
 		return p + 1
 	}
-	q = p
+	q := p
 	for {
 		if q >= m.End {
 			break
@@ -9538,8 +9451,7 @@ func (m *Machine) MarkdownClearEmbeddedStream() {
 
 // MarkdownStreamResume is $markdownStreamResume.
 func (m *Machine) MarkdownStreamResume() bool {
-	var closer, fence, lang, length, quotes, reg uint32
-	var ended bool
+	var fence, length, reg uint32
 	if m.MarkdownDepth != 0 {
 		reg = m.MarkdownFenceSlot(m.MarkdownDepth)
 		fence = rt.Ld32(m.Mem, reg)
@@ -9556,10 +9468,10 @@ func (m *Machine) MarkdownStreamResume() bool {
 	if fence == 1 {
 		return m.MdxEsmResume(reg)
 	}
-	lang = reg & 255
-	quotes = length >> 16
-	closer = m.MarkdownFenceClose(m.Ptr, fence, length&65535, quotes, reg>>16)
-	ended = m.MarkdownFenceEnded
+	lang := reg & 255
+	quotes := length >> 16
+	closer := m.MarkdownFenceClose(m.Ptr, fence, length&65535, quotes, reg>>16)
+	ended := m.MarkdownFenceEnded
 	m.MarkdownFenceBody(lang, m.Ptr, closer, quotes, rt.B2u(reg&256 != 0))
 	if closer == m.End {
 		if rt.B2u(lang != 0)&m.MarkdownBodyRan != 0 {
@@ -9612,12 +9524,12 @@ func (m *Machine) MarkdownPlainEnd(p uint32) uint32 {
 
 // MarkdownHTMLEnd is $markdownHtmlEnd.
 func (m *Machine) MarkdownHTMLEnd(lhs, lineEnd uint32) uint32 {
-	var p, q, c, kind uint32
-	p = lhs + 1
+	var q, kind uint32
+	p := lhs + 1
 	if p >= m.End {
 		return p
 	}
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if !(c == '/' || c == '!' || c == '?' || m.LexIsIdentStart(c) || c == ':') {
 		return p
 	}
@@ -9681,8 +9593,8 @@ func (m *Machine) MarkdownHTMLEnd(lhs, lineEnd uint32) uint32 {
 
 // MarkdownAutolinkEnd is $markdownAutolinkEnd.
 func (m *Machine) MarkdownAutolinkEnd(lhs, lineEnd uint32) uint32 {
-	var c, p uint32
-	p = lhs + 1
+	var c uint32
+	p := lhs + 1
 	for {
 		if p >= lineEnd {
 			break
@@ -9734,7 +9646,6 @@ func (m *Machine) MarkdownAutolinkEnd(lhs, lineEnd uint32) uint32 {
 
 // MarkdownImageLink is $markdownImageLink.
 func (m *Machine) MarkdownImageLink(lhs, lineEnd, alt uint32) uint32 {
-	var src, href uint32
 	if lhs+3 >= lineEnd || rt.Ld16(m.Mem, lhs+1) != 23329 {
 		return 0
 	}
@@ -9744,11 +9655,11 @@ func (m *Machine) MarkdownImageLink(lhs, lineEnd, alt uint32) uint32 {
 	if alt+1 >= lineEnd || m.Mem[alt+1] != '(' {
 		return 0
 	}
-	src = m.ScanFindSpecial(alt+2, lineEnd, 41, 0, 0)
+	src := m.ScanFindSpecial(alt+2, lineEnd, 41, 0, 0)
 	if src+2 >= lineEnd || rt.Ld16(m.Mem, src+1) != 10333 {
 		return 0
 	}
-	href = m.ScanFindSpecial(src+3, lineEnd, 41, 0, 0)
+	href := m.ScanFindSpecial(src+3, lineEnd, 41, 0, 0)
 	if href >= lineEnd {
 		return 0
 	}
@@ -9797,8 +9708,8 @@ func (m *Machine) MarkdownFindEither(p, stop, c uint32) uint32 {
 
 // MarkdownEmphasisEnd is $markdownEmphasisEnd.
 func (m *Machine) MarkdownEmphasisEnd(lhs, c, count, lineEnd uint32) uint32 {
-	var p, q, markdownTickRunEnd uint32
-	p = lhs + count
+	var q, markdownTickRunEnd uint32
+	p := lhs + count
 	if c == '_' {
 		if rt.B2u(lhs > m.SrcBase)&m.MarkdownIsAlnum(uint32(m.Mem[lhs-1])) != 0 || p >= lineEnd || m.LexIsSpace(uint32(m.Mem[p])) {
 			return 0
@@ -9843,8 +9754,7 @@ func (m *Machine) MarkdownEmphasisEnd(lhs, c, count, lineEnd uint32) uint32 {
 
 // MarkdownHTMLRange is $markdownHtmlRange.
 func (m *Machine) MarkdownHTMLRange(from, to uint32) {
-	var save uint32
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HlHTML()
@@ -9854,8 +9764,7 @@ func (m *Machine) MarkdownHTMLRange(from, to uint32) {
 
 // MarkdownYamlRange is $markdownYamlRange.
 func (m *Machine) MarkdownYamlRange(from, to uint32) {
-	var save uint32
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HlYaml()
@@ -9866,8 +9775,8 @@ func (m *Machine) MarkdownYamlRange(from, to uint32) {
 // HlMarkdown is $hlMarkdown.
 func (m *Machine) HlMarkdown() {
 	var streamRoot, body, c, closer, count, fence, fenceLen, listStart, indent, htmlEnd, info, lang, lhs, lineCache, lineEnd, lineStart, htmlNoClose, linkNoClose, linkClose, p, q, quotes uint32
-	var ended, liveRoot bool
-	liveRoot = m.LiveEntering
+	var ended bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -10239,12 +10148,10 @@ func (m *Machine) StreamClearEmbedded() {
 
 // StreamEmbedRange is $streamEmbedRange.
 func (m *Machine) StreamEmbedRange(kind, from, to uint32) {
-	var reset bool
-	var saveDepth, saveEnd, saveReset uint32
-	reset = m.StreamRegionStarted == 0
-	saveDepth = m.StreamDepth
-	saveEnd = m.End
-	saveReset = m.StreamReset
+	reset := m.StreamRegionStarted == 0
+	saveDepth := m.StreamDepth
+	saveEnd := m.End
+	saveReset := m.StreamReset
 	m.StreamDepth = 0
 	m.StreamReset = rt.B2u(reset)
 	m.End = to
@@ -10281,8 +10188,7 @@ func (m *Machine) StreamEmbedRange(kind, from, to uint32) {
 
 // StreamResumeAnyRegion is $streamResumeAnyRegion.
 func (m *Machine) StreamResumeAnyRegion() bool {
-	var kind uint32
-	kind = m.StreamRegionKind
+	kind := m.StreamRegionKind
 	if kind == 9 {
 		return m.HTMLStreamResumeTag()
 	}
@@ -10300,11 +10206,11 @@ func (m *Machine) StreamResumeAnyRegion() bool {
 
 // StreamResumeRegion is $streamResumeRegion.
 func (m *Machine) StreamResumeRegion() bool {
-	var after, closer, closeLen, kind, lineEnd, p, tag uint32
+	var after, closeLen, lineEnd, tag uint32
 	var found bool
-	kind = m.StreamRegionKind
-	closer = m.End
-	p = m.Ptr
+	kind := m.StreamRegionKind
+	closer := m.End
+	p := m.Ptr
 	if kind-6 <= 2 {
 		tag = m.StreamA
 		if kind == 6 {
@@ -10388,8 +10294,7 @@ func (m *Machine) StreamResumeRegion() bool {
 
 // AbapQuoted is $abapQuoted.
 func (m *Machine) AbapQuoted(q uint32) {
-	var seg uint32
-	seg = m.Ptr
+	seg := m.Ptr
 	m.Ptr++
 	for {
 		m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, q, 0, 1)
@@ -10448,8 +10353,7 @@ func (m *Machine) AbapTemplate(seg uint32) uint32 {
 func (m *Machine) HlAbap() {
 	var streamRoot, c, c2, hl, lhs, rhs, p, v, sel, want, expect, member, tpl uint32
 	var w uint64
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -10671,8 +10575,7 @@ func (m *Machine) HlAbap() {
 // HlAda is $hlAda.
 func (m *Machine) HlAda() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, n, kind, hl, last, expect, prev uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -10884,8 +10787,7 @@ func (m *Machine) JavaWordHl(lhs, rhs uint32) uint32 {
 
 // ApexWordHl is $apexWordHl.
 func (m *Machine) ApexWordHl(lhs, rhs uint32) uint32 {
-	var n uint32
-	n = m.LexLowerCopy(lhs, rhs, 1360)
+	n := m.LexLowerCopy(lhs, rhs, 1360)
 	if n == 5 && rt.Ld32(m.Mem, 1360) == 0x72656877 && m.Mem[1364] == 'e' {
 		return 2065
 	}
@@ -10925,8 +10827,8 @@ func (m *Machine) JavaIsOp(c uint32) uint32 {
 // HlJavaImpl is $hlJavaImpl.
 func (m *Machine) HlJavaImpl() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, textBlock, soql uint32
-	var c2Ident, pending, liveRoot, t1 bool
-	liveRoot = m.LiveEntering
+	var c2Ident, pending, t1 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -11271,21 +11173,18 @@ func (m *Machine) HlApex() {
 
 // IniIsBoolean is $iniIsBoolean.
 func (m *Machine) IniIsBoolean(lhs, rhs uint32) bool {
-	var n uint32
-	var w uint64
-	n = rhs - lhs
+	n := rhs - lhs
 	if n-2 > 3 {
 		return false
 	}
-	w = (rt.Ld64(m.Mem, lhs) | 0x2020202020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
+	w := (rt.Ld64(m.Mem, lhs) | 0x2020202020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 	return w == 0x65757274 || w == 0x65736c6166 || w == 0x736579 || w == 28526 || w == 28271 || w == 0x66666f
 }
 
 // IniIsNumber is $iniIsNumber.
 func (m *Machine) IniIsNumber(lhs, rhs uint32) bool {
-	var c uint32
 	var dot, digit bool
-	c = uint32(m.Mem[lhs])
+	c := uint32(m.Mem[lhs])
 	lhs += uint32(m.Mem[c+2448]) & 1
 	for {
 		if lhs >= rhs {
@@ -11361,11 +11260,10 @@ func (m *Machine) IniTrim(lhs, p uint32) uint32 {
 
 // IniValue is $iniValue.
 func (m *Machine) IniValue() uint32 {
-	var lhs, rhs, p, c, slashes uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.ScanToLineEnd()
-	rhs = m.IniTrim(lhs, m.Ptr)
-	p = rhs
+	rhs := m.IniTrim(lhs, m.Ptr)
+	p := rhs
 	for {
 		if p <= lhs {
 			break
@@ -11375,9 +11273,9 @@ func (m *Machine) IniValue() uint32 {
 		}
 		p--
 	}
-	slashes = rhs - p
+	slashes := rhs - p
 	m.Ptr = lhs
-	c = uint32(m.Mem[lhs])
+	c := uint32(m.Mem[lhs])
 	if m.IniIsBoolean(lhs, rhs) {
 		m.Ptr = rhs
 		m.EmitTok(TokenBoolean, lhs, rhs)
@@ -11416,8 +11314,7 @@ func (m *Machine) IniValue() uint32 {
 // HlIni is $hlIni.
 func (m *Machine) HlIni() {
 	var streamRoot, c, lhs, gap, p, line, cont uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -11550,8 +11447,8 @@ func (m *Machine) HlIni() {
 
 // ApacheText is $apacheText.
 func (m *Machine) ApacheText(rhs uint32) {
-	var c, p, seg uint32
-	seg = m.Ptr
+	var c, p uint32
+	seg := m.Ptr
 	for {
 		if m.Ptr >= rhs {
 			break
@@ -11588,8 +11485,7 @@ func (m *Machine) ApacheText(rhs uint32) {
 // HlApache is $hlApache.
 func (m *Machine) HlApache() {
 	var streamRoot, c, gap, lhs, p, line uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -11764,11 +11660,10 @@ func (m *Machine) HlApache() {
 
 // ApplescriptWord is $applescriptWord.
 func (m *Machine) ApplescriptWord(n uint32) uint32 {
-	var w uint64
 	if n > 7 {
 		return 0xffffffff
 	}
-	w = rt.Ld64(m.Mem, 1360) & (uint64(1)<<(uint64(n<<3)&63) - 1)
+	w := rt.Ld64(m.Mem, 1360) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 	if w == 0x6572656877 || w == 0x65736f6877 {
 		return TokenKeyword
 	}
@@ -11781,8 +11676,7 @@ func (m *Machine) ApplescriptWord(n uint32) uint32 {
 // HlApplescript is $hlApplescript.
 func (m *Machine) HlApplescript() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, v, n, hl, head, lineStart, expect uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -12062,13 +11956,12 @@ func (m *Machine) RstTrimEnd(p, stop uint32) uint32 {
 
 // RstIsRule is $rstIsRule.
 func (m *Machine) RstIsRule(p, stop uint32) uint32 {
-	var c, q uint32
 	var gaps bool
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if stop-p < 3 || c-33 > 93 || m.RstIsAlnum(c) != 0 {
 		return 0
 	}
-	q = p + 1
+	q := p + 1
 	for {
 		if q >= stop {
 			break
@@ -12146,8 +12039,7 @@ func (m *Machine) RstWordStart(lhs, p uint32) uint32 {
 // HlRst is $hlRst.
 func (m *Machine) HlRst() {
 	var streamRoot, c, c2, lhs, rhs, p, q, prev, block, indent, mid, lineEnd, lineIndent uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -12553,18 +12445,15 @@ next:
 
 // AdocIsAdmonition is $adocIsAdmonition.
 func (m *Machine) AdocIsAdmonition(p, stop uint32) bool {
-	var n uint32
-	var w uint64
-	n = stop - p
-	w = rt.Ld64(m.Mem, p)
+	n := stop - p
+	w := rt.Ld64(m.Mem, p)
 	return (n == 3 && uint32(w)&0xffffff == 0x504954) || (n == 4 && uint32(w) == 0x45544f4e) || (n == 7 && (w&0xffffffffffffff == 0x474e494e524157 || w&0xffffffffffffff == 0x4e4f4954554143)) || (n == 9 && w == 0x4e4154524f504d49)
 }
 
 // HlAsciidoc is $hlAsciidoc.
 func (m *Machine) HlAsciidoc() {
 	var streamRoot, c, c2, lhs, rhs, p, q, n, delim, para, mid, lineEnd uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -12890,9 +12779,9 @@ next:
 
 // AsmIsRegister is $asmIsRegister.
 func (m *Machine) AsmIsRegister(lhs, rhs uint32) bool {
-	var c, n, w uint32
-	n = rhs - lhs
-	c = uint32(m.Mem[lhs]) | 32
+	var w uint32
+	n := rhs - lhs
+	c := uint32(m.Mem[lhs]) | 32
 	if n > 1 && (c == 'r' || c == 'x' || c == 'w') && m.LexIsDigit(uint32(m.Mem[lhs+1])) {
 		return true
 	}
@@ -12941,8 +12830,8 @@ func (m *Machine) AsmIsRegister(lhs, rhs uint32) bool {
 // HlAsm is $hlAsm.
 func (m *Machine) HlAsm() {
 	var streamRoot, c, expectMnemonic, hl, lhs, next, next2, p uint32
-	var prefixedNumber, liveRoot bool
-	liveRoot = m.LiveEntering
+	var prefixedNumber bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -13087,9 +12976,9 @@ func (m *Machine) HlAsm() {
 
 // AwkRegex is $awkRegex.
 func (m *Machine) AwkRegex() {
-	var lhs, c uint32
+	var c uint32
 	var class bool
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr++
 	for {
 		if m.Ptr >= m.End {
@@ -13123,8 +13012,7 @@ func (m *Machine) AwkRegex() {
 // HlAwk is $hlAwk.
 func (m *Machine) HlAwk() {
 	var streamRoot, c, c2, gap, lhs, v, hl, div, fn uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -13320,8 +13208,7 @@ func (m *Machine) BashScanWord() {
 
 // BashSubstScan is $bashSubstScan.
 func (m *Machine) BashSubstScan(depth uint32) uint32 {
-	var seg uint32
-	seg = m.Ptr
+	seg := m.Ptr
 	for {
 		m.Ptr = m.LexFindEither(m.Ptr, 40, 41)
 		if m.Ptr >= m.End {
@@ -13348,8 +13235,7 @@ func (m *Machine) BashSubstScan(depth uint32) uint32 {
 
 // BashBraceScan is $bashBraceScan.
 func (m *Machine) BashBraceScan() bool {
-	var seg uint32
-	seg = m.Ptr
+	seg := m.Ptr
 	m.Ptr = m.ScanFind3(m.Ptr, 125, 10, 13)
 	m.EmitTok(TokenVariable, seg, m.Ptr)
 	if m.Ptr >= m.End {
@@ -13366,14 +13252,14 @@ func (m *Machine) BashBraceScan() bool {
 
 // BashDollar is $bashDollar.
 func (m *Machine) BashDollar(quoted uint32) uint32 {
-	var c, closer, lhs uint32
-	lhs = m.Ptr
+	var closer uint32
+	lhs := m.Ptr
 	m.Ptr++
 	if m.Ptr >= m.End {
 		m.EmitTok(TokenVariable, lhs, m.Ptr)
 		return 0
 	}
-	c = uint32(m.Mem[m.Ptr])
+	c := uint32(m.Mem[m.Ptr])
 	if c == '{' {
 		m.Ptr++
 		m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
@@ -13457,11 +13343,9 @@ func (m *Machine) BashDoubleBody(seg uint32) bool {
 
 // BashDouble is $bashDouble.
 func (m *Machine) BashDouble() {
-	var lhs uint32
-	var bashDoubleBody bool
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr++
-	bashDoubleBody = m.BashDoubleBody(lhs)
+	bashDoubleBody := m.BashDoubleBody(lhs)
 	if !bashDoubleBody && m.Streaming && m.Ptr == m.End {
 		m.StreamMode = 12
 		m.StreamHl = TokenString
@@ -13490,8 +13374,8 @@ func (m *Machine) BashIsWordEnd(c uint32) uint32 {
 
 // BashHeredocBody is $bashHeredocBody.
 func (m *Machine) BashHeredocBody(delim, n, strip uint32) {
-	var body, lhs, line uint32
-	body = m.Ptr
+	var lhs, line uint32
+	body := m.Ptr
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -13534,22 +13418,20 @@ func (m *Machine) BashIsOp(c uint32) uint32 {
 
 // BashIsArrayOpen is $bashIsArrayOpen.
 func (m *Machine) BashIsArrayOpen(p uint32) uint32 {
-	var c uint32
 	if m.BashArith != 0 || p < m.SrcBase+2 {
 		return 0
 	}
 	if m.Mem[p-1] != '=' {
 		return 0
 	}
-	c = uint32(m.Mem[p-2])
+	c := uint32(m.Mem[p-2])
 	return m.LexIsIdentContinue(c) | rt.B2u(c == '+' || c == ']')
 }
 
 // HlBash is $hlBash.
 func (m *Machine) HlBash() {
 	var streamRoot, c, c2, cmd, flow, arrayOpen, decl, gap, group, hdDelim, hdLen, hdStrip, hl, joined, lhs, p, quote, rhs, t0, bashIsPunctWordStart uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -13925,10 +13807,10 @@ func (m *Machine) BatchByte(p uint32) uint32 {
 
 // BatchVariableEnd is $batchVariableEnd.
 func (m *Machine) BatchVariableEnd(lhs uint32, variables uint64) uint32 {
-	var p, mark, c, variableEnd uint32
+	var c, variableEnd uint32
 	var forKw bool
-	mark = uint32(m.Mem[lhs])
-	p = lhs + 1
+	mark := uint32(m.Mem[lhs])
+	p := lhs + 1
 	if mark == 37 {
 		c = m.BatchByte(p)
 		if m.LexIsDigit(c) || c == '*' {
@@ -14001,8 +13883,7 @@ func (m *Machine) BatchVariableEnd(lhs uint32, variables uint64) uint32 {
 func (m *Machine) HlBatch() {
 	var streamRoot, c, lhs, p, n, hl, argument, quote, label uint32
 	var variables uint64
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -14253,8 +14134,7 @@ func (m *Machine) BibValue(seg, open uint32) uint32 {
 func (m *Machine) HlBibtex() {
 	var streamRoot, c, gap, lhs, length, state, kind, closer, open uint32
 	var w uint64
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -14460,8 +14340,7 @@ func (m *Machine) BicepStringBody(q, seg, hl, nested uint32) uint32 {
 // HlBicep is $hlBicep.
 func (m *Machine) HlBicep() {
 	var streamRoot, c, c2, gap, lhs, rhs, pc, g, hl, atHead, interp, expect, head, member, bicepStringBody, bicepStringBody2 uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -14682,14 +14561,13 @@ func (m *Machine) HlBicep() {
 
 // PhpIsOpen is $phpIsOpen.
 func (m *Machine) PhpIsOpen(p uint32) bool {
-	var c uint32
 	if p+3 > m.End {
 		return false
 	}
 	if rt.Ld16(m.Mem, p) != 16188 {
 		return false
 	}
-	c = uint32(m.Mem[p+2])
+	c := uint32(m.Mem[p+2])
 	if c == '=' {
 		return true
 	}
@@ -14719,19 +14597,19 @@ func (m *Machine) PhpFindOpen(p uint32) uint32 {
 
 // PhpLineComment is $phpLineComment.
 func (m *Machine) PhpLineComment(skip uint32) {
-	var closer, lhs, lineEnd, saveEnd, stop uint32
+	var closer uint32
 	if m.PhpHack {
 		m.LexLineComment(skip, TokenComment)
 		return
 	}
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr += skip
 	if m.Ptr > m.End {
 		m.Ptr = m.End
 	}
-	lineEnd = m.LexFindEither(m.Ptr, 10, 13)
-	stop = lineEnd
-	saveEnd = m.End
+	lineEnd := m.LexFindEither(m.Ptr, 10, 13)
+	stop := lineEnd
+	saveEnd := m.End
 	m.End = lineEnd
 	for {
 		closer = m.LexFindByte(m.Ptr, 63)
@@ -14771,10 +14649,9 @@ func (m *Machine) PhpUpperName(lhs, rhs uint32) uint32 {
 
 // PhpWordHl is $phpWordHl.
 func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
-	var n, hl uint32
 	var w uint64
 	var v rt.V128
-	n = rhs - lhs
+	n := rhs - lhs
 	if n-2 > 10 {
 		return TokenVariable
 	}
@@ -14824,7 +14701,7 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 	}
 	v = rt.LdV(m.Mem, lhs)
 	rt.StV(m.Mem, 1360, rt.Or(v, rt.And(rt.LeU8(rt.Sub8(v, rt.Splat8(65)), rt.Splat8(25)), rt.Splat8(32))))
-	hl = m.LexKeywordValue(1360, 1360+n, 24704, 15, 51)
+	hl := m.LexKeywordValue(1360, 1360+n, 24704, 15, 51)
 	return rt.Sel32(int32(hl) >= 0, hl, TokenVariable)
 }
 
@@ -14890,8 +14767,8 @@ func (m *Machine) PhpBytesEq(a, b, n uint32) bool {
 
 // PhpHeredocBody is $phpHeredocBody.
 func (m *Machine) PhpHeredocBody(body, delim, n uint32) bool {
-	var c, line, start uint32
-	line = body
+	var c, start uint32
+	line := body
 	for {
 		if line >= m.End {
 			break
@@ -14930,13 +14807,12 @@ func (m *Machine) PhpHeredocResume() bool {
 
 // PhpHeredoc is $phpHeredoc.
 func (m *Machine) PhpHeredoc() bool {
-	var body, c, delim, lhs, n, p, quote, start uint32
-	lhs = m.Ptr
-	p = m.PhpBlanksAt(m.Ptr + 3)
+	lhs := m.Ptr
+	p := m.PhpBlanksAt(m.Ptr + 3)
 	if p >= m.End {
 		return false
 	}
-	quote = uint32(m.Mem[p])
+	quote := uint32(m.Mem[p])
 	if quote == '"' || quote == '\'' {
 		p++
 	} else {
@@ -14945,11 +14821,11 @@ func (m *Machine) PhpHeredoc() bool {
 	if p >= m.End {
 		return false
 	}
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if !((c|32)-97 <= 25 || c == '_' || c >= 128) {
 		return false
 	}
-	delim = p
+	delim := p
 	for {
 		if p >= m.End {
 			break
@@ -14960,21 +14836,21 @@ func (m *Machine) PhpHeredoc() bool {
 		}
 		p++
 	}
-	n = p - delim
+	n := p - delim
 	if quote != 0 {
 		if p >= m.End || uint32(m.Mem[p]) != quote {
 			return false
 		}
 		p++
 	}
-	start = m.PhpBlanksAt(p)
+	start := m.PhpBlanksAt(p)
 	if start < m.End && m.Mem[start] != '\n' && m.Mem[start] != '\r' {
 		return false
 	}
 	m.EmitTok(TokenOperator, lhs, lhs+3)
 	m.EmitTok(TokenString, lhs+3, p)
 	m.EmitGap(p, start)
-	body = m.PhpAfterLine(start)
+	body := m.PhpAfterLine(start)
 	m.EmitGap(start, body)
 	m.PhpHeredocBody(body, delim, n)
 	return true
@@ -15220,9 +15096,8 @@ func (m *Machine) PhpCode(resume uint32) {
 
 // PhpStreamResume is $phpStreamResume.
 func (m *Machine) PhpStreamResume() bool {
-	var code bool
 	var lhs uint32
-	code = m.PhpStreamingCode == 1
+	code := m.PhpStreamingCode == 1
 	if m.StreamMode == 14 {
 		if m.PhpHeredocResume() {
 			return true
@@ -15252,14 +15127,13 @@ func (m *Machine) PhpStreamResume() bool {
 
 // PhpLooksLikeMarkup is $phpLooksLikeMarkup.
 func (m *Machine) PhpLooksLikeMarkup(p uint32) bool {
-	var c uint32
 	if p+1 >= m.End {
 		return false
 	}
 	if m.Mem[p] != '<' {
 		return false
 	}
-	c = uint32(m.Mem[p+1])
+	c := uint32(m.Mem[p+1])
 	return m.LexIsIdentStart(c) || c == '!' || c == '/'
 }
 
@@ -15279,8 +15153,8 @@ func (m *Machine) PhpSkipWhitespaceAt(p uint32) uint32 {
 
 // HlPhp is $hlPhp.
 func (m *Machine) HlPhp() {
-	var streamRoot, snippet bool
-	var open, p, saveEnd uint32
+	var streamRoot bool
+	var p, saveEnd uint32
 	m.LiveEntering = false
 	m.LexEmitLeadingContinuation()
 	if m.Streaming && m.StreamDepth == 0 {
@@ -15288,8 +15162,8 @@ func (m *Machine) HlPhp() {
 		streamRoot = true
 		m.StreamDepth = rt.B2u(streamRoot)
 	}
-	snippet = false
-	open = m.PhpFindOpen(m.Ptr)
+	snippet := false
+	open := m.PhpFindOpen(m.Ptr)
 	if open == m.End {
 		if m.Streaming && m.PhpStreamingCode == 2 {
 			m.HlHTML()
@@ -15378,8 +15252,7 @@ func (m *Machine) TmplFind4(p, a, b, c, d uint32) uint32 {
 
 // TmplFindWord is $tmplFindWord.
 func (m *Machine) TmplFindWord(p uint32, word uint64, n uint32) uint32 {
-	var mask uint64
-	mask = uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63)
+	mask := uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63)
 	for {
 		p = m.LexFindByte(p, uint32(word&255))
 		if p+n > m.End {
@@ -15395,9 +15268,8 @@ func (m *Machine) TmplFindWord(p uint32, word uint64, n uint32) uint32 {
 
 // TmplComment is $tmplComment.
 func (m *Machine) TmplComment(open, closer, n uint32) {
-	var lhs, p uint32
-	lhs = m.Ptr
-	p = m.TmplFindWord(lhs+open, uint64(closer), n)
+	lhs := m.Ptr
+	p := m.TmplFindWord(lhs+open, uint64(closer), n)
 	if p < m.End {
 		m.Ptr = p + n
 	} else {
@@ -15417,20 +15289,18 @@ func (m *Machine) TmplCut() {
 
 // TmplIsVoid is $tmplIsVoid.
 func (m *Machine) TmplIsVoid(lhs, rhs uint32) bool {
-	var n uint32
-	var w uint64
-	n = rhs - lhs
+	n := rhs - lhs
 	if n-2 > 4 {
 		return false
 	}
-	w = (rt.Ld64(m.Mem, lhs) | 0x202020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
+	w := (rt.Ld64(m.Mem, lhs) | 0x202020202020) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 	return w == 29282 || w == 29288 || w == 0x676d69 || w == 0x6c6f63 || w == 0x726277 || w == 0x61657261 || w == 0x65736162 || w == 0x6b6e696c || w == 0x6174656d || w == 0x6465626d65 || w == 0x7475706e69 || w == 0x6d61726170 || w == 0x6b63617274 || w == 0x656372756f73
 }
 
 // TmplMarkup is $tmplMarkup.
 func (m *Machine) TmplMarkup(state, dialect uint32) uint32 {
-	var at, c, cut, cut2, kind, lhs, mode, p, q, razor, skip uint32
-	razor = dialect & 1
+	var at, c, cut, cut2, kind, lhs, mode, p, q, skip uint32
+	razor := dialect & 1
 	at = 64
 	if razor != 0 {
 		cut = 64
@@ -15618,9 +15488,8 @@ func (m *Machine) TmplMarkup(state, dialect uint32) uint32 {
 
 // BladeDirective is $bladeDirective.
 func (m *Machine) BladeDirective(lhs, rhs uint32) uint32 {
-	var n, hl uint32
-	n = m.LexLowerCopy(lhs, rhs, 1360)
-	hl = m.LexKeywordValue(1360, 1360+n, 29248, 15, 68)
+	n := m.LexLowerCopy(lhs, rhs, 1360)
+	hl := m.LexKeywordValue(1360, 1360+n, 29248, 15, 68)
 	if int32(hl) < 0 && n > 3 && rt.Ld32(m.Mem, 1360)&0xffffff == 0x646e65 {
 		hl = m.LexKeywordValue(1363, 1360+n, 29248, 15, 68)
 		if int32(hl) >= 0 {
@@ -15648,9 +15517,9 @@ func (m *Machine) BladeVerbatimEnd(p uint32) uint32 {
 // HlBlade is $hlBlade.
 func (m *Machine) HlBlade() {
 	var streamRoot, markup, php, phpMode, verbatim, c, depth, hl, kind, lhs, n, p, q, r, resumed, saveEnd uint32
-	var skip, liveRoot, streamResumeAnyRegion bool
+	var skip, streamResumeAnyRegion bool
 	var word uint64
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -15981,11 +15850,10 @@ next:
 
 // CWordHl is $cWordHl.
 func (m *Machine) CWordHl(lhs, rhs uint32) uint32 {
-	var p, g uint32
 	if rhs-lhs == 8 && rt.Ld64(m.Mem, lhs) == 0x65756e69746e6f63 {
 		return TokenKeywordControl
 	}
-	g = m.LexKeywordValue(lhs, rhs, 14496, 15, 54)
+	g := m.LexKeywordValue(lhs, rhs, 14496, 15, 54)
 	if g != 0xffffffff {
 		return g
 	}
@@ -15995,7 +15863,7 @@ func (m *Machine) CWordHl(lhs, rhs uint32) uint32 {
 	if rhs-lhs >= 3 && rt.Ld16(m.Mem, rhs-2) == 29791 {
 		return TokenType
 	}
-	p = m.LexSkipSpaceAt(rhs)
+	p := m.LexSkipSpaceAt(rhs)
 	if p < m.End && m.Mem[p] == '(' {
 		return TokenFunction
 	}
@@ -16013,8 +15881,7 @@ func (m *Machine) CIsOp(c uint32) uint32 {
 // HlC is $hlC.
 func (m *Machine) HlC() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, hl, strCont uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -16153,9 +16020,8 @@ func (m *Machine) C3Byte(p uint32) uint32 {
 
 // C3WordHl is $c3WordHl.
 func (m *Machine) C3WordHl(lhs, rhs, ct uint32) uint32 {
-	var g uint32
 	var w uint64
-	g = m.LexKeywordValue(lhs, rhs, 14688, 31, 104)
+	g := m.LexKeywordValue(lhs, rhs, 14688, 31, 104)
 	if ct != 0 {
 		if g == TokenKeywordControl {
 			return g
@@ -16182,8 +16048,7 @@ func (m *Machine) C3IsOp(c uint32) uint32 {
 // HlC3 is $hlC3.
 func (m *Machine) HlC3() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -16406,9 +16271,8 @@ func (m *Machine) HlC3() {
 
 // CljWordHl is $cljWordHl.
 func (m *Machine) CljWordHl(lhs, rhs uint32) uint32 {
-	var n, v uint32
-	n = rhs - lhs
-	v = m.LexKeywordValue(lhs, rhs, 15072, 15, 54)
+	n := rhs - lhs
+	v := m.LexKeywordValue(lhs, rhs, 15072, 15, 54)
 	if int32(v) >= 0 {
 		return v
 	}
@@ -16460,8 +16324,7 @@ func (m *Machine) CljScanSymbol() {
 
 // CljFindInside is $cljFindInside.
 func (m *Machine) CljFindInside(lhs, rhs, b uint32) uint32 {
-	var p uint32
-	p = lhs + 1
+	p := lhs + 1
 	for {
 		if p+1 >= rhs {
 			break
@@ -16477,8 +16340,7 @@ func (m *Machine) CljFindInside(lhs, rhs, b uint32) uint32 {
 // HlClojure is $hlClojure.
 func (m *Machine) HlClojure() {
 	var streamRoot, c, c2, gap, lhs, rhs, q, kind, hl, expect, head, cljFindInside uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -16727,8 +16589,7 @@ func (m *Machine) CmakeByte(p uint32) uint32 {
 
 // CmakeCommandGroup is $cmakeCommandGroup.
 func (m *Machine) CmakeCommandGroup(lhs, rhs uint32) uint32 {
-	var n uint32
-	n = m.LexLowerCopy(lhs, rhs, 1360)
+	n := m.LexLowerCopy(lhs, rhs, 1360)
 	return m.LexKeywordLookup(1360, 1360+n, 15296, 15, 71)
 }
 
@@ -16765,8 +16626,7 @@ func (m *Machine) CmakeBracketEquals(p uint32) uint32 {
 
 // CmakeBracketBody is $cmakeBracketBody.
 func (m *Machine) CmakeBracketBody(n, hl uint32) {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr += n + 2
 	m.EmitTok(hl, lhs, m.Ptr)
 	m.Mem[13952] = ']'
@@ -16798,8 +16658,8 @@ func (m *Machine) CmakeIsRefOpen(p uint32) bool {
 
 // CmakeReference is $cmakeReference.
 func (m *Machine) CmakeReference() {
-	var lhs, c, depth, open, closer, hl uint32
-	lhs = m.Ptr
+	var c, depth, closer, hl uint32
+	lhs := m.Ptr
 	m.Ptr++
 	for {
 		if m.CmakeByte(m.Ptr)-65 > 25 {
@@ -16807,7 +16667,7 @@ func (m *Machine) CmakeReference() {
 		}
 		m.Ptr++
 	}
-	open = m.CmakeByte(m.Ptr)
+	open := m.CmakeByte(m.Ptr)
 	if open == '<' {
 		closer = 62
 	} else {
@@ -16898,8 +16758,7 @@ func (m *Machine) CmakeScanWord() {
 // HlCmake is $hlCmake.
 func (m *Machine) HlCmake() {
 	var streamRoot, c, c2, gap, lhs, rhs, g, n, hl, depth, cond, setVar, strOpen, cmakeIsRefOpen uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -17086,14 +16945,12 @@ func (m *Machine) HlCmake() {
 
 // CobolWordHl is $cobolWordHl.
 func (m *Machine) CobolWordHl(lhs, rhs uint32) uint32 {
-	var n, v uint32
-	var w uint64
-	n = m.LexLowerCopy(lhs, rhs, 1360)
-	v = m.LexKeywordValue(1360, 1360+n, 34560, 63, 172)
+	n := m.LexLowerCopy(lhs, rhs, 1360)
+	v := m.LexKeywordValue(1360, 1360+n, 34560, 63, 172)
 	if int32(v) >= 0 {
 		return v
 	}
-	w = rt.Ld64(m.Mem, 1360)
+	w := rt.Ld64(m.Mem, 1360)
 	if n > 4 && uint32(w) == 0x2d646e65 {
 		v = m.LexKeywordValue(1364, 1360+n, 34560, 63, 172) & 255
 		if v == TokenKeyword || v == TokenKeywordControl {
@@ -17112,8 +16969,8 @@ func (m *Machine) CobolWordHl(lhs, rhs uint32) uint32 {
 
 // CobolSequenceArea is $cobolSequenceArea.
 func (m *Machine) CobolSequenceArea(lhs uint32) uint32 {
-	var p, c, n uint32
-	p = lhs
+	var c, n uint32
+	p := lhs
 	n = 1
 	for {
 		c = m.TemplateByte(p)
@@ -17134,8 +16991,8 @@ func (m *Machine) CobolSequenceArea(lhs uint32) uint32 {
 // HlCobol is $hlCobol.
 func (m *Machine) HlCobol() {
 	var streamRoot, c, c2, lhs, rhs, p, n, kind, hl, lim, outer, want, col, area, expect uint32
-	var first, liveRoot bool
-	liveRoot = m.LiveEntering
+	var first bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -17366,8 +17223,8 @@ func (m *Machine) HlCobol() {
 
 // CodeownersRun is $codeownersRun.
 func (m *Machine) CodeownersRun(hl uint32) {
-	var c, e, seg uint32
-	seg = m.Ptr
+	var c, e uint32
+	seg := m.Ptr
 	for {
 		m.ScanIdentRun(47)
 		if m.Ptr >= m.End {
@@ -17395,8 +17252,7 @@ func (m *Machine) CodeownersRun(hl uint32) {
 // HlCodeowners is $hlCodeowners.
 func (m *Machine) HlCodeowners() {
 	var streamRoot, c, lhs, gap, col uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -17491,8 +17347,7 @@ func (m *Machine) HlCodeowners() {
 // HlCodeql is $hlCodeql.
 func (m *Machine) HlCodeql() {
 	var streamRoot, c, c2, lhs, rhs, p, g, hl, was, expect uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -17699,15 +17554,15 @@ func (m *Machine) CoffeeRegex() bool {
 
 // CoffeeLiteral is $coffeeLiteral.
 func (m *Machine) CoffeeLiteral(lq, nested uint32) uint32 {
-	var c, e, hl, q, seg, triple, t0 uint32
-	q = lq & 255
-	triple = lq >> 8
+	var c, e, hl, t0 uint32
+	q := lq & 255
+	triple := lq >> 8
 	if q == '/' {
 		hl = TokenStringRegex
 	} else {
 		hl = TokenString
 	}
-	seg = m.Ptr
+	seg := m.Ptr
 	for {
 		m.Ptr = m.ScanFind3(m.Ptr, q, 92, rt.Sel32(q == '\'', q, 35))
 		if m.Ptr >= m.End {
@@ -17812,8 +17667,8 @@ func (m *Machine) CoffeeJs(triple uint32) bool {
 // HlCoffee is $hlCoffee.
 func (m *Machine) HlCoffee() {
 	var streamRoot, c, c2, gap, hl, lhs, p, v, lq, iq, depth, prev, member, decl, params, param, divide, coffeeLiteral uint32
-	var liveRoot, coffeeJs, coffeeRegex, t4, t5 bool
-	liveRoot = m.LiveEntering
+	var coffeeJs, coffeeRegex, t4, t5 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -18139,8 +17994,7 @@ func (m *Machine) HlCoffee() {
 
 // CoqWordKind is $coqWordKind.
 func (m *Machine) CoqWordKind(lhs, rhs uint32) uint32 {
-	var w uint64
-	w = rt.Ld64(m.Mem, lhs)
+	w := rt.Ld64(m.Mem, lhs)
 	if rhs-lhs == 9 && m.Mem[lhs+8] == 'n' && (w == 0x6f69737265766e69 || w == 0x6f697463656a6e69 || w == 0x6f69746975746e69) {
 		return TokenKeywordControl
 	}
@@ -18153,8 +18007,8 @@ func (m *Machine) CoqWordKind(lhs, rhs uint32) uint32 {
 // HlCoq is $hlCoq.
 func (m *Machine) HlCoq() {
 	var streamRoot, c, c2, lhs, rhs, gap, kind, hl, expect, mid, attr uint32
-	var capacity, liveRoot bool
-	liveRoot = m.LiveEntering
+	var capacity bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -18406,9 +18260,9 @@ func (m *Machine) CppStringKind(p, c, n, c3 uint32) uint32 {
 
 // CppString is $cppString.
 func (m *Machine) CppString(lhs, kind uint32) uint32 {
-	var quote, q, d, dlen, p, c, k, t0, lexCStringBody, t2, lexCStringBody2, t4, lexCStringBody3 uint32
+	var q, d, dlen, p, c, k, t0, lexCStringBody, t2, lexCStringBody2 uint32
 	var match bool
-	quote = lhs + (kind&255 - 1)
+	quote := lhs + (kind&255 - 1)
 	if kind&256 != 0 {
 		d = quote + 1
 		p = d
@@ -18476,8 +18330,8 @@ func (m *Machine) CppString(lhs, kind uint32) uint32 {
 	}
 	q = uint32(m.Mem[quote])
 	m.Ptr = quote + 1
-	t4 = q
-	lexCStringBody3 = m.LexCStringBody(q, rt.Sel32(q == '\'', TokenNumber, TokenString), lhs, 1)
+	t4 := q
+	lexCStringBody3 := m.LexCStringBody(q, rt.Sel32(q == '\'', TokenNumber, TokenString), lhs, 1)
 	return rt.Sel32(lexCStringBody3 == 2, t4, 0)
 }
 
@@ -18524,8 +18378,8 @@ func (m *Machine) HlCpp() {
 // HlCppImpl is $hlCppImpl.
 func (m *Machine) HlCppImpl(cuda uint32) {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, midLine, expectType, member, strCont, contDirective, t0, lexCStringBody uint32
-	var liveRoot, cppDirectiveScan, cppDirectiveScan2 bool
-	liveRoot = m.LiveEntering
+	var cppDirectiveScan, cppDirectiveScan2 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -18815,8 +18669,7 @@ func (m *Machine) CsByte(p uint32) uint32 {
 
 // CsWordHl is $csWordHl.
 func (m *Machine) CsWordHl(lhs, rhs uint32) uint32 {
-	var hl uint32
-	hl = m.LexKeywordValue(lhs, rhs, 15904, 31, 112)
+	hl := m.LexKeywordValue(lhs, rhs, 15904, 31, 112)
 	if hl == 0xffffffff {
 		if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
 			return TokenKeywordDeclaration
@@ -18923,11 +18776,10 @@ func (m *Machine) CsStringBody(kind, interp, nested, seg uint32) uint32 {
 
 // CsStringPrefix is $csStringPrefix.
 func (m *Machine) CsStringPrefix(c, c2, c3 uint32) uint32 {
-	var flags uint32
 	if c == '"' {
 		return 256
 	}
-	flags = rt.B2u(c == '$') | rt.B2u(c == '@')<<1
+	flags := rt.B2u(c == '$') | rt.B2u(c == '@')<<1
 	if flags == 0 {
 		return 0
 	}
@@ -18948,8 +18800,7 @@ func (m *Machine) CsIsOp(c uint32) uint32 {
 // HlCsharp is $hlCsharp.
 func (m *Machine) HlCsharp() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, strKind, seg, interp, interpKind, interpDepth, status, lineHead, atHead, ctx, wasHead uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -19364,8 +19215,7 @@ func (m *Machine) CsvColumnTok(col uint32) uint32 {
 // HlCsvImpl is $hlCsvImpl.
 func (m *Machine) HlCsvImpl(delim, quoting uint32) {
 	var streamRoot, c, col, lhs, p, quoted, tok uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -19468,8 +19318,7 @@ func (m *Machine) HlCuda() {
 // HlCypher is $hlCypher.
 func (m *Machine) HlCypher() {
 	var streamRoot, c, c2, lhs, rhs, p, g, hl, was, maps, label, lexLowerCopy uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -19666,8 +19515,7 @@ func (m *Machine) DStringBody(seg uint32) bool {
 
 // DTokenString is $dTokenString.
 func (m *Machine) DTokenString(depth uint32) uint32 {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	for {
 		m.Ptr = m.LexFindEither(m.Ptr, 123, 125)
 		if m.Ptr >= m.End {
@@ -19689,9 +19537,8 @@ func (m *Machine) DTokenString(depth uint32) uint32 {
 
 // DDelimitedString is $dDelimitedString.
 func (m *Machine) DDelimitedString() {
-	var lhs, closer, p uint32
-	lhs = m.Ptr
-	closer = m.TemplateByte(lhs + 2)
+	lhs := m.Ptr
+	closer := m.TemplateByte(lhs + 2)
 	if m.LexIsIdentContinue(closer) != 0 || closer <= 32 {
 		m.Ptr = lhs + 1
 		m.EmitTok(TokenString, lhs, m.Ptr)
@@ -19706,7 +19553,7 @@ func (m *Machine) DDelimitedString() {
 	case closer == 60:
 		closer = 62
 	}
-	p = lhs + 3
+	p := lhs + 3
 	for {
 		p = m.LexFindByte(p, closer)
 		if p >= m.End {
@@ -19727,8 +19574,8 @@ func (m *Machine) DDelimitedString() {
 // HlD is $hlD.
 func (m *Machine) HlD() {
 	var streamRoot, c, c2, c3, lhs, rhs, gap, hl, kind, expect, dq, qDepth, afterType, member uint32
-	var liveRoot, dStringBody, dStringBody2 bool
-	liveRoot = m.LiveEntering
+	var dStringBody, dStringBody2 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -20028,8 +19875,8 @@ func (m *Machine) DartWordHl(g uint32) uint32 {
 
 // DartStringBody is $dartStringBody.
 func (m *Machine) DartStringBody(quote, triple, raw, interp, seg uint32) uint32 {
-	var c, stop, dollar, status uint32
-	stop = m.Ptr
+	var c, dollar, status uint32
+	stop := m.Ptr
 	for {
 		if m.Ptr >= stop {
 			stop = m.ScanFindSpecial(m.Ptr, m.End, quote, rt.B2u(raw == 0), rt.B2u(triple == 0))
@@ -20092,8 +19939,7 @@ func (m *Machine) DartIsOp(c uint32) uint32 {
 // HlDart is $hlDart.
 func (m *Machine) HlDart() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, strKind, seg, interp, interpKind, status, g uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -20398,8 +20244,7 @@ func (m *Machine) HlDart() {
 // HlDax is $hlDax.
 func (m *Machine) HlDax() {
 	var streamRoot, c, c2, lhs, rhs, p, n, v, hl uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -20548,8 +20393,7 @@ func (m *Machine) DiffSkipDigits(p, lineEnd uint32) uint32 {
 // HlDiff is $hlDiff.
 func (m *Machine) HlDiff() {
 	var streamRoot, c, lhs, lineEnd, p, tok, length, hl uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -20854,20 +20698,19 @@ func (m *Machine) HlDiff() {
 
 // DockerWordGroup is $dockerWordGroup.
 func (m *Machine) DockerWordGroup(lhs, rhs uint32) uint32 {
-	var n uint32
-	n = m.LexLowerCopy(lhs, rhs, 1360)
+	n := m.LexLowerCopy(lhs, rhs, 1360)
 	return m.LexKeywordLookup(1360, 1360+n, 16800, 3, 19)
 }
 
 // DockerHeredoc is $dockerHeredoc.
 func (m *Machine) DockerHeredoc(gap, delim, n, strip uint32) bool {
-	var body, line, i uint32
+	var line, i uint32
 	var same bool
 	m.Ptr = m.LexSkipSpaceAt(m.Ptr)
 	if m.Ptr >= m.End {
 		return false
 	}
-	body = uint32(m.Mem[m.Ptr])
+	body := uint32(m.Mem[m.Ptr])
 	if body != 10 && body != 13 {
 		return false
 	}
@@ -20917,8 +20760,8 @@ func (m *Machine) DockerHeredoc(gap, delim, n, strip uint32) bool {
 
 // DockerLineJoin is $dockerLineJoin.
 func (m *Machine) DockerLineJoin() bool {
-	var p, c uint32
-	p = m.LexSkipSpaceAt(m.Ptr + 1)
+	var c uint32
+	p := m.LexSkipSpaceAt(m.Ptr + 1)
 	if p < m.End {
 		c = uint32(m.Mem[p])
 		if c != '\n' && c != '\r' {
@@ -20961,8 +20804,8 @@ func (m *Machine) DockerIsShellOp(c uint32) uint32 {
 // HlDockerfile is $hlDockerfile.
 func (m *Machine) HlDockerfile() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, lineHead, inst, cmdHead, hdLen, hdDelim, lexIsIdentStart, dockerWordGroup uint32
-	var name, hdStrip, liveRoot, t6 bool
-	liveRoot = m.LiveEntering
+	var name, hdStrip, t6 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -21211,8 +21054,8 @@ func (m *Machine) HlDockerfile() {
 
 // EnvDollar is $envDollar.
 func (m *Machine) EnvDollar(stop, hl uint32) {
-	var lhs, p uint32
-	lhs = m.Ptr
+	var p uint32
+	lhs := m.Ptr
 	m.Ptr = lhs + 1
 	if m.Ptr < stop && m.Mem[m.Ptr] == '{' {
 		m.Ptr++
@@ -21273,8 +21116,7 @@ func (m *Machine) EnvQuoted(quote, vars, seg uint32) bool {
 // HlDotenv is $hlDotenv.
 func (m *Machine) HlDotenv() {
 	var streamRoot, c, lhs, gap, p, rhs, line, open, t1 uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -21419,8 +21261,8 @@ func (m *Machine) HlDotenv() {
 
 // ExWordHl is $exWordHl.
 func (m *Machine) ExWordHl(lhs, rhs uint32) uint32 {
-	var g, n uint32
-	g = m.LexKeywordLookup(lhs, rhs, 16864, 15, 46)
+	var n uint32
+	g := m.LexKeywordLookup(lhs, rhs, 16864, 15, 46)
 	if g == 0 {
 		n = rhs - lhs
 		if n >= 5 && rt.Ld16(m.Mem, lhs) == 24415 && rt.Ld16(m.Mem, rhs-2) == 24415 {
@@ -21477,12 +21319,12 @@ func (m *Machine) ExCloser(open uint32) uint32 {
 
 // ExLiteralBody is $exLiteralBody.
 func (m *Machine) ExLiteralBody(lit, depth, nested uint32) uint32 {
-	var seg, closer, open, flags, c, e, hl, stop, hash uint32
+	var c, e, hl uint32
 	var status bool
-	seg = m.Ptr
-	closer = lit & 255
-	open = (lit >> 8) & 255
-	flags = lit >> 16
+	seg := m.Ptr
+	closer := lit & 255
+	open := (lit >> 8) & 255
+	flags := lit >> 16
 	switch {
 	case flags&32 != 0:
 		hl = TokenStringRegex
@@ -21493,8 +21335,8 @@ func (m *Machine) ExLiteralBody(lit, depth, nested uint32) uint32 {
 	default:
 		hl = TokenString
 	}
-	stop = m.Ptr
-	hash = m.Ptr - 1
+	stop := m.Ptr
+	hash := m.Ptr - 1
 	for {
 		if m.Ptr >= stop {
 			stop = m.ScanFindSpecial(m.Ptr, m.End, closer, flags&65, flags&16)
@@ -21579,8 +21421,7 @@ func (m *Machine) ExIsOp(c uint32) uint32 {
 // HlElixir is $hlElixir.
 func (m *Machine) HlElixir() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, decl, member, wasMember, docAttr, interp, lit, depth, iLit, iDepth uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -21889,8 +21730,7 @@ func (m *Machine) HlElixir() {
 
 // ExArgWord is $exArgWord.
 func (m *Machine) ExArgWord(p uint32) bool {
-	var e uint32
-	e = p
+	e := p
 	for {
 		if e >= m.End {
 			break
@@ -21911,8 +21751,7 @@ func (m *Machine) ElmByte(p uint32) uint32 {
 // HlElm is $hlElm.
 func (m *Machine) HlElm() {
 	var streamRoot, c, c2, gap, lhs, rhs, hl, kind, expect, importKw, member, midLine, quote, triple uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -22123,8 +21962,8 @@ func (m *Machine) RubyByte(p uint32) uint32 {
 
 // RubyWordHl is $rubyWordHl.
 func (m *Machine) RubyWordHl(lhs, rhs uint32) uint32 {
-	var g, n uint32
-	g = m.LexKeywordLookup(lhs, rhs, 25856, 15, 59)
+	var n uint32
+	g := m.LexKeywordLookup(lhs, rhs, 25856, 15, 59)
 	if g == 0 {
 		n = rhs - lhs
 		if n >= 6 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x5f72747461 {
@@ -22181,7 +22020,7 @@ func (m *Machine) RubyCloser(open uint32) uint32 {
 
 // RubyLiteralBody is $rubyLiteralBody.
 func (m *Machine) RubyLiteralBody(closer, open, depth, flags, nested, seg uint32) uint32 {
-	var c, e, hl, stop, hash uint32
+	var c, e, hl uint32
 	var status bool
 	switch {
 	case flags&2 != 0:
@@ -22191,8 +22030,8 @@ func (m *Machine) RubyLiteralBody(closer, open, depth, flags, nested, seg uint32
 	default:
 		hl = TokenString
 	}
-	stop = m.Ptr
-	hash = m.Ptr
+	stop := m.Ptr
+	hash := m.Ptr
 	for {
 		if m.Ptr >= stop {
 			if m.Ptr >= hash {
@@ -22263,8 +22102,8 @@ func (m *Machine) RubyRangeEq(a, b, n uint32) bool {
 
 // RubyLineDelimited is $rubyLineDelimited.
 func (m *Machine) RubyLineDelimited(delim, n, mode, hl uint32) {
-	var body, lhs, line, lineDelimiterEnds uint32
-	body = m.Ptr
+	var lhs, line, lineDelimiterEnds uint32
+	body := m.Ptr
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -22316,8 +22155,7 @@ func (m *Machine) RubyIsOp(c uint32) uint32 {
 // HlRuby is $hlRuby.
 func (m *Machine) HlRuby() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, operand, decl, member, lineHead, atHead, seg, interp, sActive, sClose, sOpen, sDepth, sFlags, iClose, iOpen, iDepth, iFlags, hdLen, hdDelim, hdStrip, data, t1, t2, lexHeredocArgument, rubyWordHl, t5, t6, t7, t8 uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -22886,8 +22724,7 @@ func (m *Machine) HlRuby() {
 
 // RubyArgWord is $rubyArgWord.
 func (m *Machine) RubyArgWord(p uint32) bool {
-	var e uint32
-	e = p
+	e := p
 	for {
 		if e >= m.End {
 			break
@@ -22950,10 +22787,9 @@ func (m *Machine) ErbFindClose(p uint32) uint32 {
 
 // ErbBody is $erbBody.
 func (m *Machine) ErbBody(state uint32) bool {
-	var closer, code, save, saveDepth, saveReset uint32
-	var open bool
-	closer = m.ErbFindClose(m.Ptr)
-	open = closer >= m.End
+	var code, save, saveDepth, saveReset uint32
+	closer := m.ErbFindClose(m.Ptr)
+	open := closer >= m.End
 	if state&0x40000000 != 0 {
 		code = m.Ptr
 		if open {
@@ -23019,10 +22855,9 @@ func (m *Machine) ErbBody(state uint32) bool {
 
 // ErbTag is $erbTag.
 func (m *Machine) ErbTag(tag uint32) bool {
-	var lhs, c uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr = lhs + 2
-	c = m.TemplateByte(m.Ptr)
+	c := m.TemplateByte(m.Ptr)
 	if c == '#' {
 		m.Ptr = lhs
 		return m.ErbBody(tag | 0x40000000)
@@ -23067,8 +22902,7 @@ func (m *Machine) ErbTagRest(tag uint32) {
 // HlErb is $hlErb.
 func (m *Machine) HlErb() {
 	var streamRoot, from, p, save, tag uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -23131,8 +22965,7 @@ func (m *Machine) HlErb() {
 
 // ErbStreamResume is $erbStreamResume.
 func (m *Machine) ErbStreamResume() bool {
-	var r bool
-	var save, tag uint32
+	var tag uint32
 	if m.StreamRegionKind == 27 {
 		tag = m.StreamC
 		if !m.ErbBody(tag) {
@@ -23150,12 +22983,12 @@ func (m *Machine) ErbStreamResume() bool {
 		}
 		return m.Ptr >= m.End
 	}
-	save = m.End
+	save := m.End
 	if m.StreamA == 0 {
 		m.End = m.ErbNextCut(m.Ptr)
 	}
 	m.HTMLOpenTag = 0
-	r = m.HTMLTagResume(26)
+	r := m.HTMLTagResume(26)
 	m.End = save
 	tag = m.HTMLOpenTag
 	m.HTMLOpenTag = 0
@@ -23192,8 +23025,7 @@ func (m *Machine) ErlIsOp(c uint32) uint32 {
 // HlErlang is $hlErlang.
 func (m *Machine) HlErlang() {
 	var streamRoot, c, c2, c3, gap, lhs, tok, rhs, p, g, hl, col0, atCol0, attr uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -23414,8 +23246,8 @@ func (m *Machine) HlErlang() {
 
 // FishVariable is $fishVariable.
 func (m *Machine) FishVariable() bool {
-	var lhs, p, c uint32
-	lhs = m.Ptr
+	var p, c uint32
+	lhs := m.Ptr
 	for {
 		m.Ptr++
 		c = m.TemplateByte(m.Ptr)
@@ -23492,8 +23324,7 @@ func (m *Machine) FishStringBody(q, seg uint32) uint32 {
 // HlFish is $hlFish.
 func (m *Machine) HlFish() {
 	var streamRoot, c, c2, gap, lhs, rhs, v, hl, head, cmd, expect, str, bitSet uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -23746,8 +23577,8 @@ func (m *Machine) FortranWordHl(lhs, rhs uint32) uint32 {
 
 // FortranFixedLineKind is $fortranFixedLineKind.
 func (m *Machine) FortranFixedLineKind(p uint32) uint32 {
-	var c, i uint32
-	c = m.TemplateByte(p)
+	var i uint32
+	c := m.TemplateByte(p)
 	if uint32(m.Mem[c+3728])&1 != 0 {
 		return 2
 	}
@@ -23772,8 +23603,7 @@ func (m *Machine) FortranFixedLineKind(p uint32) uint32 {
 // HlFortranImpl is $hlFortranImpl.
 func (m *Machine) HlFortranImpl() {
 	var streamRoot, c, c2, lhs, rhs, p, colBase, column, n, hl, kind, expect, member, quote, continued uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -24047,14 +23877,13 @@ func (m *Machine) MlWordHl(lhs, rhs uint32) uint32 {
 
 // MlIsCharLiteral is $mlIsCharLiteral.
 func (m *Machine) MlIsCharLiteral(p uint32) bool {
-	var e uint32
 	if p+1 >= m.End {
 		return false
 	}
 	if m.Mem[p+1] == '\\' {
 		return true
 	}
-	e = m.UTF8SpanEnd(p+2, m.End)
+	e := m.UTF8SpanEnd(p+2, m.End)
 	return e < m.End && m.Mem[e] == '\''
 }
 
@@ -24066,8 +23895,8 @@ func (m *Machine) MlIsSymbol(c uint32) uint32 {
 // HlOcaml is $hlOcaml.
 func (m *Machine) HlOcaml() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, q, kind, hl, expect, member, typeMode, n, afterValue, lastModule, t0, mlByte, mlIsCharLiteral, mlIsArgAt uint32
-	var liveRoot, t1 bool
-	liveRoot = m.LiveEntering
+	var t1 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -24405,11 +24234,10 @@ func (m *Machine) HlOcaml() {
 
 // MlFloatDot is $mlFloatDot.
 func (m *Machine) MlFloatDot() {
-	var c uint32
 	if m.MlByte(m.Ptr) != '.' {
 		return
 	}
-	c = m.MlByte(m.Ptr + 1)
+	c := m.MlByte(m.Ptr + 1)
 	if c == '.' || m.LexIsIdentStart(c) {
 		return
 	}
@@ -24437,8 +24265,7 @@ func (m *Machine) MlIDEnd(p uint32) uint32 {
 
 // MlQuoted is $mlQuoted.
 func (m *Machine) MlQuoted(lhs, idStart, idEnd uint32) {
-	var n uint32
-	n = idEnd - idStart
+	n := idEnd - idStart
 	if n > 30 {
 		n = 30
 	}
@@ -24453,20 +24280,19 @@ func (m *Machine) MlQuoted(lhs, idStart, idEnd uint32) {
 
 // MlIsArgAt is $mlIsArgAt.
 func (m *Machine) MlIsArgAt(p uint32) bool {
-	var c, e, kind uint32
-	c = m.MlByte(p)
+	c := m.MlByte(p)
 	if m.MlIsArgStart(c) == 0 {
 		return false
 	}
 	if c-97 > 25 {
 		return true
 	}
-	e = m.MlIDEnd(p)
+	e := m.MlIDEnd(p)
 	c = m.MlByte(e)
 	if m.LexIsIdentContinue(c) != 0 || c == '\'' {
 		return true
 	}
-	kind = m.MlWordHl(p, e)
+	kind := m.MlWordHl(p, e)
 	return int32(kind) < 0 || kind&255 == TokenBoolean
 }
 
@@ -24510,11 +24336,10 @@ func (m *Machine) FsWordHl(lhs, rhs uint32) uint32 {
 
 // FsStringBody is $fsStringBody.
 func (m *Machine) FsStringBody(kind, nested, seg uint32) uint32 {
-	var c, c2, e, p, q uint32
-	var verbatim, interp bool
-	verbatim = kind&2 != 0
-	interp = kind&4 != 0
-	p = m.Ptr - 1
+	var c, c2, e, q uint32
+	verbatim := kind&2 != 0
+	interp := kind&4 != 0
+	p := m.Ptr - 1
 	for {
 		if m.Ptr > p {
 			switch {
@@ -24640,8 +24465,7 @@ func (m *Machine) FsIsArgAt(p, c uint32) bool {
 // HlFsharp is $hlFsharp.
 func (m *Machine) HlFsharp() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, argument, kind, hl, status, n, strKind, seg, interp, interpKind, expect, member, typeMode, afterValue, lastModule, attr, mlIsCharLiteral, fsIsArgAt uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -25119,9 +24943,8 @@ func (m *Machine) PyStringBody(quote, raw, format, triple, multiline, hexU, seg,
 
 // PyString is $pyString.
 func (m *Machine) PyString(prefix, quote, raw, format uint32) {
-	var seg, status uint32
 	var triple bool
-	seg = m.Ptr
+	seg := m.Ptr
 	m.Ptr += prefix
 	if m.Ptr+2 < m.End && uint32(m.Mem[m.Ptr+1]) == quote && uint32(m.Mem[m.Ptr+2]) == quote {
 		triple = true
@@ -25129,7 +24952,7 @@ func (m *Machine) PyString(prefix, quote, raw, format uint32) {
 	} else {
 		m.Ptr++
 	}
-	status = m.PyStringBody(quote, raw, format, rt.B2u(triple), rt.B2u(triple), 0, seg, 0)
+	status := m.PyStringBody(quote, raw, format, rt.B2u(triple), rt.B2u(triple), 0, seg, 0)
 	if m.Streaming && m.Ptr == m.End && status&3 != 1 && (triple || status&3 == 2) {
 		m.StreamMode = 10
 		m.StreamA = quote
@@ -25140,12 +24963,11 @@ func (m *Machine) PyString(prefix, quote, raw, format uint32) {
 
 // PyStreamResume is $pyStreamResume.
 func (m *Machine) PyStreamResume() bool {
-	var flags, status uint32
 	if m.StreamMode != 10 {
 		return false
 	}
-	flags = m.StreamB
-	status = m.PyStringBody(m.StreamA, flags&1, (flags>>1)&1, (flags>>2)&1, (flags>>2)&1, 0, m.Ptr, m.StreamC)
+	flags := m.StreamB
+	status := m.PyStringBody(m.StreamA, flags&1, (flags>>1)&1, (flags>>2)&1, (flags>>2)&1, 0, m.Ptr, m.StreamC)
 	m.StreamC = status >> 2
 	status &= 3
 	if status == 1 {
@@ -25161,8 +24983,7 @@ func (m *Machine) PyStreamResume() bool {
 
 // PyWordHl is $pyWordHl.
 func (m *Machine) PyWordHl(lhs, rhs uint32) uint32 {
-	var hl uint32
-	hl = m.LexKeywordValue(lhs, rhs, 25472, 31, 78)
+	hl := m.LexKeywordValue(lhs, rhs, 25472, 31, 78)
 	if hl == 0xffffffff {
 		if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6573696172 {
 			return TokenKeywordControl
@@ -25174,8 +24995,7 @@ func (m *Machine) PyWordHl(lhs, rhs uint32) uint32 {
 
 // PySoftKeyword is $pySoftKeyword.
 func (m *Machine) PySoftKeyword(lhs, rhs uint32) uint32 {
-	var c, n uint32
-	n = rhs - lhs
+	n := rhs - lhs
 	if !((n == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x686374616d) || (n == 4 && rt.Ld32(m.Mem, lhs) == 0x65736163)) {
 		return 0
 	}
@@ -25183,7 +25003,7 @@ func (m *Machine) PySoftKeyword(lhs, rhs uint32) uint32 {
 	if rhs >= m.End {
 		return 0
 	}
-	c = uint32(m.Mem[rhs])
+	c := uint32(m.Mem[rhs])
 	return rt.B2u(c >= 128 || (c|32)-97 <= 25 || c == '_' || m.LexIsDigit(c)) | (uint32(m.Mem[c+3728])>>6)&1
 }
 
@@ -25195,8 +25015,7 @@ func (m *Machine) PyIsOp(c uint32) uint32 {
 // HlPython is $hlPython.
 func (m *Machine) HlPython() {
 	var streamRoot, afterDecl, afterDot, annotName, brackDepth, c, c2, g, gap, hl, lhs, lineHead, p, q, typeNext, pySoftKeyword uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -25471,8 +25290,7 @@ func (m *Machine) HlPython() {
 
 // GdTypeHl is $gdTypeHl.
 func (m *Machine) GdTypeHl(lhs, rhs uint32) uint32 {
-	var length uint32
-	length = rhs - lhs
+	length := rhs - lhs
 	if length == 8 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x726f74636556 && m.Mem[lhs+7] == 'i' {
 		rhs--
 	}
@@ -25488,8 +25306,8 @@ func (m *Machine) GdTypeHl(lhs, rhs uint32) uint32 {
 // HlGdscript is $hlGdscript.
 func (m *Machine) HlGdscript() {
 	var streamRoot, c, n, lhs, p, hl, group, decl, member, operand, quote, triple, status, t0 uint32
-	var raw, liveRoot bool
-	liveRoot = m.LiveEntering
+	var raw bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -25689,8 +25507,7 @@ func (m *Machine) HlGdscript() {
 // HlGdresource is $hlGdresource.
 func (m *Machine) HlGdresource() {
 	var streamRoot, c, n, lhs, p, hl, header, quote, pyStringBody uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -25848,13 +25665,13 @@ func (m *Machine) HlGdresource() {
 
 // GlslWordHl is $glslWordHl.
 func (m *Machine) GlslWordHl(lhs, rhs uint32) uint32 {
-	var g, length, last, w uint32
+	var w uint32
 	var x uint64
-	g = m.LexKeywordValue(lhs, rhs, 19744, 31, 81)
+	g := m.LexKeywordValue(lhs, rhs, 19744, 31, 81)
 	if g != 0xffffffff {
 		return g
 	}
-	length = rhs - lhs
+	length := rhs - lhs
 	if length >= 7 {
 		w = rt.Ld32(m.Mem, rhs-4)
 		if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x746e69) || (length == 8 && rt.Ld32(m.Mem, lhs) == 0x746e6975) || (length == 9 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x74616f6c66)) {
@@ -25864,7 +25681,7 @@ func (m *Machine) GlslWordHl(lhs, rhs uint32) uint32 {
 	if length == 15 && rt.Ld64(m.Mem, lhs) == 0x74616e696d726574 && rt.Ld64(m.Mem, lhs+7) == 0x5458457961526574 {
 		return TokenKeywordControl
 	}
-	last = uint32(m.Mem[rhs-1])
+	last := uint32(m.Mem[rhs-1])
 	if last-50 <= 2 {
 		if length == 4 {
 			w = rt.Ld32(m.Mem, lhs) & 0xffffff
@@ -25901,8 +25718,7 @@ func (m *Machine) HlGlsl() {
 // HlGlslImpl is $hlGlslImpl.
 func (m *Machine) HlGlslImpl(godot uint32) {
 	var streamRoot, c, n, lhs, gap, p, word, hl, length, afterDot, wantType, include, modes, strCont uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -26183,8 +25999,8 @@ func (m *Machine) HlGdshader() {
 // HlGherkin is $hlGherkin.
 func (m *Machine) HlGherkin() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, g, head, row uint32
-	var liveRoot, dockerHeredoc bool
-	liveRoot = m.LiveEntering
+	var dockerHeredoc bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -26340,8 +26156,7 @@ func (m *Machine) GleamIsOp(c uint32) uint32 {
 // HlGleam is $hlGleam.
 func (m *Machine) HlGleam() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, importCtx, typeCtx, fnHead uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -26564,8 +26379,8 @@ func (m *Machine) HlGleam() {
 // HlGnuplot is $hlGnuplot.
 func (m *Machine) HlGnuplot() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, pc, g, hl, atStmt, stmt, cmd uint32
-	var liveRoot, dockerHeredoc bool
-	liveRoot = m.LiveEntering
+	var dockerHeredoc bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -26794,8 +26609,7 @@ func (m *Machine) GoIsOp(c uint32) uint32 {
 // HlGo is $hlGo.
 func (m *Machine) HlGo() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, recv, typeGroup uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -26986,10 +26800,9 @@ func (m *Machine) HlGo() {
 
 // GqlBlockString is $gqlBlockString.
 func (m *Machine) GqlBlockString() {
-	var lhs, p uint32
 	var closed bool
-	lhs = m.Ptr
-	p = m.Ptr + 3
+	lhs := m.Ptr
+	p := m.Ptr + 3
 	for {
 		p = m.LexFindByte(p, 34)
 		if p >= m.End {
@@ -27015,8 +26828,7 @@ func (m *Machine) GqlBlockString() {
 // HlGraphql is $hlGraphql.
 func (m *Machine) HlGraphql() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, expect, paren uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -27224,11 +27036,9 @@ func (m *Machine) GroqStringBody(quote, hl, seg uint32) bool {
 
 // GroqString is $groqString.
 func (m *Machine) GroqString(quote uint32) {
-	var lhs uint32
-	var groqStringBody bool
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr++
-	groqStringBody = m.GroqStringBody(quote, TokenString, lhs)
+	groqStringBody := m.GroqStringBody(quote, TokenString, lhs)
 	if rt.B2u(groqStringBody) != 1 && m.Streaming && m.Ptr == m.EOF {
 		m.StreamMode = 16
 		m.StreamA = quote
@@ -27238,8 +27048,7 @@ func (m *Machine) GroqString(quote uint32) {
 
 // GroqStreamResume is $groqStreamResume.
 func (m *Machine) GroqStreamResume() bool {
-	var groqStringBody bool
-	groqStringBody = m.GroqStringBody(m.StreamA, m.StreamHl, m.Ptr)
+	groqStringBody := m.GroqStringBody(m.StreamA, m.StreamHl, m.Ptr)
 	if rt.B2u(groqStringBody) != 1 && m.Ptr == m.End {
 		return true
 	}
@@ -27249,7 +27058,6 @@ func (m *Machine) GroqStreamResume() bool {
 
 // GroqStarIsEverything is $groqStarIsEverything.
 func (m *Machine) GroqStarIsEverything(p, operand, lineStart uint32) bool {
-	var c uint32
 	if operand == 0 {
 		return true
 	}
@@ -27257,15 +27065,14 @@ func (m *Machine) GroqStarIsEverything(p, operand, lineStart uint32) bool {
 		return false
 	}
 	p = m.LexSkipSpaceAt(p)
-	c = m.GroqByte(p)
+	c := m.GroqByte(p)
 	return c == '[' || c == '{' || (c == '/' && m.GroqByte(p+1) == '/') || c == '|' || c == '\n' || c == '\r' || c == 0
 }
 
 // HlGroq is $hlGroq.
 func (m *Machine) HlGroq() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, operand, member, expect, lineStart, freshLine uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -27470,8 +27277,8 @@ func (m *Machine) GroovyWordHl(lhs, rhs uint32) uint32 {
 
 // GroovyStringBody is $groovyStringBody.
 func (m *Machine) GroovyStringBody(q, triple, expand, nested, seg uint32) uint32 {
-	var c, stop, dollar, status uint32
-	stop = m.Ptr
+	var c, dollar, status uint32
+	stop := m.Ptr
 	for {
 		if m.Ptr >= stop {
 			stop = m.ScanFindSpecial(m.Ptr, m.End, q, 1, rt.B2u(triple == 0))
@@ -27534,8 +27341,7 @@ func (m *Machine) GroovyIsOp(c uint32) uint32 {
 // HlGroovy is $hlGroovy.
 func (m *Machine) HlGroovy() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, status, strKind, seg, interp, interpKind, expect, member, importCtx, prevType, stmtHead uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -27852,9 +27658,8 @@ func (m *Machine) HlHack() {
 
 // HackStreamResume is $hackStreamResume.
 func (m *Machine) HackStreamResume() bool {
-	var done bool
 	m.PhpHack = true
-	done = m.PhpStreamResume()
+	done := m.PhpStreamResume()
 	m.PhpHack = false
 	return done
 }
@@ -27894,13 +27699,11 @@ func (m *Machine) IndentBlockEnd(p, indent uint32) uint32 {
 
 // IndentFilterKind is $indentFilterKind.
 func (m *Machine) IndentFilterKind(lhs, rhs uint32) uint32 {
-	var n uint32
-	var w uint64
-	n = rhs - lhs
+	n := rhs - lhs
 	if n-2 > 10 {
 		return 0
 	}
-	w = rt.Ld64(m.Mem, lhs) & rt.Sel64(n >= 8, 0xffffffffffffffff, uint64(1)<<(uint64(n<<3)&63)-1)
+	w := rt.Ld64(m.Mem, lhs) & rt.Sel64(n >= 8, 0xffffffffffffffff, uint64(1)<<(uint64(n<<3)&63)-1)
 	if w == 29546 || w == 0x747069726373 || (n == 10 && w == 0x697263736176616a) {
 		return 1
 	}
@@ -27927,14 +27730,12 @@ func (m *Machine) IndentFilterKind(lhs, rhs uint32) uint32 {
 
 // IndentBody is $indentBody.
 func (m *Machine) IndentBody(kind, indent, resume uint32) bool {
-	var open bool
-	var root, save, saveDepth, saveReset, to uint32
-	to = m.IndentBlockEnd(m.Ptr, indent)
-	open = m.Streaming && to == m.EOF
-	root = rt.B2u(m.Streaming) & (rt.B2u(open) | resume)
-	save = m.End
-	saveDepth = m.StreamDepth
-	saveReset = m.StreamReset
+	to := m.IndentBlockEnd(m.Ptr, indent)
+	open := m.Streaming && to == m.EOF
+	root := rt.B2u(m.Streaming) & (rt.B2u(open) | resume)
+	save := m.End
+	saveDepth := m.StreamDepth
+	saveReset := m.StreamReset
 	m.End = to
 	if root != 0 {
 		m.StreamDepth = 0
@@ -27999,8 +27800,7 @@ func (m *Machine) IndentStreamResume() bool {
 
 // HamlRuby is $hamlRuby.
 func (m *Machine) HamlRuby(stop uint32) {
-	var save uint32
-	save = m.End
+	save := m.End
 	m.End = stop
 	m.HlRuby()
 	m.End = save
@@ -28009,8 +27809,8 @@ func (m *Machine) HamlRuby(stop uint32) {
 
 // HamlMatch is $hamlMatch.
 func (m *Machine) HamlMatch(depth, open, stop uint32) uint32 {
-	var b, c, closer uint32
-	closer = open + 1 + rt.B2u(open != '(')
+	var b, c uint32
+	closer := open + 1 + rt.B2u(open != '(')
 	for {
 		if m.Ptr >= stop {
 			break
@@ -28051,11 +27851,10 @@ func (m *Machine) HamlMatch(depth, open, stop uint32) uint32 {
 
 // HamlText is $hamlText.
 func (m *Machine) HamlText(stop uint32) {
-	var lhs, p, save uint32
-	save = m.End
+	save := m.End
 	m.End = stop
-	lhs = m.Ptr
-	p = m.Ptr
+	lhs := m.Ptr
+	p := m.Ptr
 	for {
 		p = m.LexFindByte(p, 35)
 		if p >= stop {
@@ -28206,10 +28005,9 @@ func (m *Machine) HamlTag(stop uint32) uint32 {
 
 // HamlContent is $hamlContent.
 func (m *Machine) HamlContent(stop uint32) uint32 {
-	var lhs, c uint32
 	var hamlRubyLine bool
-	lhs = m.Ptr
-	c = m.TemplateByte(lhs)
+	lhs := m.Ptr
+	c := m.TemplateByte(lhs)
 	if c == '!' || c == '&' {
 		if m.TemplateByte(lhs+1) == '=' {
 			m.Ptr = lhs + 1
@@ -28233,8 +28031,8 @@ func (m *Machine) HamlContent(stop uint32) uint32 {
 // HlHaml is $hlHaml.
 func (m *Machine) HlHaml() {
 	var streamRoot, c, indent, kind, lhs, lineEnd, p, block, tag, cont, hamlContent uint32
-	var liveRoot, hamlRubyLine, hamlRubyLine2 bool
-	liveRoot = m.LiveEntering
+	var hamlRubyLine, hamlRubyLine2 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -28405,8 +28203,7 @@ func (m *Machine) JinjaCloser(p, kind, dialect, braces uint32) uint32 {
 
 // JinjaOpens is $jinjaOpens.
 func (m *Machine) JinjaOpens(p, dialect uint32) bool {
-	var c uint32
-	c = m.TemplateByte(p + 1)
+	c := m.TemplateByte(p + 1)
 	return m.TemplateByte(p) == '{' && (c == '{' || (c == '%' && dialect != 3) || (c == '#' && dialect < 2))
 }
 
@@ -28443,9 +28240,9 @@ func (m *Machine) JinjaNextCut(p, dialect, inTag uint32) uint32 {
 
 // JinjaOpen is $jinjaOpen.
 func (m *Machine) JinjaOpen(dialect uint32) uint32 {
-	var c, kind, lhs uint32
-	lhs = m.Ptr
-	c = uint32(m.Mem[lhs+1])
+	var kind uint32
+	lhs := m.Ptr
+	c := uint32(m.Mem[lhs+1])
 	m.Ptr = lhs + 2
 	if c == '#' {
 		m.EmitTok(TokenComment, lhs, m.Ptr)
@@ -28502,11 +28299,11 @@ func (m *Machine) JinjaOpen(dialect uint32) uint32 {
 
 // JinjaTag is $jinjaTag.
 func (m *Machine) JinjaTag(state, dialect uint32) uint32 {
-	var c, ctx, gap, hl, kind, lhs, n, p, save, v uint32
-	kind = state & 7
-	ctx = (state >> 4) & 15
+	var c, gap, hl, n, p, save, v uint32
+	kind := state & 7
+	ctx := (state >> 4) & 15
 	state &= 0xffffff08
-	lhs = m.Ptr
+	lhs := m.Ptr
 	if kind >= 4 {
 		p = m.Ptr
 		m.Ptr = m.End
@@ -28799,9 +28596,9 @@ func (m *Machine) JinjaTag(state, dialect uint32) uint32 {
 
 // JinjaRaw is $jinjaRaw.
 func (m *Machine) JinjaRaw(state, dialect uint32) uint32 {
-	var hl, kind, length, lhs, p, q uint32
+	var hl, length, q uint32
 	var w uint64
-	kind = state >> 24
+	kind := state >> 24
 	if kind == 3 {
 		hl = TokenComment
 	} else {
@@ -28815,8 +28612,8 @@ func (m *Machine) JinjaRaw(state, dialect uint32) uint32 {
 	default:
 		length = 10
 	}
-	lhs = m.Ptr
-	p = m.Ptr
+	lhs := m.Ptr
+	p := m.Ptr
 	for {
 		p = m.LexFindByte(p, 123)
 		if p >= m.End {
@@ -28842,8 +28639,7 @@ func (m *Machine) JinjaRaw(state, dialect uint32) uint32 {
 // HlJinjaImpl is $hlJinjaImpl.
 func (m *Machine) HlJinjaImpl(dialect uint32) {
 	var streamRoot, c, p, r, save, state, tag uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -28969,18 +28765,17 @@ func (m *Machine) HlHandlebars() {
 
 // HsIsCharLiteral is $hsIsCharLiteral.
 func (m *Machine) HsIsCharLiteral(p uint32) bool {
-	var e, c uint32
 	if p+1 >= m.End {
 		return false
 	}
-	c = uint32(m.Mem[p+1])
+	c := uint32(m.Mem[p+1])
 	if c == '\\' {
 		return true
 	}
 	if c == '\n' || c == '\r' {
 		return false
 	}
-	e = m.UTF8SpanEnd(p+2, m.End)
+	e := m.UTF8SpanEnd(p+2, m.End)
 	return e < m.End && m.Mem[e] == '\''
 }
 
@@ -28992,8 +28787,7 @@ func (m *Machine) HsIsSymbol(c uint32) uint32 {
 // HlHaskell is $hlHaskell.
 func (m *Machine) HlHaskell() {
 	var streamRoot, atHead, braces, c, c2, g, gap, hl, importLine, inBacktick, lhs, lineHead, n, p, typeMode, wantFunction, wantType, hsIsCharLiteral uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -29233,8 +29027,8 @@ func (m *Machine) HlHaskell() {
 
 // HxStringBody is $hxStringBody.
 func (m *Machine) HxStringBody(quote, interp uint32) uint32 {
-	var c, e, seg uint32
-	seg = m.Ptr
+	var c, e uint32
+	seg := m.Ptr
 	for {
 		m.Ptr = m.ScanFind3(m.Ptr, quote, 92, rt.Sel32(quote == '\'', 36, quote))
 		if m.Ptr >= m.End {
@@ -29308,8 +29102,8 @@ scan:
 // HlHaxe is $hlHaxe.
 func (m *Machine) HlHaxe() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, hl, expect, member, atMember, strKind, interp, interpKind, status uint32
-	var c2Ident, upper, isVar, liveRoot, t1 bool
-	liveRoot = m.LiveEntering
+	var c2Ident, upper, isVar, t1 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -29558,22 +29352,21 @@ func (m *Machine) HlHaxe() {
 
 // HlslTypeHl is $hlslTypeHl.
 func (m *Machine) HlslTypeHl(lhs, rhs uint32) uint32 {
-	var length, w, stem uint32
-	length = rhs - lhs
+	length := rhs - lhs
 	if length < 4 {
 		return TokenNone
 	}
 	if length >= 7 && rt.Ld64(m.Mem, lhs)&0xffffffffffffff == 0x72656c706d6173 {
 		return TokenTypeBuiltin
 	}
-	w = rt.Ld32(m.Mem, rhs-4)
+	w := rt.Ld32(m.Mem, rhs-4)
 	if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && rt.Ld32(m.Mem, lhs)&0xffffff == 0x746e69) || (length == 8 && rt.Ld32(m.Mem, lhs) == 0x746e6975)) {
 		return TokenTypeBuiltin
 	}
 	if rt.Ld32(m.Mem, lhs) == 0x316e696d {
 		return TokenTypeBuiltin
 	}
-	stem = rhs
+	stem := rhs
 	if uint32(m.Mem[rhs-1])-49 <= 3 {
 		stem = rhs - 1
 		if m.Mem[rhs-2] == 'x' && uint32(m.Mem[rhs-3])-49 <= 3 {
@@ -29591,8 +29384,7 @@ func (m *Machine) HlslTypeHl(lhs, rhs uint32) uint32 {
 
 // HlslWordHl is $hlslWordHl.
 func (m *Machine) HlslWordHl(lhs, rhs uint32) uint32 {
-	var g uint32
-	g = m.LexKeywordValue(lhs, rhs, 20832, 15, 67)
+	g := m.LexKeywordValue(lhs, rhs, 20832, 15, 67)
 	if int32(g) < 0 {
 		g = m.HlslTypeHl(lhs, rhs)
 		return rt.Sel32(g != 0, g, 0xffffffff)
@@ -29608,8 +29400,7 @@ func (m *Machine) HlslIsOp(c uint32) uint32 {
 // HlHlsl is $hlHlsl.
 func (m *Machine) HlHlsl() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, attr, lineHead, atHead, include, strCont uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -29893,8 +29684,7 @@ func (m *Machine) HlJsonl() {
 // HlJSONImpl is $hlJsonImpl.
 func (m *Machine) HlJSONImpl(dialect uint32) {
 	var streamRoot, c, gap, lhs, depth, expectKey, json5, open, jSON5Number, t3, lexIsIdentStart, jSON5Number2 uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -30094,8 +29884,7 @@ func (m *Machine) HlJSONImpl(dialect uint32) {
 
 // JSONWordHl is $jsonWordHl.
 func (m *Machine) JSONWordHl(lhs, rhs, json5 uint32) uint32 {
-	var length uint32
-	length = rhs - lhs
+	length := rhs - lhs
 	if length == 4 {
 		if rt.Ld32(m.Mem, lhs) == 0x65757274 {
 			return TokenBoolean
@@ -30160,8 +29949,7 @@ func (m *Machine) JSONString(hl, quote, json5, seg uint32) uint32 {
 
 // JSON5Number is $json5Number.
 func (m *Machine) JSON5Number() uint32 {
-	var c, lhs uint32
-	c = uint32(m.Mem[m.Ptr])
+	c := uint32(m.Mem[m.Ptr])
 	if c == '+' || c == '-' {
 		m.Ptr++
 		if m.Ptr < m.End {
@@ -30170,7 +29958,7 @@ func (m *Machine) JSON5Number() uint32 {
 			c = 0
 		}
 	}
-	lhs = m.Ptr
+	lhs := m.Ptr
 	if (c|32)-97 <= 25 {
 		m.ScanIdentRun(36)
 		return m.JSONWordHl(lhs, m.Ptr, 1)
@@ -30253,19 +30041,17 @@ func (m *Machine) HTTPText(hl, stop uint32) {
 
 // HTTPSkipBlanks is $httpSkipBlanks.
 func (m *Machine) HTTPSkipBlanks() {
-	var p uint32
-	p = m.LexSkipSpaceAt(m.Ptr)
+	p := m.LexSkipSpaceAt(m.Ptr)
 	m.EmitGap(m.Ptr, p)
 	m.Ptr = p
 }
 
 // HTTPVersion is $httpVersion.
 func (m *Machine) HTTPVersion(rhs uint32) bool {
-	var p uint32
 	if m.Ptr+5 > rhs || rt.Ld32(m.Mem, m.Ptr) != 0x50545448 || m.Mem[m.Ptr+4] != '/' {
 		return false
 	}
-	p = m.Ptr + 4
+	p := m.Ptr + 4
 	m.EmitTok(TokenKeyword, m.Ptr, p)
 	m.Ptr = p + 1
 	m.EmitTok(TokenPunctuationDelimiter, p, m.Ptr)
@@ -30277,12 +30063,11 @@ func (m *Machine) HTTPVersion(rhs uint32) bool {
 
 // HTTPBody is $httpBody.
 func (m *Machine) HTTPBody(info, resume uint32) {
-	var depth, kind, reset, save, stop uint32
-	kind = info & 3
-	save = m.End
-	stop = m.HTTPBodyEnd(m.Ptr)
-	depth = m.StreamDepth
-	reset = m.StreamReset
+	kind := info & 3
+	save := m.End
+	stop := m.HTTPBodyEnd(m.Ptr)
+	depth := m.StreamDepth
+	reset := m.StreamReset
 	m.End = stop
 	m.StreamDepth = 0
 	m.StreamReset = rt.B2u(resume == 0)
@@ -30362,8 +30147,7 @@ func (m *Machine) HTTPStreamResume() bool {
 // HlHTTP is $hlHttp.
 func (m *Machine) HlHTTP() {
 	var streamRoot, c, gap, lhs, p, q, rhs, state, typ uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -30543,9 +30327,8 @@ func (m *Machine) HlHTTP() {
 // JsonnetBlock is $jsonnetBlock.
 func (m *Machine) JsonnetBlock() bool {
 	var p uint32
-	var first, open bool
-	first = m.LexLineByteBefore(m.Ptr) == 0
-	open = true
+	first := m.LexLineByteBefore(m.Ptr) == 0
+	open := true
 	for {
 		if first {
 			p = m.LexSkipSpaceAt(m.Ptr)
@@ -30573,8 +30356,8 @@ func (m *Machine) JsonnetBlock() bool {
 func (m *Machine) HlJsonnet() {
 	var streamRoot, c, c2, lhs, rhs, gap, kind, hl, key, expect, block uint32
 	var stack uint64
-	var liveRoot, jsonnetBlock bool
-	liveRoot = m.LiveEntering
+	var jsonnetBlock bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -30786,8 +30569,7 @@ func (m *Machine) JlByte(p uint32) uint32 {
 
 // JlWordHl is $jlWordHl.
 func (m *Machine) JlWordHl(lhs, rhs uint32) uint32 {
-	var v uint32
-	v = m.LexKeywordValue(lhs, rhs, 21312, 15, 47)
+	v := m.LexKeywordValue(lhs, rhs, 21312, 15, 47)
 	if int32(v) >= 0 {
 		return v
 	}
@@ -30825,9 +30607,9 @@ func (m *Machine) JlDefinedAhead(p uint32) bool {
 
 // JlStringBody is $jlStringBody.
 func (m *Machine) JlStringBody(q, triple, expand, raw, nested, hl, seg uint32) uint32 {
-	var c, c2, e, stop, dollar uint32
-	stop = m.Ptr
-	dollar = m.Ptr
+	var c, c2, e uint32
+	stop := m.Ptr
+	dollar := m.Ptr
 	for {
 		if m.Ptr >= stop {
 			stop = m.ScanFindSpecial(m.Ptr, m.End, q, 1, 0)
@@ -30906,11 +30688,10 @@ func (m *Machine) JlIsOp(c uint32) uint32 {
 
 // JlIsConstName is $jlIsConstName.
 func (m *Machine) JlIsConstName(lhs, rhs uint32) bool {
-	var p uint32
 	if !m.LexIsConstCase(lhs, rhs) {
 		return false
 	}
-	p = lhs
+	p := lhs
 	for {
 		if p >= rhs {
 			break
@@ -30926,8 +30707,7 @@ func (m *Machine) JlIsConstName(lhs, rhs uint32) bool {
 // HlJulia is $hlJulia.
 func (m *Machine) HlJulia() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, status, strKind, strHl, seg, interp, interpKind, expect, member, importCtx, stmtHead, afterValue, depth uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -31318,14 +31098,14 @@ func (m *Machine) JustExpectHl(e uint32) uint32 {
 
 // JustStringBody is $justStringBody.
 func (m *Machine) JustStringBody(kind uint32) bool {
-	var q, hl, seg, e uint32
-	q = kind & 255
+	var hl, e uint32
+	q := kind & 255
 	if q == '`' {
 		hl = TokenStringSpecial
 	} else {
 		hl = TokenString
 	}
-	seg = m.Ptr
+	seg := m.Ptr
 	for {
 		m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, q, rt.B2u(q == '"'), 0)
 		if m.Ptr >= m.End {
@@ -31364,8 +31144,8 @@ func (m *Machine) JustStringBody(kind uint32) bool {
 
 // JustBodyString is $justBodyString.
 func (m *Machine) JustBodyString(q, seg uint32) bool {
-	var stop, p uint32
-	stop = m.Ptr
+	var p uint32
+	stop := m.Ptr
 	for {
 		if stop <= m.Ptr {
 			stop = m.ScanFindSpecial(m.Ptr, m.End, q, rt.B2u(q == '"'), 1)
@@ -31416,8 +31196,7 @@ func (m *Machine) JustBodyString(q, seg uint32) bool {
 // HlJust is $hlJust.
 func (m *Machine) HlJust() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, lineHead, inRecipe, mode, depth, interp, cmdHead, expect, str, t1, t3 uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -31771,8 +31550,7 @@ func (m *Machine) RustByte(p uint32) uint32 {
 
 // RustWordHl is $rustWordHl.
 func (m *Machine) RustWordHl(lhs, rhs uint32) uint32 {
-	var hl uint32
-	hl = m.LexKeywordValue(lhs, rhs, 26080, 15, 56)
+	hl := m.LexKeywordValue(lhs, rhs, 26080, 15, 56)
 	if hl == 0xffffffff {
 		if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
 			return TokenKeyword
@@ -31783,8 +31561,7 @@ func (m *Machine) RustWordHl(lhs, rhs uint32) uint32 {
 
 // RustRawOpen is $rustRawOpen.
 func (m *Machine) RustRawOpen(prefix uint32) uint32 {
-	var p uint32
-	p = m.Ptr + prefix
+	p := m.Ptr + prefix
 	for {
 		if m.RustByte(p) != '#' {
 			break
@@ -31838,8 +31615,7 @@ func (m *Machine) RustIsOp(c uint32) uint32 {
 // HlRust is $hlRust.
 func (m *Machine) HlRust() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, expect, member, attr, rawOpen uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -32184,8 +31960,7 @@ func (m *Machine) KdlIdentEnd() {
 
 // KdlRawHashes is $kdlRawHashes.
 func (m *Machine) KdlRawHashes(p uint32) uint32 {
-	var q uint32
-	q = p
+	q := p
 	for {
 		if m.TemplateByte(q) != '#' {
 			break
@@ -32197,8 +31972,7 @@ func (m *Machine) KdlRawHashes(p uint32) uint32 {
 
 // KdlLiteral is $kdlLiteral.
 func (m *Machine) KdlLiteral(lhs, rhs uint32) uint32 {
-	var w uint32
-	w = rt.Ld32(m.Mem, lhs)
+	w := rt.Ld32(m.Mem, lhs)
 	if rhs-lhs == 4 {
 		if w == 0x65757274 {
 			return TokenBoolean
@@ -32212,8 +31986,8 @@ func (m *Machine) KdlLiteral(lhs, rhs uint32) uint32 {
 
 // KdlStringBody is $kdlStringBody.
 func (m *Machine) KdlStringBody(triple, hl uint32) bool {
-	var seg, e uint32
-	seg = m.Ptr
+	var e uint32
+	seg := m.Ptr
 	for {
 		m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, 34, 1, 0)
 		if m.Ptr >= m.End {
@@ -32243,8 +32017,8 @@ func (m *Machine) KdlStringBody(triple, hl uint32) bool {
 // HlKdl is $hlKdl.
 func (m *Machine) HlKdl() {
 	var streamRoot, c, c2, lhs, gap, p, hl, after, args, paren, join, open, mute uint32
-	var liveRoot, kdlStringBody, rustRawBody, kdlStringBody2, rustRawBody2 bool
-	liveRoot = m.LiveEntering
+	var kdlStringBody, rustRawBody, kdlStringBody2, rustRawBody2 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -32679,8 +32453,8 @@ func (m *Machine) KotlinByte(p uint32) uint32 {
 
 // KotlinModifies is $kotlinModifies.
 func (m *Machine) KotlinModifies(rhs uint32) bool {
-	var p, w uint32
-	p = rhs
+	var w uint32
+	p := rhs
 	for {
 		w = m.KotlinByte(p)
 		if w != 32 && w != 9 {
@@ -32700,8 +32474,7 @@ func (m *Machine) KotlinModifies(rhs uint32) bool {
 
 // KotlinWordHl is $kotlinWordHl.
 func (m *Machine) KotlinWordHl(lhs, rhs uint32) uint32 {
-	var hl uint32
-	hl = m.LexKeywordValue(lhs, rhs, 21504, 15, 72)
+	hl := m.LexKeywordValue(lhs, rhs, 21504, 15, 72)
 	if hl == 0xffffffff {
 		if rhs-lhs == 5 {
 			if rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x74726f6853 {
@@ -32717,8 +32490,8 @@ func (m *Machine) KotlinWordHl(lhs, rhs uint32) uint32 {
 
 // KotlinStringBody is $kotlinStringBody.
 func (m *Machine) KotlinStringBody(triple, interp, seg uint32) uint32 {
-	var c, stop, dollar, status uint32
-	stop = m.Ptr
+	var c, dollar, status uint32
+	stop := m.Ptr
 	for {
 		if m.Ptr >= stop {
 			stop = m.ScanFindSpecial(m.Ptr, m.End, 34, rt.B2u(triple == 0), rt.B2u(triple == 0))
@@ -32777,8 +32550,7 @@ func (m *Machine) KotlinIsOp(c uint32) uint32 {
 // HlKotlin is $hlKotlin.
 func (m *Machine) HlKotlin() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, fnAngle, strKind, seg, interp, interpKind, status uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -33076,8 +32848,7 @@ func (m *Machine) LatexEnvNameEnd(p uint32) uint32 {
 
 // LatexEnvKey is $latexEnvKey.
 func (m *Machine) LatexEnvKey(lhs, rhs uint32) uint32 {
-	var star bool
-	star = rhs > lhs && m.Mem[rhs-1] == '*'
+	star := rhs > lhs && m.Mem[rhs-1] == '*'
 	return m.LexKeywordValue(lhs, rhs-rt.B2u(star), 21760, 31, 64) | rt.B2u(star)<<12
 }
 
@@ -33085,8 +32856,7 @@ func (m *Machine) LatexEnvKey(lhs, rhs uint32) uint32 {
 func (m *Machine) HlLatex() {
 	var streamRoot, c, c2, lhs, p, q, v, kind, hl, mask, math, raw, depth, pend, pendOpt, argHl, argDepth, outerHl, outerDepth, lineEmpty uint32
 	var w, rng, extra rt.V128
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -33468,8 +33238,7 @@ func (m *Machine) LeanByte(p uint32) uint32 {
 
 // LeanCodepoint is $leanCodepoint.
 func (m *Machine) LeanCodepoint(p uint32) uint32 {
-	var c uint32
-	c = m.LeanByte(p)
+	c := m.LeanByte(p)
 	if c < 192 {
 		return c
 	}
@@ -33505,10 +33274,7 @@ func (m *Machine) LeanIsLetter(c uint32) bool {
 	if c-8448 <= 79 {
 		return true
 	}
-	if c-0x1d49c <= 259 {
-		return true
-	}
-	return false
+	return c-0x1d49c <= 259
 }
 
 // LeanIsRest is $leanIsRest.
@@ -33543,8 +33309,7 @@ func (m *Machine) LeanNameKind(expect uint32) uint32 {
 
 // LeanRawOpen is $leanRawOpen.
 func (m *Machine) LeanRawOpen(prefix uint32) uint32 {
-	var p uint32
-	p = m.Ptr + prefix
+	p := m.Ptr + prefix
 	for {
 		if m.LeanByte(p) != '#' {
 			break
@@ -33593,8 +33358,7 @@ func (m *Machine) LeanRawBody(hashes uint32) bool {
 // HlLean is $hlLean.
 func (m *Machine) HlLean() {
 	var streamRoot, c, c2, cp, lhs, rhs, gap, kind, hl, expect, rawOpen, quoted, quotedKind, attribute uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -33802,15 +33566,14 @@ func (m *Machine) LispByte(p uint32) uint32 {
 
 // LispWordHl is $lispWordHl.
 func (m *Machine) LispWordHl(lhs, rhs uint32) uint32 {
-	var g, n uint32
-	n = rhs - lhs
+	n := rhs - lhs
 	if n == 1 {
 		if m.Mem[lhs] == 't' {
 			return TokenConstantBuiltin
 		}
 		return 0xffffffff
 	}
-	g = m.LexKeywordValue(lhs, rhs, 22048, 31, 86)
+	g := m.LexKeywordValue(lhs, rhs, 22048, 31, 86)
 	if int32(g) < 0 {
 		if n == 4 {
 			if rt.Ld32(m.Mem, lhs) == 0x2a74656c {
@@ -33853,9 +33616,9 @@ func (m *Machine) LispIsExponent(c uint32) uint32 {
 
 // LispIsNumber is $lispIsNumber.
 func (m *Machine) LispIsNumber(lhs, rhs uint32) bool {
-	var c, prev uint32
 	var digits bool
-	c = uint32(m.Mem[lhs])
+	var prev uint32
+	c := uint32(m.Mem[lhs])
 	if c == '+' || c == '-' {
 		lhs++
 		c = uint32(m.Mem[lhs])
@@ -33881,13 +33644,13 @@ func (m *Machine) LispIsNumber(lhs, rhs uint32) bool {
 
 // LispBindOpen is $lispBindOpen.
 func (m *Machine) LispBindOpen(bl uint32) uint32 {
-	var kind, depth, elem uint32
-	kind = bl & 3
+	var elem uint32
+	kind := bl & 3
 	if kind == 0 {
 		kind = (bl >> 5) & 3
 		return rt.Sel32(kind != 0, kind|256, 0)
 	}
-	depth = bl>>8 + 1
+	depth := bl>>8 + 1
 	if depth == 2 {
 		return kind | 512
 	}
@@ -33900,11 +33663,10 @@ func (m *Machine) LispBindOpen(bl uint32) uint32 {
 
 // LispBindClose is $lispBindClose.
 func (m *Machine) LispBindClose(bl uint32) uint32 {
-	var depth uint32
 	if bl&3 == 0 {
 		return 0
 	}
-	depth = bl>>8 - 1
+	depth := bl>>8 - 1
 	if depth == 0 {
 		return 0
 	}
@@ -33913,12 +33675,11 @@ func (m *Machine) LispBindClose(bl uint32) uint32 {
 
 // LispBindName is $lispBindName.
 func (m *Machine) LispBindName(bl uint32) uint32 {
-	var kind, depth uint32
-	kind = bl & 3
+	kind := bl & 3
 	if kind == 0 {
 		return rt.Sel32(bl&0xffffff7f == 64, TokenFunctionDefinition, 0xffffffff)
 	}
-	depth = bl >> 8
+	depth := bl >> 8
 	if depth == 1 {
 		return TokenVariable
 	}
@@ -33948,8 +33709,7 @@ func (m *Machine) LispBindStep(bl, c, arm uint32) uint32 {
 // HlLisp is $hlLisp.
 func (m *Machine) HlLisp() {
 	var streamRoot, c, c2, gap, lhs, rhs, kind, hl, expect, bl, arm uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -34194,8 +33954,7 @@ func (m *Machine) HlLisp() {
 
 // LlvmWordHl is $llvmWordHl.
 func (m *Machine) LlvmWordHl(lhs, rhs uint32) uint32 {
-	var n uint32
-	n = rhs - lhs
+	n := rhs - lhs
 	if n == 6 && rt.Ld64(m.Mem, lhs)&0xffffffffffff == 0x69756f747066 {
 		return TokenKeyword
 	}
@@ -34221,8 +33980,8 @@ func (m *Machine) LlvmName() {
 
 // LlvmString is $llvmString.
 func (m *Machine) LlvmString() {
-	var seg, e uint32
-	seg = m.Ptr
+	var e uint32
+	seg := m.Ptr
 	m.Ptr++
 	for {
 		m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, 34, 1, 1)
@@ -34255,8 +34014,7 @@ func (m *Machine) LlvmString() {
 // HlLlvm is $hlLlvm.
 func (m *Machine) HlLlvm() {
 	var streamRoot, c, c2, lhs, rhs, gap, hl uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -34422,8 +34180,7 @@ func (m *Machine) LogIsMark(c uint32) uint32 {
 // HlLog is $hlLog.
 func (m *Machine) HlLog() {
 	var streamRoot, c, hl, lhs, n, p, plain, lexLowerCopy uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -34672,17 +34429,17 @@ next:
 
 // LuaLong is $luaLong.
 func (m *Machine) LuaLong(prefix, hl uint32) bool {
-	var bracket, c, eq, i, lhs, p uint32
+	var c, eq, i uint32
 	var closed bool
-	lhs = m.Ptr
-	bracket = m.Ptr + prefix
+	lhs := m.Ptr
+	bracket := m.Ptr + prefix
 	if bracket >= m.End {
 		return false
 	}
 	if m.Mem[bracket] != '[' {
 		return false
 	}
-	p = bracket + 1
+	p := bracket + 1
 	for {
 		if p >= m.End {
 			break
@@ -34738,8 +34495,7 @@ func (m *Machine) LuaLong(prefix, hl uint32) bool {
 // HlLua is $hlLua.
 func (m *Machine) HlLua() {
 	var streamRoot, c, decl, group, hl, lhs, member, next, p uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -34900,9 +34656,9 @@ func (m *Machine) HlLua() {
 
 // LuauTemplate is $luauTemplate.
 func (m *Machine) LuauTemplate(seg uint32) bool {
-	var c, saveEnd uint32
+	var c uint32
 	var open bool
-	saveEnd = m.End
+	saveEnd := m.End
 	m.End = m.LexFindEither(m.Ptr, 10, 13)
 	for {
 		m.Ptr = m.ScanFind3(m.Ptr, 96, 92, 123)
@@ -34933,8 +34689,7 @@ func (m *Machine) LuauTemplate(seg uint32) bool {
 // HlLuau is $hlLuau.
 func (m *Machine) HlLuau() {
 	var streamRoot, c, decl, group, hl, lhs, member, next, p, typ, interp uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -35270,9 +35025,9 @@ func (m *Machine) MakeScanWord() {
 
 // MakeTargetVar is $makeTargetVar.
 func (m *Machine) MakeTargetVar(p uint32) bool {
-	var q, c uint32
+	var c uint32
 	p = m.LexSkipSpaceAt(p)
-	q = p
+	q := p
 	for {
 		if q >= m.End {
 			break
@@ -35356,9 +35111,9 @@ func (m *Machine) MakeLineKind(p uint32) uint32 {
 
 // MakeDollar is $makeDollar.
 func (m *Machine) MakeDollar(nest uint32) {
-	var lhs, c, hl, open, closer, depth, rhs, p uint32
-	lhs = m.Ptr
-	c = m.TemplateByte(m.Ptr + 1)
+	var hl, open, closer, depth, rhs, p uint32
+	lhs := m.Ptr
+	c := m.TemplateByte(m.Ptr + 1)
 	m.Ptr = lhs + 2
 	hl = TokenVariable
 	if c == '$' {
@@ -35463,8 +35218,8 @@ func (m *Machine) MakeDollar(nest uint32) {
 
 // MakeQuoted is $makeQuoted.
 func (m *Machine) MakeQuoted() {
-	var seg, c uint32
-	seg = m.Ptr
+	var c uint32
+	seg := m.Ptr
 	m.Ptr++
 	for {
 		if m.Ptr >= m.End {
@@ -35502,8 +35257,7 @@ func (m *Machine) MakeIsShellOp(c uint32) uint32 {
 // HlMakefile is $hlMakefile.
 func (m *Machine) HlMakefile() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, kind, lineHead, mode, targets, expectVar, cmdHead, inRule, define uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -35837,16 +35591,15 @@ func (m *Machine) MatWordHl(lhs, rhs uint32) uint32 {
 
 // MatRestBlank is $matRestBlank.
 func (m *Machine) MatRestBlank(p uint32) bool {
-	var c uint32
 	p = m.LexSkipSpaceAt(p)
-	c = m.TemplateByte(p)
+	c := m.TemplateByte(p)
 	return p >= m.End || c == '\n' || c == '\r'
 }
 
 // MatBlockComment is $matBlockComment.
 func (m *Machine) MatBlockComment() {
-	var lhs, line uint32
-	lhs = m.Ptr
+	var line uint32
+	lhs := m.Ptr
 	m.ScanToLineEnd()
 	for {
 		if m.Ptr >= m.End {
@@ -35874,8 +35627,7 @@ func (m *Machine) MatIsOp(c uint32) uint32 {
 // HlMatlab is $hlMatlab.
 func (m *Machine) HlMatlab() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, pc, kind, hl, fnHead, fnOut, paren, fnDepth, afterValue, lineHead, member, atHead, classLine uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -36124,11 +35876,10 @@ func (m *Machine) HlMatlab() {
 
 // MdxMarkdownRange is $mdxMarkdownRange.
 func (m *Machine) MdxMarkdownRange(from, to uint32) {
-	var save uint32
 	if from >= to {
 		return
 	}
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HlMarkdown()
@@ -36138,7 +35889,7 @@ func (m *Machine) MdxMarkdownRange(from, to uint32) {
 
 // MdxTsxRange is $mdxTsxRange.
 func (m *Machine) MdxTsxRange(from, to uint32) {
-	var c, lhs, save, p uint32
+	var c, lhs, p uint32
 	var dotted bool
 	if from+2 <= to && m.Mem[from] == '<' && m.Mem[from+1] == '/' {
 		m.EmitTok(TokenPunctuationBracketJsx, from, from+2)
@@ -36183,7 +35934,7 @@ func (m *Machine) MdxTsxRange(from, to uint32) {
 		m.Ptr = to
 		return
 	}
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HlTsx()
@@ -36198,15 +35949,14 @@ func (m *Machine) MdxNextLine(p uint32) uint32 {
 
 // MdxCommentEnd is $mdxCommentEnd.
 func (m *Machine) MdxCommentEnd(p uint32) uint32 {
-	var c, save uint32
 	if p+1 >= m.End {
 		return p
 	}
-	c = uint32(m.Mem[p+1])
+	c := uint32(m.Mem[p+1])
 	if c != '*' && c != '/' {
 		return p
 	}
-	save = m.Ptr
+	save := m.Ptr
 	m.Ptr = p + 2
 	if c == '*' {
 		m.ScanBlockCommentEnd()
@@ -36220,13 +35970,13 @@ func (m *Machine) MdxCommentEnd(p uint32) uint32 {
 
 // MdxJsxEnd is $mdxJsxEnd.
 func (m *Machine) MdxJsxEnd(lhs uint32) uint32 {
-	var c, p, to, value uint32
+	var to, value uint32
 	var closer bool
-	p = lhs + 1
+	p := lhs + 1
 	if p >= m.End {
 		return lhs + 1
 	}
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	if c == '/' {
 		closer = true
 		p++
@@ -36294,7 +36044,7 @@ func (m *Machine) MdxJsxEnd(lhs uint32) uint32 {
 
 // MdxFenceEnd is $mdxFenceEnd.
 func (m *Machine) MdxFenceEnd(p uint32) uint32 {
-	var closer, fence, length, q, quotes, listStart, indent uint32
+	var fence, q, quotes, listStart, indent uint32
 prefix:
 	for {
 		if p >= m.End {
@@ -36338,7 +36088,7 @@ prefix:
 		}
 		q++
 	}
-	length = q - p
+	length := q - p
 	if listStart != 0 {
 		indent = p - listStart
 	} else {
@@ -36347,7 +36097,7 @@ prefix:
 	if length < 3 {
 		return 0
 	}
-	closer = m.MarkdownFenceClose(m.MdxNextLine(q), fence, length, quotes, indent)
+	closer := m.MarkdownFenceClose(m.MdxNextLine(q), fence, length, quotes, indent)
 	if m.MarkdownFenceEnded {
 		return closer
 	}
@@ -36359,27 +36109,22 @@ prefix:
 
 // MdxEsmStart is $mdxEsmStart.
 func (m *Machine) MdxEsmStart(p uint32) bool {
-	var c, word uint32
 	if p+7 > m.End {
 		return false
 	}
-	word = rt.Ld32(m.Mem, p)
+	word := rt.Ld32(m.Mem, p)
 	if !((word == 0x6f706d69 && rt.Ld16(m.Mem, p+4) == 29810) || (word == 0x6f707865 && rt.Ld16(m.Mem, p+4) == 29810)) {
 		return false
 	}
-	c = uint32(m.Mem[p+6])
-	if !(c == ' ' || c == '\t' || c == '{' || c == '*') {
-		return false
-	}
-	return true
+	c := uint32(m.Mem[p+6])
+	return c == ' ' || c == '\t' || c == '{' || c == '*'
 }
 
 // MdxEsmRange is $mdxEsmRange.
 func (m *Machine) MdxEsmRange(from, resume uint32) uint32 {
-	var lineEnd, p, saveEOF uint32
-	var saveStreaming bool
-	saveEOF = m.EOF
-	saveStreaming = m.Streaming
+	var lineEnd, p uint32
+	saveEOF := m.EOF
+	saveStreaming := m.Streaming
 	m.Streaming = true
 	for {
 		if from >= m.End {
@@ -36411,8 +36156,7 @@ func (m *Machine) MdxEsmRange(from, resume uint32) uint32 {
 
 // MdxEsmResume is $mdxEsmResume.
 func (m *Machine) MdxEsmResume(reg uint32) bool {
-	var mdxEsmRange uint32
-	mdxEsmRange = m.MdxEsmRange(m.Ptr, rt.B2u(reg&256 != 0))
+	mdxEsmRange := m.MdxEsmRange(m.Ptr, rt.B2u(reg&256 != 0))
 	if mdxEsmRange == m.End {
 		return true
 	}
@@ -36422,11 +36166,10 @@ func (m *Machine) MdxEsmResume(reg uint32) bool {
 
 // MdxTagStartContinues is $mdxTagStartContinues.
 func (m *Machine) MdxTagStartContinues(p uint32) bool {
-	var c, q, to uint32
-	var evidence bool
-	c = uint32(m.Mem[p+1])
-	evidence = c-65 <= 25
-	q = p
+	var to uint32
+	c := uint32(m.Mem[p+1])
+	evidence := c-65 <= 25
+	q := p
 	for {
 		if q <= m.SrcBase {
 			evidence = true
@@ -36481,8 +36224,8 @@ func (m *Machine) MdxTagStartContinues(p uint32) bool {
 // HlMdx is $hlMdx.
 func (m *Machine) HlMdx() {
 	var streamRoot, fenceAt, from, noClose, p, to, t4 uint32
-	var inFence, liveRoot, mdxTagStartContinues bool
-	liveRoot = m.LiveEntering
+	var inFence, mdxTagStartContinues bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -36658,9 +36401,9 @@ func (m *Machine) MmdString(seg uint32) bool {
 
 // MmdArrowEnd is $mmdArrowEnd.
 func (m *Machine) MmdArrowEnd(p, wide uint32) uint32 {
-	var c, last, q uint32
+	var c, last uint32
 	var shaft bool
-	q = p
+	q := p
 	for {
 		c = m.TemplateByte(q)
 		if uint32(m.Mem[c+4752])&1 != 0 {
@@ -36680,8 +36423,8 @@ func (m *Machine) MmdArrowEnd(p, wide uint32) uint32 {
 // HlMermaid is $hlMermaid.
 func (m *Machine) HlMermaid() {
 	var streamRoot, c, c2, gap, lhs, tok, p, q, v, kind, mid, style, attr, dir, quote, lexKeywordValue uint32
-	var first, liveRoot, mmdString, mmdString2, t3 bool
-	liveRoot = m.LiveEntering
+	var first, mmdString, mmdString2, t3 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -37104,8 +36847,8 @@ func (m *Machine) MoonbitString(quote, interp, seg uint32) bool {
 // HlMoonbit is $hlMoonbit.
 func (m *Machine) HlMoonbit() {
 	var streamRoot, c, c2, gap, lhs, rhs, kind, hl, expect, member, str uint32
-	var path, liveRoot bool
-	liveRoot = m.LiveEntering
+	var path bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -37473,8 +37216,7 @@ func (m *Machine) NginxIsSize(lhs, rhs uint32) bool {
 // HlNginx is $hlNginx.
 func (m *Machine) HlNginx() {
 	var streamRoot, c, depth, gap, hl, lhs, p, expect, open, t1 uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -37703,8 +37445,7 @@ func (m *Machine) NimRawString(lhs uint32) {
 // NimTriple is $nimTriple.
 func (m *Machine) NimTriple(lhs uint32) bool {
 	var p uint32
-	var open bool
-	open = true
+	open := true
 	for {
 		m.Ptr = m.LexFindByte(m.Ptr, 34)
 		if m.Ptr >= m.End {
@@ -37729,9 +37470,8 @@ func (m *Machine) NimTriple(lhs uint32) bool {
 
 // NimBlockComment is $nimBlockComment.
 func (m *Machine) NimBlockComment(lhs, state uint32) uint32 {
-	var depth, doc uint32
-	doc = state & 0x10000
-	depth = m.LexNestedScan(state&65535, 23331, 9053)
+	doc := state & 0x10000
+	depth := m.LexNestedScan(state&65535, 23331, 9053)
 	if depth == 0 && doc != 0 && m.TemplateByte(m.Ptr) == '#' {
 		m.Ptr++
 	}
@@ -37742,8 +37482,8 @@ func (m *Machine) NimBlockComment(lhs, state uint32) uint32 {
 // HlNim is $hlNim.
 func (m *Machine) HlNim() {
 	var streamRoot, afterDecl, afterDot, c, c2, comment, decl, defEnd, depth, dot, g, gap, hl, importKw, lhs, tok, nameEnd, p, pragma, triple, hl2 uint32
-	var liveRoot, nimTriple, nimTriple2, nimTriple3 bool
-	liveRoot = m.LiveEntering
+	var nimTriple, nimTriple2, nimTriple3 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -38151,9 +37891,8 @@ func (m *Machine) NixIsURIByte(c uint32) uint32 {
 
 // NixIsArgAt is $nixIsArgAt.
 func (m *Machine) NixIsArgAt(p uint32) uint32 {
-	var c, c2 uint32
-	c = m.NixByte(p)
-	c2 = m.NixByte(p + 1)
+	c := m.NixByte(p)
+	c2 := m.NixByte(p + 1)
 	if m.LexIsIdentStart(c) || m.LexIsDigit(c) || (uint32(m.Mem[c+5008])>>1)&1 != 0 {
 		return 1
 	}
@@ -38245,8 +37984,7 @@ func (m *Machine) NixIsOp(c uint32) uint32 {
 // HlNix is $hlNix.
 func (m *Machine) HlNix() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, strKind, seg, interp, interpKind, afterValue, member, inherit, brackets, depth, top, pc uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -38561,9 +38299,8 @@ func (m *Machine) ObjcByte(p uint32) uint32 {
 
 // ObjcWordHl is $objcWordHl.
 func (m *Machine) ObjcWordHl(lhs, rhs, at, propAttrs uint32) uint32 {
-	var g, n uint32
-	n = m.LexKeywordValue(lhs, rhs, 23328, 31, 76)
-	g = n >> 8
+	n := m.LexKeywordValue(lhs, rhs, 23328, 31, 76)
+	g := n >> 8
 	if at != 0 {
 		n = rhs - lhs
 		if g == 1 {
@@ -38585,8 +38322,8 @@ func (m *Machine) ObjcWordHl(lhs, rhs, at, propAttrs uint32) uint32 {
 // HlObjc is $hlObjc.
 func (m *Machine) HlObjc() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, midLine, expectType, propAttrs, declHead, parens, brackets, member, prev, declColon, strCont uint32
-	var nl, liveRoot bool
-	liveRoot = m.LiveEntering
+	var nl bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -38837,11 +38574,11 @@ func (m *Machine) OdinByte(p uint32) uint32 {
 
 // OdinEndianType is $odinEndianType.
 func (m *Machine) OdinEndianType(lhs, rhs uint32) bool {
-	var c, p, width uint32
+	var width uint32
 	if rhs-lhs < 5 {
 		return false
 	}
-	c = rt.Ld16(m.Mem, rhs-2)
+	c := rt.Ld16(m.Mem, rhs-2)
 	if !(c == 25964 || c == 25954) {
 		return false
 	}
@@ -38849,7 +38586,7 @@ func (m *Machine) OdinEndianType(lhs, rhs uint32) bool {
 	if !(c == 'i' || c == 'u' || c == 'f') {
 		return false
 	}
-	p = lhs + 1
+	p := lhs + 1
 	for {
 		if p >= rhs-2 {
 			break
@@ -38870,16 +38607,13 @@ func (m *Machine) OdinEndianType(lhs, rhs uint32) bool {
 	if width == 64 {
 		return true
 	}
-	if width == 128 && m.Mem[lhs] != 'f' {
-		return true
-	}
-	return false
+	return width == 128 && m.Mem[lhs] != 'f'
 }
 
 // OdinDeclKind is $odinDeclKind.
 func (m *Machine) OdinDeclKind(p uint32) uint32 {
-	var save, q, v uint32
-	save = m.Ptr
+	var q uint32
+	save := m.Ptr
 	p = m.LexSkipSpaceAt(p)
 	if m.OdinByte(p) == '#' {
 		p++
@@ -38907,7 +38641,7 @@ func (m *Machine) OdinDeclKind(p uint32) uint32 {
 	if m.OdinEndianType(p, q) {
 		return 2
 	}
-	v = m.LexKeywordValue(p, q, 28416, 31, 77)
+	v := m.LexKeywordValue(p, q, 28416, 31, 77)
 	if int32(v) < 0 {
 		return 3
 	}
@@ -38981,11 +38715,9 @@ func (m *Machine) OdinTripleBody(quote, raw, seg uint32) bool {
 
 // OdinTripleString is $odinTripleString.
 func (m *Machine) OdinTripleString(quote uint32) {
-	var lhs uint32
-	var closed bool
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr += 3
-	closed = m.OdinTripleBody(quote, rt.B2u(quote == '`'), lhs)
+	closed := m.OdinTripleBody(quote, rt.B2u(quote == '`'), lhs)
 	if m.Streaming && !closed && m.Ptr == m.EOF {
 		m.StreamMode = 23
 		m.StreamA = quote
@@ -38995,8 +38727,7 @@ func (m *Machine) OdinTripleString(quote uint32) {
 
 // OdinStreamResumeTriple is $odinStreamResumeTriple.
 func (m *Machine) OdinStreamResumeTriple() bool {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	if !m.OdinTripleBody(m.StreamA, m.StreamB, lhs) {
 		return true
 	}
@@ -39007,8 +38738,7 @@ func (m *Machine) OdinStreamResumeTriple() bool {
 // HlOdin is $hlOdin.
 func (m *Machine) HlOdin() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, decl, expect, member, attrDepth uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -39308,8 +39038,7 @@ func (m *Machine) HlOdin() {
 // HlOpenscad is $hlOpenscad.
 func (m *Machine) HlOpenscad() {
 	var streamRoot, c, c2, lhs, rhs, gap, hl, p, depth, expr, define uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -39465,9 +39194,8 @@ func (m *Machine) HlOpenscad() {
 
 // PasWordHl is $pasWordHl.
 func (m *Machine) PasWordHl(lhs, rhs uint32) uint32 {
-	var n, v uint32
-	n = m.LexLowerCopy(lhs, rhs, 1360)
-	v = m.LexKeywordValue(1360, 1360+n, 23872, 63, 153)
+	n := m.LexLowerCopy(lhs, rhs, 1360)
+	v := m.LexKeywordValue(1360, 1360+n, 23872, 63, 153)
 	if int32(v) >= 0 {
 		return v
 	}
@@ -39479,19 +39207,18 @@ func (m *Machine) PasWordHl(lhs, rhs uint32) uint32 {
 
 // PasIsTypeName is $pasIsTypeName.
 func (m *Machine) PasIsTypeName(lhs, rhs uint32) uint32 {
-	var c uint32
 	if rhs-lhs < 2 {
 		return 0
 	}
-	c = uint32(m.Mem[lhs])
+	c := uint32(m.Mem[lhs])
 	return (uint32(m.Mem[c+5008]) >> 4) & 1 & rt.B2u(uint32(m.Mem[lhs+1])-65 <= 25)
 }
 
 // PasBraced is $pasBraced.
 func (m *Machine) PasBraced(paren uint32) {
-	var lhs, hl, p uint32
+	var hl, p uint32
 	var closed bool
-	lhs = m.Ptr
+	lhs := m.Ptr
 	if paren != 0 {
 		m.Ptr += 2
 	} else {
@@ -39531,8 +39258,8 @@ func (m *Machine) PasBraced(paren uint32) {
 
 // PasString is $pasString.
 func (m *Machine) PasString() {
-	var seg, p uint32
-	seg = m.Ptr
+	var p uint32
+	seg := m.Ptr
 	m.Ptr++
 	for {
 		p = m.ScanFindSpecial(m.Ptr, m.End, 39, 0, 1)
@@ -39563,8 +39290,7 @@ func (m *Machine) PasIsOp(c uint32) uint32 {
 // HlPascal is $hlPascal.
 func (m *Machine) HlPascal() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, pc, kind, hl, expect, fnHead, paren, paramDepth, typeCtx, propCtx, propName, member, pasWordHl uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -39828,8 +39554,8 @@ func (m *Machine) PerlByte(p uint32) uint32 {
 
 // PerlWordHl is $perlWordHl.
 func (m *Machine) PerlWordHl(lhs, rhs uint32) uint32 {
-	var g, n uint32
-	g = m.LexKeywordLookup(lhs, rhs, 24448, 31, 73)
+	var n uint32
+	g := m.LexKeywordLookup(lhs, rhs, 24448, 31, 73)
 	if g == 0 {
 		n = rhs - lhs
 		if n == 1 && m.Mem[lhs] == 'x' {
@@ -39869,9 +39595,8 @@ func (m *Machine) PerlWordHl(lhs, rhs uint32) uint32 {
 
 // PerlQuoteKind is $perlQuoteKind.
 func (m *Machine) PerlQuoteKind(lhs, rhs uint32) uint32 {
-	var n, w uint32
-	n = rhs - lhs
-	w = rt.Ld32(m.Mem, lhs) & 65535
+	n := rhs - lhs
+	w := rt.Ld32(m.Mem, lhs) & 65535
 	if n == 1 {
 		w &= 255
 		if w == 113 {
@@ -39921,15 +39646,15 @@ func (m *Machine) PerlCloser(open uint32) uint32 {
 
 // PerlQuoteBody is $perlQuoteBody.
 func (m *Machine) PerlQuoteBody(closer, open, depth, flags, seg uint32) uint32 {
-	var c, c2, e, hl, stop, mark uint32
+	var c, c2, e, hl uint32
 	var status bool
 	if flags&2 != 0 {
 		hl = TokenStringRegex
 	} else {
 		hl = TokenString
 	}
-	stop = m.Ptr
-	mark = m.Ptr
+	stop := m.Ptr
+	mark := m.Ptr
 	for {
 		if m.Ptr >= stop || m.Ptr > mark {
 			mark = m.ScanFind3(m.Ptr, rt.Sel32(open != 0, open, closer), rt.Sel32(flags&1 != 0, 36, closer), rt.Sel32(flags&1 != 0, 64, closer))
@@ -40008,8 +39733,8 @@ func (m *Machine) PerlRangeEq(a, b, n uint32) bool {
 
 // PerlLineDelimited is $perlLineDelimited.
 func (m *Machine) PerlLineDelimited(delim, n, mode, hl uint32) {
-	var body, lhs, line, lineDelimiterEnds uint32
-	body = m.Ptr
+	var lhs, line, lineDelimiterEnds uint32
+	body := m.Ptr
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -40050,8 +39775,8 @@ func (m *Machine) PerlIsOp(c uint32) uint32 {
 // HlPerl is $hlPerl.
 func (m *Machine) HlPerl() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, status, operand, decl, member, lineHead, atHead, seg, sActive, sClose, sOpen, sDepth, sFlags, sSecond, hdLen, hdDelim, hdStrip, data, t2, lexHeredocArgument, perlQuoteKind, perlWordHl uint32
-	var path, liveRoot, t1 bool
-	liveRoot = m.LiveEntering
+	var path, t1 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -40509,14 +40234,12 @@ func (m *Machine) HlPerl() {
 
 // SQLWordHl is $sqlWordHl.
 func (m *Machine) SQLWordHl(lhs, rhs uint32) uint32 {
-	var c, n uint32
-	var w uint64
-	n = rhs - lhs
+	n := rhs - lhs
 	if n-2 > 6 {
 		return TokenVariable
 	}
-	w = (rt.Ld64(m.Mem, lhs) | 0x2020202020202020) & (uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63))
-	c = uint32(w) & 255
+	w := (rt.Ld64(m.Mem, lhs) | 0x2020202020202020) & (uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63))
+	c := uint32(w) & 255
 	switch c {
 	case 'a':
 		if w == 0x6c6c61 || w == 29537 || w == 0x637361 {
@@ -40673,9 +40396,9 @@ func (m *Machine) SQLWordHl(lhs, rhs uint32) uint32 {
 
 // PlsqlWordHl is $plsqlWordHl.
 func (m *Machine) PlsqlWordHl(lhs, rhs uint32) uint32 {
-	var v, lexLowerCopy, sQLWordHl uint32
-	lexLowerCopy = m.LexLowerCopy(lhs, rhs, 1360)
-	v = m.LexKeywordValue(1360, 1360+lexLowerCopy, 34080, 63, 116)
+	var sQLWordHl uint32
+	lexLowerCopy := m.LexLowerCopy(lhs, rhs, 1360)
+	v := m.LexKeywordValue(1360, 1360+lexLowerCopy, 34080, 63, 116)
 	if int32(v) >= 0 {
 		sQLWordHl = v
 	} else {
@@ -40686,9 +40409,8 @@ func (m *Machine) PlsqlWordHl(lhs, rhs uint32) uint32 {
 
 // PlsqlQuote is $plsqlQuote.
 func (m *Machine) PlsqlQuote(p uint32) {
-	var closer, lhs uint32
-	lhs = m.Ptr
-	closer = m.TemplateByte(p)
+	lhs := m.Ptr
+	closer := m.TemplateByte(p)
 	if (uint32(m.Mem[closer+1680])>>2)&1 != 0 || closer == 60 {
 		if closer == 40 {
 			closer++
@@ -40716,11 +40438,10 @@ func (m *Machine) PlsqlQuote(p uint32) {
 
 // SQLDollarString is $sqlDollarString.
 func (m *Machine) SQLDollarString() bool {
-	var candidate, delimiter, i, lhs, n, p uint32
-	var mask uint64
+	var candidate, i uint32
 	var matched bool
-	lhs = m.Ptr
-	p = lhs + 1
+	lhs := m.Ptr
+	p := lhs + 1
 	if p >= m.End {
 		return false
 	}
@@ -40742,9 +40463,9 @@ func (m *Machine) SQLDollarString() bool {
 	if p >= m.End || m.Mem[p] != '$' {
 		return false
 	}
-	delimiter = p + 1
-	n = delimiter - lhs
-	mask = uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63)
+	delimiter := p + 1
+	n := delimiter - lhs
+	mask := uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63)
 	m.Ptr = delimiter
 	for {
 		candidate = m.LexFindByte(m.Ptr, 36)
@@ -40784,8 +40505,8 @@ func (m *Machine) SQLDollarString() bool {
 
 // SQLTableBefore is $sqlTableBefore.
 func (m *Machine) SQLTableBefore(lhs uint32) bool {
-	var p, w uint32
-	p = lhs
+	var w uint32
+	p := lhs
 	if p > m.SrcBase && m.Mem[p-1] == '.' {
 		p--
 		for {
@@ -40825,8 +40546,8 @@ func (m *Machine) SQLTableBefore(lhs uint32) bool {
 // HlSQLImpl is $hlSqlImpl.
 func (m *Machine) HlSQLImpl() {
 	var streamRoot, c, hl, lhs, next, p, expect uint32
-	var temp, liveRoot bool
-	liveRoot = m.LiveEntering
+	var temp bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -41059,9 +40780,9 @@ func (m *Machine) PoInMask(c, base uint32, mask uint64) uint32 {
 
 // PoPlaceholderEnd is $poPlaceholderEnd.
 func (m *Machine) PoPlaceholderEnd(p, stop uint32) uint32 {
-	var c, q, digits, flags, limit uint32
+	var c uint32
 	var other bool
-	q = p + 1
+	q := p + 1
 	if m.Mem[p] == '{' {
 		for {
 			if q >= stop {
@@ -41093,7 +40814,7 @@ func (m *Machine) PoPlaceholderEnd(p, stop uint32) uint32 {
 		q++
 		other = true
 	}
-	flags = q
+	flags := q
 	for {
 		if q >= stop {
 			break
@@ -41105,8 +40826,8 @@ func (m *Machine) PoPlaceholderEnd(p, stop uint32) uint32 {
 		other = other || !m.LexIsDigit(c)
 		q++
 	}
-	limit = q + 2
-	digits = q
+	limit := q + 2
+	digits := q
 	for {
 		if q >= stop {
 			break
@@ -41128,8 +40849,8 @@ func (m *Machine) PoPlaceholderEnd(p, stop uint32) uint32 {
 
 // PoString is $poString.
 func (m *Machine) PoString() {
-	var c, e, p, q, save, seg, stop uint32
-	seg = m.Ptr
+	var c, e, p, q, save, stop uint32
+	seg := m.Ptr
 	m.Ptr++
 	for {
 		stop = m.ScanFindSpecial(m.Ptr, m.End, 34, 1, 1)
@@ -41181,8 +40902,7 @@ func (m *Machine) PoString() {
 func (m *Machine) HlPo() {
 	var streamRoot, c, gap, lhs, n, p uint32
 	var w uint64
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -41309,8 +41029,8 @@ func (m *Machine) PqText(seg uint32) bool {
 // HlPowerquery is $hlPowerquery.
 func (m *Machine) HlPowerquery() {
 	var streamRoot, c, c2, lhs, rhs, p, v, hl, text, nest uint32
-	var dotted, liveRoot, pqText, pqText2 bool
-	liveRoot = m.LiveEntering
+	var dotted, pqText, pqText2 bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -41486,15 +41206,14 @@ func (m *Machine) HlPowerquery() {
 
 // PsWordGroup is $psWordGroup.
 func (m *Machine) PsWordGroup(lhs, rhs uint32) uint32 {
-	var n uint32
-	n = m.LexLowerCopy(lhs, rhs, 1360)
+	n := m.LexLowerCopy(lhs, rhs, 1360)
 	return m.LexKeywordLookup(1360, 1360+n, 24960, 31, 101)
 }
 
 // PsVarEnd is $psVarEnd.
 func (m *Machine) PsVarEnd(p uint32) uint32 {
-	var e, c uint32
-	e = p + 1
+	var c uint32
+	e := p + 1
 	for {
 		if e >= m.End {
 			break
@@ -41518,14 +41237,14 @@ func (m *Machine) PsVarEnd(p uint32) uint32 {
 
 // PsStringBody is $psStringBody.
 func (m *Machine) PsStringBody(kind, seg uint32) uint32 {
-	var c, e, p, q, expand, hl uint32
+	var c, e, p, q, hl uint32
 	var status bool
 	if kind&1 == 0 {
 		q = 39
 	} else {
 		q = 34
 	}
-	expand = kind & 1
+	expand := kind & 1
 	for {
 		if expand != 0 {
 			p = m.ScanFind3(m.Ptr, q, 96, 36)
@@ -41622,8 +41341,8 @@ func (m *Machine) PsIsKey(p uint32) bool {
 // HlPowershell is $hlPowershell.
 func (m *Machine) HlPowershell() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, expect, want, member, cmdPos, strKind, seg, interp, interpKind, status uint32
-	var closed, liveRoot bool
-	liveRoot = m.LiveEntering
+	var closed bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -42026,8 +41745,7 @@ func (m *Machine) HlPowershell() {
 // HlPrisma is $hlPrisma.
 func (m *Machine) HlPrisma() {
 	var streamRoot, c, c2, gap, lhs, rhs, pc, g, hl, pending, block, col, paren uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -42204,8 +41922,7 @@ func (m *Machine) PlIsSymbol(c uint32) uint32 {
 // HlProlog is $hlProlog.
 func (m *Machine) HlProlog() {
 	var streamRoot, c, c2, gap, lhs, rhs, hl, head, atHead uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -42351,9 +42068,8 @@ func (m *Machine) HlProlog() {
 
 // ProtoWordHl is $protoWordHl.
 func (m *Machine) ProtoWordHl(lhs, rhs uint32) uint32 {
-	var g uint32
 	var w uint64
-	g = m.LexKeywordValue(lhs, rhs, 25312, 15, 39)
+	g := m.LexKeywordValue(lhs, rhs, 25312, 15, 39)
 	if int32(g) < 0 {
 		if rhs-lhs == 8 {
 			w = rt.Ld64(m.Mem, lhs)
@@ -42368,8 +42084,7 @@ func (m *Machine) ProtoWordHl(lhs, rhs uint32) uint32 {
 // HlProto is $hlProto.
 func (m *Machine) HlProto() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, kind, hl, expect, member uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -42517,8 +42232,7 @@ func (m *Machine) HlProto() {
 
 // PugJs is $pugJs.
 func (m *Machine) PugJs(stop uint32) {
-	var save uint32
-	save = m.End
+	save := m.End
 	m.End = stop
 	m.HlJs()
 	m.EcmaReset()
@@ -42640,11 +42354,11 @@ func (m *Machine) PugAttrs(stop uint32) uint32 {
 
 // PugText is $pugText.
 func (m *Machine) PugText(stop uint32) {
-	var c, closer, p, save, seg uint32
-	save = m.End
+	var c, closer uint32
+	save := m.End
 	m.End = stop
-	seg = m.Ptr
-	p = m.Ptr
+	seg := m.Ptr
+	p := m.Ptr
 	for {
 		p = m.LexFindEither(p, 35, 33)
 		if p >= stop {
@@ -42689,8 +42403,8 @@ func (m *Machine) PugText(stop uint32) {
 
 // PugTag is $pugTag.
 func (m *Machine) PugTag(stop uint32) uint32 {
-	var c, lhs uint32
-	lhs = m.Ptr
+	var c uint32
+	lhs := m.Ptr
 	for {
 		if m.Ptr >= stop {
 			break
@@ -42787,10 +42501,10 @@ func (m *Machine) PugTail(stop, kind uint32) uint32 {
 
 // PugLine is $pugLine.
 func (m *Machine) PugLine(stop uint32) uint32 {
-	var c, c2, lhs, p, v uint32
-	lhs = m.Ptr
-	c = m.TemplateByte(lhs)
-	c2 = m.TemplateByte(lhs + 1)
+	var p, v uint32
+	lhs := m.Ptr
+	c := m.TemplateByte(lhs)
+	c2 := m.TemplateByte(lhs + 1)
 	if c == '/' && c2 == '/' {
 		m.Ptr = stop
 		m.EmitTok(TokenComment, lhs, stop)
@@ -42955,8 +42669,7 @@ func (m *Machine) PugLine(stop uint32) uint32 {
 // HlPug is $hlPug.
 func (m *Machine) HlPug() {
 	var streamRoot, indent, kind, lhs, lineEnd, block, tag uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -43098,8 +42811,7 @@ func (m *Machine) PuppetName() {
 
 // PuppetVariable is $puppetVariable.
 func (m *Machine) PuppetVariable(hl uint32) bool {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr = lhs + 1
 	m.PuppetName()
 	if m.Ptr == lhs+1 {
@@ -43112,8 +42824,7 @@ func (m *Machine) PuppetVariable(hl uint32) bool {
 
 // PuppetInterp is $puppetInterp.
 func (m *Machine) PuppetInterp() bool {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	if m.TemplateByte(lhs+1) != '{' {
 		return m.PuppetVariable(TokenVariable)
 	}
@@ -43185,9 +42896,9 @@ func (m *Machine) PuppetStringBody(q, seg uint32) bool {
 
 // PuppetHeredoc is $puppetHeredoc.
 func (m *Machine) PuppetHeredoc(hd uint32) bool {
-	var seg, p, c, n uint32
-	n = hd & 255
-	seg = m.Ptr
+	var p, c uint32
+	n := hd & 255
+	seg := m.Ptr
 	for {
 		if m.Ptr >= m.End {
 			break
@@ -43258,8 +42969,7 @@ func (m *Machine) PuppetAfterArrow(p uint32) bool {
 // HlPuppet is $hlPuppet.
 func (m *Machine) HlPuppet() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, v, e, hl, expect, params, str, hd uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -43583,8 +43293,7 @@ scan:
 
 // QmlJs is $qmlJs.
 func (m *Machine) QmlJs(to, reset uint32) uint32 {
-	var save uint32
-	save = m.End
+	save := m.End
 	m.End = to
 	m.EcmaFeatures = 0
 	m.TsxStreaming = true
@@ -43601,8 +43310,8 @@ func (m *Machine) QmlJs(to, reset uint32) uint32 {
 // HlQml is $hlQml.
 func (m *Machine) HlQml() {
 	var streamRoot, c, c2, d, g, gap, hl, lhs, rhs, n, p, atMember, js, decl, params, enum, member, bind uint32
-	var upper, liveRoot bool
-	liveRoot = m.LiveEntering
+	var upper bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -43900,7 +43609,6 @@ func (m *Machine) RByte(p uint32) uint32 {
 
 // RDefinedAhead is $rDefinedAhead.
 func (m *Machine) RDefinedAhead(p uint32) bool {
-	var c uint32
 	if m.RByte(p) == '<' {
 		p++
 		if m.RByte(p) == '<' {
@@ -43923,16 +43631,16 @@ func (m *Machine) RDefinedAhead(p uint32) bool {
 	if p+8 > m.End {
 		return false
 	}
-	c = m.RByte(p + 8)
+	c := m.RByte(p + 8)
 	return rt.Ld64(m.Mem, p) == 0x6e6f6974636e7566 && !(m.LexIsIdentContinue(c) != 0 || c == '.')
 }
 
 // RRawString is $rRawString.
 func (m *Machine) RRawString() bool {
-	var lhs, p, n, q, closer uint32
-	lhs = m.Ptr
-	q = m.RByte(m.Ptr + 1)
-	p = m.Ptr + 2
+	var n uint32
+	lhs := m.Ptr
+	q := m.RByte(m.Ptr + 1)
+	p := m.Ptr + 2
 	for {
 		if m.RByte(p) != '-' {
 			break
@@ -43943,7 +43651,7 @@ func (m *Machine) RRawString() bool {
 	if n > 30 {
 		return false
 	}
-	closer = m.RByte(p)
+	closer := m.RByte(p)
 	if closer == 40 {
 		closer = 41
 	}
@@ -43980,8 +43688,7 @@ func (m *Machine) RIsOp(c uint32) uint32 {
 // HlR is $hlR.
 func (m *Machine) HlR() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, member, paren, fnHead, fnDepth, atFn uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -44190,8 +43897,7 @@ func (m *Machine) HlR() {
 
 // RazorCs is $razorCs.
 func (m *Machine) RazorCs(to uint32) {
-	var save uint32
-	save = m.End
+	save := m.End
 	m.End = to
 	m.HlCsharp()
 	m.End = save
@@ -44276,8 +43982,8 @@ func (m *Machine) RazorVerbatimEnd(p uint32) uint32 {
 
 // RazorImplicitEnd is $razorImplicitEnd.
 func (m *Machine) RazorImplicitEnd(p uint32) uint32 {
-	var c, save uint32
-	save = m.Ptr
+	var c uint32
+	save := m.Ptr
 	for {
 		m.Ptr = p
 		m.ScanIdentRun(95)
@@ -44307,8 +44013,8 @@ func (m *Machine) RazorImplicitEnd(p uint32) uint32 {
 func (m *Machine) HlRazor() {
 	var streamRoot, markup, await, xline, stmt, enter, lineMarkup, c, ev, lhs, lineEnd, p, parens, q, r, resumed, saveEnd, top uint32
 	var stack uint64
-	var skip, liveRoot, streamResumeAnyRegion bool
-	liveRoot = m.LiveEntering
+	var skip, streamResumeAnyRegion bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -44852,8 +44558,7 @@ func (m *Machine) RdfString(q, long, seg uint32) uint32 {
 // HlRdfImpl is $hlRdfImpl.
 func (m *Machine) HlRdfImpl(sparql uint32) {
 	var streamRoot, c, c2, lhs, rhs, p, g, hl, term, nest, long, lexLowerCopy uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -45145,8 +44850,7 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 func (m *Machine) HlReg() {
 	var streamRoot, c, lhs, gap, n, p, hl, col uint32
 	var w uint64
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -45284,8 +44988,7 @@ next:
 func (m *Machine) HlRosmsg() {
 	var streamRoot, c, c2, lhs, gap, g, n, hl, col, str uint32
 	var w uint64
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -45431,18 +45134,16 @@ func (m *Machine) HlRosmsg() {
 
 // SasWordHl is $sasWordHl.
 func (m *Machine) SasWordHl(lhs, rhs uint32) uint32 {
-	var n, mode, v uint32
-	var w uint64
-	n = m.LexLowerCopy(lhs, rhs, 1360)
-	v = m.LexKeywordValue(1360, 1360+n, 52112, 31, 110)
+	n := m.LexLowerCopy(lhs, rhs, 1360)
+	v := m.LexKeywordValue(1360, 1360+n, 52112, 31, 110)
 	if int32(v) >= 0 {
 		return v
 	}
-	w = rt.Ld64(m.Mem, 1360)
+	w := rt.Ld64(m.Mem, 1360)
 	if (n == 5 && w&0xffffffffff == 0x656c696877) || (n == 6 && w&0xffffffffffff == 0x6e7275746572) {
 		return TokenKeywordControl
 	}
-	mode = n
+	mode := n
 	for {
 		if mode == 0 {
 			break
@@ -45497,8 +45198,8 @@ func (m *Machine) SasCards(mode uint32) uint32 {
 // HlSas is $hlSas.
 func (m *Machine) HlSas() {
 	var streamRoot, c, c2, lhs, rhs, p, v, hl, after, atStmt, stmt, opts, paren, expect, cards uint32
-	var pct, eq, liveRoot bool
-	liveRoot = m.LiveEntering
+	var pct, eq bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -45777,9 +45478,9 @@ func (m *Machine) ScalaWordHl(lhs, rhs uint32) uint32 {
 
 // ScalaStringBody is $scalaStringBody.
 func (m *Machine) ScalaStringBody(triple, expand, raw, nested uint32) uint32 {
-	var seg, c, c2, stop, dollar, status uint32
-	seg = m.Ptr
-	stop = m.Ptr
+	var c, c2, dollar, status uint32
+	seg := m.Ptr
+	stop := m.Ptr
 	for {
 		if m.Ptr >= stop {
 			stop = m.ScanFindSpecial(m.Ptr, m.End, 34, rt.B2u(triple == 0), rt.B2u(triple == 0))
@@ -45851,8 +45552,7 @@ func (m *Machine) ScalaIsOp(c uint32) uint32 {
 // HlScala is $hlScala.
 func (m *Machine) HlScala() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, expect, member, wasMember, importCtx, strKind, interp, interpKind, status uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -46145,8 +45845,8 @@ func (m *Machine) HlScala() {
 
 // ShaderlabWordHl is $shaderlabWordHl.
 func (m *Machine) ShaderlabWordHl(lhs, rhs uint32) uint32 {
-	var p, n uint32
-	n = m.LexLowerCopy(lhs, rhs, 1360)
+	var p uint32
+	n := m.LexLowerCopy(lhs, rhs, 1360)
 	p = 1360
 	if n == 8 {
 		if rt.Ld64(m.Mem, p) == 0x6b6361626c696166 {
@@ -46162,13 +45862,11 @@ func (m *Machine) ShaderlabWordHl(lhs, rhs uint32) uint32 {
 
 // ShaderlabOpener is $shaderlabOpener.
 func (m *Machine) ShaderlabOpener(lhs, rhs uint32) uint32 {
-	var n uint32
-	var tail uint64
-	n = rhs - lhs
+	n := rhs - lhs
 	if n != 9 && n != 11 {
 		return 0
 	}
-	tail = rt.Ld64(m.Mem, rhs-7) & 0xffffffffffffff
+	tail := rt.Ld64(m.Mem, rhs-7) & 0xffffffffffffff
 	if tail != 0x4d4152474f5250 && tail != 0x4544554c434e49 {
 		return 0
 	}
@@ -46211,11 +45909,10 @@ func (m *Machine) ShaderlabBodyEnd(p uint32) uint32 {
 
 // ShaderlabBody is $shaderlabBody.
 func (m *Machine) ShaderlabBody(kind, resume uint32) {
-	var closer, save, depth, reset uint32
-	closer = m.ShaderlabBodyEnd(m.Ptr)
-	save = m.End
-	depth = m.StreamDepth
-	reset = m.StreamReset
+	closer := m.ShaderlabBodyEnd(m.Ptr)
+	save := m.End
+	depth := m.StreamDepth
+	reset := m.StreamReset
 	m.End = closer
 	m.StreamDepth = 0
 	m.StreamReset = rt.B2u(resume == 0)
@@ -46269,8 +45966,7 @@ func (m *Machine) ShaderlabStreamResume() bool {
 // HlShaderlab is $hlShaderlab.
 func (m *Machine) HlShaderlab() {
 	var streamRoot, c, c2, lhs, rhs, gap, hl, n, attr uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -46409,8 +46105,7 @@ next:
 // HlSolidity is $hlSolidity.
 func (m *Machine) HlSolidity() {
 	var streamRoot, c, c2, lhs, rhs, p, n, kind, hl, expect, member uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -46570,14 +46265,12 @@ func (m *Machine) HlSolidity() {
 
 // StataWordHl is $stataWordHl.
 func (m *Machine) StataWordHl(lhs, rhs uint32) uint32 {
-	var v, n uint32
-	var w uint64
-	v = m.LexKeywordValue(lhs, rhs, 52752, 31, 136)
-	n = rhs - lhs
+	v := m.LexKeywordValue(lhs, rhs, 52752, 31, 136)
+	n := rhs - lhs
 	if int32(v) >= 0 || n < 6 {
 		return v
 	}
-	w = rt.Ld64(m.Mem, lhs)
+	w := rt.Ld64(m.Mem, lhs)
 	if n == 6 {
 		w &= 0xffffffffffff
 		if w == 0x65646f636572 || w == 0x65646f636564 {
@@ -46619,11 +46312,10 @@ func (m *Machine) StataTwoBreaks(p, stop uint32) bool {
 
 // StataIsFactorOp is $stataIsFactorOp.
 func (m *Machine) StataIsFactorOp(lhs, rhs uint32) bool {
-	var c uint32
 	if rhs-lhs > 3 {
 		return false
 	}
-	c = uint32(m.Mem[lhs]) | 32
+	c := uint32(m.Mem[lhs]) | 32
 	if uint32(m.Mem[c+5264])&64 == 0 {
 		return false
 	}
@@ -46643,9 +46335,9 @@ func (m *Machine) StataIsFactorOp(lhs, rhs uint32) bool {
 
 // StataMacro is $stataMacro.
 func (m *Machine) StataMacro() bool {
-	var lhs, p, depth, c uint32
-	lhs = m.Ptr
-	c = m.TemplateByte(lhs + 1)
+	var p, depth uint32
+	lhs := m.Ptr
+	c := m.TemplateByte(lhs + 1)
 	switch {
 	case m.Mem[lhs] == '`':
 		p = lhs
@@ -46683,9 +46375,9 @@ func (m *Machine) StataMacro() bool {
 
 // StataString is $stataString.
 func (m *Machine) StataString(compound uint32) {
-	var seg, body, p, c, depth uint32
-	seg = m.Ptr
-	body = m.Ptr + 1 + compound
+	var p, c, depth uint32
+	seg := m.Ptr
+	body := m.Ptr + 1 + compound
 	m.Ptr = body
 	depth = 1
 	for {
@@ -46735,8 +46427,7 @@ func (m *Machine) StataString(compound uint32) {
 // HlStata is $hlStata.
 func (m *Machine) HlStata() {
 	var streamRoot, c, c2, lhs, rhs, v, hl, stop, atCmd, eol, cmd, colon, opt, paren, expect, cont uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -46958,8 +46649,7 @@ func (m *Machine) HlStata() {
 
 // SwiftWordHl is $swiftWordHl.
 func (m *Machine) SwiftWordHl(lhs, rhs uint32) uint32 {
-	var hl uint32
-	hl = m.LexKeywordValue(lhs, rhs, 26944, 15, 64)
+	hl := m.LexKeywordValue(lhs, rhs, 26944, 15, 64)
 	if hl == 0xffffffff {
 		if rhs-lhs == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6572656877 {
 			return TokenKeyword
@@ -46970,8 +46660,7 @@ func (m *Machine) SwiftWordHl(lhs, rhs uint32) uint32 {
 
 // SwiftRawStart is $swiftRawStart.
 func (m *Machine) SwiftRawStart() bool {
-	var p uint32
-	p = m.Ptr
+	p := m.Ptr
 	for {
 		if m.TemplateByte(p) != '#' {
 			break
@@ -46983,9 +46672,8 @@ func (m *Machine) SwiftRawStart() bool {
 
 // SwiftHashOpen is $swiftHashOpen.
 func (m *Machine) SwiftHashOpen() uint32 {
-	var lhs, hashes uint32
-	var triple bool
-	lhs = m.Ptr
+	var hashes uint32
+	lhs := m.Ptr
 	for {
 		if m.TemplateByte(m.Ptr) != '#' {
 			break
@@ -46993,7 +46681,7 @@ func (m *Machine) SwiftHashOpen() uint32 {
 		hashes++
 		m.Ptr++
 	}
-	triple = m.TemplateByte(m.Ptr+1) == '"' && m.TemplateByte(m.Ptr+2) == '"'
+	triple := m.TemplateByte(m.Ptr+1) == '"' && m.TemplateByte(m.Ptr+2) == '"'
 	if triple {
 		m.Ptr += 3
 	} else {
@@ -47073,9 +46761,8 @@ func (m *Machine) SwiftWordFollows(p uint32) bool {
 
 // SwiftCallAhead is $swiftCallAhead.
 func (m *Machine) SwiftCallAhead(lhs, rhs, p, member, cond uint32) bool {
-	var c, n uint32
-	c = m.TemplateByte(p)
-	n = rhs - lhs
+	c := m.TemplateByte(p)
+	n := rhs - lhs
 	if c == '?' || c == '!' {
 		return member == 0 && m.TemplateByte(p+1) == '(' && n == 4 && rt.Ld32(m.Mem, lhs) == 0x74696e69
 	}
@@ -47104,8 +46791,8 @@ func (m *Machine) SwiftCallAhead(lhs, rhs, p, member, cond uint32) bool {
 // HlSwift is $hlSwift.
 func (m *Machine) HlSwift() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, expect, member, seg, interp, stringMode, rawOpen, cond, condParen, t4, swiftCallAhead, lhs2, rhs2, p2, member2, cond2 uint32
-	var openedInterp, liveRoot, stringEscapeAt bool
-	liveRoot = m.LiveEntering
+	var openedInterp, stringEscapeAt bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -47496,9 +47183,8 @@ func (m *Machine) HlSwift() {
 
 // TclVariable is $tclVariable.
 func (m *Machine) TclVariable() bool {
-	var lhs, c uint32
-	lhs = m.Ptr
-	c = m.TemplateByte(lhs + 1)
+	lhs := m.Ptr
+	c := m.TemplateByte(lhs + 1)
 	if c == '{' {
 		m.Ptr = m.ScanFind3(lhs+2, 125, 10, 13)
 		if m.TemplateByte(m.Ptr) == '}' {
@@ -47582,8 +47268,7 @@ func (m *Machine) TclStringBody(seg uint32) uint32 {
 // HlTcl is $hlTcl.
 func (m *Machine) HlTcl() {
 	var streamRoot, c, gap, lhs, v, hl, e, pos, expect, param, inStr, depth, bitSet uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -47802,9 +47487,9 @@ func (m *Machine) HlTcl() {
 
 // TfStringBody is $tfStringBody.
 func (m *Machine) TfStringBody(nested, seg uint32) uint32 {
-	var c, stop, mark, status uint32
-	stop = m.Ptr
-	mark = m.Ptr
+	var c, status uint32
+	stop := m.Ptr
+	mark := m.Ptr
 	for {
 		if m.Ptr >= stop {
 			stop = m.ScanFindSpecial(m.Ptr, m.End, 34, 1, 1)
@@ -47860,8 +47545,8 @@ func (m *Machine) TfIsOp(c uint32) uint32 {
 // HlTerraform is $hlTerraform.
 func (m *Machine) HlTerraform() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, g, hl, member, lineHead, atHead, seg, interp, status, hdLen, hdDelim uint32
-	var hdStrip, liveRoot bool
-	liveRoot = m.LiveEntering
+	var hdStrip bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -48109,9 +47794,9 @@ func (m *Machine) TomlBareKeyEnd(p uint32) uint32 {
 
 // TomlScanDigits is $tomlScanDigits.
 func (m *Machine) TomlScanDigits(p, base uint32) uint32 {
-	var c, q, start uint32
-	q = p
-	start = p
+	var c uint32
+	q := p
+	start := p
 	for {
 		if p >= m.End {
 			break
@@ -48131,19 +47816,17 @@ func (m *Machine) TomlScanDigits(p, base uint32) uint32 {
 
 // TomlIsValueEnd is $tomlIsValueEnd.
 func (m *Machine) TomlIsValueEnd(p uint32) uint32 {
-	var c uint32
 	if p >= m.End {
 		return 1
 	}
-	c = uint32(m.Mem[p])
+	c := uint32(m.Mem[p])
 	return uint32(m.Mem[c+5264]) >> 7
 }
 
 // TomlTwoDigitValue is $tomlTwoDigitValue.
 func (m *Machine) TomlTwoDigitValue(p uint32) uint32 {
-	var hi, lo uint32
-	hi = uint32(m.Mem[p]) - 48
-	lo = uint32(m.Mem[p+1]) - 48
+	hi := uint32(m.Mem[p]) - 48
+	lo := uint32(m.Mem[p+1]) - 48
 	return rt.Sel32(p+2 <= m.End && hi <= 9 && lo <= 9, hi*10+lo, 0xffffffff)
 }
 
@@ -48319,10 +48002,9 @@ func (m *Machine) TomlStreamOpen(quote, trim, hl uint32) {
 
 // TomlBasicString is $tomlBasicString.
 func (m *Machine) TomlBasicString(hl uint32) {
-	var seg, status uint32
-	seg = m.Ptr
+	seg := m.Ptr
 	m.Ptr += 3
-	status = m.TomlBasicStringBody(1, hl, seg, 0)
+	status := m.TomlBasicStringBody(1, hl, seg, 0)
 	if status != 1 {
 		m.TomlStreamOpen(34, rt.B2u(status == 2), hl)
 	}
@@ -48362,8 +48044,7 @@ func (m *Machine) TomlLiteralStringBody(hl, lhs uint32) bool {
 
 // TomlLiteralString is $tomlLiteralString.
 func (m *Machine) TomlLiteralString(hl uint32) {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.Ptr += 3
 	if !m.TomlLiteralStringBody(hl, lhs) {
 		m.TomlStreamOpen(39, 0, hl)
@@ -48373,8 +48054,8 @@ func (m *Machine) TomlLiteralString(hl uint32) {
 // HlToml is $hlToml.
 func (m *Machine) HlToml() {
 	var streamRoot, base, c, depth, gap, header, hl, key, lhs, limit, n, p, q, r, s, year, t0 uint32
-	var date, sawNewline, time, liveRoot bool
-	liveRoot = m.LiveEntering
+	var date, sawNewline, time bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -48778,9 +48459,9 @@ func (m *Machine) TypstRaw(seg, n uint32) uint32 {
 
 // TypstText is $typstText.
 func (m *Machine) TypstText(lhs, flags uint32) {
-	var p, q, v uint32
-	p = m.TypstTextEnd(m.Ptr)
-	q = p
+	var v uint32
+	p := m.TypstTextEnd(m.Ptr)
+	q := p
 	if p-lhs >= 5 && m.Mem[p-1] == ':' && m.TemplateByte(p+1) == '/' {
 		q = p - 5
 		if q > lhs && m.Mem[p-2] == 's' {
@@ -48815,9 +48496,9 @@ func (m *Machine) TypstText(lhs, flags uint32) {
 // HlTypst is $hlTypst.
 func (m *Machine) HlTypst() {
 	var streamRoot, c, c2, lhs, tok, gap, p, q, v, top, flags, mid, raw uint32
-	var first, atom, liveRoot bool
+	var first, atom bool
 	var stack uint64
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -49243,8 +48924,7 @@ func (m *Machine) HlTypst() {
 
 // VerilogWord is $verilogWord.
 func (m *Machine) VerilogWord(lhs, rhs uint32) uint32 {
-	var n uint32
-	n = rhs - lhs
+	n := rhs - lhs
 	if n == 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x74756f6e69 {
 		return TokenKeywordDeclaration
 	}
@@ -49262,19 +48942,18 @@ func (m *Machine) VerilogWord(lhs, rhs uint32) uint32 {
 
 // VerilogNameFollows is $verilogNameFollows.
 func (m *Machine) VerilogNameFollows(p uint32) bool {
-	var c, save, rhs uint32
 	p = m.LexSkipSpaceAt(p)
-	c = m.TemplateByte(p)
+	c := m.TemplateByte(p)
 	if c == '#' {
 		return m.TemplateByte(p+1) == '('
 	}
 	if !(c >= 128 || (c|32)-97 <= 25 || c == '_') {
 		return false
 	}
-	save = m.Ptr
+	save := m.Ptr
 	m.Ptr = p
 	m.LexScanIdent()
-	rhs = m.Ptr
+	rhs := m.Ptr
 	m.Ptr = save
 	return int32(m.VerilogWord(p, rhs)) < 0
 }
@@ -49282,8 +48961,7 @@ func (m *Machine) VerilogNameFollows(p uint32) bool {
 // HlVerilog is $hlVerilog.
 func (m *Machine) HlVerilog() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, expect, strCont uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -49497,8 +49175,8 @@ func (m *Machine) HlVerilog() {
 
 // VhdlQuoted is $vhdlQuoted.
 func (m *Machine) VhdlQuoted(q, hl uint32) {
-	var seg, p uint32
-	seg = m.Ptr
+	var p uint32
+	seg := m.Ptr
 	m.Ptr++
 	for {
 		p = m.ScanFindSpecial(m.Ptr, m.End, q, 0, 1)
@@ -49524,8 +49202,7 @@ func (m *Machine) VhdlQuoted(q, hl uint32) {
 // HlVhdl is $hlVhdl.
 func (m *Machine) HlVhdl() {
 	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, expect uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -49707,8 +49384,7 @@ func (m *Machine) HlVhdl() {
 // HlViml is $hlViml.
 func (m *Machine) HlViml() {
 	var streamRoot, c, c2, gap, lhs, v, hl, st, bol, fn, multi uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -50029,11 +49705,10 @@ func (m *Machine) HlViml() {
 
 // VueHTMLRange is $vueHtmlRange.
 func (m *Machine) VueHTMLRange(from, to uint32) {
-	var save uint32
 	if from >= to {
 		return
 	}
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HlHTML()
@@ -50043,11 +49718,10 @@ func (m *Machine) VueHTMLRange(from, to uint32) {
 
 // VueTsxRange is $vueTsxRange.
 func (m *Machine) VueTsxRange(from, to uint32) {
-	var save uint32
 	if from >= to {
 		return
 	}
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HlTsx()
@@ -50057,8 +49731,7 @@ func (m *Machine) VueTsxRange(from, to uint32) {
 
 // VueTsxStream is $vueTsxStream.
 func (m *Machine) VueTsxStream(from, to, reset uint32) {
-	var save uint32
-	save = m.End
+	save := m.End
 	m.End = to
 	m.Ptr = from
 	m.HlTsxStream(reset)
@@ -50068,9 +49741,9 @@ func (m *Machine) VueTsxStream(from, to, reset uint32) {
 
 // VueAttrs is $vueAttrs.
 func (m *Machine) VueAttrs(state, directive, quote, kind uint32) uint32 {
-	var c, lhs, p, tsxOpen uint32
+	var c, lhs, p uint32
 	var fresh bool
-	tsxOpen = rt.B2u(state == 3) & directive
+	tsxOpen := rt.B2u(state == 3) & directive
 	for {
 		if m.Ptr >= m.End {
 			if m.Streaming && m.Ptr == m.EOF {
@@ -50187,29 +49860,28 @@ func (m *Machine) VueAttrs(state, directive, quote, kind uint32) uint32 {
 // VueTag is $vueTag.
 func (m *Machine) VueTag() {
 	var closer bool
-	var kind, lhs, q, vueAttrs uint32
-	lhs = m.Ptr
+	var kind uint32
+	lhs := m.Ptr
 	m.Ptr++
 	if m.Ptr < m.End && m.Mem[m.Ptr] == '/' {
 		closer = true
 		m.Ptr++
 	}
 	m.EmitTok(TokenPunctuationBracketHTML, lhs, m.Ptr)
-	q = m.HTMLNameEnd(m.Ptr)
+	q := m.HTMLNameEnd(m.Ptr)
 	if !closer {
 		kind = m.RawTextKind(m.Ptr, q)
 	}
 	m.EmitTok(TokenTag, m.Ptr, q)
 	m.Ptr = q
-	vueAttrs = m.VueAttrs(0, 0, 0, kind)
+	vueAttrs := m.VueAttrs(0, 0, 0, kind)
 	m.HTMLTagEnd(vueAttrs)
 }
 
 // HlVue is $hlVue.
 func (m *Machine) HlVue() {
 	var streamRoot, c, from, p, q uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -50284,17 +49956,15 @@ func (m *Machine) HlVue() {
 
 // VueStreamResumeTag is $vueStreamResumeTag.
 func (m *Machine) VueStreamResumeTag() bool {
-	var r uint32
 	m.StreamDepth = 1
-	r = m.VueAttrs(m.StreamB&15, m.StreamB>>4, m.StreamC, m.StreamA)
+	r := m.VueAttrs(m.StreamB&15, m.StreamB>>4, m.StreamC, m.StreamA)
 	return m.HTMLTagResumeEnd(r&3, r>>8)
 }
 
 // WatWordHl is $watWordHl.
 func (m *Machine) WatWordHl(lhs, rhs uint32) uint32 {
-	var c, g, p uint32
-	p = lhs
-	c = uint32(m.Mem[p])
+	p := lhs
+	c := uint32(m.Mem[p])
 	if c == '+' || c == '-' {
 		p++
 	}
@@ -50323,7 +49993,7 @@ func (m *Machine) WatWordHl(lhs, rhs uint32) uint32 {
 			}
 		}
 	}
-	g = m.LexKeywordLookup(lhs, rhs, 27840, 7, 28)
+	g := m.LexKeywordLookup(lhs, rhs, 27840, 7, 28)
 	if g == 1 {
 		return TokenTypeBuiltin
 	}
@@ -50349,8 +50019,8 @@ func (m *Machine) WatWordHl(lhs, rhs uint32) uint32 {
 
 // WatBlockComment is $watBlockComment.
 func (m *Machine) WatBlockComment() {
-	var c, depth, lhs, next uint32
-	lhs = m.Ptr
+	var c, depth, next uint32
+	lhs := m.Ptr
 	depth = 1
 	m.Ptr += 2
 	for {
@@ -50402,8 +50072,7 @@ func (m *Machine) WatScanName(extra uint32) {
 // HlWat is $hlWat.
 func (m *Machine) HlWat() {
 	var streamRoot, c, lhs, next uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -50480,16 +50149,15 @@ func (m *Machine) WgslByte(p uint32) uint32 {
 
 // WgslTypeHl is $wgslTypeHl.
 func (m *Machine) WgslTypeHl(lhs, rhs uint32) uint32 {
-	var length, w, c uint32
-	length = rhs - lhs
+	length := rhs - lhs
 	if length < 4 {
 		return TokenNone
 	}
 	if length >= 9 && rt.Ld64(m.Mem, lhs) == 0x5f65727574786574 {
 		return TokenTypeBuiltin
 	}
-	w = rt.Ld32(m.Mem, lhs) & 0xffffff
-	c = uint32(m.Mem[rhs-1])
+	w := rt.Ld32(m.Mem, lhs) & 0xffffff
+	c := uint32(m.Mem[rhs-1])
 	if c == 'f' || c == 'h' || (w == 0x636576 && (c == 'i' || c == 'u')) {
 		rhs--
 		length--
@@ -50508,8 +50176,7 @@ func (m *Machine) WgslTypeHl(lhs, rhs uint32) uint32 {
 
 // WgslWordHl is $wgslWordHl.
 func (m *Machine) WgslWordHl(lhs, rhs uint32) uint32 {
-	var g uint32
-	g = m.LexKeywordValue(lhs, rhs, 27936, 15, 44)
+	g := m.LexKeywordValue(lhs, rhs, 27936, 15, 44)
 	if int32(g) < 0 {
 		g = m.WgslTypeHl(lhs, rhs)
 		return rt.Sel32(g != 0, g, 0xffffffff)
@@ -50525,8 +50192,7 @@ func (m *Machine) WgslIsOp(c uint32) uint32 {
 // HlWgsl is $hlWgsl.
 func (m *Machine) HlWgsl() {
 	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member uint32
-	var liveRoot bool
-	liveRoot = m.LiveEntering
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -50680,8 +50346,7 @@ func (m *Machine) HlWgsl() {
 
 // WlName is $wlName.
 func (m *Machine) WlName() {
-	var lhs uint32
-	lhs = m.Ptr
+	lhs := m.Ptr
 	m.ScanIdentRun(36)
 	m.Ptr = m.ScanFindSpecial(lhs, m.Ptr, 95, 0, 0)
 }
@@ -50756,8 +50421,8 @@ func (m *Machine) WlIsDefinition(p uint32) bool {
 // HlWolfram is $hlWolfram.
 func (m *Machine) HlWolfram() {
 	var streamRoot, c, c2, lhs, rhs, gap, p, q, kind, hl uint32
-	var call, liveRoot bool
-	liveRoot = m.LiveEntering
+	var call bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -51038,8 +50703,7 @@ func (m *Machine) ZigIsDigitForBase(c, base uint32) uint32 {
 
 // ZigScanDigits is $zigScanDigits.
 func (m *Machine) ZigScanDigits(p, base uint32) uint32 {
-	var start uint32
-	start = p
+	start := p
 	for {
 		if p >= m.End {
 			break
@@ -51061,8 +50725,8 @@ func (m *Machine) ZigScanDigits(p, base uint32) uint32 {
 
 // ZigString is $zigString.
 func (m *Machine) ZigString(quote, hl uint32) {
-	var c, e, seg uint32
-	seg = m.Ptr
+	var c, e uint32
+	seg := m.Ptr
 	m.Ptr++
 	for {
 		m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, quote, 1, 1)
@@ -51107,8 +50771,8 @@ func (m *Machine) ZigString(quote, hl uint32) {
 
 // ZigWordHl is $zigWordHl.
 func (m *Machine) ZigWordHl(lhs, rhs uint32) uint32 {
-	var g, p, width uint32
-	g = m.LexKeywordValue(lhs, rhs, 28128, 31, 74)
+	var p, width uint32
+	g := m.LexKeywordValue(lhs, rhs, 28128, 31, 74)
 	if int32(g) < 0 {
 		if rhs-lhs == 1 {
 			if m.Mem[lhs] == 'c' || m.Mem[lhs] == '_' {
@@ -51153,8 +50817,8 @@ func (m *Machine) ZigIsOp(c uint32) uint32 {
 func (m *Machine) HlZig() {
 	var streamRoot, base, c, expectFunc, expectLabel, expectType, expectVar, gap, hl, labelColon, lhs, p, parenDepth, payload, payloadReady, prevDot, q, word, wantBreakLabel, wantPayloadParen, t0 uint32
 	var payloadParens uint64
-	var wide, liveRoot bool
-	liveRoot = m.LiveEntering
+	var wide bool
+	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
 		m.LiveSuspended = false
@@ -51607,15 +51271,15 @@ func (m *Machine) HighlightLang(lang uint32) {
 
 // LanguageByName is $languageByName.
 func (m *Machine) LanguageByName(lhs, rhs uint32) uint32 {
-	var i, length, record, rem, stop uint32
-	var mask, word uint64
-	length = rhs - lhs
+	var i, rem uint32
+	var mask uint64
+	length := rhs - lhs
 	if length-1 > 17 {
 		return 0
 	}
-	record = 62464 + rt.Ld16(m.Mem, length<<1+62464)
-	stop = 62464 + rt.Ld16(m.Mem, length<<1+62466)
-	word = rt.Ld64(m.Mem, lhs) | 0x2020202020202020
+	record := 62464 + rt.Ld16(m.Mem, length<<1+62464)
+	stop := 62464 + rt.Ld16(m.Mem, length<<1+62466)
+	word := rt.Ld64(m.Mem, lhs) | 0x2020202020202020
 	if length >= 8 {
 		mask = 0xffffffffffffffff
 	} else {
@@ -51729,8 +51393,8 @@ func (m *Machine) StreamResumeLang(lang uint32) bool {
 
 // LvGrowTo is $lvGrowTo.
 func (m *Machine) LvGrowTo(addr uint32) {
-	var need, t0 uint32
-	need = addr + 16
+	var t0 uint32
+	need := addr + 16
 	if need > uint32(len(m.Mem)/rt.PageSize)*0x10000 {
 		t0 = rt.Grow(&m.Mem, (((need - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 1))
 		if t0 == 0xffffffff {
@@ -51741,11 +51405,10 @@ func (m *Machine) LvGrowTo(addr uint32) {
 
 // LvClassOf is $lvClassOf.
 func (m *Machine) LvClassOf(size uint32) uint32 {
-	var p uint32
 	if size <= 64 {
 		return size >> 3
 	}
-	p = uint32(bits.Len32(size - 1))
+	p := uint32(bits.Len32(size - 1))
 	if p >= 17 {
 		return 31
 	}
@@ -51754,25 +51417,23 @@ func (m *Machine) LvClassOf(size uint32) uint32 {
 
 // LvRoundSize is $lvRoundSize.
 func (m *Machine) LvRoundSize(size uint32) uint32 {
-	var p, quarter uint32
 	if size < 16 {
 		size = 16
 	}
 	if size <= 64 {
 		return (size + 7) & 0xfffffff8
 	}
-	p = uint32(bits.Len32(size - 1))
+	p := uint32(bits.Len32(size - 1))
 	if p >= 17 {
 		return (size + 7) & 0xfffffff8
 	}
-	quarter = uint32(1) << ((p - 2) & 31)
+	quarter := uint32(1) << ((p - 2) & 31)
 	return (size + (quarter - 1)) & (0 - quarter)
 }
 
 // LvExtendHeap is $lvExtendHeap.
 func (m *Machine) LvExtendHeap(minimum uint32) {
-	var delta uint32
-	delta = (minimum + 0x4ffff) & 0xffff0000
+	delta := (minimum + 0x4ffff) & 0xffff0000
 	m.LvGrowTo(rt.Sel32(m.LvTransHi > m.LvHeapCeil, m.LvTransHi, m.LvHeapCeil) + delta + 64)
 	if m.LvTransHi > m.LvTransLo {
 		rt.Copy(m.Mem, m.LvTransLo+delta, m.LvTransLo, m.LvTransHi-m.LvTransLo)
@@ -51784,10 +51445,10 @@ func (m *Machine) LvExtendHeap(minimum uint32) {
 
 // LvAlloc is $lvAlloc.
 func (m *Machine) LvAlloc(length uint32) uint32 {
-	var total, idx, head, prev uint32
-	total = m.LvRoundSize(length + 8)
-	idx = m.LvClassOf(total)
-	head = rt.Ld32(m.Mem, 0x17e90+idx<<2)
+	var prev uint32
+	total := m.LvRoundSize(length + 8)
+	idx := m.LvClassOf(total)
+	head := rt.Ld32(m.Mem, 0x17e90+idx<<2)
 	if idx != 31 {
 		if head != 0 {
 			rt.St32(m.Mem, 0x17e90+idx<<2, rt.Ld32(m.Mem, head+4))
@@ -51829,13 +51490,12 @@ func (m *Machine) LvAlloc(length uint32) uint32 {
 
 // LvFree is $lvFree.
 func (m *Machine) LvFree(body uint32) {
-	var hdr, total, idx uint32
 	if body == 0 {
 		return
 	}
-	hdr = body - 8
-	total = rt.Ld32(m.Mem, hdr) & 0xfffffffe
-	idx = m.LvClassOf(total)
+	hdr := body - 8
+	total := rt.Ld32(m.Mem, hdr) & 0xfffffffe
+	idx := m.LvClassOf(total)
 	rt.St32(m.Mem, hdr, total|1)
 	rt.St32(m.Mem, hdr+4, rt.Ld32(m.Mem, 0x17e90+idx<<2))
 	rt.St32(m.Mem, 0x17e90+idx<<2, hdr)
@@ -51845,11 +51505,10 @@ func (m *Machine) LvFree(body uint32) {
 
 // LvShrink is $lvShrink.
 func (m *Machine) LvShrink(body, length uint32) {
-	var hdr, total, keep, rest uint32
-	hdr = body - 8
-	total = rt.Ld32(m.Mem, hdr) & 0xfffffffe
-	keep = m.LvRoundSize(length + 8)
-	rest = total - keep
+	hdr := body - 8
+	total := rt.Ld32(m.Mem, hdr) & 0xfffffffe
+	keep := m.LvRoundSize(length + 8)
+	rest := total - keep
 	if rest < 16 {
 		return
 	}
@@ -51876,10 +51535,9 @@ func (m *Machine) LvHeapInit() {
 // LvHash is $lvHash.
 func (m *Machine) LvHash(ptr, length uint32) uint64 {
 	var h uint64
-	var p, stop, k uint32
 	h = 0xcbf29ce484222325
-	p = ptr
-	stop = ptr + length&0xfffffff8
+	p := ptr
+	stop := ptr + length&0xfffffff8
 	for {
 		if p >= stop {
 			break
@@ -51887,7 +51545,7 @@ func (m *Machine) LvHash(ptr, length uint32) uint64 {
 		h = (h ^ rt.Ld64(m.Mem, p)) * 0x100000001b3
 		p += 8
 	}
-	k = length & 7
+	k := length & 7
 	if k != 0 {
 		h = (h ^ rt.Ld64(m.Mem, p)&(uint64(0xffffffffffffffff)>>(uint64((8-k)<<3)&63))) * 0x100000001b3
 	}
@@ -51954,9 +51612,9 @@ func (m *Machine) LvAllocID(blob uint32) uint32 {
 
 // LvGrowBuckets is $lvGrowBuckets.
 func (m *Machine) LvGrowBuckets() {
-	var newMask, nb, i, node, next, slot uint32
-	newMask = m.LvBucketMask<<1 + 1
-	nb = m.LvAlloc((newMask + 1) << 2)
+	var i, node, next, slot uint32
+	newMask := m.LvBucketMask<<1 + 1
+	nb := m.LvAlloc((newMask + 1) << 2)
 	rt.Fill(m.Mem, nb, 0, (newMask+1)<<2)
 	for {
 		if i > m.LvBucketMask {
@@ -51982,12 +51640,10 @@ func (m *Machine) LvGrowBuckets() {
 
 // LvIntern is $lvIntern.
 func (m *Machine) LvIntern(ptr, length uint32) uint32 {
-	var h uint64
-	var lo, hi, node, body, id, before, slot uint32
-	h = m.LvHash(ptr, length)
-	lo = uint32(h)
-	hi = uint32(h >> 32)
-	node = rt.Ld32(m.Mem, m.LvBuckets+(lo&m.LvBucketMask)<<2)
+	h := m.LvHash(ptr, length)
+	lo := uint32(h)
+	hi := uint32(h >> 32)
+	node := rt.Ld32(m.Mem, m.LvBuckets+(lo&m.LvBucketMask)<<2)
 	for {
 		if node == 0 {
 			break
@@ -52000,12 +51656,12 @@ func (m *Machine) LvIntern(ptr, length uint32) uint32 {
 		}
 		node = rt.Ld32(m.Mem, node)
 	}
-	before = m.LvTransLo
-	body = m.LvAlloc(length + 24)
+	before := m.LvTransLo
+	body := m.LvAlloc(length + 24)
 	ptr += m.LvTransLo - before
 	rt.Copy(m.Mem, body+24, ptr, length)
-	id = m.LvAllocID(body)
-	slot = m.LvBuckets + (lo&m.LvBucketMask)<<2
+	id := m.LvAllocID(body)
+	slot := m.LvBuckets + (lo&m.LvBucketMask)<<2
 	rt.St32(m.Mem, body, rt.Ld32(m.Mem, slot))
 	rt.St32(m.Mem, body+4, 1)
 	rt.St32(m.Mem, body+8, length)
@@ -52023,17 +51679,16 @@ func (m *Machine) LvIntern(ptr, length uint32) uint32 {
 
 // LvRelease is $lvRelease.
 func (m *Machine) LvRelease(id uint32) {
-	var slotAddr, node, prev uint32
 	if id == 0 || id == 0xffffffff {
 		return
 	}
-	slotAddr = m.LvIDTab + id<<2
-	node = rt.Ld32(m.Mem, slotAddr)
+	slotAddr := m.LvIDTab + id<<2
+	node := rt.Ld32(m.Mem, slotAddr)
 	rt.St32(m.Mem, node+4, rt.Ld32(m.Mem, node+4)-1)
 	if rt.Ld32(m.Mem, node+4) != 0 {
 		return
 	}
-	prev = m.LvBuckets + (rt.Ld32(m.Mem, node+12)&m.LvBucketMask)<<2
+	prev := m.LvBuckets + (rt.Ld32(m.Mem, node+12)&m.LvBucketMask)<<2
 	for {
 		if rt.Ld32(m.Mem, prev) == node {
 			rt.St32(m.Mem, prev, rt.Ld32(m.Mem, node))
@@ -52115,14 +51770,13 @@ func (m *Machine) LvStackPrefix(base uint32) uint32 {
 
 // LvCaptureBlob is $lvCaptureBlob.
 func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
-	var p, lo, stackBase, stackLen, brkLen, jsxLen uint32
-	stackBase = m.LvStackBase()
-	stackLen = m.LvStackPrefix(stackBase)
-	brkLen = m.BrkSp
+	stackBase := m.LvStackBase()
+	stackLen := m.LvStackPrefix(stackBase)
+	brkLen := m.BrkSp
 	if brkLen > 1024 {
 		brkLen = 1024
 	}
-	jsxLen = m.JsxSp << 3
+	jsxLen := m.JsxSp << 3
 	if jsxLen > 4096 {
 		jsxLen = 4096
 	}
@@ -52173,7 +51827,7 @@ func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
 	rt.Copy(m.Mem, dst+204, 45104, 96)
 	rt.St32(m.Mem, dst+300, m.EcmaImport)
 	rt.St32(m.Mem, dst+304, m.TernaryTop)
-	p = dst + 308
+	p := dst + 308
 	rt.Copy(m.Mem, p, stackBase, stackLen)
 	p += stackLen
 	if stackBase != 38944 {
@@ -52186,7 +51840,7 @@ func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
 	p += brkLen
 	rt.Copy(m.Mem, p, 40992, jsxLen)
 	p += jsxLen
-	lo = m.StreamStateLo
+	lo := m.StreamStateLo
 	for {
 		if lo >= m.StreamStateHi {
 			break
@@ -52216,8 +51870,7 @@ func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
 
 // LvTrimBlob is $lvTrimBlob.
 func (m *Machine) LvTrimBlob(base, length uint32) uint32 {
-	var p uint32
-	p = base + length
+	p := base + length
 	for {
 		if p-base < 16 {
 			break
@@ -52241,10 +51894,9 @@ func (m *Machine) LvTrimBlob(base, length uint32) uint32 {
 
 // LvRestoreBlob is $lvRestoreBlob.
 func (m *Machine) LvRestoreBlob(src, length uint32) {
-	var p, lo, stackBase, stackLen, brkLen, jsxLen uint32
-	stackLen = rt.Ld32(m.Mem, src)
-	brkLen = rt.Ld32(m.Mem, src+4)
-	jsxLen = rt.Ld32(m.Mem, src+8)
+	stackLen := rt.Ld32(m.Mem, src)
+	brkLen := rt.Ld32(m.Mem, src+4)
+	jsxLen := rt.Ld32(m.Mem, src+8)
 	m.StreamMode = rt.Ld32(m.Mem, src+12)
 	m.StreamA = rt.Ld32(m.Mem, src+16)
 	m.StreamB = rt.Ld32(m.Mem, src+20)
@@ -52290,8 +51942,8 @@ func (m *Machine) LvRestoreBlob(src, length uint32) {
 	rt.Copy(m.Mem, 45104, src+204, 96)
 	m.EcmaImport = rt.Ld32(m.Mem, src+300)
 	m.TernaryTop = rt.Ld32(m.Mem, src+304)
-	p = src + 308
-	stackBase = m.LvStackBase()
+	p := src + 308
+	stackBase := m.LvStackBase()
 	rt.Copy(m.Mem, stackBase, p, stackLen)
 	p += stackLen
 	if stackBase != 38944 {
@@ -52305,7 +51957,7 @@ func (m *Machine) LvRestoreBlob(src, length uint32) {
 	rt.Copy(m.Mem, 40992, p, jsxLen)
 	p += jsxLen
 	m.StreamClearCheckpoints()
-	lo = rt.Ld16(m.Mem, p)
+	lo := rt.Ld16(m.Mem, p)
 	p += 2
 	length = src + length - p
 	if int32(length) > 0 {
@@ -52335,11 +51987,10 @@ func (m *Machine) LvSlot(i uint32) uint32 {
 
 // LvMoveGap is $lvMoveGap.
 func (m *Machine) LvMoveGap(to uint32) {
-	var gapLen uint32
 	if to == m.LvGapAt {
 		return
 	}
-	gapLen = m.LvLineCap - m.LvLineCount
+	gapLen := m.LvLineCap - m.LvLineCount
 	if to < m.LvGapAt {
 		rt.Copy(m.Mem, m.LvLineTab+(to+gapLen)<<5, m.LvLineTab+to<<5, (m.LvGapAt-to)<<5)
 	} else {
@@ -52350,16 +52001,15 @@ func (m *Machine) LvMoveGap(to uint32) {
 
 // LvEnsureLines is $lvEnsureLines.
 func (m *Machine) LvEnsureLines(extra uint32) {
-	var newCap, nt, tail uint32
 	if m.LvLineCount+extra <= m.LvLineCap {
 		return
 	}
-	newCap = m.LvLineCap << 1
+	newCap := m.LvLineCap << 1
 	if newCap < m.LvLineCount+extra+64 {
 		newCap = m.LvLineCount + extra + 64
 	}
-	nt = m.LvAlloc(newCap << 5)
-	tail = m.LvLineCount - m.LvGapAt
+	nt := m.LvAlloc(newCap << 5)
+	tail := m.LvLineCount - m.LvGapAt
 	rt.Copy(m.Mem, nt, m.LvLineTab, m.LvGapAt<<5)
 	rt.Copy(m.Mem, nt+(newCap-tail)<<5, m.LvLineTab+(m.LvLineCap-tail)<<5, tail<<5)
 	m.LvFree(m.LvLineTab)
@@ -52404,14 +52054,13 @@ func (m *Machine) LvCancelLine() {
 
 // LvRunLine is $lvRunLine.
 func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
-	var slot, flags, termBytes, byteLen, total, inBase, recStart, recLen, blobBase, blobLen, newID, end, stop, hl, before, w, node, remaining, base, lvCaptureBlob uint32
-	var wide bool
-	slot = m.LvSlot(i)
-	flags = rt.Ld32(m.Mem, slot+24)
-	byteLen = rt.Ld32(m.Mem, slot+4)
-	termBytes = flags & 3
-	total = byteLen + termBytes
-	wide = rt.Ld32(m.Mem, slot+8) >= 0x1000000
+	var inBase, recStart, recLen, blobBase, blobLen, newID, end, stop, hl, before, w, node, remaining, base, lvCaptureBlob uint32
+	slot := m.LvSlot(i)
+	flags := rt.Ld32(m.Mem, slot+24)
+	byteLen := rt.Ld32(m.Mem, slot+4)
+	termBytes := flags & 3
+	total := byteLen + termBytes
+	wide := rt.Ld32(m.Mem, slot+8) >= 0x1000000
 	if m.LvLinePhase == 0 {
 		inBase = m.LvHeapCeil + 16
 		m.LvGrowTo(inBase + total + 64)
@@ -52584,9 +52233,9 @@ func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 
 // LvUTF16Len is $lvUtf16Len.
 func (m *Machine) LvUTF16Len(p, length uint32) uint32 {
-	var b, n, stop uint32
+	var b, n uint32
 	var w rt.V128
-	stop = p + length
+	stop := p + length
 	for {
 		if stop-p < 16 {
 			break
@@ -52614,9 +52263,8 @@ func (m *Machine) LvUTF16Len(p, length uint32) uint32 {
 
 // LvAppendLine is $lvAppendLine.
 func (m *Machine) LvAppendLine(textPtr, byteLen, flags uint32) {
-	var slot uint32
 	m.LvEnsureLines(1)
-	slot = m.LvLineTab + m.LvLineCount<<5
+	slot := m.LvLineTab + m.LvLineCount<<5
 	rt.St32(m.Mem, slot, textPtr)
 	rt.St32(m.Mem, slot+4, byteLen)
 	rt.St32(m.Mem, slot+8, m.LvUTF16Len(textPtr, byteLen))
@@ -52637,7 +52285,7 @@ func (m *Machine) LiveStage(length uint32) uint32 {
 
 // LiveInitDoc is (export "liveInitDoc").
 func (m *Machine) LiveInitDoc(ptr, length, lang uint32) {
-	var p, stop, lineStart, b uint32
+	var b uint32
 	m.LvHeapInit()
 	m.LvLang = lang
 	m.Mem[1] = 3
@@ -52648,9 +52296,9 @@ func (m *Machine) LiveInitDoc(ptr, length, lang uint32) {
 	m.LvGapAt = 0
 	m.LvLineTab = m.LvAlloc(8192)
 	m.LvLineCap = 256
-	p = ptr
-	lineStart = ptr
-	stop = ptr + length
+	p := ptr
+	lineStart := ptr
+	stop := ptr + length
 	for {
 		p = m.ScanFindSpecial(p, stop, 10, 0, 1)
 		if p >= stop {
@@ -52737,12 +52385,12 @@ func (m *Machine) LvWriteSurrogate(dst, s uint32) {
 
 // LvEmitSpliceLine is $lvEmitSpliceLine.
 func (m *Machine) LvEmitSpliceLine(line, src, length, flags, state uint32) {
-	var tp, slot uint32
+	var tp uint32
 	if length != 0 {
 		tp = m.LvAlloc(length)
 		rt.Copy(m.Mem, tp, src, length)
 	}
-	slot = m.LvSlot(line)
+	slot := m.LvSlot(line)
 	rt.St32(m.Mem, slot, tp)
 	rt.St32(m.Mem, slot+4, length)
 	rt.St32(m.Mem, slot+8, m.LvUTF16Len(src, length))
@@ -52755,26 +52403,26 @@ func (m *Machine) LvEmitSpliceLine(line, src, length, flags, state uint32) {
 
 // LvSpliceEdit is $lvSpliceEdit.
 func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint32) uint32 {
-	var sSlot, eSlot, sText, sByteLen, sFlags, eText, eByteLen, eFlags, sPos, sSplit, ePos, eSplit, n, n0, p, j, segStart, term, pre, suf, w, cp, eState, scratch, L, b, finalTerm, pSlot, pText, pLen, pFlags uint32
-	var same, crlf, ext bool
-	sSlot = m.LvSlot(sLine)
-	eSlot = m.LvSlot(eLine)
-	same = sLine == eLine
-	sText = rt.Ld32(m.Mem, sSlot)
-	sByteLen = rt.Ld32(m.Mem, sSlot+4)
-	sFlags = rt.Ld32(m.Mem, sSlot+24)
-	eText = rt.Ld32(m.Mem, eSlot)
-	eByteLen = rt.Ld32(m.Mem, eSlot+4)
-	eFlags = rt.Ld32(m.Mem, eSlot+24)
-	sPos = m.LvCharToByte(sText, sByteLen, sChar)
-	sSplit = sPos >> 31
+	var n, segStart, term, w, cp, scratch, b, pSlot, pText, pLen, pFlags uint32
+	var crlf, ext bool
+	sSlot := m.LvSlot(sLine)
+	eSlot := m.LvSlot(eLine)
+	same := sLine == eLine
+	sText := rt.Ld32(m.Mem, sSlot)
+	sByteLen := rt.Ld32(m.Mem, sSlot+4)
+	sFlags := rt.Ld32(m.Mem, sSlot+24)
+	eText := rt.Ld32(m.Mem, eSlot)
+	eByteLen := rt.Ld32(m.Mem, eSlot+4)
+	eFlags := rt.Ld32(m.Mem, eSlot+24)
+	sPos := m.LvCharToByte(sText, sByteLen, sChar)
+	sSplit := sPos >> 31
 	sPos &= 0x7fffffff
-	ePos = m.LvCharToByte(eText, eByteLen, eChar)
-	eSplit = ePos >> 31
+	ePos := m.LvCharToByte(eText, eByteLen, eChar)
+	eSplit := ePos >> 31
 	ePos &= 0x7fffffff
-	pre = sPos + sSplit*3
-	suf = eSplit*3 + (eByteLen - ePos - eSplit*4)
-	L = pre + textLen + suf
+	pre := sPos + sSplit*3
+	suf := eSplit*3 + (eByteLen - ePos - eSplit*4)
+	L := pre + textLen + suf
 	if L != 0 {
 		scratch = m.LvAlloc(L)
 		w = scratch
@@ -52794,7 +52442,7 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 		}
 		rt.Copy(m.Mem, w, eText+ePos+eSplit*4, eByteLen-ePos-eSplit*4)
 	}
-	p = pre + textLen
+	p := pre + textLen
 	for {
 		if p >= 3 && p+3 <= L {
 			w = scratch + p
@@ -52814,7 +52462,7 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 		}
 		p = pre
 	}
-	finalTerm = eFlags & 19
+	finalTerm := eFlags & 19
 	if sLine > 0 {
 		pSlot = m.LvSlot(sLine - 1)
 		pFlags = rt.Ld32(m.Mem, pSlot+24)
@@ -52865,12 +52513,12 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 			p++
 		}
 	}
-	n0 = eLine - sLine + 1
+	n0 := eLine - sLine + 1
 	if n != n0 {
 		m.LvEnsureLines(n)
 	}
-	eState = rt.Ld32(m.Mem, m.LvSlot(eLine)+20)
-	j = sLine
+	eState := rt.Ld32(m.Mem, m.LvSlot(eLine)+20)
+	j := sLine
 	for {
 		if j > eLine {
 			break
@@ -52935,8 +52583,8 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 
 // LvAddChange is $lvAddChange.
 func (m *Machine) LvAddChange(os, oe, ns, ne uint32) bool {
-	var count, last uint32
-	count = rt.Ld32(m.Mem, 81920)
+	var last uint32
+	count := rt.Ld32(m.Mem, 81920)
 	if count != 0 {
 		last = 0x14004 + (count-1)<<4
 		if os <= rt.Ld32(m.Mem, last+4) {
@@ -52965,9 +52613,8 @@ func (m *Machine) LvAddChange(os, oe, ns, ne uint32) bool {
 
 // LvAbsorbChange is $lvAbsorbChange.
 func (m *Machine) LvAbsorbChange(idx uint32) {
-	var count, e uint32
-	count = rt.Ld32(m.Mem, 81920)
-	e = 0x14004 + idx<<4
+	count := rt.Ld32(m.Mem, 81920)
+	e := 0x14004 + idx<<4
 	rt.St32(m.Mem, e+4, rt.Ld32(m.Mem, e+20))
 	rt.St32(m.Mem, e+12, rt.Ld32(m.Mem, e+28))
 	if count > idx+2 {
@@ -52978,11 +52625,10 @@ func (m *Machine) LvAbsorbChange(idx uint32) {
 
 // LvCloseRange is $lvCloseRange.
 func (m *Machine) LvCloseRange(through uint32) {
-	var e uint32
 	if through <= m.LvDirtyTo {
 		return
 	}
-	e = 0x14004 + m.LvChangeIdx<<4
+	e := 0x14004 + m.LvChangeIdx<<4
 	rt.St32(m.Mem, e+4, rt.Ld32(m.Mem, e+4)+(through-m.LvDirtyTo))
 	rt.St32(m.Mem, e+12, through)
 }
@@ -53007,7 +52653,7 @@ func (m *Machine) LvNewAddr(body uint32) uint32 {
 
 // LvCompact is $lvCompact.
 func (m *Machine) LvCompact() {
-	var hdr, size, to, i, stop, slot, flags, node, next, v, newInitial, newEnd uint32
+	var hdr, size, to, i, slot, flags, node, next, v uint32
 	hdr = 0x18110
 	to = 0x18110
 	for {
@@ -53021,10 +52667,10 @@ func (m *Machine) LvCompact() {
 		}
 		hdr += size
 	}
-	newEnd = to
-	newInitial = m.LvNewAddr(m.LvInitialBlock)
+	newEnd := to
+	newInitial := m.LvNewAddr(m.LvInitialBlock)
 	i = 0
-	stop = m.LvGapAt
+	stop := m.LvGapAt
 	for {
 		if i >= stop {
 			if stop == m.LvLineCap {
@@ -53124,9 +52770,9 @@ func (m *Machine) LvAddPend(a, b, shift, ranges, rangeCount uint32) uint32 {
 
 // LiveApplyEdits is (export "liveApplyEdits").
 func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
-	var count, k, e, n, n0, shift, newFrom, newTo, ranges, rangeCount, slot, ext, pend, pendCount, pendIdx, pendSlot, a, b, os, oe uint32
+	var k, e, n, n0, shift, newFrom, newTo, rangeCount, slot, ext, pend, pendCount, pendIdx, pendSlot, a, b, os, oe uint32
 	m.LvCancelLine()
-	count = rt.Ld32(m.Mem, staged)
+	count := rt.Ld32(m.Mem, staged)
 	if m.LvPhase || undelivered != 0 {
 		a = m.LvCursor
 		if m.LvDirtyTo > a {
@@ -53174,7 +52820,7 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 		rt.St32(m.Mem, e+20, n)
 	}
 	rt.St32(m.Mem, 81920, 0)
-	ranges = m.LvAlloc((count + pendCount + 1) << 3)
+	ranges := m.LvAlloc((count + pendCount + 1) << 3)
 	k = 0
 	for {
 		if k >= count {

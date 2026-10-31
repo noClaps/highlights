@@ -8,6 +8,11 @@ cd "$(dirname "$0")/.."
 # interface and every type switch case as wrong when it lacks type
 # information, as it does under this Go release.
 critic="go run github.com/go-critic/go-critic/cmd/gocritic@latest check -disable sloppyTypeAssert,caseOrder"
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+	echo "not gofmt-ed: $unformatted" >&2
+	exit 1
+fi
 go vet ./...
 go run honnef.co/go/tools/cmd/staticcheck@latest ./...
 go run github.com/mgechev/revive@latest -set_exit_status ./...

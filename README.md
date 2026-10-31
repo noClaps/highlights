@@ -61,12 +61,18 @@ describe them). Rather than run Wasm, the Go port translates the WAT to Go:
   statements with rune literals, tail branches become `if`/`else` arms,
   constant conditions fold away, and expressions print with Go precedence.
   Functions, locals and globals that only hold 0 or 1 are `bool`s, bytes are
-  read as `m.Mem[p]`, calls without side effects stay in their expressions
-  rather than temporaries, and bit counts use `math/bits`.
-  `TestGeneratedCodeStyle` in `internal/engine` checks that the engine has no
-  `goto` and none of the WAT-shaped patterns the generator removes. The engine
-  is still a translation: the lexers' branchless arithmetic on conditions
-  (`n += rt.B2u(c != ' ')`), wide loads through `rt.Ld32` and the like, and
+  read as `m.Mem[p]`, selects become `if`/`else` assignments, else-if chains
+  become `switch`es, variables are declared with `:=` where they are first
+  assigned, temporaries are named after the call or parameter they belong
+  to, and bit counts use `math/bits`.
+
+  The engine is held to the linters hand-written code would be:
+  `tools/lint.sh` runs gofmt, `go vet`, staticcheck, revive and gocritic over
+  the module, then again over a copy of the engine without its generated-code
+  header, since linters skip generated files. `TestGeneratedCodeStyle` in
+  `internal/engine` adds checks the linters lack, such as no `goto`. The
+  engine is still a translation: branchless arithmetic on conditions
+  (`n |= rt.B2u(c != ' ')`), wide loads through `rt.Ld32` and the like, and
   SIMD through `rt.V128` remain.
 - `internal/engine` is the generated engine (`go generate ./internal/engine`
   regenerates it and `tables_gen.go`).

@@ -724,6 +724,7 @@ func (g *fgen) genFunc() string {
 	body = dropEmptyIfs(body)
 	body = outdentElse(body)
 	body = switchChains(body)
+	body = returnConditions(body)
 	body = unlabelBranches(body)
 	body = dropUnreadTemps(body, g.temps, g.pure)
 	body = g.nameTemps(body, params, locals)
@@ -740,22 +741,39 @@ func (g *fgen) genFunc() string {
 	if g.boolFuncs[f.GoName] {
 		results = " bool"
 	}
-	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", f.GoName, combineParams(params), results)
+	// a parameter the body never reads is blank
+	blanked := slices.Clone(params)
+	for i, p := range params {
+		name, typ, _ := strings.Cut(p, " ")
+		if !readsVar(body, name) {
+			blanked[i] = "_ " + typ
+		}
+	}
+	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", f.GoName, combineParams(blanked), results)
 	// one declaration per type, in first-use order; variables the body
 	// never mentions are left out, and ones it only assigns are marked
 	// used, as Go requires
 	vars := slices.Concat(locals, g.temps)
+	types := map[string]string{}
+	for _, p := range params {
+		name, typ, _ := strings.Cut(p, " ")
+		types[name] = typ
+	}
+	for _, v := range vars {
+		types[v.Name] = "bool"
+		if v.Type != "bool" {
+			types[v.Name] = v.Type.goType()
+		}
+	}
+	body = g.declareAtFirstUse(body, vars, types)
 	var order []string
 	byType := map[string][]string{}
 	var unused []string
 	for _, v := range vars {
-		if !regexp.MustCompile(`\b` + v.Name + `\b`).MatchString(body) {
+		if !regexp.MustCompile(`\b`+v.Name+`\b`).MatchString(body) || regexp.MustCompile(`(?m)^\t`+v.Name+` := `).MatchString(body) {
 			continue
 		}
-		typ := "bool"
-		if v.Type != "bool" {
-			typ = v.Type.goType()
-		}
+		typ := types[v.Name]
 		if _, ok := byType[typ]; !ok {
 			order = append(order, typ)
 		}
@@ -1014,6 +1032,25 @@ func outdentElse(body string) string {
 	return strings.Join(lines, "\n")
 }
 
+// returnConditions writes `if c { return true }; return false` as
+// `return c`, and the negated form as `return !c`.
+func returnConditions(body string) string {
+	return boolReturnRe.ReplaceAllStringFunc(body, func(m string) string {
+		sub := boolReturnRe.FindStringSubmatch(m)
+		indent, cond, first, second := sub[1], sub[2], sub[3], sub[4]
+		want := indent + "if " + cond + " {\n" + indent + "\treturn " + first + "\n" + indent + "}\n" + indent + "return " + second + "\n"
+		if first == second || m != want {
+			return m
+		}
+		if first == "false" {
+			cond = negate(cond)
+		}
+		return indent + "return " + tidyExpr(cond) + "\n"
+	})
+}
+
+var boolReturnRe = regexp.MustCompile(`(?m)^(\t+)if (.*) \{\n\t+return (true|false)\n\t+\}\n\t+return (true|false)\n`)
+
 // switchChains writes an if with three or more arms as a switch with
 // a case per condition. A chain whose arms hold an unlabeled break stays,
 // since in a switch the break would leave the switch.
@@ -1166,6 +1203,103 @@ func deadSets(body []*wat.Sexpr) (dead map[*wat.Sexpr]bool) {
 
 // readsVar reports whether a body uses a variable other than as the target
 // of an assignment.
+// declareAtFirstUse declares with := each variable whose first mention
+// is an assignment in the function's own block, when the assigned value
+// has the variable's type; an untyped constant would not.
+func (g *fgen) declareAtFirstUse(body string, vars []Local, types map[string]string) string {
+	for _, v := range vars {
+		loc := regexp.MustCompile(`\b` + v.Name + `\b`).FindStringIndex(body)
+		if loc == nil {
+			continue
+		}
+		start := strings.LastIndexByte(body[:loc[0]], '\n') + 1
+		end := strings.IndexByte(body[loc[0]:], '\n')
+		if end < 0 {
+			continue
+		}
+		line := body[start : loc[0]+end]
+		value, ok := strings.CutPrefix(line, "\t"+v.Name+" = ")
+		if !ok || regexp.MustCompile(`\b`+v.Name+`\b`).MatchString(value) {
+			continue
+		}
+		e, err := parseExpr(value)
+		if err != nil || g.typeOf(e, types) != types[v.Name] {
+			continue
+		}
+		body = body[:start] + "\t" + v.Name + " := " + value + body[loc[0]+end:]
+	}
+	return body
+}
+
+// typeOf infers the Go type of a generated expression, or "" for an
+// untyped constant or a type it cannot tell.
+func (g *fgen) typeOf(e *expr, types map[string]string) string {
+	switch {
+	case e.index:
+		if e.fn == "m.Mem" {
+			return "byte"
+		}
+		return ""
+	case e.leaf != "":
+		if t, ok := types[e.leaf]; ok {
+			return t
+		}
+		if field, ok := strings.CutPrefix(e.leaf, "m."); ok {
+			for _, gl := range g.mod.Globals {
+				if gl.GoName == field && gl.Mutable {
+					if g.flags[gl] {
+						return "bool"
+					}
+					return gl.Type.goType()
+				}
+			}
+		}
+		if e.leaf == "true" || e.leaf == "false" {
+			return "bool"
+		}
+		return ""
+	case e.fn != "":
+		switch e.fn {
+		case "uint32", "uint64", "int32", "int64", "byte", "bool":
+			return e.fn
+		}
+		if name, ok := strings.CutPrefix(e.fn, "m."); ok {
+			if f := g.mod.funcByGoName(name); f != nil && len(f.Results) == 1 {
+				if g.boolFuncs[name] {
+					return "bool"
+				}
+				return f.Results[0].goType()
+			}
+			return ""
+		}
+		if name, ok := strings.CutPrefix(e.fn, "rt."); ok {
+			switch {
+			case strings.HasPrefix(name, "LdV") || strings.HasSuffix(name, "V"):
+				return ""
+			case strings.Contains(name, "64"):
+				return "uint64"
+			case strings.HasPrefix(name, "Ld") || strings.HasPrefix(name, "Sel") || name == "B2u":
+				return "uint32"
+			}
+		}
+		return ""
+	case e.op == "!":
+		return "bool"
+	case e.op == "u^":
+		return g.typeOf(e.args[0], types)
+	}
+	switch e.op {
+	case "==", "!=", "<", "<=", ">", ">=", "&&", "||":
+		return "bool"
+	case "<<", ">>":
+		return g.typeOf(e.args[0], types)
+	}
+	if t := g.typeOf(e.args[0], types); t != "" {
+		return t
+	}
+	return g.typeOf(e.args[1], types)
+}
+
 // dropUnreadTemps removes the assignments to temporaries that nothing
 // reads, which folding a constant condition leaves behind; a call to a
 // function with side effects keeps its statement.
