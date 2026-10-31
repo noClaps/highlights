@@ -11,6 +11,9 @@ root=$(cd "$here/../.." && pwd)
 node_modules=$1
 work=$(mktemp -d)
 python3 "$here/instrument.py" "$root/vendor/pierre-highlights" "$work/pkg" "$node_modules"
+# theme_test.ts reads the Pierre theme package beside the vendored one
+mkdir -p "$work/theme/themes"
+cp "$root"/themes/testdata/pierre-theme/*.json "$work/theme/themes/"
 (cd "$work/pkg" && REC_OUT="$work/rec" bun test --preload ./test/_rec.ts --timeout 120000) || true
 rm -f "$root"/testdata/golden/*.jsonl.gz
 for f in "$work"/rec/*.jsonl; do

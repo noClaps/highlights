@@ -65,9 +65,10 @@ than run Wasm, the Go port translates the WAT to Go:
   the TypeScript helpers share some instances between files. See
   [`testdata/golden/README.md`](testdata/golden/README.md).
 
-  One test is skipped: `bundled themes: matches Shiki and Pierre catalogs`
-  reads a sibling directory of the original monorepo and fails there too. A
-  few dozen calls that pass values Go's types cannot express (a number as a
+  `bundled themes: matches Shiki and Pierre catalogs` reads the Pierre theme
+  package beside the vendored one; the recorder supplies it from
+  `themes/testdata`, and `themes/catalog_test.go` ports its checks. A few
+  dozen calls that pass values Go's types cannot express (a number as a
   theme, `Infinity` as a line) are skipped and counted in the test log.
 - Direct ports of the preprocessor and engine tests from `wasm_test.ts`, the
   memory-capacity checks from `memory_test.ts`, and the linear-time checks

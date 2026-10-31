@@ -704,3 +704,10 @@ func ToCSS(theme *Theme, cssVariablePrefix string) string {
 	}
 	return css.String()
 }
+
+// ResolveThemeStyle resolves the color and font settings of a token type,
+// such as "keyword.control", or of "foreground" or "background", as the
+// highlighter applies them.
+func ResolveThemeStyle(style *Object, name string) TokenStyle {
+	return resolveThemeStyle(style, name)
+}
