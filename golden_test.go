@@ -86,11 +86,29 @@ func skip(format string, args ...any) {
 	panic(notRepresentable{fmt.Sprintf(format, args...)})
 }
 
-// rawMachine is an engine instance driven export by export.
+// rawMachine is a module instance driven export by export.
 type rawMachine struct {
-	m      *engine.Machine
-	env    []json.RawMessage
-	shadow []byte
+	mem    *[]byte
+	call   func(name string, args []uint64) (uint64, bool)
+	setEnv func(pop func(name string) uint32)
+}
+
+// engineRaw drives the full engine; extra adds exports of test modules
+// built from its functions.
+func engineRaw(m *engine.Machine, extra map[string]func(m *engine.Machine, args []uint64) uint64) *rawMachine {
+	return &rawMachine{
+		mem: &m.Mem,
+		call: func(name string, args []uint64) (uint64, bool) {
+			if f, ok := extra[name]; ok {
+				return f(m, args), true
+			}
+			return m.CallExport(name, args)
+		},
+		setEnv: func(pop func(string) uint32) {
+			m.Imports.IsIdStart = func(*engine.Machine, uint32, uint32) uint32 { return pop("is_id_start") }
+			m.Imports.IsIdContinue = func(*engine.Machine, uint32, uint32) uint32 { return pop("is_id_continue") }
+		},
+	}
 }
 
 type replayer struct {
@@ -354,6 +372,16 @@ func (r *replayer) resolve(v any) any {
 	return v
 }
 
+// expand inlines recorded string references for error messages.
+func (r *replayer) expand(text string) string {
+	return strRefRe.ReplaceAllStringFunc(text, func(ref string) string {
+		id := strRefRe.FindStringSubmatch(ref)[1]
+		return jsjson.Marshal(r.strs[id])
+	})
+}
+
+var strRefRe = regexp.MustCompile(`\{"\$str":"(s\d+)"\}`)
+
 func (r *replayer) str(s string) any {
 	if utf16Len(s) > 256 {
 		if id, ok := r.strIDs[s]; ok {
@@ -457,6 +485,7 @@ func (r *replayer) check(e *event, got any, err error) {
 }
 
 func (r *replayer) checkValue(e *event, what string, got any, err error, out json.RawMessage, outHash string) {
+	r.t.Helper()
 	r.compared++
 	label := fmt.Sprintf("%s %s", e.K, e.Name)
 	if e.Err != nil {
@@ -482,7 +511,13 @@ func (r *replayer) checkValue(e *event, what string, got any, err error, out jso
 		return
 	}
 	if text != string(out) {
-		r.t.Errorf("%s: %s differs\n got %.3000s\nwant %.3000s", label, what, text, out)
+		want := r.expand(string(out))
+		at := 0
+		for at < len(text) && at < len(want) && text[at] == want[at] {
+			at++
+		}
+		from := max(0, at-200)
+		r.t.Errorf("%s: %s differs at byte %d\n got %.600s\nwant %.600s", label, what, at, text[from:], want[from:min(len(want), from+600)])
 	}
 }
 
@@ -779,7 +814,7 @@ func replaceSurrogates(s string) string {
 func (r *replayer) hlCall(e *event) {
 	h := r.hl(e.HL)
 	if e.Mem != nil {
-		r.applyMem(h.m, e.Mem, h)
+		r.applyMem(&h.m.Mem, e.Mem)
 	}
 	before := append([]byte(nil), h.m.Mem...)
 	args := make([]any, len(e.Args))
@@ -848,7 +883,7 @@ func (r *replayer) hlCall(e *event) {
 }
 
 // applyMem applies a recorded memory change made by test code.
-func (r *replayer) applyMem(m *engine.Machine, raw json.RawMessage, _ *Highlighter) {
+func (r *replayer) applyMem(mp *[]byte, raw json.RawMessage) {
 	var full struct {
 		FullGz string `json:"fullgz"`
 	}
@@ -865,10 +900,10 @@ func (r *replayer) applyMem(m *engine.Machine, raw json.RawMessage, _ *Highlight
 		if err != nil {
 			r.t.Fatal(err)
 		}
-		if len(mem) > len(m.Mem) {
-			m.Mem = append(m.Mem, make([]byte, len(mem)-len(m.Mem))...)
+		if len(mem) > len(*mp) {
+			*mp = append(*mp, make([]byte, len(mem)-len(*mp))...)
 		}
-		copy(m.Mem, mem)
+		copy(*mp, mem)
 		return
 	}
 	var ranges [][2]any
@@ -878,10 +913,10 @@ func (r *replayer) applyMem(m *engine.Machine, raw json.RawMessage, _ *Highlight
 	for _, rg := range ranges {
 		at := int(rg[0].(float64))
 		b, _ := base64.StdEncoding.DecodeString(rg[1].(string))
-		if at+len(b) > len(m.Mem) {
-			m.Mem = append(m.Mem, make([]byte, at+len(b)-len(m.Mem))...)
+		if at+len(b) > len(*mp) {
+			*mp = append(*mp, make([]byte, at+len(b)-len(*mp))...)
 		}
-		copy(m.Mem[at:], b)
+		copy((*mp)[at:], b)
 	}
 }
 
@@ -999,7 +1034,7 @@ func (r *replayer) fnCall(e *event) {
 				prefix = p
 			}
 		}
-		r.check(e, ToCSS(th, prefix), nil)
+		r.check(e, r.str(ToCSS(th, prefix)), nil)
 	case "resolveTheme":
 		th, err := ResolveTheme(r.themeArg(arg(0)))
 		if err != nil {
@@ -1432,13 +1467,13 @@ func (r *replayer) rawNew(e *event) {
 	src := r.modules[*e.Module]
 	if src == nil || src.Content != nil || !strings.HasSuffix(src.URL, "/src/highlights.wat") {
 		if m := customMachine(src); m != nil {
-			r.raws[e.ID] = &rawMachine{m: m}
+			r.raws[e.ID] = m
 			return
 		}
 		r.raws[e.ID] = nil
 		return
 	}
-	r.raws[e.ID] = &rawMachine{m: newMachine()}
+	r.raws[e.ID] = engineRaw(newMachine(), nil)
 }
 
 func (r *replayer) rawCall(e *event) {
@@ -1450,9 +1485,9 @@ func (r *replayer) rawCall(e *event) {
 		skip("raw instance of an unsupported module")
 	}
 	if e.Mem != nil {
-		r.applyMem(rm.m, e.Mem, nil)
+		r.applyMem(rm.mem, e.Mem)
 	}
-	before := append([]byte(nil), rm.m.Mem...)
+	before := append([]byte(nil), (*rm.mem)...)
 	env := e.Env
 	pop := func(name string) uint32 {
 		for len(env) > 0 {
@@ -1471,8 +1506,7 @@ func (r *replayer) rawCall(e *event) {
 		}
 		return 0
 	}
-	rm.m.Imports.IsIdStart = func(*engine.Machine, uint32, uint32) uint32 { return pop("is_id_start") }
-	rm.m.Imports.IsIdContinue = func(*engine.Machine, uint32, uint32) uint32 { return pop("is_id_continue") }
+	rm.setEnv(pop)
 	args := make([]uint64, len(e.Args))
 	for i, a := range e.Args {
 		switch v := r.decode(a).(type) {
@@ -1496,7 +1530,7 @@ func (r *replayer) rawCall(e *event) {
 				trap = trapError(x)
 			}
 		}()
-		out, found = rm.m.CallExport(e.Name, args)
+		out, found = rm.call(e.Name, args)
 	}()
 	if !found && trap == nil {
 		skip("raw export %s", e.Name)
@@ -1518,7 +1552,7 @@ func (r *replayer) rawCall(e *event) {
 		r.check(e, got, nil)
 	}
 	if e.MemAfter != nil || e.MemAfterHash != "" {
-		r.checkValue(e, "memory", memDiff(before, rm.m.Mem), nil, e.MemAfter, e.MemAfterHash)
+		r.checkValue(e, "memory", memDiff(before, *rm.mem), nil, e.MemAfter, e.MemAfterHash)
 	}
 }
 
@@ -1539,6 +1573,6 @@ func customHarness(content string) func(*engine.Machine) {
 
 // customMachine instantiates a test module used through its exports, or
 // returns nil.
-func customMachine(src *moduleSrc) *engine.Machine {
+func customMachine(src *moduleSrc) *rawMachine {
 	return nil
 }
