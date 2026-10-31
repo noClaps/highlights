@@ -9,6 +9,9 @@ requires each result to match the recording. Results longer than 64
 characters are stored as a truncated SHA-256 of their canonical JSON; set
 `REC_FULL=1` when recording to keep them in full for debugging.
 
+`order.txt` lists the files in the order the suite ran them; the replay
+follows it.
+
 Regenerate with `tools/record/record.sh /path/to/node_modules` after
 changing the vendored package. The recorder instruments a temporary copy of
 the package; the vendored sources are not modified.

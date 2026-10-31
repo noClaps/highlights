@@ -60,7 +60,17 @@ than run Wasm, the Go port translates the WAT to Go:
 
 - `TestGolden`, which replays every test of the TypeScript suite (3,574
   tests in 156 files) as a Go subtest of the same name. Each recorded library
-  call is repeated on the Go port and must give the same result. See
+  call is repeated on the Go port and must give the same result, as must any
+  engine memory a test reads directly. Files replay in suite order because
+  the TypeScript helpers share some instances between files. See
   [`testdata/golden/README.md`](testdata/golden/README.md).
-- Direct ports of the preprocessor and engine tests from `wasm_test.ts`, and
-  unit tests of the runtime helpers.
+
+  One test is skipped: `bundled themes: matches Shiki and Pierre catalogs`
+  reads a sibling directory of the original monorepo and fails there too. A
+  few dozen calls that pass values Go's types cannot express (a number as a
+  theme, `Infinity` as a line) are skipped and counted in the test log.
+- Direct ports of the preprocessor and engine tests from `wasm_test.ts`, the
+  memory-capacity checks from `memory_test.ts`, and the linear-time checks
+  from five language tests, plus unit tests of the runtime helpers. Checks
+  of the Binaryen optimizer and of zero-copy JavaScript views have no Go
+  counterpart.
