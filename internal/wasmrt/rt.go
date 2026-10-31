@@ -4,7 +4,6 @@ package wasmrt
 
 import (
 	"encoding/binary"
-	"math/bits"
 )
 
 // PageSize is the Wasm page size in bytes.
@@ -92,18 +91,6 @@ func Grow(mem *[]byte, n uint32) uint32 {
 	return old
 }
 
-// Rotl32 implements i32.rotl.
-func Rotl32(x, k uint32) uint32 { return bits.RotateLeft32(x, int(k&31)) }
-
-// Rotr32 implements i32.rotr.
-func Rotr32(x, k uint32) uint32 { return bits.RotateLeft32(x, -int(k&31)) }
-
-// Rotl64 implements i64.rotl.
-func Rotl64(x, k uint64) uint64 { return bits.RotateLeft64(x, int(k&63)) }
-
-// Rotr64 implements i64.rotr.
-func Rotr64(x, k uint64) uint64 { return bits.RotateLeft64(x, -int(k&63)) }
-
 // V128 is a 128-bit vector stored as two little-endian 64-bit lanes.
 type V128 struct{ Lo, Hi uint64 }
 
@@ -133,22 +120,22 @@ func Splat8(x uint32) V128 {
 }
 
 // Or implements v128.or.
-func Or(a, b V128) V128 { return V128{a.Lo | b.Lo, a.Hi | b.Hi} }
+func (a V128) Or(b V128) V128 { return V128{a.Lo | b.Lo, a.Hi | b.Hi} }
 
 // And implements v128.and.
-func And(a, b V128) V128 { return V128{a.Lo & b.Lo, a.Hi & b.Hi} }
+func (a V128) And(b V128) V128 { return V128{a.Lo & b.Lo, a.Hi & b.Hi} }
 
 // Xor implements v128.xor.
-func Xor(a, b V128) V128 { return V128{a.Lo ^ b.Lo, a.Hi ^ b.Hi} }
+func (a V128) Xor(b V128) V128 { return V128{a.Lo ^ b.Lo, a.Hi ^ b.Hi} }
 
 // AndNot implements v128.andnot.
-func AndNot(a, b V128) V128 { return V128{a.Lo &^ b.Lo, a.Hi &^ b.Hi} }
+func (a V128) AndNot(b V128) V128 { return V128{a.Lo &^ b.Lo, a.Hi &^ b.Hi} }
 
 // Not implements v128.not.
-func Not(a V128) V128 { return V128{^a.Lo, ^a.Hi} }
+func (a V128) Not() V128 { return V128{^a.Lo, ^a.Hi} }
 
 // AnyTrue implements v128.any_true.
-func AnyTrue(a V128) bool { return a.Lo|a.Hi != 0 }
+func (a V128) AnyTrue() bool { return a.Lo|a.Hi != 0 }
 
 // zeroBytes sets 0xff in each byte of x that is zero.
 func zeroBytes(x uint64) uint64 {
@@ -157,20 +144,20 @@ func zeroBytes(x uint64) uint64 {
 }
 
 // Eq8 implements i8x16.eq.
-func Eq8(a, b V128) V128 { return V128{zeroBytes(a.Lo ^ b.Lo), zeroBytes(a.Hi ^ b.Hi)} }
+func (a V128) Eq8(b V128) V128 { return V128{zeroBytes(a.Lo ^ b.Lo), zeroBytes(a.Hi ^ b.Hi)} }
 
 // Ne8 implements i8x16.ne.
-func Ne8(a, b V128) V128 { return Not(Eq8(a, b)) }
+func (a V128) Ne8(b V128) V128 { return a.Eq8(b).Not() }
 
 func sub8(a, b uint64) uint64 { return ((a | high) - (b &^ high)) ^ ((a ^ ^b) & high) }
 
 // Sub8 implements i8x16.sub.
-func Sub8(a, b V128) V128 { return V128{sub8(a.Lo, b.Lo), sub8(a.Hi, b.Hi)} }
+func (a V128) Sub8(b V128) V128 { return V128{sub8(a.Lo, b.Lo), sub8(a.Hi, b.Hi)} }
 
 func add8(a, b uint64) uint64 { return ((a &^ high) + (b &^ high)) ^ ((a ^ b) & high) }
 
 // Add8 implements i8x16.add.
-func Add8(a, b V128) V128 { return V128{add8(a.Lo, b.Lo), add8(a.Hi, b.Hi)} }
+func (a V128) Add8(b V128) V128 { return V128{add8(a.Lo, b.Lo), add8(a.Hi, b.Hi)} }
 
 // geMask sets 0xff in each byte lane where x >= y, unsigned. For lanes
 // whose high bits differ, x's high bit decides; otherwise the borrow-free
@@ -182,26 +169,26 @@ func geMask(x, y uint64) uint64 {
 }
 
 // GeU8 implements i8x16.ge_u.
-func GeU8(a, b V128) V128 { return V128{geMask(a.Lo, b.Lo), geMask(a.Hi, b.Hi)} }
+func (a V128) GeU8(b V128) V128 { return V128{geMask(a.Lo, b.Lo), geMask(a.Hi, b.Hi)} }
 
 // LeU8 implements i8x16.le_u.
-func LeU8(a, b V128) V128 { return GeU8(b, a) }
+func (a V128) LeU8(b V128) V128 { return b.GeU8(a) }
 
 // LtU8 implements i8x16.lt_u.
-func LtU8(a, b V128) V128 { return Not(GeU8(a, b)) }
+func (a V128) LtU8(b V128) V128 { return a.GeU8(b).Not() }
 
 // GtU8 implements i8x16.gt_u.
-func GtU8(a, b V128) V128 { return Not(GeU8(b, a)) }
+func (a V128) GtU8(b V128) V128 { return b.GeU8(a).Not() }
 
 // GtS8 implements i8x16.gt_s: signed lanes compare as unsigned once their
 // sign bits flip.
-func GtS8(a, b V128) V128 {
+func (a V128) GtS8(b V128) V128 {
 	f := V128{high, high}
-	return GtU8(Xor(a, f), Xor(b, f))
+	return a.Xor(f).GtU8(b.Xor(f))
 }
 
 // LtS8 implements i8x16.lt_s.
-func LtS8(a, b V128) V128 { return GtS8(b, a) }
+func (a V128) LtS8(b V128) V128 { return b.GtS8(a) }
 
 func minU(x, y byte) byte {
 	if x < y {
@@ -219,12 +206,12 @@ func mapBytes(a, b uint64, f func(x, y byte) byte) uint64 {
 }
 
 // MinU8 implements i8x16.min_u.
-func MinU8(a, b V128) V128 {
+func (a V128) MinU8(b V128) V128 {
 	return V128{mapBytes(a.Lo, b.Lo, minU), mapBytes(a.Hi, b.Hi, minU)}
 }
 
 // Bitmask8 gathers the high bit of each byte.
-func Bitmask8(a V128) uint32 {
+func (a V128) Bitmask8() uint32 {
 	const magic = 0x0102040810204080
 	lo := (((a.Lo & high) >> 7) * magic) >> 56
 	hi := (((a.Hi & high) >> 7) * magic) >> 56
@@ -232,7 +219,7 @@ func Bitmask8(a V128) uint32 {
 }
 
 // AllTrue8 reports whether every byte is nonzero.
-func AllTrue8(a V128) bool { return zeroBytes(a.Lo)|zeroBytes(a.Hi) == 0 }
+func (a V128) AllTrue8() bool { return zeroBytes(a.Lo)|zeroBytes(a.Hi) == 0 }
 
 // Bytes16 builds a vector from 16 bytes.
 func Bytes16(b [16]byte) V128 {

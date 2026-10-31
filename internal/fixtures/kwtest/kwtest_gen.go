@@ -144,7 +144,7 @@ func (m *Machine) ScanToLineEnd() {
 			break
 		}
 		w = rt.LdV(m.Mem[m.Ptr:])
-		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, rt.Splat8(13))))
+		mask = w.Eq8(rt.Splat8(10)).Or(w.Eq8(rt.Splat8(13))).Bitmask8()
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break
@@ -164,9 +164,9 @@ func (m *Machine) ScanBlockCommentEnd() {
 		if m.Ptr >= m.End {
 			break
 		}
-		stars = rt.Eq8(rt.LdV(m.Mem[m.Ptr:]), rt.Splat8(42))
-		if rt.AnyTrue(stars) {
-			mask = rt.Bitmask8(rt.And(stars, rt.Eq8(rt.LdV(m.Mem[m.Ptr+1:]), rt.Splat8(47))))
+		stars = rt.LdV(m.Mem[m.Ptr:]).Eq8(rt.Splat8(42))
+		if stars.AnyTrue() {
+			mask = stars.And(rt.LdV(m.Mem[m.Ptr+1:]).Eq8(rt.Splat8(47))).Bitmask8()
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask)) + 2
 				break
@@ -192,7 +192,7 @@ func (m *Machine) ScanFindSpecial(p, stop, q uint32, esc, nl bool) uint32 {
 	rv = rt.Splat8(rt.Sel32(nl, 13, q))
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, qv), rt.Eq8(w, ev)), rt.Or(rt.Eq8(w, nv), rt.Eq8(w, rv))))
+		mask = w.Eq8(qv).Or(w.Eq8(ev)).Or(w.Eq8(nv).Or(w.Eq8(rv))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -232,7 +232,7 @@ func (m *Machine) ScanWhitespace() {
 			break
 		}
 		w = rt.LdV(m.Mem[m.Ptr:])
-		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(32)), rt.LeU8(rt.Sub8(w, rt.Splat8(9)), rt.Splat8(4)))) ^ 65535
+		mask = w.Eq8(rt.Splat8(32)).Or(w.Sub8(rt.Splat8(9)).LeU8(rt.Splat8(4))).Bitmask8() ^ 65535
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break
@@ -253,7 +253,7 @@ func (m *Machine) ScanIdentRun(x uint32) {
 	}
 	for {
 		w = rt.LdV(m.Mem[m.Ptr:])
-		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), w), rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9)), rt.Or(rt.Eq8(w, rt.Splat8(95)), rt.Eq8(w, rt.Splat8(x)))))) ^ 65535
+		mask = w.Or(rt.Splat8(32)).Sub8(rt.Splat8(97)).LeU8(rt.Splat8(25)).Or(w).Or(w.Sub8(rt.Splat8(48)).LeU8(rt.Splat8(9)).Or(w.Eq8(rt.Splat8(95)).Or(w.Eq8(rt.Splat8(x))))).Bitmask8() ^ 65535
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break
@@ -277,7 +277,7 @@ func (m *Machine) ScanFind3(p uint32, a, b, c bool) uint32 {
 	}
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(rt.B2u(a))), rt.Eq8(w, rt.Splat8(rt.B2u(b)))), rt.Eq8(w, rt.Splat8(rt.B2u(c)))))
+		mask = w.Eq8(rt.Splat8(rt.B2u(a))).Or(w.Eq8(rt.Splat8(rt.B2u(b)))).Or(w.Eq8(rt.Splat8(rt.B2u(c)))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -536,7 +536,7 @@ outer:
 		for {
 			w = rt.LdV(m.Mem[lhs:])
 			rt.StV(m.Mem[dst:], w)
-			mask = rt.Bitmask8(rt.Or(rt.Eq8(rt.And(w, rt.Splat8(253)), rt.Splat8(60)), rt.Eq8(w, rt.Splat8(38))))
+			mask = w.And(rt.Splat8(253)).Eq8(rt.Splat8(60)).Or(w.Eq8(rt.Splat8(38))).Bitmask8()
 			rem = limit - lhs
 			if mask != 0 {
 				k = uint32(bits.TrailingZeros32(mask))
@@ -613,7 +613,7 @@ func (m *Machine) RecFindSpecial(p uint32) uint32 {
 			break
 		}
 		w = rt.LdV(m.Mem[p:])
-		mask = rt.Bitmask8(rt.Or(w, rt.Eq8(w, rt.Splat8(10))))
+		mask = w.Or(w.Eq8(rt.Splat8(10))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -697,12 +697,12 @@ func (m *Machine) RecLinesPost() {
 				} else {
 					for {
 						w = rt.LdV(m.Mem[p:])
-						step = uint32(bits.TrailingZeros32(rt.Bitmask8(rt.Eq8(w, rt.Splat8(10))) | 0x10000))
+						step = uint32(bits.TrailingZeros32(w.Eq8(rt.Splat8(10)).Bitmask8() | 0x10000))
 						if rhs-p < step {
 							step = rhs - p
 						}
 						b = uint32(1)<<(step&31) - 1
-						char += uint32(bits.OnesCount32(b&rt.Bitmask8(rt.GtS8(w, rt.Splat8(0xffffffbf))))) + uint32(bits.OnesCount32(b&rt.Bitmask8(rt.GeU8(w, rt.Splat8(240)))))
+						char = char + (uint32(bits.OnesCount32(b&w.GtS8(rt.Splat8(0xffffffbf)).Bitmask8())) + uint32(bits.OnesCount32(b&w.GeU8(rt.Splat8(240)).Bitmask8())))
 						p += step
 						if step != 16 {
 							break
@@ -1155,13 +1155,13 @@ func (m *Machine) HlBegin() {
 	}
 	if !m.Tokens {
 		for {
-			changed = rt.Or(changed, rt.Or(rt.Xor(rt.LdV(m.Mem[64+offset:]), rt.LdV(m.Mem[13568+offset:])), rt.Xor(rt.LdV(m.Mem[64+offset+16:]), rt.LdV(m.Mem[13568+offset+16:]))))
+			changed = changed.Or(rt.LdV(m.Mem[64+offset:]).Xor(rt.LdV(m.Mem[13568+offset:])).Or(rt.LdV(m.Mem[64+offset+16:]).Xor(rt.LdV(m.Mem[13568+offset+16:]))))
 			offset += 32
 			if offset >= 384 {
 				break
 			}
 		}
-		if rt.AnyTrue(changed) || m.SpanCacheMode != rt.B2u(m.CSSVariables) {
+		if changed.AnyTrue() || m.SpanCacheMode != rt.B2u(m.CSSVariables) {
 			rt.Fill(m.Mem, 8744, 0, 4818)
 			rt.Copy(m.Mem, 13568, 64, 384)
 			m.SpanCacheMode = rt.B2u(m.CSSVariables)
@@ -1765,7 +1765,7 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 			}
 			w = rt.LdV(m.Mem[m.Ptr:])
 			w1 = rt.LdV(m.Mem[m.Ptr+1:])
-			mask = rt.Bitmask8(rt.Or(rt.And(rt.Eq8(w, o0), rt.Eq8(w1, o1)), rt.And(rt.Eq8(w, c0), rt.Eq8(w1, c1))))
+			mask = w.Eq8(o0).And(w1.Eq8(o1)).Or(w.Eq8(c0).And(w1.Eq8(c1))).Bitmask8()
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask))
 				break
@@ -2031,16 +2031,16 @@ func (m *Machine) LexKeywordLookup(start, end, base, bucketMask, slots uint32) u
 	h := uint32(binary.LittleEndian.Uint16(m.Mem[start:])) | uint32(m.Mem[end-1])<<16 | length<<24
 	h = (h ^ h>>16) * 0xe51fac89
 	h ^= h >> 24
-	entry := binary.LittleEndian.Uint32(m.Mem[base+bucketMask+1+uint32((uint64(rt.Rotl32(h+uint32(m.Mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3:]) & 0xffffff
+	entry := binary.LittleEndian.Uint32(m.Mem[base+bucketMask+1+uint32((uint64(bits.RotateLeft32(h+uint32(m.Mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3:]) & 0xffffff
 	if length != entry>>19 {
 		return 0
 	}
 	rec := 0x10000 + entry&16383
-	if uint32(bits.TrailingZeros32(rt.Bitmask8(rt.Ne8(rt.LdV(m.Mem[start:]), rt.LdV(m.Mem[rec:]))))) < length {
+	if uint32(bits.TrailingZeros32(rt.LdV(m.Mem[start:]).Ne8(rt.LdV(m.Mem[rec:])).Bitmask8())) < length {
 		return 0
 	}
 	if length > 16 {
-		if rt.AnyTrue(rt.Xor(rt.LdV(m.Mem[end-16:]), rt.LdV(m.Mem[rec+(length-16):]))) {
+		if rt.LdV(m.Mem[end-16:]).Xor(rt.LdV(m.Mem[rec+(length-16):])).AnyTrue() {
 			return 0
 		}
 	}
@@ -2069,7 +2069,7 @@ func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
 			break
 		}
 		w = rt.LdV(m.Mem[lhs+i:])
-		rt.StV(m.Mem[dst+i:], rt.Or(w, rt.And(rt.LeU8(rt.Sub8(w, rt.Splat8(65)), rt.Splat8(25)), rt.Splat8(32))))
+		rt.StV(m.Mem[dst+i:], w.Or(w.Sub8(rt.Splat8(65)).LeU8(rt.Splat8(25)).And(rt.Splat8(32))))
 		i += 16
 	}
 	return n
@@ -2084,7 +2084,7 @@ func (m *Machine) LexFindEither(p uint32, a, b bool) uint32 {
 	}
 	for {
 		w = rt.LdV(m.Mem[p:])
-		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(rt.B2u(a))), rt.Eq8(w, rt.Splat8(rt.B2u(b)))))
+		mask = w.Eq8(rt.Splat8(rt.B2u(a))).Or(w.Eq8(rt.Splat8(rt.B2u(b)))).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break
@@ -2104,7 +2104,7 @@ func (m *Machine) LexFindByte(p, a uint32) uint32 {
 		return m.End
 	}
 	for {
-		mask = rt.Bitmask8(rt.Eq8(rt.LdV(m.Mem[p:]), rt.Splat8(a)))
+		mask = rt.LdV(m.Mem[p:]).Eq8(rt.Splat8(a)).Bitmask8()
 		if mask != 0 {
 			p += uint32(bits.TrailingZeros32(mask))
 			break

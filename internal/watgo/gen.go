@@ -2841,7 +2841,8 @@ func (g *fgen) apply(head string, imms []string) {
 	if helper, ok := simdBin[head]; ok {
 		b := g.pop()
 		a := g.pop()
-		g.push(value{expr: fmt.Sprintf("%s(%s, %s)", helper, a.expr, b.expr), typ: V128, stable: a.stable && b.stable})
+		// vector operations are methods of rt.V128
+		g.push(value{expr: fmt.Sprintf("%s.%s(%s)", a.expr, strings.TrimPrefix(helper, "rt."), trimParens(b.expr)), typ: V128, stable: a.stable && b.stable})
 		return
 	}
 	if op, ok := loads[head]; ok {
@@ -3140,16 +3141,16 @@ func (g *fgen) apply(head string, imms []string) {
 		g.push(value{expr: "rt.Splat8(" + g.asValue(a) + ")", typ: V128, stable: a.stable})
 	case "i8x16.bitmask":
 		a := g.pop()
-		g.push(value{expr: "rt.Bitmask8(" + a.expr + ")", typ: I32, stable: a.stable})
+		g.push(value{expr: a.expr + ".Bitmask8()", typ: I32, stable: a.stable})
 	case "v128.any_true":
 		a := g.pop()
-		g.push(value{expr: "rt.AnyTrue(" + a.expr + ")", typ: I32, isBool: true, stable: a.stable})
+		g.push(value{expr: a.expr + ".AnyTrue()", typ: I32, isBool: true, stable: a.stable})
 	case "i8x16.all_true":
 		a := g.pop()
-		g.push(value{expr: "rt.AllTrue8(" + a.expr + ")", typ: I32, isBool: true, stable: a.stable})
+		g.push(value{expr: a.expr + ".AllTrue8()", typ: I32, isBool: true, stable: a.stable})
 	case "v128.not":
 		a := g.pop()
-		g.push(value{expr: "rt.Not(" + a.expr + ")", typ: V128, stable: a.stable})
+		g.push(value{expr: a.expr + ".Not()", typ: V128, stable: a.stable})
 	case "memory.copy":
 		n := g.pop()
 		src := g.pop()
@@ -3346,6 +3347,18 @@ func (g *fgen) binary(op binOp, a, b value) value {
 			count = strconv.FormatUint(b.c&(width-1), 10)
 		}
 		return value{expr: fmt.Sprintf("%s(%s(%s) >> %s)", op.typ.goType(), signedType(op.typ), av, count), typ: op.typ, stable: stable}
+	}
+	if rot, ok := strings.CutPrefix(op.goOp, "rt.Rot"); ok {
+		// rotations are bits.RotateLeft, by a negative count to the right
+		mask := width - 1
+		count := "int(" + bv + "&" + strconv.FormatUint(mask, 10) + ")"
+		if b.isConst {
+			count = strconv.FormatUint(b.c&mask, 10)
+		}
+		if strings.HasPrefix(rot, "r") {
+			count = "-" + count
+		}
+		return value{expr: fmt.Sprintf("bits.RotateLeft%d(%s, %s)", width, av, count), typ: op.typ, stable: stable}
 	}
 	if strings.HasPrefix(op.goOp, "rt.") {
 		return value{expr: fmt.Sprintf("%s(%s, %s)", op.goOp, av, bv), typ: op.typ, stable: stable}

@@ -22,9 +22,9 @@ func TestVectorOpsMatchLaneDefinitions(t *testing.T) {
 			}
 		}
 		va, vb := Bytes16(a), Bytes16(b)
-		eq, sub, add := toBytes(Eq8(va, vb)), toBytes(Sub8(va, vb)), toBytes(Add8(va, vb))
-		le, ge, lt, gt := toBytes(LeU8(va, vb)), toBytes(GeU8(va, vb)), toBytes(LtU8(va, vb)), toBytes(GtU8(va, vb))
-		gts, lts := toBytes(GtS8(va, vb)), toBytes(LtS8(va, vb))
+		eq, sub, add := toBytes(va.Eq8(vb)), toBytes(va.Sub8(vb)), toBytes(va.Add8(vb))
+		le, ge, lt, gt := toBytes(va.LeU8(vb)), toBytes(va.GeU8(vb)), toBytes(va.LtU8(vb)), toBytes(va.GtU8(vb))
+		gts, lts := toBytes(va.GtS8(vb)), toBytes(va.LtS8(vb))
 		lane := func(ok bool) byte {
 			if ok {
 				return 0xff
@@ -53,7 +53,7 @@ func TestVectorOpsMatchLaneDefinitions(t *testing.T) {
 				mask |= 1 << i
 			}
 		}
-		if got := Bitmask8(va); got != mask {
+		if got := va.Bitmask8(); got != mask {
 			t.Fatalf("bitmask %v = %x, want %x", a, got, mask)
 		}
 	}
