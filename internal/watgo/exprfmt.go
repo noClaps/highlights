@@ -99,6 +99,10 @@ func (p *exprParser) unary() (*expr, error) {
 		if err != nil {
 			return nil, err
 		}
+		if x.op == "!" {
+			// !!x is x
+			return x.args[0], nil
+		}
 		return &expr{op: "!", args: []*expr{x}}, nil
 	case '(':
 		p.pos++
@@ -281,6 +285,10 @@ func foldTemps(lines []string, uses map[string]int) []string {
 			folded = indent + "if " + value + " != 0 {"
 		case next == indent+"if "+temp+" == 0 {":
 			folded = indent + "if " + value + " == 0 {"
+		case next == indent+"if "+temp+" {":
+			folded = indent + "if " + value + " {"
+		case next == indent+"if !"+temp+" {":
+			folded = indent + "if !" + value + " {"
 		}
 		if folded == "" {
 			out = append(out, lines[i])

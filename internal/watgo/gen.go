@@ -37,6 +37,7 @@ type value struct {
 	c       uint64
 	stable  bool // unaffected by later side effects
 	named   bool // expr is the name of a constant
+	flag    bool // a number known to be 0 or 1
 	// call is set for a call's result temporary: the statement that
 	// assigned it
 	call string
@@ -67,8 +68,17 @@ type label struct {
 }
 
 type fgen struct {
-	mod         *Module
-	pure        map[string]bool // Go names of functions without side effects
+	mod       *Module
+	pure      map[string]bool // Go names of functions without side effects
+	boolFuncs map[string]bool // Go names of functions that return a bool
+	flags     map[*Global]bool
+	// nonBool is set when the function returns a value other than 0 or 1
+	nonBool bool
+	// boolLocals are the Go names of i32 locals taken to hold only 0 or 1,
+	// declared bool; notBool collects those assigned another value
+	boolLocals  map[string]bool
+	notBool     map[string]bool
+	code        string // the generated function
 	fn          *Func
 	out         strings.Builder
 	depth       int
@@ -246,17 +256,154 @@ func generate(mod *Module, opts Options) (string, []byte) {
 	}
 	w("\t}\n\treturn 0, false\n}\n\nfunc arg(args []uint64, i int) uint64 {\n\tif i < len(args) {\n\t\treturn args[i]\n\t}\n\treturn 0\n}\n\n")
 
-	consts := newEnumConsts(opts.Enums, mod)
 	pure := pureFuncs(mod)
-	for _, f := range mod.Funcs {
-		if f.Import != nil {
-			continue
+	flags := flagGlobals(mod)
+	// a function the host cannot call whose every return is 0 or 1 returns
+	// a bool; finding one can show its callers return bools too
+	inTable := map[string]bool{}
+	for _, ref := range mod.Table {
+		if f := mod.FuncByRef[ref]; f != nil {
+			inTable[f.GoName] = true
 		}
-		g := &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts, pure: pure}
-		sb.WriteString(g.genFunc())
 	}
+	boolFuncs := map[string]bool{}
+	var consts *enumConsts
+	var funcs strings.Builder
+	for {
+		consts = newEnumConsts(opts.Enums, mod)
+		funcs.Reset()
+		found := 0
+		for _, f := range mod.Funcs {
+			if f.Import != nil {
+				continue
+			}
+			g := genBoolLocals(f, func(boolLocals map[string]bool) *fgen {
+				return &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts, pure: pure, boolFuncs: boolFuncs, flags: flags, boolLocals: boolLocals, notBool: map[string]bool{}}
+			})
+			funcs.WriteString(g.code)
+			if !g.nonBool && !boolFuncs[f.GoName] && len(f.Results) == 1 && f.Results[0] == I32 && len(f.Exports) == 0 && !inTable[f.GoName] {
+				boolFuncs[f.GoName] = true
+				found++
+			}
+		}
+		if found == 0 {
+			break
+		}
+	}
+	sb.WriteString(funcs.String())
 	sb.WriteString(consts.declarations())
 	return sb.String(), mem
+}
+
+// flagGlobals returns the mutable i32 globals the host cannot see that
+// only ever hold 0 or 1. A global saved in a local and restored from it
+// counts, so the locals of each function are followed too.
+func flagGlobals(mod *Module) map[*Global]bool {
+	flags := map[*Global]bool{}
+	for _, gl := range mod.Globals {
+		if gl.Mutable && gl.Type == I32 && gl.Init <= 1 && len(gl.Exports) == 0 {
+			flags[gl] = true
+		}
+	}
+	// locals are keyed by index, whichever way the code names them
+	localFlags := map[*Func]map[string]bool{}
+	localIndex := map[*Func]map[string]string{}
+	for _, f := range mod.Funcs {
+		flagged, index := map[string]bool{}, map[string]string{}
+		for i, l := range f.Locals {
+			idx := strconv.Itoa(len(f.Params) + i)
+			index[idx] = idx
+			if l.Name != "" {
+				index[l.Name] = idx
+			}
+			if l.Type == I32 {
+				flagged[idx] = true
+			}
+		}
+		localFlags[f], localIndex[f] = flagged, index
+	}
+	var isFlag func(f *Func, n *wat.Sexpr) bool
+	isFlag = func(f *Func, n *wat.Sexpr) bool {
+		head := n.Head()
+		switch {
+		case head == "i32.const":
+			return len(n.List) == 2 && (n.List[1].Atom == "0" || n.List[1].Atom == "1")
+		case head == "global.get":
+			return len(n.List) == 2 && flags[mod.GlobalBy[n.List[1].Atom]]
+		case head == "local.get":
+			return len(n.List) == 2 && localFlags[f][localIndex[f][n.List[1].Atom]]
+		case comparisonRe.MatchString(head):
+			return true
+		case head == "i32.and" || head == "i32.or":
+			return len(n.List) == 3 && isFlag(f, n.List[1]) && isFlag(f, n.List[2])
+		}
+		return false
+	}
+	var visit func(f *Func, n *wat.Sexpr) bool
+	visit = func(f *Func, n *wat.Sexpr) (changed bool) {
+		if !n.IsList {
+			return false
+		}
+		if len(n.List) == 3 && !n.List[1].IsList {
+			ref := n.List[1].Atom
+			switch n.Head() {
+			case "global.set":
+				if gl := mod.GlobalBy[ref]; flags[gl] && !isFlag(f, n.List[2]) {
+					delete(flags, gl)
+					changed = true
+				}
+			case "local.set", "local.tee":
+				if idx := localIndex[f][ref]; localFlags[f][idx] && !isFlag(f, n.List[2]) {
+					delete(localFlags[f], idx)
+					changed = true
+				}
+			}
+		}
+		for _, c := range n.List[1:] {
+			changed = visit(f, c) || changed
+		}
+		return changed
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, f := range mod.Funcs {
+			for _, n := range f.Body {
+				changed = visit(f, n) || changed
+			}
+		}
+	}
+	return flags
+}
+
+var comparisonRe = regexp.MustCompile(`^i(32|64)\.(eqz?|ne|[lg][te](_[su])?)$`)
+
+// genBoolLocals writes f with each i32 local that holds only 0 or 1
+// declared bool. It starts from every i32 local and drops those assigned
+// another value until none is.
+func genBoolLocals(f *Func, newGen func(map[string]bool) *fgen) *fgen {
+	boolLocals := map[string]bool{}
+	probe := newGen(nil)
+	taken := map[string]bool{}
+	// the names genFunc gives the parameters and locals
+	for i, p := range f.Params {
+		probe.localGoName(p.Name, fmt.Sprintf("p%d", i), taken)
+	}
+	for i, l := range f.Locals {
+		name := probe.localGoName(l.Name, fmt.Sprintf("v%d", len(f.Params)+i), taken)
+		if l.Type == I32 {
+			boolLocals[name] = true
+		}
+	}
+	for {
+		g := newGen(boolLocals)
+		g.code = g.genFunc()
+		if len(g.notBool) == 0 {
+			return g
+		}
+		for name := range g.notBool {
+			delete(boolLocals, name)
+		}
+	}
 }
 
 // enumConsts names the enum members the generated code uses.
@@ -508,7 +655,11 @@ func (g *fgen) genFunc() string {
 		}
 		g.localName[strconv.Itoa(idx)] = name
 		g.localType[strconv.Itoa(idx)] = l.Type
-		locals = append(locals, Local{name, l.Type})
+		if g.boolLocals[name] {
+			locals = append(locals, Local{name, "bool"})
+		} else {
+			locals = append(locals, Local{name, l.Type})
+		}
 	}
 	var result ValType
 	if len(f.Results) > 0 {
@@ -526,7 +677,7 @@ func (g *fgen) genFunc() string {
 	g.genSeq(fnBody)
 	if !g.unreachable && result != "" {
 		v := g.pop()
-		g.line("return %s", trimParens(g.asValue(v)))
+		g.line("return %s", g.returned(v))
 	}
 	g.labels = g.labels[:0]
 	body := strings.TrimSuffix(g.out.String(), "\treturn\n")
@@ -543,7 +694,11 @@ func (g *fgen) genFunc() string {
 	if name != "" {
 		fmt.Fprintf(&sb, "// %s is %s.\n", f.GoName, name)
 	}
-	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", f.GoName, strings.Join(params, ", "), resultType(f))
+	results := resultType(f)
+	if g.boolFuncs[f.GoName] {
+		results = " bool"
+	}
+	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", f.GoName, strings.Join(params, ", "), results)
 	// one declaration per type, in first-use order; variables the body
 	// never mentions are left out, and ones it only assigns are marked
 	// used, as Go requires
@@ -623,6 +778,18 @@ func (g *fgen) constOf(n *wat.Sexpr) (uint64, bool) {
 		return args[0] | args[1], true
 	}
 	return 0, false
+}
+
+// returned renders a returned value: a condition when the function
+// returns a bool, a number otherwise.
+func (g *fgen) returned(v value) string {
+	if !v.isBool && !(v.isConst && v.c <= 1) {
+		g.nonBool = true
+	}
+	if g.boolFuncs[g.fn.GoName] {
+		return trimParens(g.asBool(v))
+	}
+	return trimParens(g.asValue(v))
 }
 
 // tidyBody reprints expressions and folds single-use call temporaries.
@@ -1179,7 +1346,7 @@ func (g *fgen) jump(l *label, v *value) []string {
 	switch {
 	case l.isFunc:
 		if l.result != "" {
-			return []string{"return " + trimParens(g.asValue(*v))}
+			return []string{"return " + g.returned(*v)}
 		}
 		return []string{"return"}
 	case l.isLoop:
@@ -2130,19 +2297,26 @@ func (g *fgen) apply(head string, imms []string) {
 		g.push(value{expr: v128Const(imms), typ: V128, stable: true})
 	case "local.get":
 		name, t := g.local(imms[0])
-		g.push(value{expr: name, typ: t})
+		g.push(value{expr: name, typ: t, isBool: g.boolLocals[name]})
 	case "local.set", "local.tee":
 		v := g.pop()
 		name, t := g.local(imms[0])
 		g.spill()
-		g.line("%s = %s", name, trimParens(g.asValue(v)))
+		if g.boolLocals[name] {
+			if !v.isBool && !(v.isConst && v.c <= 1) {
+				g.notBool[name] = true
+			}
+			g.line("%s = %s", name, trimParens(g.asBool(v)))
+		} else {
+			g.line("%s = %s", name, trimParens(g.asValue(v)))
+		}
 		if head == "local.tee" {
-			g.push(value{expr: name, typ: t})
+			g.push(value{expr: name, typ: t, isBool: g.boolLocals[name]})
 		}
 	case "global.get":
 		gl := g.global(imms[0])
 		if gl.Mutable {
-			g.push(value{expr: "m." + gl.GoName, typ: gl.Type})
+			g.push(value{expr: "m." + gl.GoName, typ: gl.Type, flag: g.flags[gl]})
 		} else {
 			g.push(constValue(gl.Type, gl.Init))
 		}
@@ -2161,17 +2335,22 @@ func (g *fgen) apply(head string, imms []string) {
 			args[i] = trimParens(g.asValue(g.pop()))
 		}
 		call := fmt.Sprintf("m.%s(%s)", f.GoName, strings.Join(args, ", "))
+		isBool := g.boolFuncs[f.GoName]
 		if len(f.Results) > 0 && g.pure[f.GoName] {
 			// a call without side effects is an expression like a load:
 			// the next write spills it
-			g.push(value{expr: call, typ: f.Results[0]})
+			g.push(value{expr: call, typ: f.Results[0], isBool: isBool})
 			return
 		}
 		g.spill()
 		if len(f.Results) > 0 {
 			t := g.newTemp(f.Results[0])
+			if isBool {
+				g.dropTemp(t)
+				t = g.newBoolTemp()
+			}
 			g.line("%s = %s", t, call)
-			g.push(value{expr: t, typ: f.Results[0], stable: true, call: call})
+			g.push(value{expr: t, typ: f.Results[0], stable: true, call: call, isBool: isBool})
 		} else {
 			g.line("%s", call)
 		}
@@ -2195,7 +2374,7 @@ func (g *fgen) apply(head string, imms []string) {
 	case "return":
 		if len(g.fn.Results) > 0 {
 			v := g.pop()
-			g.line("return %s", trimParens(g.asValue(v)))
+			g.line("return %s", g.returned(v))
 		} else {
 			g.line("return")
 		}
@@ -2402,6 +2581,14 @@ func (g *fgen) binary(op binOp, a, b value) value {
 			// calls are already in temporaries, so x has no side effects
 			return boolConst(k.c != 0)
 		}
+	}
+	// a bool and/or a 0-or-1 number is a condition too
+	if op.typ == I32 && (op.goOp == "&" || op.goOp == "|") && (a.isBool || b.isBool) && (a.isBool || a.flag) && (b.isBool || b.flag) {
+		join := " && "
+		if op.goOp == "|" {
+			join = " || "
+		}
+		return value{expr: "(" + g.asBool(a) + join + g.asBool(b) + ")", typ: I32, isBool: true, stable: stable}
 	}
 	// boolean and/or of conditions stay boolean
 	if op.typ == I32 && (op.goOp == "&" || op.goOp == "|") && a.isBool && b.isBool {

@@ -674,9 +674,7 @@ func (r *replayer) options(v any) Options {
 			skip("unknown option %s", k)
 		}
 	}
-	if o.Theme == nil && o.Themes == nil {
-		// JavaScript reports the missing theme; so does the port
-	}
+	// a missing theme is left for the port to report, as JavaScript does
 	return o
 }
 

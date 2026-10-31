@@ -51,12 +51,12 @@ func TestLiveStateHashingAndComparisonIgnoreBytesBeyondTheState(t *testing.T) {
 			if got := m.LvHash(uint32(b+alignment), uint32(length)); got != expected {
 				t.Fatalf("hash(b, %d) = %x, want %x", length, got, expected)
 			}
-			if m.LvBytesEq(uint32(a+alignment), uint32(b+alignment), uint32(length)) != 1 {
-				t.Fatalf("equal(%d) = 0", length)
+			if !m.LvBytesEq(uint32(a+alignment), uint32(b+alignment), uint32(length)) {
+				t.Fatalf("equal(%d) = false", length)
 			}
 			for i := 0; i < length; i++ {
 				bytes[b+alignment+i] ^= 0xff
-				if m.LvBytesEq(uint32(a+alignment), uint32(b+alignment), uint32(length)) != 0 {
+				if m.LvBytesEq(uint32(a+alignment), uint32(b+alignment), uint32(length)) {
 					t.Fatalf("equal(%d) ignores byte %d", length, i)
 				}
 				bytes[b+alignment+i] ^= 0xff
@@ -67,7 +67,7 @@ func TestLiveStateHashingAndComparisonIgnoreBytesBeyondTheState(t *testing.T) {
 	if m.LvHash(n, 0) != m.LvHash(uint32(a), 0) {
 		t.Fatal("empty hashes differ")
 	}
-	if m.LvBytesEq(n, n, 0) != 1 || m.LvBytesEq(n-16, n-16, 16) != 1 {
+	if !m.LvBytesEq(n, n, 0) || !m.LvBytesEq(n-16, n-16, 16) {
 		t.Fatal("equal at the end of memory")
 	}
 }

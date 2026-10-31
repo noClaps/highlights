@@ -509,7 +509,7 @@ func (m *Machine) SetSpan(hl uint32) {
 	}
 	slot = 8744 + hl*66
 	length = rt.Ld8(m.Mem, int(slot))
-	if rt.B2u(length == 0)|m.CssVariables != 0 {
+	if length == 0 || m.CssVariables != 0 {
 		m.EmitSpanOpen(hl)
 		return
 	}
@@ -978,15 +978,16 @@ func (m *Machine) MultiRenderOpen(hl uint32) {
 
 // MultiSetSpan is $multiSetSpan.
 func (m *Machine) MultiSetSpan(hl uint32) {
-	var i, open, same uint32
+	var i, open uint32
 	var rec, any_ uint64
+	var same bool
 	open = uint32(m.SpanVal)
-	same = 1
+	same = true
 	for {
 		rec = rt.Ld64(m.Mem, int(m.MultiRec(i, hl))) & 0xffffffffff
 		any_ |= rec
 		if open != 0 {
-			same &= rt.B2u(rec == rt.Ld64(m.Mem, int(m.MultiRec(i, open)))&0xffffffffff)
+			same = same && rec == rt.Ld64(m.Mem, int(m.MultiRec(i, open)))&0xffffffffff
 		}
 		i++
 		if i >= m.MultiSlots {
@@ -994,7 +995,7 @@ func (m *Machine) MultiSetSpan(hl uint32) {
 		}
 	}
 	if open != 0 {
-		if same&rt.B2u(any_ != 0) != 0 {
+		if same && any_ != 0 {
 			return
 		}
 		rt.St64(m.Mem, int(m.Out), 0x3e6e6170732f3c)
@@ -1275,13 +1276,13 @@ l:
 }
 
 // LexIsSpace is $lexIsSpace.
-func (m *Machine) LexIsSpace(c uint32) uint32 {
-	return rt.B2u(c == ' ' || c-9 <= 4)
+func (m *Machine) LexIsSpace(c uint32) bool {
+	return c == ' ' || c-9 <= 4
 }
 
 // LexIsDigit is $lexIsDigit.
-func (m *Machine) LexIsDigit(c uint32) uint32 {
-	return rt.B2u(c-48 <= 9)
+func (m *Machine) LexIsDigit(c uint32) bool {
+	return c-48 <= 9
 }
 
 // LexIsHex is $lexIsHex.
@@ -1290,13 +1291,13 @@ func (m *Machine) LexIsHex(c uint32) uint32 {
 }
 
 // LexIsIdentStart is $lexIsIdentStart.
-func (m *Machine) LexIsIdentStart(c uint32) uint32 {
-	return rt.B2u(c >= 128 || (c|32)-97 <= 25 || c == '_' || c == '$')
+func (m *Machine) LexIsIdentStart(c uint32) bool {
+	return c >= 128 || (c|32)-97 <= 25 || c == '_' || c == '$'
 }
 
 // LexIsNameStart is $lexIsNameStart.
-func (m *Machine) LexIsNameStart(c uint32) uint32 {
-	return rt.B2u(c >= 128 || (c|32)-97 <= 25 || c == '_')
+func (m *Machine) LexIsNameStart(c uint32) bool {
+	return c >= 128 || (c|32)-97 <= 25 || c == '_'
 }
 
 // LexIsIdentContinue is $lexIsIdentContinue.
@@ -1330,7 +1331,7 @@ l:
 		}
 		if c == '.' {
 			next = rt.Sel32(m.Ptr+1 < m.End, rt.Ld8(m.Mem, int(m.Ptr)+1), 0)
-			if m.LexIsDigit(next) == 0 {
+			if !m.LexIsDigit(next) {
 				break l
 			}
 			prev = c
@@ -1378,7 +1379,7 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 							p++
 						}
 					}
-					if p >= m.End || m.LexIsDigit(rt.Ld8(m.Mem, int(p))) == 0 {
+					if p >= m.End || !m.LexIsDigit(rt.Ld8(m.Mem, int(p))) {
 						return
 					}
 				}
@@ -1445,24 +1446,25 @@ func (m *Machine) LexString(quote uint32, multiline uint32, hl uint32) {
 }
 
 // LexRawStringBody is $lexRawStringBody.
-func (m *Machine) LexRawStringBody(quote uint32, multiline uint32, hl uint32, lhs uint32) uint32 {
+func (m *Machine) LexRawStringBody(quote uint32, multiline uint32, hl uint32, lhs uint32) bool {
 	m.Ptr = m.ScanFindSpecial(m.Ptr, m.End, quote, 0, rt.B2u(multiline == 0))
 	if m.Ptr < m.End && rt.Ld8(m.Mem, int(m.Ptr)) == quote {
 		m.Ptr++
 		m.EmitTok(hl, lhs, m.Ptr)
-		return 1
+		return true
 	}
 	m.EmitTok(hl, lhs, m.Ptr)
-	return 0
+	return false
 }
 
 // LexRawString is $lexRawString.
 func (m *Machine) LexRawString(quote uint32, multiline uint32, hl uint32) {
-	var lhs, closed uint32
+	var lhs uint32
+	var closed bool
 	lhs = m.Ptr
 	m.Ptr++
 	closed = m.LexRawStringBody(quote, multiline, hl, lhs)
-	if m.Streaming&multiline&rt.B2u(closed == 0 && m.Ptr == m.Eof) != 0 {
+	if m.Streaming&multiline&rt.B2u(!closed && m.Ptr == m.Eof) != 0 {
 		m.StreamMode = 3
 		m.StreamA = quote
 		m.StreamB = multiline
@@ -1527,7 +1529,7 @@ scan:
 		if c == q {
 			m.Ptr++
 			if suffix != 0 {
-				if rt.B2u(m.Ptr < m.End)&m.LexIsIdentStart(rt.Ld8(m.Mem, int(m.Ptr))) != 0 {
+				if m.Ptr < m.End && m.LexIsIdentStart(rt.Ld8(m.Mem, int(m.Ptr))) {
 					m.LexScanIdent()
 				}
 			}
@@ -1618,7 +1620,7 @@ func (m *Machine) LexBlockComment(skip uint32, hl uint32) {
 	}
 	m.ScanBlockCommentEnd()
 	m.EmitTok(hl, lhs, m.Ptr)
-	if m.Streaming&rt.B2u(m.Ptr == m.Eof && (m.Ptr-lhs < 2 || rt.Ld16(m.Mem, int(m.Ptr-2)) != 12074)) != 0 {
+	if m.Streaming != 0 && m.Ptr == m.Eof && (m.Ptr-lhs < 2 || rt.Ld16(m.Mem, int(m.Ptr-2)) != 12074) {
 		m.StreamMode = 1
 		m.StreamHl = hl
 	}
@@ -1626,7 +1628,7 @@ func (m *Machine) LexBlockComment(skip uint32, hl uint32) {
 
 // StreamSetFixed is $streamSetFixed.
 func (m *Machine) StreamSetFixed(delimiter uint32, length uint32, hl uint32) {
-	if m.Streaming&rt.B2u(length <= 32 && m.Ptr == m.Eof) != 0 {
+	if m.Streaming != 0 && length <= 32 && m.Ptr == m.Eof {
 		rt.Copy(m.Mem, 13952, delimiter, length)
 		m.StreamMode = 20
 		m.StreamA = length
@@ -1643,7 +1645,7 @@ func (m *Machine) StreamSetFixed32(delimiter uint32, length uint32, hl uint32) {
 
 // StreamSetNested is $streamSetNested.
 func (m *Machine) StreamSetNested(depth uint32, open uint32, close_ uint32, hl uint32) {
-	if m.Streaming&rt.B2u(depth != 0 && m.Ptr == m.Eof) != 0 {
+	if m.Streaming != 0 && depth != 0 && m.Ptr == m.Eof {
 		m.StreamMode = 21
 		m.StreamA = depth
 		m.StreamB = open
@@ -1653,11 +1655,11 @@ func (m *Machine) StreamSetNested(depth uint32, open uint32, close_ uint32, hl u
 }
 
 // LexHeredocArgument is $lexHeredocArgument.
-func (m *Machine) LexHeredocArgument(p uint32) uint32 {
+func (m *Machine) LexHeredocArgument(p uint32) bool {
 	var c uint32
 	c = rt.Ld8(m.Mem, int(p))
 	if c == '"' || c == '\'' {
-		return 1
+		return true
 	}
 name:
 	for {
@@ -1671,34 +1673,34 @@ name:
 	}
 	p = m.LexSkipSpaceAt(p)
 	if p >= m.End {
-		return 1
+		return true
 	}
 	c = rt.Ld8(m.Mem, int(p))
-	return rt.B2u(c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#')
+	return c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#'
 }
 
 // LineDelimiterEnds is $lineDelimiterEnds.
-func (m *Machine) LineDelimiterEnds(p uint32, trim uint32) uint32 {
+func (m *Machine) LineDelimiterEnds(p uint32, trim uint32) bool {
 	var c uint32
 	if p >= m.End {
-		return 1
+		return true
 	}
 	c = rt.Ld8(m.Mem, int(p))
 	if c == '\n' || c == '\r' {
-		return 1
+		return true
 	}
 	if trim&4 != 0 {
-		return rt.B2u(c == ' ' || c-9 <= 4)
+		return c == ' ' || c-9 <= 4
 	}
 	if trim&8 != 0 {
-		return rt.B2u((c|32)-97 > 25)
+		return (c|32)-97 > 25
 	}
-	return 0
+	return false
 }
 
 // StreamSetLine is $streamSetLine.
 func (m *Machine) StreamSetLine(delimiter uint32, length uint32, trim uint32, hl uint32) {
-	if m.Streaming&rt.B2u(length <= 32 && m.Ptr == m.Eof) != 0 {
+	if m.Streaming != 0 && length <= 32 && m.Ptr == m.Eof {
 		rt.Copy(m.Mem, 13952, delimiter, length)
 		m.StreamMode = 22
 		m.StreamA = length
@@ -1709,15 +1711,16 @@ func (m *Machine) StreamSetLine(delimiter uint32, length uint32, trim uint32, hl
 
 // StreamSetRegion is $streamSetRegion.
 func (m *Machine) StreamSetRegion(kind uint32) {
-	if m.Streaming&rt.B2u(m.Ptr == m.Eof) != 0 {
+	if m.Streaming != 0 && m.Ptr == m.Eof {
 		m.StreamRegionKind = kind
 		m.StreamRegionStarted = 0
 	}
 }
 
 // StreamResumeFixed is $streamResumeFixed.
-func (m *Machine) StreamResumeFixed() uint32 {
-	var i, lhs, matched, p uint32
+func (m *Machine) StreamResumeFixed() bool {
+	var i, lhs, p uint32
+	var matched bool
 	lhs = m.Ptr
 	p = m.Ptr
 search:
@@ -1727,32 +1730,32 @@ search:
 			break search
 		}
 		i = 1
-		matched = 1
+		matched = true
 	compare:
 		for {
 			if i >= m.StreamA {
 				break compare
 			}
 			if rt.Ld8(m.Mem, int(p+i)) != rt.Ld8(m.Mem, int(13952+i)) {
-				matched = 0
+				matched = false
 				break compare
 			}
 			i++
 		}
 		if m.StreamB != 0 && p > lhs && rt.Ld8(m.Mem, int(p-1)) == m.StreamB {
-			matched = 0
+			matched = false
 		}
-		if matched != 0 {
+		if matched {
 			m.Ptr = p + m.StreamA
 			m.EmitTok(m.StreamHl, lhs, m.Ptr)
 			m.StreamMode = 0
-			return 0
+			return false
 		}
 		p++
 	}
 	m.Ptr = m.End
 	m.EmitTok(m.StreamHl, lhs, m.Ptr)
-	return 1
+	return true
 }
 
 // LexNestedScan is $lexNestedScan.
@@ -1811,21 +1814,22 @@ func (m *Machine) LexNestedBlockComment(open uint32, close_ uint32, hl uint32) {
 }
 
 // StreamResumeNested is $streamResumeNested.
-func (m *Machine) StreamResumeNested() uint32 {
+func (m *Machine) StreamResumeNested() bool {
 	var lhs uint32
 	lhs = m.Ptr
 	m.StreamA = m.LexNestedScan(m.StreamA, m.StreamB, m.StreamC)
 	m.EmitTok(m.StreamHl, lhs, m.Ptr)
 	if m.StreamA == 0 {
 		m.StreamMode = 0
-		return 0
+		return false
 	}
-	return 1
+	return true
 }
 
 // StreamResumeLine is $streamResumeLine.
-func (m *Machine) StreamResumeLine() uint32 {
-	var c, candidate, i, lhs, matched, p uint32
+func (m *Machine) StreamResumeLine() bool {
+	var c, candidate, i, lhs, p uint32
+	var matched bool
 	lhs = m.Ptr
 	p = m.Ptr
 lines:
@@ -1847,28 +1851,28 @@ lines:
 				candidate++
 			}
 		}
-		matched = rt.B2u(candidate+m.StreamA <= m.End)
+		matched = candidate+m.StreamA <= m.End
 		i = 0
 	compare:
 		for {
-			if matched == 0 {
+			if !matched {
 				break compare
 			}
 			if i >= m.StreamA {
 				break compare
 			}
 			if rt.Ld8(m.Mem, int(candidate+i)) != rt.Ld8(m.Mem, int(13952+i)) {
-				matched = 0
+				matched = false
 				break compare
 			}
 			i++
 		}
-		if matched != 0 {
+		if matched {
 			m.Ptr = candidate + m.StreamA
-			if m.LineDelimiterEnds(m.Ptr, m.StreamB) == 0 {
-				matched = 0
+			if !m.LineDelimiterEnds(m.Ptr, m.StreamB) {
+				matched = false
 			}
-			if matched != 0 {
+			if matched {
 				if m.StreamB&12 != 0 {
 					m.ScanToLineEnd()
 				}
@@ -1881,7 +1885,7 @@ lines:
 				}
 				m.EmitTok(m.StreamHl, lhs, m.Ptr)
 				m.StreamMode = 0
-				return 0
+				return false
 			}
 		}
 	line:
@@ -1904,34 +1908,36 @@ lines:
 	}
 	m.Ptr = m.End
 	m.EmitTok(m.StreamHl, lhs, m.Ptr)
-	return 1
+	return true
 }
 
 // StreamResumeCommon is $streamResumeCommon.
-func (m *Machine) StreamResumeCommon() uint32 {
+func (m *Machine) StreamResumeCommon() bool {
 	var lhs, status uint32
+	var t1 bool
 	lhs = m.Ptr
 	if m.StreamMode == 1 {
 		m.ScanBlockCommentEnd()
 		m.EmitTok(m.StreamHl, lhs, m.Ptr)
 		if m.Ptr-lhs < 2 || rt.Ld16(m.Mem, int(m.Ptr-2)) != 12074 {
-			return 1
+			return true
 		}
 		m.StreamMode = 0
-		return 0
+		return false
 	}
 	if m.StreamMode == 2 {
 		status = m.LexStringBody(m.StreamA, m.StreamB, m.StreamHl, lhs)
 		if m.Ptr == m.End && status != 1 {
-			return 1
+			return true
 		}
 		m.StreamMode = 0
-		return 0
+		return false
 	}
 	if m.StreamMode == 3 {
-		status = m.LexRawStringBody(m.StreamA, m.StreamB, m.StreamHl, lhs)
+		t1 = m.LexRawStringBody(m.StreamA, m.StreamB, m.StreamHl, lhs)
+		status = rt.B2u(t1)
 		if status == 0 {
-			return 1
+			return true
 		}
 		m.StreamMode = 0
 	}
@@ -1944,7 +1950,7 @@ func (m *Machine) StreamResumeCommon() uint32 {
 	if m.StreamMode == 22 {
 		return m.StreamResumeLine()
 	}
-	return 0
+	return false
 }
 
 // LexSkipSpaceAt is $lexSkipSpaceAt.
@@ -1965,7 +1971,7 @@ l:
 }
 
 // LexEmitIncludeDirective is $lexEmitIncludeDirective.
-func (m *Machine) LexEmitIncludeDirective(lhs uint32, rhs uint32) uint32 {
+func (m *Machine) LexEmitIncludeDirective(lhs uint32, rhs uint32) bool {
 	var p, word, header, close_ uint32
 	p = lhs + 1
 space:
@@ -1980,21 +1986,21 @@ space:
 	}
 	word = p
 	if word+6 > rhs {
-		return 0
+		return false
 	}
 	if rt.Ld64(m.Mem, int(word))&0xffffffffffffff == 0x6564756c636e69 {
 		p = word + 7
 	} else {
 		if rt.Ld64(m.Mem, int(word))&0xffffffffffff != 0x74726f706d69 {
-			return 0
+			return false
 		}
 		p = word + 6
 	}
 	if p > rhs {
-		return 0
+		return false
 	}
 	if rt.B2u(p < rhs)&m.LexIsIdentContinue(rt.Ld8(m.Mem, int(p))) != 0 {
-		return 0
+		return false
 	}
 space2:
 	for {
@@ -2007,13 +2013,13 @@ space2:
 		p++
 	}
 	if p >= rhs {
-		return 0
+		return false
 	}
 	if rt.Ld8(m.Mem, int(p)) == '<' {
 		close_ = 62
 	} else {
 		if rt.Ld8(m.Mem, int(p)) != '"' {
-			return 0
+			return false
 		}
 		close_ = 34
 	}
@@ -2033,7 +2039,7 @@ headerByte:
 	m.EmitTok(TokenPreproc, lhs, header)
 	m.EmitTok(TokenString, header, p)
 	m.EmitTok(TokenPreproc, p, rhs)
-	return 1
+	return true
 }
 
 // LexKeywordLookup is $lexKeywordLookup.
@@ -2137,7 +2143,7 @@ simd:
 }
 
 // LexIsTypeGlue is $lexIsTypeGlue.
-func (m *Machine) LexIsTypeGlue(lhs uint32, rhs uint32) uint32 {
+func (m *Machine) LexIsTypeGlue(lhs uint32, rhs uint32) bool {
 	var c uint32
 l:
 	for {
@@ -2146,15 +2152,15 @@ l:
 		}
 		c = rt.Ld8(m.Mem, int(lhs))
 		if c != '<' && c != '>' && c != '?' {
-			return 0
+			return false
 		}
 		lhs++
 	}
-	return 1
+	return true
 }
 
 // LexGapHasBreak is $lexGapHasBreak.
-func (m *Machine) LexGapHasBreak(p uint32, stop uint32) uint32 {
+func (m *Machine) LexGapHasBreak(p uint32, stop uint32) bool {
 	var c uint32
 l:
 	for {
@@ -2163,18 +2169,19 @@ l:
 		}
 		c = rt.Ld8(m.Mem, int(p))
 		if c == '\n' || c == '\r' {
-			return 1
+			return true
 		}
 		p++
 	}
-	return 0
+	return false
 }
 
 // LexIsConstCase is $lexIsConstCase.
-func (m *Machine) LexIsConstCase(lhs uint32, rhs uint32) uint32 {
-	var c, upper uint32
+func (m *Machine) LexIsConstCase(lhs uint32, rhs uint32) bool {
+	var c uint32
+	var upper bool
 	if rhs-lhs < 2 {
-		return 0
+		return false
 	}
 l:
 	for {
@@ -2183,9 +2190,9 @@ l:
 		}
 		c = rt.Ld8(m.Mem, int(lhs))
 		if c-65 <= 25 {
-			upper = 1
-		} else if m.LexIsDigit(c)|rt.B2u(c == '_') == 0 {
-			return 0
+			upper = true
+		} else if !(m.LexIsDigit(c) || c == '_') {
+			return false
 		}
 		lhs++
 	}
@@ -2198,13 +2205,13 @@ func (m *Machine) TemplateByte(p uint32) uint32 {
 }
 
 // StringEscapeAt is $stringEscapeAt.
-func (m *Machine) StringEscapeAt(seg uint32) uint32 {
+func (m *Machine) StringEscapeAt(seg uint32) bool {
 	var e uint32
 	m.EmitTok(TokenString, seg, m.Ptr)
 	e = m.LexEscapeEnd(m.Ptr)
 	m.EmitTok(TokenStringEscape, m.Ptr, e)
 	m.Ptr = e
-	return rt.B2u(m.Ptr == m.End && (rt.Ld8(m.Mem, int(m.Ptr-1)) == '\n' || rt.Ld8(m.Mem, int(m.Ptr-1)) == '\r'))
+	return m.Ptr == m.End && (rt.Ld8(m.Mem, int(m.Ptr-1)) == '\n' || rt.Ld8(m.Mem, int(m.Ptr-1)) == '\r')
 }
 
 // StringDollarAt is $stringDollarAt.
@@ -2228,13 +2235,13 @@ func (m *Machine) StringDollarAt(seg uint32, dialect uint32, nested uint32) uint
 		m.EmitTok(TokenStringEscape, at, m.Ptr)
 		return m.Ptr
 	}
-	if m.LexIsIdentStart(c2)&rt.B2u(c2 != '$') != 0 {
+	if m.LexIsIdentStart(c2) && c2 != '$' {
 		m.EmitTok(TokenString, seg, m.Ptr)
 		m.Ptr++
 	name:
 		for {
 			m.ScanIdentRun(95)
-			if rt.B2u(dialect == 16)&rt.B2u(m.TemplateByte(m.Ptr) == '.')&m.LexIsIdentStart(m.TemplateByte(m.Ptr+1))&rt.B2u(m.TemplateByte(m.Ptr+1) != '$') == 0 {
+			if !(dialect == 16 && m.TemplateByte(m.Ptr) == '.' && m.LexIsIdentStart(m.TemplateByte(m.Ptr+1)) && m.TemplateByte(m.Ptr+1) != '$') {
 				break name
 			}
 			m.Ptr++
