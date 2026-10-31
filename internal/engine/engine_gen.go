@@ -4,8 +4,8 @@ package engine
 
 import (
 	_ "embed"
-
 	rt "highlights/internal/wasmrt"
+	"math/bits"
 )
 
 //go:embed engine_mem.bin
@@ -32,13 +32,13 @@ type Machine struct {
 	End                       uint32
 	Ptr                       uint32
 	LiveLimit                 uint32
-	LiveSuspended             uint32
-	LiveEntering              uint32
+	LiveSuspended             bool
+	LiveEntering              bool
 	Out                       uint32
 	Cap                       uint32
 	SpanHl                    uint32
 	SpanVal                   uint64
-	CssVariables              uint32
+	CssVariables              bool
 	HtmlOpeners               uint32
 	ThemeBlob                 uint32
 	MultiBlob                 uint32
@@ -46,9 +46,9 @@ type Machine struct {
 	MultiTables               uint32
 	SpanCacheMode             uint32
 	SpanReserve               uint32
-	Tokens                    uint32
+	Tokens                    bool
 	RecCarryHl                uint32
-	Streaming                 uint32
+	Streaming                 bool
 	StreamReset               uint32
 	StreamDepth               uint32
 	StreamMode                uint32
@@ -88,13 +88,13 @@ type Machine struct {
 	TernaryTop                uint32
 	PrevTok                   uint32
 	JsxSp                     uint32
-	TsxStreaming              uint32
+	TsxStreaming              bool
 	TsxStreamMode             uint32
 	TsxStreamNl               uint32
 	TsxStreamExpressionClose  uint32
 	TsxStreamExpressionClosed uint32
 	TsxStreamExpressionDepth  uint32
-	JsxMute                   uint32
+	JsxMute                   bool
 	JsxRootEnd                uint32
 	EcmaImport                uint32
 	MarkdownDepth             uint32
@@ -102,17 +102,17 @@ type Machine struct {
 	MarkdownStreamFenceLen    uint32
 	MarkdownStreamLang        uint32
 	MarkdownBodyRan           uint32
-	MarkdownFenceEnded        uint32
+	MarkdownFenceEnded        bool
 	MarkdownUnderNoClose      uint32
 	MarkdownUnderNoCloseCount uint32
-	JavaApex                  uint32
+	JavaApex                  bool
 	BashArith                 uint32
 	PhpStreamingCode          uint32
 	PhpStreamDecl             uint32
 	PhpStreamMember           uint32
-	PhpHack                   uint32
-	FortranFixed              uint32
-	SqlPlsql                  uint32
+	PhpHack                   bool
+	FortranFixed              bool
+	SqlPlsql                  bool
 	PugNest                   uint32
 	LvHeapEnd                 uint32
 	LvHeapCeil                uint32
@@ -153,7 +153,7 @@ type Machine struct {
 	LvChangeIdx               uint32
 	LvDirtyTo                 uint32
 	LvCursor                  uint32
-	LvPhase                   uint32
+	LvPhase                   bool
 	LvRetok                   uint32
 }
 
@@ -644,7 +644,7 @@ wide:
 		w = rt.LdV(m.Mem, m.Ptr)
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, rt.Splat8(13))))
 		if mask != 0 {
-			m.Ptr += rt.Ctz32(mask)
+			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		m.Ptr += 16
@@ -667,7 +667,7 @@ wide:
 		if rt.AnyTrue(stars) {
 			mask = rt.Bitmask8(rt.And(stars, rt.Eq8(rt.LdV(m.Mem, m.Ptr+1), rt.Splat8(47))))
 			if mask != 0 {
-				m.Ptr += rt.Ctz32(mask) + 2
+				m.Ptr += uint32(bits.TrailingZeros32(mask)) + 2
 				break wide
 			}
 		}
@@ -694,7 +694,7 @@ wide:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, qv), rt.Eq8(w, ev)), rt.Or(rt.Eq8(w, nv), rt.Eq8(w, rv))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		p += 16
@@ -735,7 +735,7 @@ wide:
 		w = rt.LdV(m.Mem, m.Ptr)
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(32)), rt.LeU8(rt.Sub8(w, rt.Splat8(9)), rt.Splat8(4)))) ^ 65535
 		if mask != 0 {
-			m.Ptr += rt.Ctz32(mask)
+			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		m.Ptr += 16
@@ -757,7 +757,7 @@ wide:
 		w = rt.LdV(m.Mem, m.Ptr)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), w), rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9)), rt.Or(rt.Eq8(w, rt.Splat8(95)), rt.Eq8(w, rt.Splat8(x)))))) ^ 65535
 		if mask != 0 {
-			m.Ptr += rt.Ctz32(mask)
+			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		m.Ptr += 16
@@ -782,7 +782,7 @@ simd:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(a)), rt.Eq8(w, rt.Splat8(b))), rt.Eq8(w, rt.Splat8(c))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break simd
 		}
 		p += 16
@@ -933,7 +933,7 @@ func (m *Machine) EmitSpanOpen(hl uint32) {
 		m.Out = slot + 1
 		rt.Copy(m.Mem, m.Out, 8639, 19)
 		m.Out += 19
-		if m.CssVariables != 0 {
+		if m.CssVariables {
 			m.EmitCssVariable(hl, 0)
 		} else {
 			rec = m.ThemeRec(hl)
@@ -951,7 +951,7 @@ func (m *Machine) EmitSpanOpen(hl uint32) {
 		m.Mem[slot] = byte(length)
 		m.Out = save
 	}
-	if m.CssVariables != 0 {
+	if m.CssVariables {
 		prefixLength = rt.Ld32(m.Mem, 18)
 		rt.Copy(m.Mem, m.Out, slot+1, 23)
 		m.Out += 23
@@ -988,7 +988,7 @@ func (m *Machine) SetSpan(hl uint32) {
 		}
 		return
 	}
-	if m.CssVariables != 0 {
+	if m.CssVariables {
 		t0 = uint64(hl)
 	} else {
 		t0 = rt.Ld64(m.Mem, m.ThemeRec(hl)) & 0xffffffffff
@@ -1007,7 +1007,7 @@ func (m *Machine) SetSpan(hl uint32) {
 	}
 	slot = 8744 + hl*66
 	length = uint32(m.Mem[slot])
-	if length == 0 || m.CssVariables != 0 {
+	if length == 0 || m.CssVariables {
 		m.EmitSpanOpen(hl)
 		return
 	}
@@ -1041,7 +1041,7 @@ outer:
 			mask = rt.Bitmask8(rt.Or(rt.Eq8(rt.And(w, rt.Splat8(253)), rt.Splat8(60)), rt.Eq8(w, rt.Splat8(38))))
 			rem = limit - lhs
 			if mask != 0 {
-				k = rt.Ctz32(mask)
+				k = uint32(bits.TrailingZeros32(mask))
 				if k < rem {
 					dst += k
 					lhs += k
@@ -1117,7 +1117,7 @@ wide:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(w, rt.Eq8(w, rt.Splat8(10))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		p += 16
@@ -1201,12 +1201,12 @@ records:
 				} else {
 					for {
 						w = rt.LdV(m.Mem, p)
-						step = rt.Ctz32(rt.Bitmask8(rt.Eq8(w, rt.Splat8(10))) | 0x10000)
+						step = uint32(bits.TrailingZeros32(rt.Bitmask8(rt.Eq8(w, rt.Splat8(10))) | 0x10000))
 						if rhs-p < step {
 							step = rhs - p
 						}
 						b = uint32(1)<<(step&31) - 1
-						char += rt.Popcnt32(b&rt.Bitmask8(rt.GtS8(w, rt.Splat8(0xffffffbf)))) + rt.Popcnt32(b&rt.Bitmask8(rt.GeU8(w, rt.Splat8(240))))
+						char += uint32(bits.OnesCount32(b&rt.Bitmask8(rt.GtS8(w, rt.Splat8(0xffffffbf))))) + uint32(bits.OnesCount32(b&rt.Bitmask8(rt.GeU8(w, rt.Splat8(240)))))
 						p += step
 						if step != 16 {
 							break
@@ -1239,7 +1239,7 @@ func (m *Machine) EmitTok(hl uint32, lhs uint32, rhs uint32) {
 	if lhs >= rhs {
 		return
 	}
-	if m.Tokens != 0 {
+	if m.Tokens {
 		m.RecTok(hl, rhs)
 		return
 	}
@@ -1258,7 +1258,7 @@ func (m *Machine) EmitGap(lhs uint32, rhs uint32) {
 	if lhs >= rhs {
 		return
 	}
-	if m.Tokens != 0 {
+	if m.Tokens {
 		if m.Out > rt.Ld32(m.Mem, 6) {
 			rt.St32(m.Mem, m.Out-8, rhs-m.SrcBase)
 		} else {
@@ -1411,8 +1411,8 @@ func (m *Machine) MultiLightDarkDecls(hl uint32) {
 		common |= sa & 15
 	}
 	m.MultiFontDecls(0, common, 0)
-	m.MultiFontDecls(0, sa&(common^0xffffffff), 1)
-	m.MultiFontDecls(1, sb&(common^0xffffffff), 1)
+	m.MultiFontDecls(0, sa & ^common, 1)
+	m.MultiFontDecls(1, sb & ^common, 1)
 }
 
 // MultiSpanOpen is $multiSpanOpen.
@@ -1579,16 +1579,16 @@ func (m *Machine) MultiPrologue() {
 func (m *Machine) Prologue() {
 	var rec uint32
 	m.EnsureCap(128)
-	if m.CssVariables != 0 {
+	if m.CssVariables {
 		m.EnsureCap(128 + rt.Ld32(m.Mem, 18)*2)
 	}
 	rt.Copy(m.Mem, m.Out, 8608, 31)
 	m.Out += 31
 	rec = m.ThemeRec(TokenBackground)
-	if m.CssVariables|rt.Ld32(m.Mem, rec) != 0 {
+	if m.CssVariables || rt.Ld32(m.Mem, rec) != 0 {
 		rt.Copy(m.Mem, m.Out, 8658, 17)
 		m.Out += 17
-		if m.CssVariables != 0 {
+		if m.CssVariables {
 			m.EmitCssVariable(TokenBackground, rt.Ld32(m.Mem, 18))
 		} else {
 			m.EmitColor(rec)
@@ -1597,10 +1597,10 @@ func (m *Machine) Prologue() {
 		m.Out++
 	}
 	rec = m.ThemeRec(TokenForeground)
-	if m.CssVariables|rt.Ld32(m.Mem, rec) != 0 {
+	if m.CssVariables || rt.Ld32(m.Mem, rec) != 0 {
 		rt.St64(m.Mem, m.Out, 0x3a726f6c6f63)
 		m.Out += 6
-		if m.CssVariables != 0 {
+		if m.CssVariables {
 			m.EmitCssVariable(TokenForeground, rt.Ld32(m.Mem, 18))
 			m.Mem[m.Out] = ';'
 			m.Out++
@@ -1624,22 +1624,22 @@ func (m *Machine) Epilogue() {
 func (m *Machine) HlBegin() {
 	var offset uint32
 	var changed rt.V128
-	m.CssVariables = rt.B2u(m.Mem[1] == 1)
-	m.Tokens = rt.B2u(m.Mem[1] == 3)
+	m.CssVariables = m.Mem[1] == 1
+	m.Tokens = m.Mem[1] == 3
 	m.HtmlOpeners = rt.Sel32(m.Mem[1] == 4, rt.Ld32(m.Mem, 14), 0)
 	m.ThemeBlob = m.HtmlOpeners | rt.B2u(m.Mem[1] == 2)
 	m.Eof = m.SrcBase + rt.Ld32(m.Mem, 2)
 	m.End = m.Eof
 	m.Ptr = m.SrcBase
 	m.Out = (m.Eof + 47) & 0xfffffff0
-	if m.CssVariables|m.ThemeBlob != 0 {
+	if m.CssVariables || m.ThemeBlob != 0 {
 		m.Out += rt.Ld32(m.Mem, 18)
 	}
 	rt.St32(m.Mem, 6, m.Out)
 	m.Cap = uint32(len(m.Mem)/rt.PageSize)*0x10000 - 16
 	m.SpanHl = 0xffffffff
 	m.SpanVal = 0
-	m.SpanReserve = 96 + rt.Sel32(m.CssVariables != 0, rt.Ld32(m.Mem, 18), 0)
+	m.SpanReserve = 96 + rt.Sel32(m.CssVariables, rt.Ld32(m.Mem, 18), 0)
 	if m.HtmlOpeners != 0 {
 		m.SpanReserve = rt.Ld32(m.Mem, m.HtmlOpeners)
 		m.EnsureCap(rt.Ld32(m.Mem, m.HtmlOpeners+8))
@@ -1659,7 +1659,7 @@ func (m *Machine) HlBegin() {
 		m.MultiPrologue()
 		return
 	}
-	if m.Tokens == 0 {
+	if !m.Tokens {
 		for {
 			changed = rt.Or(changed, rt.Or(rt.Xor(rt.LdV(m.Mem, 64+offset), rt.LdV(m.Mem, 13568+offset)), rt.Xor(rt.LdV(m.Mem, 64+offset+16), rt.LdV(m.Mem, 13568+offset+16))))
 			offset += 32
@@ -1667,10 +1667,10 @@ func (m *Machine) HlBegin() {
 				break
 			}
 		}
-		if rt.AnyTrue(changed) || m.SpanCacheMode != m.CssVariables {
+		if rt.AnyTrue(changed) || m.SpanCacheMode != rt.B2u(m.CssVariables) {
 			rt.Fill(m.Mem, 8744, 0, 4818)
 			rt.Copy(m.Mem, 13568, 64, 384)
-			m.SpanCacheMode = m.CssVariables
+			m.SpanCacheMode = rt.B2u(m.CssVariables)
 		}
 		m.Prologue()
 	}
@@ -1687,10 +1687,10 @@ func (m *Machine) CopyHtmlOpener(hl uint32) {
 
 // HlEnd is $hlEnd.
 func (m *Machine) HlEnd() {
-	if m.Tokens == 0 {
+	if !m.Tokens {
 		m.Epilogue()
 	}
-	if m.Tokens != 0 {
+	if m.Tokens {
 		m.RecLinesPost()
 	}
 	rt.St32(m.Mem, 10, m.Out-rt.Ld32(m.Mem, 6))
@@ -1728,7 +1728,7 @@ func (m *Machine) SigMark() {
 // SigUnmark is $sigUnmark.
 func (m *Machine) SigUnmark() {
 	if m.SigParens < 32 {
-		m.SigMask &= uint32(1)<<(m.SigParens&31) ^ 0xffffffff
+		m.SigMask = m.SigMask & ^(uint32(1) << (m.SigParens & 31))
 	}
 	m.SigObscure = 0
 	m.SigPattern = 0
@@ -1854,7 +1854,7 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 		if m.Ptr < m.End {
 			next = rt.Sel32(m.Ptr+1 < m.End, uint32(m.Mem[m.Ptr+1]), 0)
 			if rt.B2u(m.Mem[m.Ptr] == '.')&(m.LexIsHex(next)|rt.B2u(next|32 == 112)) != 0 {
-				if requireExponent|rt.B2u(next|32 == 112) != 0 {
+				if requireExponent != 0 || next|32 == 112 {
 					p = m.Ptr + 1
 				fraction:
 					for {
@@ -1862,7 +1862,7 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 							break fraction
 						}
 						c = uint32(m.Mem[p])
-						if m.LexIsHex(c)|rt.B2u(c == '_') == 0 {
+						if !(m.LexIsHex(c) != 0 || c == '_') {
 							break fraction
 						}
 						p++
@@ -1935,7 +1935,7 @@ func (m *Machine) LexString(quote uint32, multiline uint32, hl uint32) {
 	lhs = m.Ptr
 	m.Ptr++
 	status = m.LexStringBody(quote, multiline, hl, lhs)
-	if m.Streaming&rt.B2u(m.Ptr == m.Eof)&rt.B2u(status != 1)&(multiline|rt.B2u(status == 2)) != 0 {
+	if rt.B2u(m.Streaming)&rt.B2u(m.Ptr == m.Eof)&rt.B2u(status != 1)&(multiline|rt.B2u(status == 2)) != 0 {
 		m.StreamMode = 2
 		m.StreamA = quote
 		m.StreamB = multiline
@@ -1962,7 +1962,7 @@ func (m *Machine) LexRawString(quote uint32, multiline uint32, hl uint32) {
 	lhs = m.Ptr
 	m.Ptr++
 	closed = m.LexRawStringBody(quote, multiline, hl, lhs)
-	if m.Streaming&multiline&rt.B2u(!closed && m.Ptr == m.Eof) != 0 {
+	if rt.B2u(m.Streaming)&multiline&rt.B2u(!closed && m.Ptr == m.Eof) != 0 {
 		m.StreamMode = 3
 		m.StreamA = quote
 		m.StreamB = multiline
@@ -2118,7 +2118,7 @@ func (m *Machine) LexBlockComment(skip uint32, hl uint32) {
 	}
 	m.ScanBlockCommentEnd()
 	m.EmitTok(hl, lhs, m.Ptr)
-	if m.Streaming != 0 && m.Ptr == m.Eof && (m.Ptr-lhs < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074) {
+	if m.Streaming && m.Ptr == m.Eof && (m.Ptr-lhs < 2 || rt.Ld16(m.Mem, m.Ptr-2) != 12074) {
 		m.StreamMode = 1
 		m.StreamHl = hl
 	}
@@ -2126,7 +2126,7 @@ func (m *Machine) LexBlockComment(skip uint32, hl uint32) {
 
 // StreamSetFixed is $streamSetFixed.
 func (m *Machine) StreamSetFixed(delimiter uint32, length uint32, hl uint32) {
-	if m.Streaming != 0 && length <= 32 && m.Ptr == m.Eof {
+	if m.Streaming && length <= 32 && m.Ptr == m.Eof {
 		rt.Copy(m.Mem, 13952, delimiter, length)
 		m.StreamMode = 20
 		m.StreamA = length
@@ -2143,7 +2143,7 @@ func (m *Machine) StreamSetFixed32(delimiter uint32, length uint32, hl uint32) {
 
 // StreamSetNested is $streamSetNested.
 func (m *Machine) StreamSetNested(depth uint32, open uint32, close_ uint32, hl uint32) {
-	if m.Streaming != 0 && depth != 0 && m.Ptr == m.Eof {
+	if m.Streaming && depth != 0 && m.Ptr == m.Eof {
 		m.StreamMode = 21
 		m.StreamA = depth
 		m.StreamB = open
@@ -2198,7 +2198,7 @@ func (m *Machine) LineDelimiterEnds(p uint32, trim uint32) bool {
 
 // StreamSetLine is $streamSetLine.
 func (m *Machine) StreamSetLine(delimiter uint32, length uint32, trim uint32, hl uint32) {
-	if m.Streaming != 0 && length <= 32 && m.Ptr == m.Eof {
+	if m.Streaming && length <= 32 && m.Ptr == m.Eof {
 		rt.Copy(m.Mem, 13952, delimiter, length)
 		m.StreamMode = 22
 		m.StreamA = length
@@ -2209,7 +2209,7 @@ func (m *Machine) StreamSetLine(delimiter uint32, length uint32, trim uint32, hl
 
 // StreamSetRegion is $streamSetRegion.
 func (m *Machine) StreamSetRegion(kind uint32) {
-	if m.Streaming != 0 && m.Ptr == m.Eof {
+	if m.Streaming && m.Ptr == m.Eof {
 		m.StreamRegionKind = kind
 		m.StreamRegionStarted = 0
 	}
@@ -2275,7 +2275,7 @@ scan:
 			w1 = rt.LdV(m.Mem, m.Ptr+1)
 			mask = rt.Bitmask8(rt.Or(rt.And(rt.Eq8(w, o0), rt.Eq8(w1, o1)), rt.And(rt.Eq8(w, c0), rt.Eq8(w1, c1))))
 			if mask != 0 {
-				m.Ptr += rt.Ctz32(mask)
+				m.Ptr += uint32(bits.TrailingZeros32(mask))
 				break wide
 			}
 			m.Ptr += 16
@@ -2555,7 +2555,7 @@ func (m *Machine) LexKeywordLookup(start uint32, end uint32, base uint32, bucket
 		return 0
 	}
 	rec = 0x10000 + entry&16383
-	if rt.Ctz32(rt.Bitmask8(rt.Ne8(rt.LdV(m.Mem, start), rt.LdV(m.Mem, rec)))) < length {
+	if uint32(bits.TrailingZeros32(rt.Bitmask8(rt.Ne8(rt.LdV(m.Mem, start), rt.LdV(m.Mem, rec))))) < length {
 		return 0
 	}
 	if length > 16 {
@@ -2608,7 +2608,7 @@ simd:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(a)), rt.Eq8(w, rt.Splat8(b))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break simd
 		}
 		p += 16
@@ -2629,7 +2629,7 @@ simd:
 	for {
 		mask = rt.Bitmask8(rt.Eq8(rt.LdV(m.Mem, p), rt.Splat8(a)))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break simd
 		}
 		p += 16
@@ -2845,7 +2845,7 @@ wide:
 		m.EmitTok(TokenStringEscape, m.Ptr, e)
 		m.Ptr = e
 		seg = m.Ptr
-		if m.Streaming != 0 && m.Ptr == m.End && (m.Mem[m.Ptr-1] == '\n' || m.Mem[m.Ptr-1] == '\r') {
+		if m.Streaming && m.Ptr == m.End && (m.Mem[m.Ptr-1] == '\n' || m.Mem[m.Ptr-1] == '\r') {
 			m.StreamMode = 17
 			m.StreamA = q
 		}
@@ -2909,7 +2909,7 @@ scan:
 				mask &= uint32(1)<<(rem&31) - 1
 			}
 			if mask != 0 {
-				p += rt.Ctz32(mask)
+				p += uint32(bits.TrailingZeros32(mask))
 				break wide
 			}
 			if rem <= 16 {
@@ -3081,7 +3081,7 @@ func (m *Machine) StylusStart(c uint32, nested uint32) uint32 {
 	if c == ':' && q == p && v == 0 && name {
 		return 0
 	}
-	return rt.Sel32(nested&rt.B2u(q > p)&rt.B2u(c > '\r' && (uint32(m.Mem[c+1424])>>4)&1|rt.B2u(c == '.' && name) == 0)&v != 0, 2, 0xffffffff)
+	return rt.Sel32(nested&rt.B2u(q > p)&rt.B2u(c > '\r' && !((uint32(m.Mem[c+1424])>>4)&1 != 0 || (c == '.' && name)))&v != 0, 2, 0xffffffff)
 }
 
 // HlCss is $hlCss.
@@ -3116,13 +3116,13 @@ func (m *Machine) HlStylus() {
 
 // HlCssImpl is $hlCssImpl.
 func (m *Machine) HlCssImpl(state uint32) uint32 {
-	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, sassDepth, urlMask, urlRem, liveRoot, t1, t4 uint32
+	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, sassDepth, urlMask, urlRem, t1, t4 uint32
 	var urlW rt.V128
-	var t2, t3 bool
+	var liveRoot, t2, t3 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		state = rt.Ld32(m.Mem, 98064)
 		streamRoot = rt.Ld32(m.Mem, 98068)
 		span = rt.Ld32(m.Mem, 98072)
@@ -3137,7 +3137,7 @@ func (m *Machine) HlCssImpl(state uint32) uint32 {
 	} else {
 		decide = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46224
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -3171,7 +3171,7 @@ func (m *Machine) HlCssImpl(state uint32) uint32 {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, state)
 				rt.St32(m.Mem, 98068, streamRoot)
 				rt.St32(m.Mem, 98072, span)
@@ -3183,7 +3183,7 @@ next:
 				rt.St32(m.Mem, 98096, interp)
 				rt.St32(m.Mem, 98100, interpMode)
 				rt.St32(m.Mem, 98104, fnPrelude)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return 0
 			}
 		}
@@ -3490,7 +3490,7 @@ next:
 									urlMask &= uint32(1)<<(urlRem&31) - 1
 								}
 								if urlMask != 0 {
-									m.Ptr += rt.Ctz32(urlMask)
+									m.Ptr += uint32(bits.TrailingZeros32(urlMask))
 									break urlWide
 								}
 								if urlRem <= 16 {
@@ -3615,13 +3615,13 @@ next:
 
 // HlStylusImpl is $hlStylusImpl.
 func (m *Machine) HlStylusImpl(state uint32) uint32 {
-	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, urlMask, urlRem, liveRoot, t2, t5 uint32
-	var sassDepth, t3, t4 bool
+	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, urlMask, urlRem, t2, t5 uint32
+	var sassDepth, liveRoot, t3, t4 bool
 	var urlW rt.V128
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		state = rt.Ld32(m.Mem, 98064)
 		streamRoot = rt.Ld32(m.Mem, 98068)
 		span = rt.Ld32(m.Mem, 98072)
@@ -3636,7 +3636,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 	} else {
 		decide = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46264
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -3670,7 +3670,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, state)
 				rt.St32(m.Mem, 98068, streamRoot)
 				rt.St32(m.Mem, 98072, span)
@@ -3682,7 +3682,7 @@ next:
 				rt.St32(m.Mem, 98096, interp)
 				rt.St32(m.Mem, 98100, interpMode)
 				rt.St32(m.Mem, 98104, fnPrelude)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return 0
 			}
 		}
@@ -3982,7 +3982,7 @@ next:
 									urlMask &= uint32(1)<<(urlRem&31) - 1
 								}
 								if urlMask != 0 {
-									m.Ptr += rt.Ctz32(urlMask)
+									m.Ptr += uint32(bits.TrailingZeros32(urlMask))
 									break urlWide
 								}
 								if urlRem <= 16 {
@@ -4176,7 +4176,7 @@ wide:
 			if mask == 0 {
 				break hits
 			}
-			hit = m.Ptr + rt.Ctz32(mask)
+			hit = m.Ptr + uint32(bits.TrailingZeros32(mask))
 			if rt.Ld32(m.Mem, hit-closeOff)&closeMask == closeWord {
 				m.Ptr = hit + 1
 				closed = true
@@ -4248,7 +4248,7 @@ l:
 	}
 	m.Ptr = rt.Sel32(p < m.End, p, m.End)
 	m.EmitTok(TokenTagDoctype, lhs, m.Ptr)
-	if !closed && m.Streaming != 0 && m.Ptr == m.Eof {
+	if !closed && m.Streaming && m.Ptr == m.Eof {
 		m.StreamSetRegion(10)
 		m.StreamA = depth
 		m.StreamB = quote
@@ -4285,7 +4285,7 @@ l:
 			m.EmitTok(TokenStringSpecial, lhs, m.Ptr)
 			return true
 		}
-		if m.LexIsIdentContinue(c)|rt.B2u(c == '#') == 0 {
+		if !(m.LexIsIdentContinue(c) != 0 || c == '#') {
 			break l
 		}
 		m.Ptr++
@@ -4303,7 +4303,7 @@ func (m *Machine) XmlAttrs(quote uint32) uint32 {
 next:
 	for {
 		if m.Ptr >= m.End {
-			if m.Streaming != 0 && m.Ptr == m.Eof {
+			if m.Streaming && m.Ptr == m.Eof {
 				m.StreamSetRegion(10)
 				m.StreamA = 0
 				m.StreamB = quote
@@ -4367,15 +4367,16 @@ next:
 
 // HlXml is $hlXml.
 func (m *Machine) HlXml() {
-	var streamRoot, c, lhs, name, liveRoot uint32
+	var streamRoot, c, lhs, name uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46304
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -4386,9 +4387,9 @@ func (m *Machine) HlXml() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -4649,7 +4650,7 @@ func (m *Machine) HtmlAttrs(afterEq uint32, quote uint32, kind uint32, region ui
 next:
 	for {
 		if m.Ptr >= m.End {
-			if m.Streaming != 0 && m.Ptr == m.Eof {
+			if m.Streaming && m.Ptr == m.Eof {
 				m.StreamSetRegion(region)
 				m.StreamA = kind
 				m.StreamB = afterEq
@@ -4762,7 +4763,7 @@ l:
 	}
 	to = m.Ptr
 	save = m.End
-	continued = m.Streaming != 0 && to == save
+	continued = m.Streaming && to == save
 	if continued {
 		m.StreamSetRegion(kind)
 	}
@@ -4871,9 +4872,9 @@ next:
 // HlHtml is $hlHtml.
 func (m *Machine) HlHtml() {
 	var streamRoot bool
-	m.LiveEntering = 0
+	m.LiveEntering = false
 	m.LexEmitLeadingContinuation()
-	if m.Streaming != 0 && m.StreamDepth == 0 {
+	if m.Streaming && m.StreamDepth == 0 {
 		m.StreamWindow = 46304
 		streamRoot = true
 		m.StreamDepth = rt.B2u(streamRoot)
@@ -5237,14 +5238,14 @@ next:
 // HlAngularHtml is $hlAngularHtml.
 func (m *Machine) HlAngularHtml() {
 	var state uint32
-	m.LiveEntering = 0
+	m.LiveEntering = false
 	m.LexEmitLeadingContinuation()
 	state = 1
-	if m.Streaming != 0 && m.StreamReset == 0 {
+	if m.Streaming && m.StreamReset == 0 {
 		state = m.StreamA
 	}
 	state = m.HlTemplateMarkup(state, 1)
-	if m.Streaming != 0 {
+	if m.Streaming {
 		m.StreamA = state
 	}
 }
@@ -5425,14 +5426,15 @@ next:
 
 // EmitCssTemplateBody is $emitCssTemplateBody.
 func (m *Machine) EmitCssTemplateBody(from uint32, to uint32) {
-	var savePtr, saveEnd, saveStreaming, saveDialect uint32
+	var savePtr, saveEnd, saveDialect uint32
+	var saveStreaming bool
 	savePtr = m.Ptr
 	saveEnd = m.End
 	saveStreaming = m.Streaming
 	saveDialect = m.CssDialect
 	m.Ptr = from
 	m.End = to
-	m.Streaming = 0
+	m.Streaming = false
 	m.CssDialect = 0
 	m.JsTemplateState = m.HlCssImpl(m.JsTemplateState)
 	m.CssDialect = saveDialect
@@ -5535,7 +5537,7 @@ func (m *Machine) TsxByte(p uint32) uint32 {
 // Utf8Bits is $utf8Bits.
 func (m *Machine) Utf8Bits(c uint32) uint32 {
 	if c-194 <= 50 {
-		return rt.Clz32((c ^ 0xffffffff) << 24)
+		return uint32(bits.LeadingZeros32(^c << 24))
 	}
 	return 0
 }
@@ -5575,7 +5577,7 @@ func (m *Machine) IsKeyword(start uint32, end uint32) uint32 {
 
 // ScanIdentTail is $scanIdentTail.
 func (m *Machine) ScanIdentTail() {
-	var c, bits, mask uint32
+	var c, bitSet, mask uint32
 	var w, b, pass rt.V128
 outer:
 	for {
@@ -5589,7 +5591,7 @@ outer:
 				m.Ptr += 16
 				continue wide
 			}
-			m.Ptr += rt.Ctz32(mask)
+			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		if m.Ptr >= m.End {
@@ -5599,14 +5601,14 @@ outer:
 		if c < 128 {
 			break outer
 		}
-		bits = m.Utf8Bits(c)
-		if bits == 0 {
+		bitSet = m.Utf8Bits(c)
+		if bitSet == 0 {
 			break outer
 		}
-		if m.IsIdContinue(m.Ptr, bits) == 0 {
+		if m.IsIdContinue(m.Ptr, bitSet) == 0 {
 			break outer
 		}
-		m.Ptr += bits
+		m.Ptr += bitSet
 	}
 	if m.Ptr > m.End {
 		m.Ptr = m.End
@@ -5822,10 +5824,10 @@ func (m *Machine) BraceIsBlock() bool {
 
 // ScanToken is $scanToken.
 func (m *Machine) ScanToken() uint32 {
-	var c, c2, bits, kw, take, after, t8 uint32
+	var c, c2, bitSet, kw, take, after, t8 uint32
 	var t7 bool
 	m.NlBefore = 0
-	if m.TsxStreaming != 0 {
+	if m.TsxStreaming {
 		m.NlBefore = m.TsxStreamNl
 		m.TsxStreamNl = 0
 	}
@@ -5872,7 +5874,7 @@ ws:
 	}
 	m.Lhs = m.Ptr
 	if m.Ptr >= m.End {
-		if m.TsxStreaming != 0 {
+		if m.TsxStreaming {
 			m.TsxStreamNl = m.NlBefore
 		}
 		return LexEof
@@ -6370,15 +6372,15 @@ ws:
 		return LexHashIdentifier
 	}
 	if c >= 128 {
-		bits = m.Utf8Bits(c)
-		t7 = bits != 0
-		t8 = m.IsIdStart(m.Ptr, bits)
+		bitSet = m.Utf8Bits(c)
+		t7 = bitSet != 0
+		t8 = m.IsIdStart(m.Ptr, bitSet)
 		if rt.B2u(t7)&t8 != 0 {
-			m.Ptr += bits
+			m.Ptr += bitSet
 			m.ScanIdentTail()
 			return LexIdentifier
 		}
-		m.Ptr += rt.Sel32(bits != 0, bits, 1)
+		m.Ptr += rt.Sel32(bitSet != 0, bitSet, 1)
 		if m.Ptr > m.End {
 			m.Ptr = m.End
 		}
@@ -6393,7 +6395,7 @@ func (m *Machine) NextToken() uint32 {
 	var t, c uint32
 	t = m.ScanToken()
 	m.Rhs = m.Ptr
-	if m.TsxStreaming != 0 && m.Ptr == m.End {
+	if m.TsxStreaming && m.Ptr == m.End {
 		if t == LexInvalid {
 			c = uint32(m.Mem[m.Lhs])
 			m.TsxStreamMode = rt.Sel32(c == '`' || c == '}', 1, rt.Sel32(c == '"', 4, rt.Sel32(c == '\'', 5, m.TsxStreamMode)))
@@ -6434,7 +6436,7 @@ func (m *Machine) TsxExpressionEnd(from uint32, body uint32) uint32 {
 	m.RxCloser = 0
 	m.TernaryTop = 0
 	m.JsxSp = 0
-	m.JsxMute = 1
+	m.JsxMute = true
 	m.SigReset()
 	t0 = m.NextToken()
 	if t0 != LexLBrace {
@@ -6489,7 +6491,7 @@ func (m *Machine) TsxExpressionEnd(from uint32, body uint32) uint32 {
 			}
 		}
 	}
-	m.JsxMute = 0
+	m.JsxMute = false
 	m.Ptr = save
 	return to
 }
@@ -6870,14 +6872,14 @@ func (m *Machine) JsxPop() {
 
 // JsxEmit is $jsxEmit.
 func (m *Machine) JsxEmit(hl uint32, lhs uint32, rhs uint32) {
-	if m.JsxMute == 0 {
+	if !m.JsxMute {
 		m.EmitTok(hl, lhs, rhs)
 	}
 }
 
 // JsxGap is $jsxGap.
 func (m *Machine) JsxGap(lhs uint32, rhs uint32) {
-	if m.JsxMute == 0 {
+	if !m.JsxMute {
 		m.EmitGap(lhs, rhs)
 	}
 }
@@ -7072,7 +7074,7 @@ func (m *Machine) JsxTagStep() {
 			m.Ptr += 2
 			m.ScanBlockCommentEnd()
 			m.JsxEmit(TokenComment, from, m.Ptr)
-			if m.TsxStreaming != 0 && m.JsxMute == 0 {
+			if m.TsxStreaming && !m.JsxMute {
 				if m.BlockCommentOpen(from, m.Ptr) {
 					m.TsxStreamMode = 2
 				}
@@ -7089,7 +7091,7 @@ func (m *Machine) JsxTagStep() {
 		m.Ptr = m.ScanFind3(m.Ptr+1, q, q, q)
 		if m.Ptr < m.End {
 			m.Ptr++
-		} else if m.TsxStreaming != 0 && m.JsxMute == 0 {
+		} else if m.TsxStreaming && !m.JsxMute {
 			m.TsxStreamMode = rt.Sel32(q == '"', 6, 7)
 		}
 		m.JsxEmit(TokenString, from, m.Ptr)
@@ -7270,7 +7272,7 @@ func (m *Machine) JsxContentStep() {
 				m.Ptr += 2
 				m.ScanBlockCommentEnd()
 				m.JsxEmit(TokenComment, seg, m.Ptr)
-				if m.TsxStreaming != 0 && m.BlockCommentOpen(seg, m.Ptr) {
+				if m.TsxStreaming && m.BlockCommentOpen(seg, m.Ptr) {
 					m.TsxStreamMode = 2
 				}
 				seg = m.Ptr
@@ -7710,7 +7712,7 @@ func (m *Machine) IdentHl(prev uint32, t uint32, next uint32, lhs uint32, rhs ui
 			return c
 		}
 	} else if uint32(m.Mem[next+38656])&64 != 0 {
-		if m.NlBefore|rt.B2u(prev == LexDot || prev == LexQuestionMarkDot) == 0 {
+		if !(m.NlBefore != 0 || prev == LexDot || prev == LexQuestionMarkDot) {
 			c = m.CtxIdentHl(prev, next, lhs, rhs)
 			if c != 4294967295 {
 				return c
@@ -7789,7 +7791,7 @@ func (m *Machine) IdentHl(prev uint32, t uint32, next uint32, lhs uint32, rhs ui
 		}
 	}
 	if prev == LexKeywordNew {
-		if rt.B2u(next != LexDot)|m.NlBefore != 0 {
+		if next != LexDot || m.NlBefore != 0 {
 			return TokenTypeClass
 		}
 	}
@@ -8014,7 +8016,7 @@ simd:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(60)), rt.Eq8(w, rt.Splat8(123))), rt.Or(rt.Eq8(w, rt.Splat8(38)), rt.Eq8(w, rt.Splat8(64)))), rt.Or(rt.Eq8(w, rt.Splat8(47)), rt.Eq8(w, rt.Splat8(10)))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break simd
 		}
 		p += 16
@@ -8064,8 +8066,8 @@ func (m *Machine) TsrxFinallyAhead(p uint32) uint32 {
 
 // TsrxStyleStep is $tsrxStyleStep.
 func (m *Machine) TsrxStyleStep() {
-	var from, p, savePtr, saveEnd, saveStreaming, saveDialect, slot, t0, t1 uint32
-	var found bool
+	var from, p, savePtr, saveEnd, saveDialect, slot, t0, t1 uint32
+	var found, saveStreaming bool
 	from = m.Ptr
 	p = from
 find:
@@ -8087,7 +8089,7 @@ find:
 		saveDialect = m.CssDialect
 		m.Ptr = from
 		m.End = p
-		m.Streaming = 0
+		m.Streaming = false
 		m.CssDialect = 0
 		slot = m.JsxTopSlot()
 		t0 = slot
@@ -8267,11 +8269,12 @@ func (m *Machine) EcmaReset() {
 
 // HlEcmaImpl is $hlEcmaImpl.
 func (m *Machine) HlEcmaImpl(reset uint32) {
-	var curT, curLhs, curRhs, nxtT, nxtLhs, nxtRhs, haveNext, done, m_, cut, metadataMarker, markerBefore, markerLhs, markerRhs, markerWord, markerLen, jsx, exprClose, liveRoot, t2, t3, t4, t6 uint32
+	var curT, curLhs, curRhs, nxtT, nxtLhs, nxtRhs, haveNext, done, m_, cut, metadataMarker, markerBefore, markerLhs, markerRhs, markerWord, markerLen, jsx, exprClose, t2, t3, t4, t6 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		nxtT = rt.Ld32(m.Mem, 98064)
 		nxtLhs = rt.Ld32(m.Mem, 98068)
 		nxtRhs = rt.Ld32(m.Mem, 98072)
@@ -8298,7 +8301,7 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 main:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, nxtT)
 				rt.St32(m.Mem, 98068, nxtLhs)
 				rt.St32(m.Mem, 98072, nxtRhs)
@@ -8306,7 +8309,7 @@ main:
 				rt.St32(m.Mem, 98080, done)
 				rt.St32(m.Mem, 98084, jsx)
 				rt.St32(m.Mem, 98088, exprClose)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -8485,7 +8488,7 @@ main:
 func (m *Machine) HlEcma(features uint32) {
 	m.EcmaFeatures = features
 	m.TsxStreamExpressionClose = 0
-	m.TsxStreaming = 0
+	m.TsxStreaming = false
 	m.HlEcmaImpl(1)
 }
 
@@ -8493,7 +8496,7 @@ func (m *Machine) HlEcma(features uint32) {
 func (m *Machine) HlEcmaStream(features uint32, reset uint32) {
 	m.EcmaFeatures = features
 	m.TsxStreamExpressionClose = 0
-	m.TsxStreaming = 1
+	m.TsxStreaming = true
 	m.HlEcmaImpl(reset)
 }
 
@@ -8510,7 +8513,7 @@ func (m *Machine) HlTsxStream(reset uint32) {
 // HlTsxExpressionStream is $hlTsxExpressionStream.
 func (m *Machine) HlTsxExpressionStream(reset uint32, closeLen uint32) uint32 {
 	m.EcmaFeatures = 3
-	m.TsxStreaming = 1
+	m.TsxStreaming = true
 	m.TsxStreamExpressionClose = closeLen
 	m.TsxStreamExpressionClosed = 0
 	if reset != 0 {
@@ -8532,7 +8535,7 @@ func (m *Machine) HlTsxExpression(closeLen uint32, open uint32, region uint32, t
 	closed = m.TsxStreamExpressionClosed
 	m.TsxStreamExpressionClose = 0
 	m.TsxStreamExpressionClosed = 0
-	if closed == 0 && m.Streaming != 0 && m.Ptr == m.Eof {
+	if closed == 0 && m.Streaming && m.Ptr == m.Eof {
 		m.StreamSetRegion(region)
 		m.StreamA = tag
 		m.StreamRegionStarted = 1
@@ -8664,7 +8667,7 @@ mod:
 	bodyEnd = m.YamlBlockBodyEnd(m.Ptr, indent)
 	m.EmitTok(TokenString, m.Ptr, bodyEnd)
 	m.Ptr = bodyEnd
-	if m.Streaming != 0 && m.Ptr == m.End {
+	if m.Streaming && m.Ptr == m.End {
 		m.StreamMode = 11
 		m.StreamA = indent
 	}
@@ -8725,7 +8728,7 @@ wide:
 			mask &= uint32(1)<<(rem&31) - 1
 		}
 		if mask != 0 {
-			m.Ptr += rt.Ctz32(mask)
+			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			c = uint32(m.Mem[m.Ptr])
 			if c == ':' {
 				t0 = rt.B2u(!m.YamlColonEnds(m.Ptr, flow))
@@ -8769,17 +8772,17 @@ func (m *Machine) YamlAtLineStart(p uint32) bool {
 
 // HlYaml is $hlYaml.
 func (m *Machine) HlYaml() {
-	var streamRoot, after, c, flow, hl, lhs, p, quote, liveRoot uint32
-	var commentOk bool
+	var streamRoot, after, c, flow, hl, lhs, p, quote uint32
+	var commentOk, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		flow = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46304
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -8791,10 +8794,10 @@ func (m *Machine) HlYaml() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, flow)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -8902,7 +8905,7 @@ next:
 					continue next
 				}
 			}
-			if (uint32(m.Mem[c+1936])>>2)&1|rt.B2u(m.YamlColonEnds(m.Ptr, flow)) != 0 {
+			if (uint32(m.Mem[c+1936])>>2)&1 != 0 || m.YamlColonEnds(m.Ptr, flow) {
 				m.Ptr++
 				m.EmitTok(TokenPunctuationDelimiter, lhs, m.Ptr)
 				continue next
@@ -8934,9 +8937,9 @@ next:
 // HlSvelte is $hlSvelte.
 func (m *Machine) HlSvelte() {
 	var streamRoot bool
-	m.LiveEntering = 0
+	m.LiveEntering = false
 	m.LexEmitLeadingContinuation()
-	if m.Streaming != 0 && m.StreamDepth == 0 {
+	if m.Streaming && m.StreamDepth == 0 {
 		m.StreamWindow = 46312
 		streamRoot = true
 		m.StreamDepth = rt.B2u(streamRoot)
@@ -9022,9 +9025,9 @@ func (m *Machine) AstroTsxRange(from uint32, to uint32) {
 func (m *Machine) HlAstro() {
 	var streamRoot bool
 	var body, close_, lineEnd uint32
-	m.LiveEntering = 0
+	m.LiveEntering = false
 	m.LexEmitLeadingContinuation()
-	if m.Streaming != 0 && m.StreamDepth == 0 {
+	if m.Streaming && m.StreamDepth == 0 {
 		m.StreamWindow = 46312
 		streamRoot = true
 		m.StreamDepth = rt.B2u(streamRoot)
@@ -9035,7 +9038,7 @@ func (m *Machine) HlAstro() {
 	if body != 0 {
 		m.EmitTok(TokenPunctuationSpecial, m.Ptr, body)
 		close_ = m.FrontMatterClose(body)
-		if m.Streaming != 0 && close_ == m.End {
+		if m.Streaming && close_ == m.End {
 			m.Ptr = m.End
 			m.StreamSetRegion(3)
 			m.Ptr = body
@@ -9112,9 +9115,9 @@ func (m *Machine) MarkdownCodeRange(lang uint32, from uint32, to uint32, resume 
 	m.End = to
 	m.Ptr = from
 	saveDoc = m.DocStart
-	m.DocStart = rt.Sel32(m.Streaming&resume == 0, from, 0)
+	m.DocStart = rt.Sel32(rt.B2u(m.Streaming)&resume == 0, from, 0)
 	if lang == LanguageMarkdown || lang == LanguageMdx {
-		if m.Streaming != 0 && m.MarkdownFenceReg() != 0 {
+		if m.Streaming && m.MarkdownFenceReg() != 0 {
 			if m.MarkdownStreamResume() {
 				m.MarkdownDepth--
 				m.DocStart = saveDoc
@@ -9136,19 +9139,19 @@ func (m *Machine) MarkdownCodeRange(lang uint32, from uint32, to uint32, resume 
 			m.HlMdx()
 		}
 	} else {
-		if m.Streaming == 0 || resume == 0 {
+		if !m.Streaming || resume == 0 {
 			m.SigReset()
 		}
 		saveDepth = m.StreamDepth
 		saveReset = m.StreamReset
-		if m.Streaming != 0 {
+		if m.Streaming {
 			m.StreamDepth = 0
 			m.StreamReset = rt.B2u(resume == 0)
 		}
-		if m.Streaming&resume&rt.B2u(!m.IsEcmaLang(lang)) != 0 {
+		if rt.B2u(m.Streaming)&resume&rt.B2u(!m.IsEcmaLang(lang)) != 0 {
 			if m.StreamRegionKind != 0 {
 				if m.StreamResumeLang(lang) {
-					if m.Streaming != 0 {
+					if m.Streaming {
 						m.StreamDepth = saveDepth
 						m.StreamReset = saveReset
 					}
@@ -9160,7 +9163,7 @@ func (m *Machine) MarkdownCodeRange(lang uint32, from uint32, to uint32, resume 
 				}
 			}
 			if m.StreamResumeCommon() {
-				if m.Streaming != 0 {
+				if m.Streaming {
 					m.StreamDepth = saveDepth
 					m.StreamReset = saveReset
 				}
@@ -9171,7 +9174,7 @@ func (m *Machine) MarkdownCodeRange(lang uint32, from uint32, to uint32, resume 
 				return
 			}
 			if m.StreamResumeLang(lang) {
-				if m.Streaming != 0 {
+				if m.Streaming {
 					m.StreamDepth = saveDepth
 					m.StreamReset = saveReset
 				}
@@ -9183,7 +9186,7 @@ func (m *Machine) MarkdownCodeRange(lang uint32, from uint32, to uint32, resume 
 			}
 		}
 		m.MarkdownFenceLexer(lang, resume)
-		if m.Streaming != 0 {
+		if m.Streaming {
 			m.StreamDepth = saveDepth
 			m.StreamReset = saveReset
 		}
@@ -9251,10 +9254,11 @@ func (m *Machine) MarkdownQuotedLines(quotes uint32, lang uint32) bool {
 
 // MarkdownQuotedBody is $markdownQuotedBody.
 func (m *Machine) MarkdownQuotedBody(lang uint32, from uint32, to uint32, quotes uint32, resume uint32) {
-	var after, lineEnd, p, saveEof, saveStreaming uint32
+	var after, lineEnd, p, saveEof uint32
+	var saveStreaming bool
 	saveEof = m.Eof
 	saveStreaming = m.Streaming
-	m.Streaming = 1
+	m.Streaming = true
 lines:
 	for {
 		if from >= to {
@@ -9280,7 +9284,7 @@ lines:
 	}
 	m.Eof = saveEof
 	m.Streaming = saveStreaming
-	if saveStreaming == 0 {
+	if !saveStreaming {
 		m.MarkdownClearEmbeddedStream()
 	}
 	m.MarkdownBodyRan = resume
@@ -9289,7 +9293,7 @@ lines:
 
 // MarkdownFenceLexer is $markdownFenceLexer.
 func (m *Machine) MarkdownFenceLexer(lang uint32, resume uint32) {
-	if m.Streaming != 0 {
+	if m.Streaming {
 		if m.EcmaStreamLang(lang, rt.B2u(resume == 0)) {
 			return
 		}
@@ -9405,7 +9409,7 @@ l:
 // MarkdownFenceClose is $markdownFenceClose.
 func (m *Machine) MarkdownFenceClose(p uint32, fence uint32, length uint32, quotes uint32, indent uint32) uint32 {
 	var c, lineEnd, n, q uint32
-	m.MarkdownFenceEnded = 0
+	m.MarkdownFenceEnded = false
 lines:
 	for {
 		if p >= m.End {
@@ -9421,7 +9425,7 @@ lines:
 			}
 			q = m.MarkdownSkipIndent(q, lineEnd)
 			if q >= lineEnd || m.Mem[q] != '>' {
-				m.MarkdownFenceEnded = 1
+				m.MarkdownFenceEnded = true
 				return p
 			}
 			q++
@@ -9442,7 +9446,7 @@ lines:
 			}
 			c = uint32(m.Mem[q])
 			if uint32(m.Mem[c+1936])&16 == 0 {
-				m.MarkdownFenceEnded = 1
+				m.MarkdownFenceEnded = true
 				return p
 			}
 			n += rt.Sel32(c == '\t', 4-n&3, 1)
@@ -9495,7 +9499,8 @@ func (m *Machine) MarkdownClearEmbeddedStream() {
 
 // MarkdownStreamResume is $markdownStreamResume.
 func (m *Machine) MarkdownStreamResume() bool {
-	var close_, fence, lang, length, quotes, reg, ended uint32
+	var close_, fence, lang, length, quotes, reg uint32
+	var ended bool
 	if m.MarkdownDepth != 0 {
 		reg = m.MarkdownFenceSlot(m.MarkdownDepth)
 		fence = rt.Ld32(m.Mem, reg)
@@ -9525,7 +9530,7 @@ func (m *Machine) MarkdownStreamResume() bool {
 	}
 	m.MarkdownClearEmbeddedStream()
 	m.Ptr = close_
-	if ended == 0 {
+	if !ended {
 		m.MarkdownFenceCloser(quotes)
 	}
 	m.MarkdownFenceSet(0, 0, 0)
@@ -9550,7 +9555,7 @@ wide:
 		hits = rt.Or(hits, rt.Eq8(w, rt.Splat8(124)))
 		mask = rt.Bitmask8(hits)
 		if mask != 0 {
-			return p + rt.Ctz32(mask)
+			return p + uint32(bits.TrailingZeros32(mask))
 		}
 		p += 16
 	}
@@ -9686,7 +9691,7 @@ domain:
 		if p >= lineEnd {
 			break domain
 		}
-		if m.MarkdownIsAlnum(uint32(m.Mem[p]))|rt.B2u(m.Mem[p] == '.' || m.Mem[p] == '-') == 0 {
+		if !(m.MarkdownIsAlnum(uint32(m.Mem[p])) != 0 || m.Mem[p] == '.' || m.Mem[p] == '-') {
 			break domain
 		}
 	}
@@ -9749,7 +9754,7 @@ simd:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(c)), rt.Eq8(w, rt.Splat8(96))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break simd
 		}
 		p += 16
@@ -9765,7 +9770,7 @@ func (m *Machine) MarkdownEmphasisEnd(lhs uint32, c uint32, count uint32, lineEn
 	var p, q, t0 uint32
 	p = lhs + count
 	if c == '_' {
-		if rt.B2u(lhs > m.SrcBase)&m.MarkdownIsAlnum(uint32(m.Mem[lhs-1]))|rt.B2u(p >= lineEnd || m.LexIsSpace(uint32(m.Mem[p]))) != 0 {
+		if rt.B2u(lhs > m.SrcBase)&m.MarkdownIsAlnum(uint32(m.Mem[lhs-1])) != 0 || p >= lineEnd || m.LexIsSpace(uint32(m.Mem[p])) {
 			return 0
 		}
 		if lhs < m.MarkdownUnderNoClose && count == m.MarkdownUnderNoCloseCount {
@@ -9827,11 +9832,12 @@ func (m *Machine) MarkdownYamlRange(from uint32, to uint32) {
 
 // HlMarkdown is $hlMarkdown.
 func (m *Machine) HlMarkdown() {
-	var streamRoot, body, c, close_, count, fence, fenceLen, ended, listStart, indent, htmlEnd, info, lang, lhs, lineCache, lineEnd, lineStart, htmlNoClose, linkNoClose, linkClose, p, q, quotes, liveRoot uint32
+	var streamRoot, body, c, close_, count, fence, fenceLen, listStart, indent, htmlEnd, info, lang, lhs, lineCache, lineEnd, lineStart, htmlNoClose, linkNoClose, linkClose, p, q, quotes uint32
+	var ended, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		listStart = rt.Ld32(m.Mem, 98068)
 		lineCache = rt.Ld32(m.Mem, 98072)
@@ -9842,7 +9848,7 @@ func (m *Machine) HlMarkdown() {
 		quotes = rt.Ld32(m.Mem, 98092)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46312
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -9862,10 +9868,10 @@ func (m *Machine) HlMarkdown() {
 			m.EmitTok(TokenPunctuationSpecial, m.Ptr, body)
 			close_ = m.FrontMatterClose(body)
 			m.MarkdownYamlRange(body, close_)
-			if m.Streaming != 0 && close_ == m.End {
+			if m.Streaming && close_ == m.End {
 				m.StreamSetRegion(4)
 				m.StreamRegionStarted = 1
-			} else if m.Streaming != 0 {
+			} else if m.Streaming {
 				m.MarkdownClearEmbeddedStream()
 			}
 			m.FrontMatterCloser(close_)
@@ -9875,7 +9881,7 @@ func (m *Machine) HlMarkdown() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, listStart)
 				rt.St32(m.Mem, 98072, lineCache)
@@ -9884,7 +9890,7 @@ next:
 				rt.St32(m.Mem, 98084, linkNoClose)
 				rt.St32(m.Mem, 98088, linkClose)
 				rt.St32(m.Mem, 98092, quotes)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -10019,7 +10025,7 @@ next:
 					close_ = m.MarkdownFenceClose(body, fence, fenceLen, quotes, indent)
 					ended = m.MarkdownFenceEnded
 					m.MarkdownFenceBody(lang, body, close_, quotes, 0)
-					if m.Streaming != 0 {
+					if m.Streaming {
 						if close_ == m.End {
 							m.MarkdownFenceSet(fence, rt.Sel32(fenceLen > 65535, 65535, fenceLen)|rt.Sel32(quotes > 32767, 32767, quotes)<<16, lang|indent<<16|rt.Sel32(rt.B2u(lang != 0)&m.MarkdownBodyRan != 0, 256, 0))
 						} else {
@@ -10028,7 +10034,7 @@ next:
 						}
 					}
 					m.Ptr = close_
-					if ended == 0 && close_ < m.End {
+					if !ended && close_ < m.End {
 						m.MarkdownFenceCloser(quotes)
 					}
 					lineStart = 1
@@ -10074,7 +10080,7 @@ next:
 					}
 					if htmlEnd > m.Ptr+1 {
 						m.MarkdownHtmlRange(m.Ptr, htmlEnd)
-						if m.Streaming != 0 && htmlEnd != m.Eof {
+						if m.Streaming && htmlEnd != m.Eof {
 							m.MarkdownClearEmbeddedStream()
 						}
 						continue next
@@ -10400,19 +10406,20 @@ scan:
 
 // HlAbap is $hlAbap.
 func (m *Machine) HlAbap() {
-	var streamRoot, c, c2, hl, lhs, rhs, p, v, sel, want, expect, member, tpl, liveRoot uint32
+	var streamRoot, c, c2, hl, lhs, rhs, p, v, sel, want, expect, member, tpl uint32
 	var w uint64
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
 		tpl = rt.Ld32(m.Mem, 98076)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46320
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -10426,12 +10433,12 @@ func (m *Machine) HlAbap() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, tpl)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -10458,7 +10465,7 @@ next:
 		sel = member
 		member = 0
 		p = rt.Sel32(lhs > m.SrcBase, uint32(m.Mem[lhs-1]), 10)
-		if rt.B2u(c == '"')|rt.B2u(c == '*')&(uint32(m.Mem[p+1424])>>2)&1 != 0 {
+		if c == '"' || rt.B2u(c == '*')&(uint32(m.Mem[p+1424])>>2)&1 != 0 {
 			m.LexLineComment(1, rt.Sel32(c == '"' && c2 == '!', TokenCommentDoc, TokenComment))
 			expect = want
 			continue next
@@ -10602,17 +10609,18 @@ next:
 
 // HlAda is $hlAda.
 func (m *Machine) HlAda() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, n, kind, hl, last, expect, prev, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, n, kind, hl, last, expect, prev uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		prev = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46336
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -10625,11 +10633,11 @@ func (m *Machine) HlAda() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, prev)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -10681,7 +10689,7 @@ next:
 				for {
 					m.Ptr++
 					c = m.TemplateByte(m.Ptr)
-					if m.LexIsHex(c)|rt.B2u(c == '_' || c == '.') == 0 {
+					if !(m.LexIsHex(c) != 0 || c == '_' || c == '.') {
 						break
 					}
 				}
@@ -10843,12 +10851,12 @@ func (m *Machine) JavaIsOp(c uint32) uint32 {
 
 // HlJavaImpl is $hlJavaImpl.
 func (m *Machine) HlJavaImpl() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, textBlock, soql, liveRoot uint32
-	var c2Ident, pending, t1 bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, textBlock, soql uint32
+	var c2Ident, pending, liveRoot, t1 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -10857,7 +10865,7 @@ func (m *Machine) HlJavaImpl() {
 		soql = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46344
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -10873,14 +10881,14 @@ func (m *Machine) HlJavaImpl() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, afterType)
 				rt.St32(m.Mem, 98080, textBlock)
 				rt.St32(m.Mem, 98084, soql)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -10939,7 +10947,7 @@ next:
 			if m.LexIsIdentStart(c) {
 				m.LexScanIdent()
 				rhs = m.Ptr
-				if m.JavaApex != 0 {
+				if m.JavaApex {
 					kind = 0xffffffff
 					if member == 0 {
 						kind = m.ApexWordHl(lhs, rhs)
@@ -11003,7 +11011,7 @@ next:
 							hl = TokenFunctionMethod
 							afterType = 0
 						} else {
-							afterType = rt.B2u(m.JavaApex == 0 && c-65 <= 25)
+							afterType = rt.B2u(!m.JavaApex && c-65 <= 25)
 							hl = rt.Sel32(afterType != 0, TokenType, TokenProperty)
 						}
 					} else if m.JavaByte(p) == '(' {
@@ -11036,7 +11044,7 @@ next:
 				m.Ptr++
 				m.EmitTok(TokenPunctuationBracket, lhs, m.Ptr)
 				member = 0
-				if m.JavaApex != 0 {
+				if m.JavaApex {
 					if c == '[' {
 						soql = rt.Sel32(soql > 1, soql+1, 1)
 					}
@@ -11087,7 +11095,7 @@ next:
 				m.Ptr++
 				if c == '-' && c2 == '>' {
 					m.Ptr++
-				} else if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
+				} else if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
 					m.Ptr++
 					if c == '>' && (c3 == '>' || c3 == '=') {
 						m.Ptr++
@@ -11136,13 +11144,13 @@ next:
 
 // HlJava is $hlJava.
 func (m *Machine) HlJava() {
-	m.JavaApex = 0
+	m.JavaApex = false
 	m.HlJavaImpl()
 }
 
 // HlApex is $hlApex.
 func (m *Machine) HlApex() {
-	m.JavaApex = 1
+	m.JavaApex = true
 	m.HlJavaImpl()
 }
 
@@ -11298,17 +11306,18 @@ plain:
 
 // HlIni is $hlIni.
 func (m *Machine) HlIni() {
-	var streamRoot, c, lhs, gap, p, line, cont, liveRoot uint32
+	var streamRoot, c, lhs, gap, p, line, cont uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		line = rt.Ld32(m.Mem, 98068)
 		cont = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46368
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -11321,11 +11330,11 @@ func (m *Machine) HlIni() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, line)
 				rt.St32(m.Mem, 98072, cont)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -11472,16 +11481,17 @@ l:
 
 // HlApache is $hlApache.
 func (m *Machine) HlApache() {
-	var streamRoot, c, gap, lhs, p, line, liveRoot uint32
+	var streamRoot, c, gap, lhs, p, line uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		line = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46376
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -11493,10 +11503,10 @@ func (m *Machine) HlApache() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, line)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -11666,18 +11676,19 @@ func (m *Machine) ApplescriptWord(n uint32) uint32 {
 
 // HlApplescript is $hlApplescript.
 func (m *Machine) HlApplescript() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, v, n, hl, head, lineStart, expect, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, v, n, hl, head, lineStart, expect uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		lineStart = rt.Ld32(m.Mem, 98068)
 		expect = rt.Ld32(m.Mem, 98072)
 	} else {
 		lineStart = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46384
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -11690,11 +11701,11 @@ func (m *Machine) HlApplescript() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, lineStart)
 				rt.St32(m.Mem, 98072, expect)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -11942,7 +11953,7 @@ func (m *Machine) RstIsRule(p uint32, stop uint32) uint32 {
 	var c, q uint32
 	var gaps bool
 	c = uint32(m.Mem[p])
-	if rt.B2u(stop-p < 3)|rt.B2u(c-33 > 93)|m.RstIsAlnum(c) != 0 {
+	if stop-p < 3 || c-33 > 93 || m.RstIsAlnum(c) != 0 {
 		return 0
 	}
 	q = p + 1
@@ -11996,7 +12007,7 @@ wide:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(42)), rt.Eq8(w, rt.Splat8(96))), rt.Or(rt.Eq8(w, rt.Splat8(124)), rt.Eq8(w, rt.Splat8(92)))), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(58)), rt.Eq8(w, rt.Splat8(95))), rt.Or(rt.Eq8(w, va), rt.Or(rt.Eq8(w, vb), rt.Eq8(w, vc))))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		p += 16
@@ -12016,7 +12027,7 @@ back:
 			break back
 		}
 		c = uint32(m.Mem[p-1])
-		if m.LexIsIdentContinue(c)&rt.B2u(c != '$')|rt.B2u(c == '-') == 0 {
+		if !(m.LexIsIdentContinue(c)&rt.B2u(c != '$') != 0 || c == '-') {
 			break back
 		}
 		p--
@@ -12026,11 +12037,12 @@ back:
 
 // HlRst is $hlRst.
 func (m *Machine) HlRst() {
-	var streamRoot, c, c2, lhs, rhs, p, q, prev, block, indent, mid, lineEnd, lineIndent, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, p, q, prev, block, indent, mid, lineEnd, lineIndent uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		prev = rt.Ld32(m.Mem, 98068)
 		block = rt.Ld32(m.Mem, 98072)
@@ -12040,7 +12052,7 @@ func (m *Machine) HlRst() {
 		lineIndent = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46392
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -12057,7 +12069,7 @@ func (m *Machine) HlRst() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, prev)
 				rt.St32(m.Mem, 98072, block)
@@ -12065,7 +12077,7 @@ next:
 				rt.St32(m.Mem, 98080, mid)
 				rt.St32(m.Mem, 98084, lineEnd)
 				rt.St32(m.Mem, 98088, lineIndent)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -12287,7 +12299,7 @@ next:
 			m.EmitTok(TokenStringEscape, lhs, m.Ptr)
 			continue next
 		}
-		if rt.B2u(m.LexIsSpace(c2))|rt.B2u(lhs > m.SrcBase)&m.RstIsAlnum(uint32(m.Mem[lhs-1])) == 0 {
+		if !(m.LexIsSpace(c2) || rt.B2u(lhs > m.SrcBase)&m.RstIsAlnum(uint32(m.Mem[lhs-1])) != 0) {
 			if c == '`' {
 				if c2 == '`' {
 					m.Ptr = m.RstCloseEnd(lhs+3, lineEnd, 96, 2, 1)
@@ -12428,11 +12440,12 @@ func (m *Machine) AdocIsAdmonition(p uint32, stop uint32) bool {
 
 // HlAsciidoc is $hlAsciidoc.
 func (m *Machine) HlAsciidoc() {
-	var streamRoot, c, c2, lhs, rhs, p, q, n, delim, para, mid, lineEnd, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, p, q, n, delim, para, mid, lineEnd uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		delim = rt.Ld32(m.Mem, 98068)
 		para = rt.Ld32(m.Mem, 98072)
@@ -12440,7 +12453,7 @@ func (m *Machine) HlAsciidoc() {
 		lineEnd = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46408
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -12455,13 +12468,13 @@ func (m *Machine) HlAsciidoc() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, delim)
 				rt.St32(m.Mem, 98072, para)
 				rt.St32(m.Mem, 98076, mid)
 				rt.St32(m.Mem, 98080, lineEnd)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -12653,7 +12666,7 @@ next:
 		if uint32(m.Mem[c+2704])&1 != 0 {
 			n = 1 + rt.B2u(c2 == c)
 			m.Ptr = lhs + n
-			if rt.B2u(m.LexIsSpace(m.TemplateByte(m.Ptr)))|rt.B2u(n == 1)&rt.B2u(lhs > m.SrcBase)&m.RstIsAlnum(uint32(m.Mem[lhs-1])) == 0 {
+			if !(m.LexIsSpace(m.TemplateByte(m.Ptr)) || rt.B2u(n == 1)&rt.B2u(lhs > m.SrcBase)&m.RstIsAlnum(uint32(m.Mem[lhs-1])) != 0) {
 				q = m.RstCloseEnd(m.Ptr+1, lineEnd, c, n, rt.B2u(n == 1))
 				if q != 0 {
 					m.Ptr = q
@@ -12796,18 +12809,18 @@ func (m *Machine) AsmIsRegister(lhs uint32, rhs uint32) bool {
 
 // HlAsm is $hlAsm.
 func (m *Machine) HlAsm() {
-	var streamRoot, c, expectMnemonic, hl, lhs, next, next2, p, liveRoot uint32
-	var prefixedNumber bool
+	var streamRoot, c, expectMnemonic, hl, lhs, next, next2, p uint32
+	var prefixedNumber, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expectMnemonic = rt.Ld32(m.Mem, 98068)
 	} else {
 		expectMnemonic = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46416
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -12819,10 +12832,10 @@ func (m *Machine) HlAsm() {
 token:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expectMnemonic)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -12963,17 +12976,18 @@ l:
 
 // HlAwk is $hlAwk.
 func (m *Machine) HlAwk() {
-	var streamRoot, c, c2, gap, lhs, v, hl, div, fn, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, v, hl, div, fn uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		div = rt.Ld32(m.Mem, 98068)
 		fn = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46424
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -12986,11 +13000,11 @@ func (m *Machine) HlAwk() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, div)
 				rt.St32(m.Mem, 98072, fn)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -13240,7 +13254,7 @@ func (m *Machine) BashDollar(quoted uint32) uint32 {
 	}
 	if m.LexIsIdentStart(c) && c != '$' {
 		m.ScanIdentRun(0)
-	} else if rt.B2u(c == '$')|m.BashIsSpecialParam(c) != 0 {
+	} else if c == '$' || m.BashIsSpecialParam(c) != 0 {
 		m.Ptr++
 	}
 	m.EmitTok(TokenVariable, lhs, m.Ptr)
@@ -13299,7 +13313,7 @@ func (m *Machine) BashDouble() {
 	lhs = m.Ptr
 	m.Ptr++
 	t0 = m.BashDoubleBody(lhs)
-	if !t0 && m.Streaming != 0 && m.Ptr == m.End {
+	if !t0 && m.Streaming && m.Ptr == m.End {
 		m.StreamMode = 12
 		m.StreamHl = TokenString
 	}
@@ -13375,7 +13389,7 @@ func (m *Machine) BashIsOp(c uint32) uint32 {
 // BashIsArrayOpen is $bashIsArrayOpen.
 func (m *Machine) BashIsArrayOpen(p uint32) uint32 {
 	var c uint32
-	if m.BashArith|rt.B2u(p < m.SrcBase+2) != 0 {
+	if m.BashArith != 0 || p < m.SrcBase+2 {
 		return 0
 	}
 	if m.Mem[p-1] != '=' {
@@ -13387,11 +13401,12 @@ func (m *Machine) BashIsArrayOpen(p uint32) uint32 {
 
 // HlBash is $hlBash.
 func (m *Machine) HlBash() {
-	var streamRoot, c, c2, cmd, flow, arrayOpen, decl, gap, group, hdDelim, hdLen, hdStrip, hl, joined, lhs, p, quote, rhs, liveRoot, t0, t1 uint32
+	var streamRoot, c, c2, cmd, flow, arrayOpen, decl, gap, group, hdDelim, hdLen, hdStrip, hl, joined, lhs, p, quote, rhs, t0, t1 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		cmd = rt.Ld32(m.Mem, 98068)
 		flow = rt.Ld32(m.Mem, 98072)
@@ -13402,7 +13417,7 @@ func (m *Machine) HlBash() {
 		hdStrip = rt.Ld32(m.Mem, 98092)
 		joined = rt.Ld32(m.Mem, 98096)
 	} else {
-		if rt.B2u(m.Streaming == 0)|m.StreamReset|m.StreamDepth != 0 {
+		if !m.Streaming || m.StreamReset|m.StreamDepth != 0 {
 			m.BashArith = 0
 		}
 		cmd = 1
@@ -13411,7 +13426,7 @@ func (m *Machine) HlBash() {
 			cmd = rt.B2u(c == '\n' || c == '\r')
 		}
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46432
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -13430,7 +13445,7 @@ func (m *Machine) HlBash() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, cmd)
 				rt.St32(m.Mem, 98072, flow)
@@ -13440,7 +13455,7 @@ next:
 				rt.St32(m.Mem, 98088, hdLen)
 				rt.St32(m.Mem, 98092, hdStrip)
 				rt.St32(m.Mem, 98096, joined)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -13836,12 +13851,13 @@ find:
 
 // HlBatch is $hlBatch.
 func (m *Machine) HlBatch() {
-	var streamRoot, c, lhs, p, n, hl, argument, quote, label, liveRoot uint32
+	var streamRoot, c, lhs, p, n, hl, argument, quote, label uint32
 	var variables uint64
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		argument = rt.Ld32(m.Mem, 98068)
 		quote = rt.Ld32(m.Mem, 98072)
@@ -13849,7 +13865,7 @@ func (m *Machine) HlBatch() {
 		variables = rt.Ld64(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46464
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -13864,13 +13880,13 @@ func (m *Machine) HlBatch() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, argument)
 				rt.St32(m.Mem, 98072, quote)
 				rt.St32(m.Mem, 98076, label)
 				rt.St64(m.Mem, 98080, variables)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -13942,7 +13958,7 @@ next:
 			m.LexLineComment(1, rt.Sel32(m.BatchByte(lhs+1) == ':', TokenComment, TokenLabel))
 			continue next
 		}
-		if rt.B2u(m.LexIsIdentStart(c))|label&rt.B2u(c == ':') != 0 {
+		if m.LexIsIdentStart(c) || label&rt.B2u(c == ':') != 0 {
 			m.Ptr = lhs + 1
 			m.LexScanIdent()
 			n = m.LexLowerCopy(lhs, m.Ptr, 1360)
@@ -14024,7 +14040,7 @@ wide:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(123)), rt.Eq8(w, rt.Splat8(125))), rt.Or(rt.Eq8(w, rt.Splat8(34)), rt.Eq8(w, rt.Splat8(92)))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		p += 16
@@ -14087,12 +14103,13 @@ scan:
 
 // HlBibtex is $hlBibtex.
 func (m *Machine) HlBibtex() {
-	var streamRoot, c, gap, lhs, length, state, kind, close_, open, liveRoot uint32
+	var streamRoot, c, gap, lhs, length, state, kind, close_, open uint32
 	var w uint64
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		state = rt.Ld32(m.Mem, 98068)
 		kind = rt.Ld32(m.Mem, 98072)
@@ -14100,7 +14117,7 @@ func (m *Machine) HlBibtex() {
 		open = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46488
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -14118,13 +14135,13 @@ func (m *Machine) HlBibtex() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, state)
 				rt.St32(m.Mem, 98072, kind)
 				rt.St32(m.Mem, 98076, close_)
 				rt.St32(m.Mem, 98080, open)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -14282,11 +14299,12 @@ scan:
 
 // HlBicep is $hlBicep.
 func (m *Machine) HlBicep() {
-	var streamRoot, c, c2, gap, lhs, rhs, pc, g, hl, atHead, interp, expect, head, member, liveRoot, t0, t1 uint32
+	var streamRoot, c, c2, gap, lhs, rhs, pc, g, hl, atHead, interp, expect, head, member, t0, t1 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		interp = rt.Ld32(m.Mem, 98068)
 		expect = rt.Ld32(m.Mem, 98072)
@@ -14295,7 +14313,7 @@ func (m *Machine) HlBicep() {
 	} else {
 		head = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46504
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -14310,13 +14328,13 @@ func (m *Machine) HlBicep() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, interp)
 				rt.St32(m.Mem, 98072, expect)
 				rt.St32(m.Mem, 98076, head)
 				rt.St32(m.Mem, 98080, member)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -14533,7 +14551,7 @@ scan:
 // PhpLineComment is $phpLineComment.
 func (m *Machine) PhpLineComment(skip uint32) {
 	var close_, lhs, lineEnd, saveEnd, stop uint32
-	if m.PhpHack != 0 {
+	if m.PhpHack {
 		m.LexLineComment(skip, TokenComment)
 		return
 	}
@@ -14566,7 +14584,7 @@ find:
 // PhpUpperName is $phpUpperName.
 func (m *Machine) PhpUpperName(lhs uint32, rhs uint32) uint32 {
 	var plain uint32
-	plain = rt.Sel32(m.PhpHack != 0, TokenType, TokenVariable)
+	plain = rt.Sel32(m.PhpHack, TokenType, TokenVariable)
 	if rhs+1 < m.End && rt.Ld16(m.Mem, rhs) == 14906 {
 		return TokenType
 	}
@@ -14724,7 +14742,7 @@ scan:
 	}
 	m.EmitTok(TokenString, body, m.End)
 	m.Ptr = m.End
-	if m.Streaming != 0 && n <= 32 {
+	if m.Streaming && n <= 32 {
 		rt.Copy(m.Mem, 13952, delim, n)
 		m.StreamMode = 14
 		m.StreamA = n
@@ -14820,7 +14838,7 @@ l:
 		}
 	}
 	m.EmitTok(TokenString, seg, m.Ptr)
-	if !status && m.Streaming != 0 && m.Ptr == m.Eof {
+	if !status && m.Streaming && m.Ptr == m.Eof {
 		m.StreamMode = 15
 	}
 	return status
@@ -14850,10 +14868,10 @@ token:
 		lhs = m.Ptr
 		c = uint32(m.Mem[m.Ptr])
 		next = rt.Sel32(m.Ptr+1 < m.End, uint32(m.Mem[m.Ptr+1]), 0)
-		if m.PhpHack == 0 && c == '?' && next == '>' {
+		if !m.PhpHack && c == '?' && next == '>' {
 			break token
 		}
-		if m.PhpHack != 0 && c == '<' {
+		if m.PhpHack && c == '<' {
 			p = m.TemplateByte(m.Ptr + 2)
 			if next == '?' && p == 104 && m.TemplateByte(m.Ptr+3) == 'h' {
 				m.Ptr += 4
@@ -14862,7 +14880,7 @@ token:
 			}
 			if next == '<' && ((p|32)-97 <= 25 || p == 95 || p >= 128) {
 				p = m.LexLineByteBefore(lhs)
-				if m.LexIsIdentContinue(p)|rt.B2u(p == 41 || p == 93) == 0 {
+				if !(m.LexIsIdentContinue(p) != 0 || p == 41 || p == 93) {
 					m.Ptr += 2
 					m.EmitTok(TokenAttribute, lhs, m.Ptr)
 					attr = 1
@@ -14907,7 +14925,7 @@ token:
 			if m.LexIsIdentStart(c) {
 				m.LexScanIdent()
 				hl = m.PhpWordHl(lhs, m.Ptr)
-				if m.PhpHack != 0 {
+				if m.PhpHack {
 					if hl == TokenVariable {
 						p = m.LexKeywordValue(lhs, m.Ptr, 58576, 7, 27)
 						if int32(p) >= 0 {
@@ -15001,7 +15019,7 @@ token:
 		decl = 0
 		member = 0
 	}
-	if m.Streaming != 0 {
+	if m.Streaming {
 		m.PhpStreamDecl = decl
 		m.PhpStreamMember = member
 	}
@@ -15071,9 +15089,9 @@ l:
 func (m *Machine) HlPhp() {
 	var streamRoot, snippet bool
 	var open, p, saveEnd uint32
-	m.LiveEntering = 0
+	m.LiveEntering = false
 	m.LexEmitLeadingContinuation()
-	if m.Streaming != 0 && m.StreamDepth == 0 {
+	if m.Streaming && m.StreamDepth == 0 {
 		m.StreamWindow = 46520
 		streamRoot = true
 		m.StreamDepth = rt.B2u(streamRoot)
@@ -15083,7 +15101,7 @@ func (m *Machine) HlPhp() {
 	snippet = false
 	open = m.PhpFindOpen(m.Ptr)
 	if open == m.End {
-		if m.Streaming != 0 && m.PhpStreamingCode == 2 {
+		if m.Streaming && m.PhpStreamingCode == 2 {
 			m.HlHtml()
 			if streamRoot {
 				m.StreamDepth = 0
@@ -15155,7 +15173,7 @@ simd:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(a)), rt.Eq8(w, rt.Splat8(b))), rt.Or(rt.Eq8(w, rt.Splat8(c)), rt.Eq8(w, rt.Splat8(d)))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break simd
 		}
 		p += 16
@@ -15321,7 +15339,7 @@ next:
 			p += rt.B2u(c == '/')
 			m.Ptr = p
 			m.EmitTok(TokenPunctuationBracketHtml, lhs, p)
-			kind = rt.Sel32(state&8 != 0, 5, rt.Sel32(rt.B2u(c == '/')|state&64 != 0, 4, 3))
+			kind = rt.Sel32(state&8 != 0, 5, rt.Sel32(c == '/' || state&64 != 0, 4, 3))
 			c = state >> 16
 			state = 0
 			if kind != 5 && c != 0 {
@@ -15407,13 +15425,13 @@ scan:
 
 // HlBlade is $hlBlade.
 func (m *Machine) HlBlade() {
-	var streamRoot, markup, php, phpMode, verbatim, c, depth, hl, kind, lhs, n, p, q, r, resumed, saveEnd, liveRoot uint32
-	var skip, t0 bool
+	var streamRoot, markup, php, phpMode, verbatim, c, depth, hl, kind, lhs, n, p, q, r, resumed, saveEnd uint32
+	var skip, liveRoot, t0 bool
 	var word uint64
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		markup = rt.Ld32(m.Mem, 98068)
 		php = rt.Ld32(m.Mem, 98072)
@@ -15422,7 +15440,7 @@ func (m *Machine) HlBlade() {
 		resumed = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46520
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -15468,14 +15486,14 @@ func (m *Machine) HlBlade() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, markup)
 				rt.St32(m.Mem, 98072, php)
 				rt.St32(m.Mem, 98076, phpMode)
 				rt.St32(m.Mem, 98080, verbatim)
 				rt.St32(m.Mem, 98084, resumed)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -15590,7 +15608,7 @@ next:
 					markup = markup&0xffff00e8 | 1
 				}
 				php = 0
-			} else if m.Streaming != 0 && m.Ptr == m.Eof {
+			} else if m.Streaming && m.Ptr == m.Eof {
 				phpMode = m.StreamMode
 				m.StreamMode = 0
 			}
@@ -15620,7 +15638,7 @@ next:
 					m.EmitTok(TokenKeyword, lhs, m.Ptr)
 					verbatim = 0
 					markup = 0
-				} else if m.Streaming != 0 && m.Ptr == m.Eof && m.StreamRegionKind == 0 {
+				} else if m.Streaming && m.Ptr == m.Eof && m.StreamRegionKind == 0 {
 					phpMode = m.StreamMode
 					m.StreamMode = 0
 				}
@@ -15771,16 +15789,17 @@ func (m *Machine) CIsOp(c uint32) uint32 {
 
 // HlC is $hlC.
 func (m *Machine) HlC() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, hl, strCont, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, hl, strCont uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		strCont = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46536
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -15793,10 +15812,10 @@ func (m *Machine) HlC() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, strCont)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -15862,7 +15881,7 @@ next:
 		}
 		if m.CIsOp(c) != 0 {
 			m.Ptr++
-			if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7)|rt.B2u(c == '-' && c2 == '>') != 0 {
+			if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 || (c == '-' && c2 == '>') {
 				m.Ptr++
 				if (c == '<' || c == '>') && c3 == '=' {
 					m.Ptr++
@@ -15878,7 +15897,7 @@ next:
 				break plain
 			}
 			c = uint32(m.Mem[m.Ptr])
-			if rt.B2u(m.LexIsIdentStart(c) || m.LexIsDigit(c))|m.CIsOp(c)|rt.B2u(c == '"' || c == '\'')|rt.B2u(m.LexIsSpace(c)) != 0 {
+			if m.LexIsIdentStart(c) || m.LexIsDigit(c) || m.CIsOp(c) != 0 || c == '"' || c == '\'' || m.LexIsSpace(c) {
 				break plain
 			}
 			m.Ptr++
@@ -15933,17 +15952,18 @@ func (m *Machine) C3IsOp(c uint32) uint32 {
 
 // HlC3 is $hlC3.
 func (m *Machine) HlC3() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46544
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -15956,11 +15976,11 @@ func (m *Machine) HlC3() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -16102,7 +16122,7 @@ next:
 		}
 		if m.C3IsOp(c) != 0 {
 			m.Ptr++
-			if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+2960])>>5)&1 != 0 {
+			if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+2960])>>5)&1 != 0 {
 				m.Ptr++
 				if (c == '<' || c == '>') && m.C3Byte(m.Ptr) == '=' {
 					m.Ptr++
@@ -16204,17 +16224,18 @@ l:
 
 // HlClojure is $hlClojure.
 func (m *Machine) HlClojure() {
-	var streamRoot, c, c2, gap, lhs, rhs, q, kind, hl, expect, head, liveRoot, t0 uint32
+	var streamRoot, c, c2, gap, lhs, rhs, q, kind, hl, expect, head, t0 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		head = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46552
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -16227,11 +16248,11 @@ func (m *Machine) HlClojure() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, head)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -16612,11 +16633,12 @@ l:
 
 // HlCmake is $hlCmake.
 func (m *Machine) HlCmake() {
-	var streamRoot, c, c2, gap, lhs, rhs, g, n, hl, depth, cond, setVar, strOpen, liveRoot, t2 uint32
+	var streamRoot, c, c2, gap, lhs, rhs, g, n, hl, depth, cond, setVar, strOpen, t2 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		depth = rt.Ld32(m.Mem, 98068)
 		cond = rt.Ld32(m.Mem, 98072)
@@ -16624,7 +16646,7 @@ func (m *Machine) HlCmake() {
 		strOpen = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46560
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -16639,13 +16661,13 @@ func (m *Machine) HlCmake() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, depth)
 				rt.St32(m.Mem, 98072, cond)
 				rt.St32(m.Mem, 98076, setVar)
 				rt.St32(m.Mem, 98080, strOpen)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -16837,19 +16859,19 @@ func (m *Machine) CobolSequenceArea(lhs uint32) uint32 {
 
 // HlCobol is $hlCobol.
 func (m *Machine) HlCobol() {
-	var streamRoot, c, c2, lhs, rhs, p, n, kind, hl, lim, outer, want, col, area, expect, liveRoot uint32
-	var first bool
+	var streamRoot, c, c2, lhs, rhs, p, n, kind, hl, lim, outer, want, col, area, expect uint32
+	var first, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		col = rt.Ld32(m.Mem, 98068)
 		area = rt.Ld32(m.Mem, 98072)
 		expect = rt.Ld32(m.Mem, 98076)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46576
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -16863,12 +16885,12 @@ func (m *Machine) HlCobol() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, col)
 				rt.St32(m.Mem, 98072, area)
 				rt.St32(m.Mem, 98076, expect)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -17082,16 +17104,17 @@ l:
 
 // HlCodeowners is $hlCodeowners.
 func (m *Machine) HlCodeowners() {
-	var streamRoot, c, lhs, gap, col, liveRoot uint32
+	var streamRoot, c, lhs, gap, col uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		col = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46592
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -17103,10 +17126,10 @@ func (m *Machine) HlCodeowners() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, col)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -17179,16 +17202,17 @@ next:
 
 // HlCodeql is $hlCodeql.
 func (m *Machine) HlCodeql() {
-	var streamRoot, c, c2, lhs, rhs, p, g, hl, was, expect, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, p, g, hl, was, expect uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46600
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -17200,10 +17224,10 @@ func (m *Machine) HlCodeql() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -17362,7 +17386,7 @@ scan:
 		}
 		if c == '\\' {
 			c = m.TemplateByte(m.Ptr + 1)
-			if (uint32(m.Mem[c+1424])>>2)&1|rt.B2u(m.Ptr+1 >= m.End) != 0 {
+			if (uint32(m.Mem[c+1424])>>2)&1 != 0 || m.Ptr+1 >= m.End {
 				continue scan
 			}
 			m.Ptr++
@@ -17493,12 +17517,12 @@ func (m *Machine) CoffeeJs(triple uint32) bool {
 
 // HlCoffee is $hlCoffee.
 func (m *Machine) HlCoffee() {
-	var streamRoot, c, c2, gap, hl, lhs, p, v, lq, iq, depth, prev, member, decl, params, param, divide, liveRoot, t0 uint32
-	var t1, t3, t4, t5 bool
+	var streamRoot, c, c2, gap, hl, lhs, p, v, lq, iq, depth, prev, member, decl, params, param, divide, t0 uint32
+	var liveRoot, t1, t3, t4, t5 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		lq = rt.Ld32(m.Mem, 98068)
 		iq = rt.Ld32(m.Mem, 98072)
@@ -17511,7 +17535,7 @@ func (m *Machine) HlCoffee() {
 		divide = rt.Ld32(m.Mem, 98100)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46608
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -17531,7 +17555,7 @@ func (m *Machine) HlCoffee() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, lq)
 				rt.St32(m.Mem, 98072, iq)
@@ -17542,7 +17566,7 @@ next:
 				rt.St32(m.Mem, 98092, params)
 				rt.St32(m.Mem, 98096, param)
 				rt.St32(m.Mem, 98100, divide)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -17652,7 +17676,7 @@ next:
 				m.LexScanIdent()
 				prev = 2
 				v = 0xffffffff
-				if member|rt.B2u(c == '@') == 0 {
+				if !(member != 0 || c == '@') {
 					v = m.LexKeywordValue(lhs, m.Ptr, 30656, 15, 56)
 				}
 				if v != 0xffffffff {
@@ -17815,19 +17839,19 @@ func (m *Machine) CoqWordKind(lhs uint32, rhs uint32) uint32 {
 
 // HlCoq is $hlCoq.
 func (m *Machine) HlCoq() {
-	var streamRoot, c, c2, lhs, rhs, gap, kind, hl, expect, mid, attr, liveRoot uint32
-	var cap_ bool
+	var streamRoot, c, c2, lhs, rhs, gap, kind, hl, expect, mid, attr uint32
+	var cap_, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		mid = rt.Ld32(m.Mem, 98072)
 		attr = rt.Ld32(m.Mem, 98076)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46648
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -17841,12 +17865,12 @@ func (m *Machine) HlCoq() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, mid)
 				rt.St32(m.Mem, 98076, attr)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -17954,14 +17978,14 @@ next:
 		if c == ',' || c == ';' {
 			hl = TokenPunctuationDelimiter
 		}
-		if (uint32(m.Mem[c+3216])>>3)&1|rt.B2u(c == '@') != 0 {
+		if (uint32(m.Mem[c+3216])>>3)&1 != 0 || c == '@' {
 		op:
 			for {
 				if m.Ptr >= m.End {
 					break op
 				}
 				c2 = uint32(m.Mem[m.Ptr])
-				if (uint32(m.Mem[c2+3216])>>3)&1|rt.B2u(c2 == '@') == 0 {
+				if !((uint32(m.Mem[c2+3216])>>3)&1 != 0 || c2 == '@') {
 					break op
 				}
 				m.Ptr++
@@ -17981,7 +18005,7 @@ next:
 		if expect-1 <= 2 {
 			expect = 0
 		}
-		if mid|rt.B2u(!(hl == TokenPunctuationListMarker || c == '{' || c == '}')) != 0 {
+		if mid != 0 || !(hl == TokenPunctuationListMarker || c == '{' || c == '}') {
 			mid = 1
 		}
 		m.EmitTok(hl, lhs, m.Ptr)
@@ -18177,12 +18201,12 @@ func (m *Machine) HlCpp() {
 
 // HlCppImpl is $hlCppImpl.
 func (m *Machine) HlCppImpl(cuda uint32) {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, midLine, expectType, member, strCont, contDirective, liveRoot, t0, t1 uint32
-	var t2, t3 bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, midLine, expectType, member, strCont, contDirective, t0, t1 uint32
+	var liveRoot, t2, t3 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		cuda = rt.Ld32(m.Mem, 98064)
 		streamRoot = rt.Ld32(m.Mem, 98068)
 		midLine = rt.Ld32(m.Mem, 98072)
@@ -18192,7 +18216,7 @@ func (m *Machine) HlCppImpl(cuda uint32) {
 		contDirective = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46664
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -18219,7 +18243,7 @@ func (m *Machine) HlCppImpl(cuda uint32) {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, cuda)
 				rt.St32(m.Mem, 98068, streamRoot)
 				rt.St32(m.Mem, 98072, midLine)
@@ -18227,7 +18251,7 @@ next:
 				rt.St32(m.Mem, 98080, member)
 				rt.St32(m.Mem, 98084, strCont)
 				rt.St32(m.Mem, 98088, contDirective)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -18303,11 +18327,11 @@ next:
 								hl = rt.Sel32(expectType == 1, TokenTypeClass, rt.Sel32(expectType == 3, TokenNamespace, TokenType))
 								expectType = 0
 							}
-						} else if rt.B2u(c2 == '(')|cuda&rt.B2u(p+3 <= m.End && rt.Ld32(m.Mem, p)&0xffffff == 0x3c3c3c) != 0 {
+						} else if c2 == '(' || cuda&rt.B2u(p+3 <= m.End && rt.Ld32(m.Mem, p)&0xffffff == 0x3c3c3c) != 0 {
 							hl = rt.Sel32(member != 0, TokenFunctionMethod, TokenFunction)
 						} else if member == 1 {
 							hl = TokenProperty
-						} else if rt.B2u(member == 2)|c3 != 0 {
+						} else if member == 2 || c3 != 0 {
 							hl = rt.Sel32(c3 != 0, TokenNamespace, TokenType)
 						} else if c2 == ':' {
 							hl = TokenLabel
@@ -18399,7 +18423,7 @@ next:
 						break plain
 					}
 					c = uint32(m.Mem[m.Ptr])
-					if rt.B2u(m.LexIsSpace(c) || m.LexIsIdentStart(c))|rt.B2u(m.LexIsDigit(c))|m.CppIsOp(c)|(uint32(m.Mem[c+3216])>>4)&1 != 0 {
+					if m.LexIsSpace(c) || m.LexIsIdentStart(c) || m.LexIsDigit(c) || m.CppIsOp(c) != 0 || (uint32(m.Mem[c+3216])>>4)&1 != 0 {
 						break plain
 					}
 					m.Ptr++
@@ -18567,11 +18591,12 @@ func (m *Machine) CsIsOp(c uint32) uint32 {
 
 // HlCsharp is $hlCsharp.
 func (m *Machine) HlCsharp() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, strKind, seg, interp, interpKind, interpDepth, status, lineHead, atHead, ctx, wasHead, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, strKind, seg, interp, interpKind, interpDepth, status, lineHead, atHead, ctx, wasHead uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -18586,7 +18611,7 @@ func (m *Machine) HlCsharp() {
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46688
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -18607,7 +18632,7 @@ func (m *Machine) HlCsharp() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
@@ -18619,7 +18644,7 @@ next:
 				rt.St32(m.Mem, 98096, interpDepth)
 				rt.St32(m.Mem, 98100, lineHead)
 				rt.St32(m.Mem, 98104, ctx)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -18883,7 +18908,7 @@ next:
 			m.Ptr++
 			if c == '=' && c2 == '>' {
 				m.Ptr++
-			} else if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+3216])>>6)&1 != 0 {
+			} else if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+3216])>>6)&1 != 0 {
 				m.Ptr++
 				if (c == '>' || c == '?') && (m.CsByte(m.Ptr) == '>' || m.CsByte(m.Ptr) == '=') {
 					m.Ptr++
@@ -18950,11 +18975,12 @@ func (m *Machine) CsvColumnTok(col uint32) uint32 {
 
 // HlCsvImpl is $hlCsvImpl.
 func (m *Machine) HlCsvImpl(delim uint32, quoting uint32) {
-	var streamRoot, c, col, lhs, p, quoted, tok, liveRoot uint32
+	var streamRoot, c, col, lhs, p, quoted, tok uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		delim = rt.Ld32(m.Mem, 98064)
 		quoting = rt.Ld32(m.Mem, 98068)
 		streamRoot = rt.Ld32(m.Mem, 98072)
@@ -18962,7 +18988,7 @@ func (m *Machine) HlCsvImpl(delim uint32, quoting uint32) {
 		quoted = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46728
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -18975,13 +19001,13 @@ func (m *Machine) HlCsvImpl(delim uint32, quoting uint32) {
 field:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, delim)
 				rt.St32(m.Mem, 98068, quoting)
 				rt.St32(m.Mem, 98072, streamRoot)
 				rt.St32(m.Mem, 98076, col)
 				rt.St32(m.Mem, 98080, quoted)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -19051,17 +19077,18 @@ func (m *Machine) HlCuda() {
 
 // HlCypher is $hlCypher.
 func (m *Machine) HlCypher() {
-	var streamRoot, c, c2, lhs, rhs, p, g, hl, was, maps, label, liveRoot, t0 uint32
+	var streamRoot, c, c2, lhs, rhs, p, g, hl, was, maps, label, t0 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		maps = rt.Ld32(m.Mem, 98068)
 		label = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46736
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -19074,11 +19101,11 @@ func (m *Machine) HlCypher() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, maps)
 				rt.St32(m.Mem, 98072, label)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -19265,7 +19292,7 @@ func (m *Machine) DDelimitedString() {
 	var lhs, close_, p uint32
 	lhs = m.Ptr
 	close_ = m.TemplateByte(lhs + 2)
-	if m.LexIsIdentContinue(close_)|rt.B2u(close_ <= ' ') != 0 {
+	if m.LexIsIdentContinue(close_) != 0 || close_ <= ' ' {
 		m.Ptr = lhs + 1
 		m.EmitTok(TokenString, lhs, m.Ptr)
 		m.LexRawString(34, 1, TokenString)
@@ -19299,12 +19326,12 @@ find:
 
 // HlD is $hlD.
 func (m *Machine) HlD() {
-	var streamRoot, c, c2, c3, lhs, rhs, gap, hl, kind, expect, dq, qDepth, afterType, member, liveRoot uint32
-	var t0, t2 bool
+	var streamRoot, c, c2, c3, lhs, rhs, gap, hl, kind, expect, dq, qDepth, afterType, member uint32
+	var liveRoot, t0, t2 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		dq = rt.Ld32(m.Mem, 98072)
@@ -19313,7 +19340,7 @@ func (m *Machine) HlD() {
 		member = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46744
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -19329,14 +19356,14 @@ func (m *Machine) HlD() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, dq)
 				rt.St32(m.Mem, 98076, qDepth)
 				rt.St32(m.Mem, 98080, afterType)
 				rt.St32(m.Mem, 98084, member)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -19632,11 +19659,12 @@ func (m *Machine) DartIsOp(c uint32) uint32 {
 
 // HlDart is $hlDart.
 func (m *Machine) HlDart() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, strKind, seg, interp, interpKind, status, g, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, strKind, seg, interp, interpKind, status, g uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -19647,7 +19675,7 @@ func (m *Machine) HlDart() {
 		interpKind = rt.Ld32(m.Mem, 98092)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46760
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -19665,7 +19693,7 @@ func (m *Machine) HlDart() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
@@ -19674,7 +19702,7 @@ next:
 				rt.St32(m.Mem, 98084, seg)
 				rt.St32(m.Mem, 98088, interp)
 				rt.St32(m.Mem, 98092, interpKind)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -19873,7 +19901,7 @@ next:
 				if c == '~' && c3 == '=' {
 					m.Ptr++
 				}
-			} else if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+3216])>>6)&1 != 0 {
+			} else if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+3216])>>6)&1 != 0 {
 				m.Ptr++
 				if (c == '>' || c == '?') && (c3 == '>' || c3 == '=') {
 					m.Ptr++
@@ -19922,15 +19950,16 @@ next:
 
 // HlDax is $hlDax.
 func (m *Machine) HlDax() {
-	var streamRoot, c, c2, lhs, rhs, p, n, v, hl, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, p, n, v, hl uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46792
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -19941,9 +19970,9 @@ func (m *Machine) HlDax() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -20078,15 +20107,16 @@ l:
 
 // HlDiff is $hlDiff.
 func (m *Machine) HlDiff() {
-	var streamRoot, c, lhs, lineEnd, p, tok, length, hl, liveRoot uint32
+	var streamRoot, c, lhs, lineEnd, p, tok, length, hl uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46792
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -20097,9 +20127,9 @@ func (m *Machine) HlDiff() {
 line:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -20507,12 +20537,12 @@ func (m *Machine) DockerIsShellOp(c uint32) uint32 {
 
 // HlDockerfile is $hlDockerfile.
 func (m *Machine) HlDockerfile() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, lineHead, inst, cmdHead, hdLen, hdDelim, liveRoot, t4, t7 uint32
-	var name, hdStrip, t6 bool
+	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, lineHead, inst, cmdHead, hdLen, hdDelim, t4, t7 uint32
+	var name, hdStrip, liveRoot, t6 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		lineHead = rt.Ld32(m.Mem, 98068)
 		inst = rt.Ld32(m.Mem, 98072)
@@ -20522,7 +20552,7 @@ func (m *Machine) HlDockerfile() {
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46792
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -20538,14 +20568,14 @@ func (m *Machine) HlDockerfile() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, lineHead)
 				rt.St32(m.Mem, 98072, inst)
 				rt.St32(m.Mem, 98076, cmdHead)
 				rt.St32(m.Mem, 98080, hdLen)
 				rt.St32(m.Mem, 98084, hdDelim)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -20817,18 +20847,18 @@ l:
 
 // HlDotenv is $hlDotenv.
 func (m *Machine) HlDotenv() {
-	var streamRoot, c, lhs, gap, p, rhs, line, open, liveRoot, t1 uint32
-	var t2 bool
+	var streamRoot, c, lhs, gap, p, rhs, line, open, t1 uint32
+	var liveRoot, t2 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		line = rt.Ld32(m.Mem, 98068)
 		open = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46816
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -20846,11 +20876,11 @@ func (m *Machine) HlDotenv() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, line)
 				rt.St32(m.Mem, 98072, open)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -21104,11 +21134,12 @@ func (m *Machine) ExIsOp(c uint32) uint32 {
 
 // HlElixir is $hlElixir.
 func (m *Machine) HlElixir() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, decl, member, wasMember, docAttr, interp, lit, depth, iLit, iDepth, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, decl, member, wasMember, docAttr, interp, lit, depth, iLit, iDepth uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		decl = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -21120,7 +21151,7 @@ func (m *Machine) HlElixir() {
 		iDepth = rt.Ld32(m.Mem, 98096)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46824
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -21139,7 +21170,7 @@ func (m *Machine) HlElixir() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, decl)
 				rt.St32(m.Mem, 98072, member)
@@ -21149,7 +21180,7 @@ next:
 				rt.St32(m.Mem, 98088, depth)
 				rt.St32(m.Mem, 98092, iLit)
 				rt.St32(m.Mem, 98096, iDepth)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -21165,7 +21196,7 @@ next:
 				iDepth = depth
 				interp = 1
 				lit = 0
-			} else if rt.B2u(status == 1)|lit&0x100000 != 0 {
+			} else if status == 1 || lit&0x100000 != 0 {
 				lit = 0
 			}
 			continue next
@@ -21421,11 +21452,12 @@ func (m *Machine) ElmByte(p uint32) uint32 {
 
 // HlElm is $hlElm.
 func (m *Machine) HlElm() {
-	var streamRoot, c, c2, gap, lhs, rhs, hl, kind, expect, import_, member, midLine, quote, triple, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, hl, kind, expect, import_, member, midLine, quote, triple uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		import_ = rt.Ld32(m.Mem, 98072)
@@ -21435,7 +21467,7 @@ func (m *Machine) HlElm() {
 		triple = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46856
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -21452,7 +21484,7 @@ func (m *Machine) HlElm() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, import_)
@@ -21460,7 +21492,7 @@ next:
 				rt.St32(m.Mem, 98080, midLine)
 				rt.St32(m.Mem, 98084, quote)
 				rt.St32(m.Mem, 98088, triple)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -21809,11 +21841,12 @@ func (m *Machine) RubyIsOp(c uint32) uint32 {
 
 // HlRuby is $hlRuby.
 func (m *Machine) HlRuby() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, operand, decl, member, lineHead, atHead, seg, interp, sActive, sClose, sOpen, sDepth, sFlags, iClose, iOpen, iDepth, iFlags, hdLen, hdDelim, hdStrip, data, liveRoot, t1, t2, t3, t4, t5, t6, t7, t8 uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, operand, decl, member, lineHead, atHead, seg, interp, sActive, sClose, sOpen, sDepth, sFlags, iClose, iOpen, iDepth, iFlags, hdLen, hdDelim, hdStrip, data, t1, t2, t3, t4, t5, t6, t7, t8 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		operand = rt.Ld32(m.Mem, 98068)
 		decl = rt.Ld32(m.Mem, 98072)
@@ -21838,7 +21871,7 @@ func (m *Machine) HlRuby() {
 		lineHead = 1
 		operand = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46880
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -21868,7 +21901,7 @@ func (m *Machine) HlRuby() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, operand)
 				rt.St32(m.Mem, 98072, decl)
@@ -21889,7 +21922,7 @@ next:
 				rt.St32(m.Mem, 98132, hdDelim)
 				rt.St32(m.Mem, 98136, hdStrip)
 				rt.St32(m.Mem, 98140, data)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -21939,7 +21972,7 @@ next:
 				sActive = 0
 				seg = 0
 				operand = 1
-			} else if rt.B2u(status == 1)|sFlags&8 != 0 {
+			} else if status == 1 || sFlags&8 != 0 {
 				sActive = 0
 				seg = 0
 				operand = 0
@@ -22278,11 +22311,11 @@ next:
 					}
 				}
 			}
-			if m.RubyIsOp(c)|rt.B2u(c == '.') != 0 {
+			if m.RubyIsOp(c) != 0 || c == '.' {
 			op2:
 				for {
 					c2 = m.RubyByte(m.Ptr)
-					if m.RubyIsOp(c2)|rt.B2u(c2 == '.') == 0 {
+					if !(m.RubyIsOp(c2) != 0 || c2 == '.') {
 						break op2
 					}
 					m.Ptr++
@@ -22427,11 +22460,11 @@ func (m *Machine) ErbBody(state uint32) bool {
 		saveDepth = m.StreamDepth
 		saveReset = m.StreamReset
 		m.End = code
-		if m.Streaming != 0 && open && code == m.Eof {
+		if m.Streaming && open && code == m.Eof {
 			m.StreamDepth = 0
 			m.StreamReset = saveReset | rt.B2u(m.StreamRegionKind != 27)
 		}
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			if m.StreamReset == 0 {
 				if m.StreamResumeCommon() {
 					m.End = save
@@ -22439,7 +22472,7 @@ func (m *Machine) ErbBody(state uint32) bool {
 					m.StreamReset = saveReset
 					m.Ptr = rt.Sel32(open, m.End, close_+2)
 					m.EmitTok(TokenPunctuationSpecial, code, m.Ptr)
-					if open && m.Streaming != 0 {
+					if open && m.Streaming {
 						if m.Ptr == m.Eof {
 							m.StreamSetRegion(27)
 							m.StreamC = state
@@ -22456,7 +22489,7 @@ func (m *Machine) ErbBody(state uint32) bool {
 		m.Ptr = rt.Sel32(open, m.End, close_+2)
 		m.EmitTok(TokenPunctuationSpecial, code, m.Ptr)
 	}
-	if open && m.Streaming != 0 {
+	if open && m.Streaming {
 		if m.Ptr == m.Eof {
 			m.StreamSetRegion(27)
 			m.StreamC = state
@@ -22515,16 +22548,17 @@ next:
 
 // HlErb is $hlErb.
 func (m *Machine) HlErb() {
-	var streamRoot, from, p, save, tag, liveRoot uint32
+	var streamRoot, from, p, save, tag uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		from = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46960
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -22536,10 +22570,10 @@ func (m *Machine) HlErb() {
 scan:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, from)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -22641,18 +22675,19 @@ func (m *Machine) ErlIsOp(c uint32) uint32 {
 
 // HlErlang is $hlErlang.
 func (m *Machine) HlErlang() {
-	var streamRoot, c, c2, c3, gap, lhs, tok, rhs, p, g, hl, col0, atCol0, attr, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, tok, rhs, p, g, hl, col0, atCol0, attr uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		col0 = rt.Ld32(m.Mem, 98068)
 		attr = rt.Ld32(m.Mem, 98072)
 	} else {
 		col0 = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46960
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -22665,11 +22700,11 @@ func (m *Machine) HlErlang() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, col0)
 				rt.St32(m.Mem, 98072, attr)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -22812,11 +22847,11 @@ next:
 					m.Ptr += rt.Sel32(c2 == ':', 2, 1)
 					tok = rt.Sel32(c2 == ':', TokenOperator, TokenPunctuationDelimiter)
 				} else {
-					if m.ErlIsOp(c)|rt.B2u(c == '.') != 0 {
+					if m.ErlIsOp(c) != 0 || c == '.' {
 					op:
 						for {
 							p = m.TemplateByte(m.Ptr)
-							if m.ErlIsOp(p)|rt.B2u(p == 46 || p == 58) == 0 {
+							if !(m.ErlIsOp(p) != 0 || p == 46 || p == 58) {
 								break op
 							}
 							if m.Ptr > lhs && (rt.Ld16(m.Mem, m.Ptr)&65535 == 15420 || rt.Ld16(m.Mem, m.Ptr)&65535 == 15934) {
@@ -22869,7 +22904,7 @@ func (m *Machine) FishVariable() bool {
 		for {
 			p++
 			c = m.TemplateByte(p)
-			if m.LexIsIdentContinue(c)|rt.B2u(c-45 <= 1) == 0 {
+			if !(m.LexIsIdentContinue(c) != 0 || c-45 <= 1) {
 				break
 			}
 		}
@@ -22905,7 +22940,7 @@ l:
 		if c == '\\' {
 			c = m.TemplateByte(p + 1)
 			m.Ptr = p + 1
-			if rt.B2u(c == '\\' || c == q)|rt.B2u(q == '"')&(rt.B2u(c == '$')|(uint32(m.Mem[c+1424])>>2)&1) == 0 {
+			if !(c == '\\' || c == q || rt.B2u(q == '"')&(rt.B2u(c == '$')|(uint32(m.Mem[c+1424])>>2)&1) != 0) {
 				continue l
 			}
 			m.EmitTok(TokenString, seg, p)
@@ -22929,20 +22964,21 @@ l:
 
 // HlFish is $hlFish.
 func (m *Machine) HlFish() {
-	var streamRoot, c, c2, gap, lhs, rhs, v, hl, head, cmd, expect, str, bits, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, v, hl, head, cmd, expect, str, bitSet uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		cmd = rt.Ld32(m.Mem, 98068)
 		expect = rt.Ld32(m.Mem, 98072)
 		str = rt.Ld32(m.Mem, 98076)
-		bits = rt.Ld32(m.Mem, 98080)
+		bitSet = rt.Ld32(m.Mem, 98080)
 	} else {
 		cmd = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46968
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -22950,20 +22986,20 @@ func (m *Machine) HlFish() {
 				cmd = rt.Ld32(m.Mem, m.StreamWindow)
 				expect = rt.Ld32(m.Mem, m.StreamWindow+4)
 				str = rt.Ld32(m.Mem, m.StreamWindow+8)
-				bits = rt.Ld32(m.Mem, m.StreamWindow+12)
+				bitSet = rt.Ld32(m.Mem, m.StreamWindow+12)
 			}
 		}
 	}
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, cmd)
 				rt.St32(m.Mem, 98072, expect)
 				rt.St32(m.Mem, 98076, str)
-				rt.St32(m.Mem, 98080, bits)
-				m.LiveSuspended = 1
+				rt.St32(m.Mem, 98080, bitSet)
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -22977,7 +23013,7 @@ next:
 				lhs = m.Ptr
 				m.Ptr = lhs + 2
 				m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
-				bits = bits<<1 | 1
+				bitSet = bitSet<<1 | 1
 				cmd = 1
 			}
 			continue next
@@ -23012,7 +23048,7 @@ next:
 			if c2 == '(' {
 				m.Ptr = lhs + 2
 				m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
-				bits <<= 1
+				bitSet <<= 1
 				cmd = 1
 				continue next
 			}
@@ -23045,14 +23081,14 @@ next:
 			m.Ptr = lhs + 1
 			hl = TokenPunctuationBracket
 			if c == '(' {
-				bits <<= 1
+				bitSet <<= 1
 			}
 			if c == ')' {
-				if bits&1 != 0 {
+				if bitSet&1 != 0 {
 					str = 34
 					hl = TokenPunctuationSpecial
 				}
-				bits >>= 1
+				bitSet >>= 1
 			}
 			cmd = rt.B2u(c == '(')
 			expect = 0
@@ -23141,7 +23177,7 @@ next:
 		rt.St32(m.Mem, m.StreamWindow, cmd)
 		rt.St32(m.Mem, m.StreamWindow+4, expect)
 		rt.St32(m.Mem, m.StreamWindow+8, str)
-		rt.St32(m.Mem, m.StreamWindow+12, bits)
+		rt.St32(m.Mem, m.StreamWindow+12, bitSet)
 		if m.StreamStateLo > 744 {
 			m.StreamStateLo = 744
 		}
@@ -23190,11 +23226,12 @@ func (m *Machine) FortranFixedLineKind(p uint32) uint32 {
 
 // HlFortranImpl is $hlFortranImpl.
 func (m *Machine) HlFortranImpl() {
-	var streamRoot, c, c2, lhs, rhs, p, colBase, column, n, hl, kind, expect, member, quote, continued, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, p, colBase, column, n, hl, kind, expect, member, quote, continued uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		colBase = rt.Ld32(m.Mem, 98068)
 		expect = rt.Ld32(m.Mem, 98072)
@@ -23203,7 +23240,7 @@ func (m *Machine) HlFortranImpl() {
 		continued = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 46984
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -23220,14 +23257,14 @@ func (m *Machine) HlFortranImpl() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, colBase)
 				rt.St32(m.Mem, 98072, expect)
 				rt.St32(m.Mem, 98076, member)
 				rt.St32(m.Mem, 98080, quote)
 				rt.St32(m.Mem, 98084, continued)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -23263,7 +23300,7 @@ next:
 			colBase = m.Ptr
 			member = 0
 			if continued == 0 {
-				if m.FortranFixed != 0 && quote != 0 {
+				if m.FortranFixed && quote != 0 {
 					continued = 2
 				} else {
 					quote = 0
@@ -23312,7 +23349,7 @@ next:
 					if c == '&' {
 						p = m.LexSkipSpaceAt(m.Ptr + 1)
 						c2 = m.TemplateByte(p)
-						if rt.B2u(p >= m.End)|(uint32(m.Mem[c2+3728])>>1)&1 != 0 {
+						if p >= m.End || (uint32(m.Mem[c2+3728])>>1)&1 != 0 {
 							m.EmitTok(TokenString, lhs, m.Ptr)
 							lhs = m.Ptr
 							m.Ptr++
@@ -23328,7 +23365,7 @@ next:
 			m.EmitTok(TokenString, lhs, m.Ptr)
 			continue next
 		}
-		if m.FortranFixed != 0 && lhs == colBase {
+		if m.FortranFixed && lhs == colBase {
 			if c == '*' || c|32 == 99 {
 				m.LexLineComment(1, TokenComment)
 				continue next
@@ -23441,13 +23478,13 @@ next:
 
 // HlFortran is $hlFortran.
 func (m *Machine) HlFortran() {
-	m.FortranFixed = 0
+	m.FortranFixed = false
 	m.HlFortranImpl()
 }
 
 // HlFortranFixed is $hlFortranFixed.
 func (m *Machine) HlFortranFixed() {
-	m.FortranFixed = 1
+	m.FortranFixed = true
 	m.HlFortranImpl()
 }
 
@@ -23481,12 +23518,12 @@ func (m *Machine) MlIsSymbol(c uint32) uint32 {
 
 // HlOcaml is $hlOcaml.
 func (m *Machine) HlOcaml() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, q, kind, hl, expect, member, typeMode, n, afterValue, lastModule, liveRoot, t0, t2, t3, t4 uint32
-	var t1 bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, q, kind, hl, expect, member, typeMode, n, afterValue, lastModule, t0, t2, t3, t4 uint32
+	var liveRoot, t1 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -23495,7 +23532,7 @@ func (m *Machine) HlOcaml() {
 		lastModule = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47008
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -23511,14 +23548,14 @@ func (m *Machine) HlOcaml() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, typeMode)
 				rt.St32(m.Mem, 98080, afterValue)
 				rt.St32(m.Mem, 98084, lastModule)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -23661,7 +23698,7 @@ next:
 				typeMode = rt.B2u(rhs-lhs == 2 && rt.Ld16(m.Mem, lhs) == 26223)
 			} else if uint32(m.Mem[lhs])-65 <= 25 {
 				lastModule = rt.B2u(m.MlByte(rhs) == '.')
-				hl = rt.Sel32(lastModule|rt.B2u(expect == 3) != 0, TokenNamespace, TokenConstructor)
+				hl = rt.Sel32(lastModule != 0 || expect == 3, TokenNamespace, TokenConstructor)
 				if expect == 2 {
 					hl = TokenType
 				}
@@ -23739,7 +23776,7 @@ next:
 					if m.Ptr >= m.End {
 						break symbol
 					}
-					if m.MlIsSymbol(uint32(m.Mem[m.Ptr]))|rt.B2u(m.Mem[m.Ptr] == '.') == 0 {
+					if !(m.MlIsSymbol(uint32(m.Mem[m.Ptr])) != 0 || m.Mem[m.Ptr] == '.') {
 						break symbol
 					}
 					if m.Mem[m.Ptr] == '(' && m.MlByte(m.Ptr+1) == '*' {
@@ -23854,7 +23891,7 @@ func (m *Machine) MlIsArgAt(p uint32) bool {
 	}
 	e = m.MlIdEnd(p)
 	c = m.MlByte(e)
-	if m.LexIsIdentContinue(c)|rt.B2u(c == '\'') != 0 {
+	if m.LexIsIdentContinue(c) != 0 || c == '\'' {
 		return true
 	}
 	kind = m.MlWordHl(p, e)
@@ -23995,7 +24032,7 @@ l:
 		if p >= m.End {
 			break l
 		}
-		if m.LexIsIdentContinue(uint32(m.Mem[p]))|rt.B2u(m.Mem[p] == '\'') == 0 {
+		if !(m.LexIsIdentContinue(uint32(m.Mem[p])) != 0 || m.Mem[p] == '\'') {
 			break l
 		}
 		p++
@@ -24034,11 +24071,12 @@ func (m *Machine) FsIsArgAt(p uint32, c uint32) bool {
 
 // HlFsharp is $hlFsharp.
 func (m *Machine) HlFsharp() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, arg_, kind, hl, status, n, strKind, seg, interp, interpKind, expect, member, typeMode, afterValue, lastModule, attr, liveRoot, t1, t2 uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, arg_, kind, hl, status, n, strKind, seg, interp, interpKind, expect, member, typeMode, afterValue, lastModule, attr, t1, t2 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		strKind = rt.Ld32(m.Mem, 98068)
 		seg = rt.Ld32(m.Mem, 98072)
@@ -24052,7 +24090,7 @@ func (m *Machine) HlFsharp() {
 		attr = rt.Ld32(m.Mem, 98104)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47032
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -24073,7 +24111,7 @@ func (m *Machine) HlFsharp() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, strKind)
 				rt.St32(m.Mem, 98072, seg)
@@ -24085,7 +24123,7 @@ next:
 				rt.St32(m.Mem, 98096, afterValue)
 				rt.St32(m.Mem, 98100, lastModule)
 				rt.St32(m.Mem, 98104, attr)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -24205,7 +24243,7 @@ next:
 		if c == '`' && c2 == '`' {
 			n = m.FsTickIdEnd(m.Ptr)
 		}
-		if n|rt.B2u(m.LexIsIdentStart(c) && c != '$') != 0 {
+		if n != 0 || (m.LexIsIdentStart(c) && c != '$') {
 			if n != 0 {
 				m.Ptr = n
 			} else {
@@ -24233,7 +24271,7 @@ next:
 				} else if uint32(m.Mem[lhs])-65 <= 25 {
 					lastModule = rt.B2u(m.FsByte(rhs) == '.')
 					hl = TokenConstructor
-					if typeMode|rt.B2u(expect == 2) != 0 {
+					if typeMode != 0 || expect == 2 {
 						hl = TokenType
 					}
 					if lastModule&rt.B2u(member == 0) != 0 {
@@ -24346,7 +24384,7 @@ next:
 				if m.Ptr >= m.End {
 					break symbol
 				}
-				if m.MlIsSymbol(uint32(m.Mem[m.Ptr]))|rt.B2u(m.Mem[m.Ptr] == '.') == 0 {
+				if !(m.MlIsSymbol(uint32(m.Mem[m.Ptr])) != 0 || m.Mem[m.Ptr] == '.') {
 					break symbol
 				}
 				if m.Mem[m.Ptr] == '/' && m.FsByte(m.Ptr+1) == '/' {
@@ -24493,7 +24531,7 @@ func (m *Machine) PyString(prefix uint32, quote uint32, raw uint32, format uint3
 		m.Ptr++
 	}
 	status = m.PyStringBody(quote, raw, format, rt.B2u(triple), rt.B2u(triple), 0, seg, 0)
-	if m.Streaming != 0 && m.Ptr == m.End && status&3 != 1 && (triple || status&3 == 2) {
+	if m.Streaming && m.Ptr == m.End && status&3 != 1 && (triple || status&3 == 2) {
 		m.StreamMode = 10
 		m.StreamA = quote
 		m.StreamB = raw | format<<1 | rt.B2u(triple)<<2
@@ -24557,11 +24595,12 @@ func (m *Machine) PyIsOp(c uint32) uint32 {
 
 // HlPython is $hlPython.
 func (m *Machine) HlPython() {
-	var streamRoot, afterDecl, afterDot, annotName, brackDepth, c, c2, g, gap, hl, lhs, lineHead, p, q, typeNext, liveRoot, t0 uint32
+	var streamRoot, afterDecl, afterDot, annotName, brackDepth, c, c2, g, gap, hl, lhs, lineHead, p, q, typeNext, t0 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		afterDecl = rt.Ld32(m.Mem, 98068)
 		afterDot = rt.Ld32(m.Mem, 98072)
@@ -24571,7 +24610,7 @@ func (m *Machine) HlPython() {
 		typeNext = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47072
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -24588,7 +24627,7 @@ func (m *Machine) HlPython() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, afterDecl)
 				rt.St32(m.Mem, 98072, afterDot)
@@ -24596,7 +24635,7 @@ next:
 				rt.St32(m.Mem, 98080, brackDepth)
 				rt.St32(m.Mem, 98084, lineHead)
 				rt.St32(m.Mem, 98088, typeNext)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -24633,7 +24672,7 @@ next:
 					break decorator
 				}
 				c = uint32(m.Mem[m.Ptr])
-				if m.LexIsIdentContinue(c)|rt.B2u(c == '.') == 0 {
+				if !(m.LexIsIdentContinue(c) != 0 || c == '.') {
 					break decorator
 				}
 				m.Ptr++
@@ -24698,7 +24737,7 @@ next:
 						hl = TokenVariableParameter
 					} else if m.LexIsConstCase(lhs, m.Ptr) {
 						hl = TokenConstant
-					} else if typeNext|rt.B2u(uint32(m.Mem[lhs])-65 <= 25) != 0 {
+					} else if typeNext != 0 || uint32(m.Mem[lhs])-65 <= 25 {
 						hl = TokenType
 					} else {
 						q = m.LexSkipSpaceAt(m.Ptr)
@@ -24775,7 +24814,7 @@ next:
 					m.SigPattern = rt.B2u(c == ',')
 					continue next
 				}
-				if m.PyIsOp(c)|rt.B2u(c == ':') != 0 {
+				if m.PyIsOp(c) != 0 || c == ':' {
 					m.Ptr++
 					if m.Ptr < m.End && (c2 == '=' || c == c2 || (c == '-' && c2 == '>')) {
 						m.Ptr++
@@ -24831,12 +24870,12 @@ func (m *Machine) GdTypeHl(lhs uint32, rhs uint32) uint32 {
 
 // HlGdscript is $hlGdscript.
 func (m *Machine) HlGdscript() {
-	var streamRoot, c, n, lhs, p, hl, group, decl, member, operand, quote, triple, status, liveRoot, t0 uint32
-	var raw bool
+	var streamRoot, c, n, lhs, p, hl, group, decl, member, operand, quote, triple, status, t0 uint32
+	var raw, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		decl = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -24844,7 +24883,7 @@ func (m *Machine) HlGdscript() {
 		quote = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47096
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -24859,13 +24898,13 @@ func (m *Machine) HlGdscript() {
 token:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, decl)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, operand)
 				rt.St32(m.Mem, 98080, quote)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -25013,17 +25052,18 @@ token:
 
 // HlGdresource is $hlGdresource.
 func (m *Machine) HlGdresource() {
-	var streamRoot, c, n, lhs, p, hl, header, quote, liveRoot, t0 uint32
+	var streamRoot, c, n, lhs, p, hl, header, quote, t0 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		header = rt.Ld32(m.Mem, 98068)
 		quote = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47112
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -25036,11 +25076,11 @@ func (m *Machine) HlGdresource() {
 token:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, header)
 				rt.St32(m.Mem, 98072, quote)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -25206,7 +25246,7 @@ func (m *Machine) GlslWordHl(lhs uint32, rhs uint32) uint32 {
 	}
 	w = rt.B2u(m.Mem[lhs] == 'i' || m.Mem[lhs] == 'u')
 	x = rt.Ld64(m.Mem, lhs+w) & 0xffffffffffffff
-	if rt.B2u((length-w >= 7 && (x == 0x72656c706d6173 || (w == 0 && x == 0x74616d706f6f63))) || (length >= 8 && x == 0x65727574786574))|w&rt.B2u((length >= 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6567616d69) || (length >= 6 && x&0xffffffffff == 0x6567616d69)) != 0 {
+	if (length-w >= 7 && (x == 0x72656c706d6173 || (w == 0 && x == 0x74616d706f6f63))) || (length >= 8 && x == 0x65727574786574) || w&rt.B2u((length >= 5 && rt.Ld64(m.Mem, lhs)&0xffffffffff == 0x6567616d69) || (length >= 6 && x&0xffffffffff == 0x6567616d69)) != 0 {
 		return TokenTypeBuiltin
 	}
 	return TokenNone
@@ -25219,11 +25259,12 @@ func (m *Machine) HlGlsl() {
 
 // HlGlslImpl is $hlGlslImpl.
 func (m *Machine) HlGlslImpl(godot uint32) {
-	var streamRoot, c, n, lhs, gap, p, word, hl, length, afterDot, wantType, include, modes, strCont, liveRoot uint32
+	var streamRoot, c, n, lhs, gap, p, word, hl, length, afterDot, wantType, include, modes, strCont uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		godot = rt.Ld32(m.Mem, 98064)
 		streamRoot = rt.Ld32(m.Mem, 98068)
 		afterDot = rt.Ld32(m.Mem, 98072)
@@ -25233,7 +25274,7 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 		strCont = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47120
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -25250,7 +25291,7 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, godot)
 				rt.St32(m.Mem, 98068, streamRoot)
 				rt.St32(m.Mem, 98072, afterDot)
@@ -25258,7 +25299,7 @@ next:
 				rt.St32(m.Mem, 98080, include)
 				rt.St32(m.Mem, 98084, modes)
 				rt.St32(m.Mem, 98088, strCont)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -25440,7 +25481,7 @@ next:
 			m.Ptr++
 			if m.Ptr < m.End {
 				n = uint32(m.Mem[m.Ptr])
-				if rt.B2u(n == 61)|rt.B2u(n == c)&(uint32(m.Mem[c+2192])>>7) != 0 {
+				if n == 61 || rt.B2u(n == c)&(uint32(m.Mem[c+2192])>>7) != 0 {
 					m.Ptr++
 					if (c == '<' || c == '>') && m.Ptr < m.End && m.Mem[m.Ptr] == '=' {
 						m.Ptr++
@@ -25494,18 +25535,18 @@ func (m *Machine) HlGdshader() {
 
 // HlGherkin is $hlGherkin.
 func (m *Machine) HlGherkin() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, g, head, row, liveRoot uint32
-	var t0 bool
+	var streamRoot, c, c2, gap, lhs, rhs, p, g, head, row uint32
+	var liveRoot, t0 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		head = rt.Ld32(m.Mem, 98068)
 		row = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47144
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -25518,11 +25559,11 @@ func (m *Machine) HlGherkin() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, head)
 				rt.St32(m.Mem, 98072, row)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -25654,11 +25695,12 @@ func (m *Machine) GleamIsOp(c uint32) uint32 {
 
 // HlGleam is $hlGleam.
 func (m *Machine) HlGleam() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, importCtx, typeCtx, fnHead, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, importCtx, typeCtx, fnHead uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -25667,7 +25709,7 @@ func (m *Machine) HlGleam() {
 		fnHead = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47144
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -25683,14 +25725,14 @@ func (m *Machine) HlGleam() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, importCtx)
 				rt.St32(m.Mem, 98080, typeCtx)
 				rt.St32(m.Mem, 98084, fnHead)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -25818,7 +25860,7 @@ next:
 		if m.GleamIsOp(c) != 0 {
 		op:
 			for {
-				if m.GleamIsOp(m.TemplateByte(m.Ptr))|rt.B2u(m.TemplateByte(m.Ptr) == '.') == 0 {
+				if !(m.GleamIsOp(m.TemplateByte(m.Ptr)) != 0 || m.TemplateByte(m.Ptr) == '.') {
 					break op
 				}
 				if m.TemplateByte(m.Ptr) == '/' && m.TemplateByte(m.Ptr+1) == '/' {
@@ -25862,19 +25904,19 @@ next:
 
 // HlGnuplot is $hlGnuplot.
 func (m *Machine) HlGnuplot() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, pc, g, hl, atStmt, stmt, cmd, liveRoot uint32
-	var t1 bool
+	var streamRoot, c, c2, gap, lhs, rhs, p, pc, g, hl, atStmt, stmt, cmd uint32
+	var liveRoot, t1 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		stmt = rt.Ld32(m.Mem, 98068)
 		cmd = rt.Ld32(m.Mem, 98072)
 	} else {
 		stmt = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47168
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -25887,11 +25929,11 @@ func (m *Machine) HlGnuplot() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, stmt)
 				rt.St32(m.Mem, 98072, cmd)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -25995,7 +26037,7 @@ next:
 					hl = TokenAttribute
 				}
 				if rt.B2u(cmd == 2 && rhs == lhs+1)&(uint32(m.Mem[c+3984])>>2)&1 != 0 {
-					if rt.Sel32(c == 'l' || c == 'p', rt.B2u((uint32(m.Mem[pc+2192])>>5)&1|rt.B2u(pc == 41 || pc == 93 || pc == 58) == 0), m.LexIsIdentContinue(pc)|rt.B2u(pc == 40)|rt.B2u(pc == 34 || pc == 39)) != 0 {
+					if rt.Sel32(c == 'l' || c == 'p', rt.B2u(!((uint32(m.Mem[pc+2192])>>5)&1 != 0 || pc == 41 || pc == 93 || pc == 58)), m.LexIsIdentContinue(pc)|rt.B2u(pc == 40)|rt.B2u(pc == 34 || pc == 39)) != 0 {
 						hl = TokenAttribute
 					}
 				}
@@ -26087,11 +26129,12 @@ func (m *Machine) GoIsOp(c uint32) uint32 {
 
 // HlGo is $hlGo.
 func (m *Machine) HlGo() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, recv, typeGroup, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, recv, typeGroup uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -26099,7 +26142,7 @@ func (m *Machine) HlGo() {
 		typeGroup = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47176
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -26114,13 +26157,13 @@ func (m *Machine) HlGo() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, recv)
 				rt.St32(m.Mem, 98080, typeGroup)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -26231,7 +26274,7 @@ next:
 			}
 			if m.GoIsOp(c) != 0 {
 				m.Ptr++
-				if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
+				if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
 					m.Ptr++
 					if (c == '<' || c == '>') && c3 == '=' {
 						m.Ptr++
@@ -26292,17 +26335,18 @@ scan:
 
 // HlGraphql is $hlGraphql.
 func (m *Machine) HlGraphql() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, expect, paren, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, expect, paren uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		paren = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47192
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -26315,11 +26359,11 @@ func (m *Machine) HlGraphql() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, paren)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -26499,7 +26543,7 @@ func (m *Machine) GroqString(quote uint32) {
 	lhs = m.Ptr
 	m.Ptr++
 	t0 = m.GroqStringBody(quote, TokenString, lhs)
-	if rt.B2u(t0) != 1 && m.Streaming != 0 && m.Ptr == m.Eof {
+	if rt.B2u(t0) != 1 && m.Streaming && m.Ptr == m.Eof {
 		m.StreamMode = 16
 		m.StreamA = quote
 		m.StreamHl = TokenString
@@ -26533,11 +26577,12 @@ func (m *Machine) GroqStarIsEverything(p uint32, operand uint32, lineStart uint3
 
 // HlGroq is $hlGroq.
 func (m *Machine) HlGroq() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, operand, member, expect, lineStart, freshLine, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, operand, member, expect, lineStart, freshLine uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		operand = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -26545,7 +26590,7 @@ func (m *Machine) HlGroq() {
 		lineStart = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47200
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -26560,13 +26605,13 @@ func (m *Machine) HlGroq() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, operand)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, expect)
 				rt.St32(m.Mem, 98080, lineStart)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -26787,11 +26832,12 @@ func (m *Machine) GroovyIsOp(c uint32) uint32 {
 
 // HlGroovy is $hlGroovy.
 func (m *Machine) HlGroovy() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, status, strKind, seg, interp, interpKind, expect, member, importCtx, prevType, stmtHead, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, status, strKind, seg, interp, interpKind, expect, member, importCtx, prevType, stmtHead uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		strKind = rt.Ld32(m.Mem, 98068)
 		seg = rt.Ld32(m.Mem, 98072)
@@ -26805,7 +26851,7 @@ func (m *Machine) HlGroovy() {
 	} else {
 		stmtHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47216
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -26825,7 +26871,7 @@ func (m *Machine) HlGroovy() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, strKind)
 				rt.St32(m.Mem, 98072, seg)
@@ -26836,7 +26882,7 @@ next:
 				rt.St32(m.Mem, 98092, importCtx)
 				rt.St32(m.Mem, 98096, prevType)
 				rt.St32(m.Mem, 98100, stmtHead)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -26855,7 +26901,7 @@ next:
 				interp = 1
 				strKind = 0
 				seg = 0
-			} else if rt.B2u(status == 1)|strKind&1&rt.B2u(status == 0) != 0 {
+			} else if status == 1 || strKind&1&rt.B2u(status == 0) != 0 {
 				strKind = 0
 				seg = 0
 			}
@@ -27016,11 +27062,11 @@ next:
 			stmtHead = 0
 			continue next
 		}
-		if m.GroovyIsOp(c)|rt.B2u(c == '.') != 0 {
+		if m.GroovyIsOp(c) != 0 || c == '.' {
 		op:
 			for {
 				c3 = m.TemplateByte(m.Ptr)
-				if m.GroovyIsOp(c3)|rt.B2u(c3 == '.') == 0 {
+				if !(m.GroovyIsOp(c3) != 0 || c3 == '.') {
 					break op
 				}
 				c2 = m.TemplateByte(m.Ptr + 1)
@@ -27070,10 +27116,10 @@ next:
 // HlHack is $hlHack.
 func (m *Machine) HlHack() {
 	var streamRoot bool
-	m.PhpHack = 1
-	m.LiveEntering = 0
+	m.PhpHack = true
+	m.LiveEntering = false
 	m.LexEmitLeadingContinuation()
-	if m.Streaming != 0 && m.StreamDepth == 0 {
+	if m.Streaming && m.StreamDepth == 0 {
 		m.StreamWindow = 47256
 		streamRoot = true
 		m.StreamDepth = rt.B2u(streamRoot)
@@ -27082,7 +27128,7 @@ func (m *Machine) HlHack() {
 	}
 	m.PhpCode(0)
 	m.PhpStreamingCode = 1
-	m.PhpHack = 0
+	m.PhpHack = false
 	if streamRoot {
 		m.StreamDepth = 0
 	}
@@ -27091,9 +27137,9 @@ func (m *Machine) HlHack() {
 // HackStreamResume is $hackStreamResume.
 func (m *Machine) HackStreamResume() bool {
 	var done bool
-	m.PhpHack = 1
+	m.PhpHack = true
 	done = m.PhpStreamResume()
-	m.PhpHack = 0
+	m.PhpHack = false
 	return done
 }
 
@@ -27169,8 +27215,8 @@ func (m *Machine) IndentBody(kind uint32, indent uint32, resume uint32) bool {
 	var open bool
 	var root, save, saveDepth, saveReset, to uint32
 	to = m.IndentBlockEnd(m.Ptr, indent)
-	open = m.Streaming != 0 && to == m.Eof
-	root = m.Streaming & (rt.B2u(open) | resume)
+	open = m.Streaming && to == m.Eof
+	root = rt.B2u(m.Streaming) & (rt.B2u(open) | resume)
 	save = m.End
 	saveDepth = m.StreamDepth
 	saveReset = m.StreamReset
@@ -27410,7 +27456,7 @@ part:
 				if m.Ptr >= stop {
 					break name
 				}
-				if m.LexIsIdentContinue(c)&rt.B2u(c != '$')|rt.B2u(c == '-' || (c == ':' && hl == TokenTag)) == 0 {
+				if !(m.LexIsIdentContinue(c)&rt.B2u(c != '$') != 0 || c == '-' || (c == ':' && hl == TokenTag)) {
 					break name
 				}
 				m.Ptr++
@@ -27473,19 +27519,19 @@ func (m *Machine) HamlContent(stop uint32) uint32 {
 
 // HlHaml is $hlHaml.
 func (m *Machine) HlHaml() {
-	var streamRoot, c, indent, kind, lhs, lineEnd, p, block, tag, cont, liveRoot, t6 uint32
-	var t0, t4 bool
+	var streamRoot, c, indent, kind, lhs, lineEnd, p, block, tag, cont, t6 uint32
+	var liveRoot, t0, t4 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		block = rt.Ld32(m.Mem, 98068)
 		tag = rt.Ld32(m.Mem, 98072)
 		cont = rt.Ld32(m.Mem, 98076)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47256
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -27499,12 +27545,12 @@ func (m *Machine) HlHaml() {
 line:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, block)
 				rt.St32(m.Mem, 98072, tag)
 				rt.St32(m.Mem, 98076, cont)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -27581,7 +27627,7 @@ line:
 					m.Ptr = lhs + 1
 					m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
 					m.HamlText(lineEnd)
-				} else if rt.B2u(c == '%')|rt.B2u(c == '.' || c == '#')&(m.LexIsIdentContinue(p)|rt.B2u(p == 45)) != 0 {
+				} else if c == '%' || rt.B2u(c == '.' || c == '#')&(m.LexIsIdentContinue(p)|rt.B2u(p == 45)) != 0 {
 					tag = m.HamlTag(lineEnd)
 					cont = rt.B2u(tag == 0x40000000)
 					tag = rt.Sel32(cont != 0, 0, tag)
@@ -28043,18 +28089,19 @@ find:
 
 // HlJinjaImpl is $hlJinjaImpl.
 func (m *Machine) HlJinjaImpl(dialect uint32) {
-	var streamRoot, c, p, r, save, state, tag, liveRoot uint32
+	var streamRoot, c, p, r, save, state, tag uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		dialect = rt.Ld32(m.Mem, 98064)
 		streamRoot = rt.Ld32(m.Mem, 98068)
 		state = rt.Ld32(m.Mem, 98072)
 		tag = rt.Ld32(m.Mem, 98076)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47272
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -28067,12 +28114,12 @@ func (m *Machine) HlJinjaImpl(dialect uint32) {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, dialect)
 				rt.St32(m.Mem, 98068, streamRoot)
 				rt.St32(m.Mem, 98072, state)
 				rt.St32(m.Mem, 98076, tag)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -28193,11 +28240,12 @@ func (m *Machine) HsIsSymbol(c uint32) uint32 {
 
 // HlHaskell is $hlHaskell.
 func (m *Machine) HlHaskell() {
-	var streamRoot, atHead, braces, c, c2, g, gap, hl, importLine, inBacktick, lhs, lineHead, n, p, typeMode, wantFunction, wantType, liveRoot, t0 uint32
+	var streamRoot, atHead, braces, c, c2, g, gap, hl, importLine, inBacktick, lhs, lineHead, n, p, typeMode, wantFunction, wantType, t0 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		braces = rt.Ld32(m.Mem, 98068)
 		importLine = rt.Ld32(m.Mem, 98072)
@@ -28208,7 +28256,7 @@ func (m *Machine) HlHaskell() {
 		wantType = rt.Ld32(m.Mem, 98092)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47280
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -28226,7 +28274,7 @@ func (m *Machine) HlHaskell() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, braces)
 				rt.St32(m.Mem, 98072, importLine)
@@ -28235,7 +28283,7 @@ next:
 				rt.St32(m.Mem, 98084, typeMode)
 				rt.St32(m.Mem, 98088, wantFunction)
 				rt.St32(m.Mem, 98092, wantType)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -28471,7 +28519,7 @@ func (m *Machine) HxCondEnd(p uint32) uint32 {
 scan:
 	for {
 		c = m.TemplateByte(p)
-		if rt.B2u(c == 0)|(uint32(m.Mem[c+1424])>>2)&1 != 0 {
+		if c == 0 || (uint32(m.Mem[c+1424])>>2)&1 != 0 {
 			break scan
 		}
 		if c == '(' {
@@ -28481,7 +28529,7 @@ scan:
 				break scan
 			}
 			depth--
-		} else if depth == 0 && m.LexIsIdentContinue(c)|rt.B2u(c == '.') == 0 {
+		} else if depth == 0 && !(m.LexIsIdentContinue(c) != 0 || c == '.') {
 			break scan
 		}
 		p++
@@ -28497,12 +28545,12 @@ scan:
 
 // HlHaxe is $hlHaxe.
 func (m *Machine) HlHaxe() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, hl, expect, member, atMember, strKind, interp, interpKind, status, liveRoot uint32
-	var c2Ident, upper, isVar, t1 bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, hl, expect, member, atMember, strKind, interp, interpKind, status uint32
+	var c2Ident, upper, isVar, liveRoot, t1 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -28511,7 +28559,7 @@ func (m *Machine) HlHaxe() {
 		interpKind = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47304
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -28527,14 +28575,14 @@ func (m *Machine) HlHaxe() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, strKind)
 				rt.St32(m.Mem, 98080, interp)
 				rt.St32(m.Mem, 98084, interpKind)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -28595,7 +28643,7 @@ next:
 					break rx
 				}
 				c = m.TemplateByte(m.Ptr + 1)
-				if rt.B2u(c == 0)|(uint32(m.Mem[c+1424])>>2)&1 != 0 {
+				if c == 0 || (uint32(m.Mem[c+1424])>>2)&1 != 0 {
 					break rx
 				}
 				m.Ptr = m.Utf8SpanEnd(m.Ptr+2, m.End)
@@ -28775,11 +28823,12 @@ func (m *Machine) HlslIsOp(c uint32) uint32 {
 
 // HlHlsl is $hlHlsl.
 func (m *Machine) HlHlsl() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, attr, lineHead, atHead, include, strCont, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, afterType, attr, lineHead, atHead, include, strCont uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -28791,7 +28840,7 @@ func (m *Machine) HlHlsl() {
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47328
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -28810,7 +28859,7 @@ func (m *Machine) HlHlsl() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
@@ -28819,7 +28868,7 @@ next:
 				rt.St32(m.Mem, 98084, lineHead)
 				rt.St32(m.Mem, 98088, include)
 				rt.St32(m.Mem, 98092, strCont)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -28979,7 +29028,7 @@ next:
 		}
 		if m.HlslIsOp(c) != 0 {
 			m.Ptr++
-			if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
+			if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
 				m.Ptr++
 				if (c == '<' || c == '>') && m.TemplateByte(m.Ptr) == '=' {
 					m.Ptr++
@@ -29033,11 +29082,12 @@ func (m *Machine) HlJsonl() {
 
 // HlJsonImpl is $hlJsonImpl.
 func (m *Machine) HlJsonImpl(dialect uint32) {
-	var streamRoot, c, gap, lhs, depth, expectKey, json5, open, liveRoot, t2, t3, t4, t6 uint32
+	var streamRoot, c, gap, lhs, depth, expectKey, json5, open, t2, t3, t4, t6 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		dialect = rt.Ld32(m.Mem, 98064)
 		streamRoot = rt.Ld32(m.Mem, 98068)
 		depth = rt.Ld32(m.Mem, 98072)
@@ -29046,7 +29096,7 @@ func (m *Machine) HlJsonImpl(dialect uint32) {
 		open = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47360
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -29064,14 +29114,14 @@ func (m *Machine) HlJsonImpl(dialect uint32) {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, dialect)
 				rt.St32(m.Mem, 98068, streamRoot)
 				rt.St32(m.Mem, 98072, depth)
 				rt.St32(m.Mem, 98076, expectKey)
 				rt.St32(m.Mem, 98080, json5)
 				rt.St32(m.Mem, 98084, open)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -29279,7 +29329,7 @@ l:
 		}
 		m.EmitTok(hl, seg, m.Ptr)
 		c = rt.Sel32(m.Ptr+1 < m.End, uint32(m.Mem[m.Ptr+1]), 0)
-		if rt.B2u(c == 'u')|json5&rt.B2u(c == 'x') != 0 {
+		if c == 'u' || json5&rt.B2u(c == 'x') != 0 {
 			e = m.Utf8SpanEnd(m.ScanHexRun(m.Ptr+2, rt.Sel32(c == 'u', 4, 2)), m.End)
 		} else {
 			e = m.LexEscapeEnd(m.Ptr)
@@ -29287,7 +29337,7 @@ l:
 		m.EmitTok(TokenStringEscape, m.Ptr, e)
 		m.Ptr = e
 		seg = m.Ptr
-		if m.Streaming != 0 && m.Ptr == m.End && (m.Mem[m.Ptr-1] == '\n' || m.Mem[m.Ptr-1] == '\r') {
+		if m.Streaming && m.Ptr == m.End && (m.Mem[m.Ptr-1] == '\n' || m.Mem[m.Ptr-1] == '\r') {
 			return quote | hl<<8
 		}
 	}
@@ -29428,7 +29478,7 @@ func (m *Machine) HttpBody(info uint32, resume uint32) {
 				m.Ptr = stop
 				info = kind | rt.B2u(m.StreamRegionKind == 10)<<2
 				m.StreamRegionKind = 0
-				if m.Streaming != 0 {
+				if m.Streaming {
 					if stop == save && stop == m.Eof {
 						m.StreamRegionKind = 29
 						m.StreamRegionStarted = info
@@ -29446,7 +29496,7 @@ func (m *Machine) HttpBody(info uint32, resume uint32) {
 			m.Ptr = stop
 			info = kind | rt.B2u(m.StreamRegionKind == 10)<<2
 			m.StreamRegionKind = 0
-			if m.Streaming != 0 {
+			if m.Streaming {
 				if stop == save && stop == m.Eof {
 					m.StreamRegionKind = 29
 					m.StreamRegionStarted = info
@@ -29470,7 +29520,7 @@ func (m *Machine) HttpBody(info uint32, resume uint32) {
 	m.Ptr = stop
 	info = kind | rt.B2u(m.StreamRegionKind == 10)<<2
 	m.StreamRegionKind = 0
-	if m.Streaming != 0 {
+	if m.Streaming {
 		if stop == save && stop == m.Eof {
 			m.StreamRegionKind = 29
 			m.StreamRegionStarted = info
@@ -29488,17 +29538,18 @@ func (m *Machine) HttpStreamResume() bool {
 
 // HlHttp is $hlHttp.
 func (m *Machine) HlHttp() {
-	var streamRoot, c, gap, lhs, p, q, rhs, state, typ, liveRoot uint32
+	var streamRoot, c, gap, lhs, p, q, rhs, state, typ uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		state = rt.Ld32(m.Mem, 98068)
 		typ = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47376
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -29511,11 +29562,11 @@ func (m *Machine) HlHttp() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, state)
 				rt.St32(m.Mem, 98072, typ)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -29695,13 +29746,13 @@ line:
 
 // HlJsonnet is $hlJsonnet.
 func (m *Machine) HlJsonnet() {
-	var streamRoot, c, c2, lhs, rhs, gap, kind, hl, key, expect, block, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, gap, kind, hl, key, expect, block uint32
 	var stack uint64
-	var t0 bool
+	var liveRoot, t0 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		stack = rt.Ld64(m.Mem, 98072)
 		key = rt.Ld32(m.Mem, 98080)
@@ -29709,7 +29760,7 @@ func (m *Machine) HlJsonnet() {
 		block = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47384
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -29724,13 +29775,13 @@ func (m *Machine) HlJsonnet() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St64(m.Mem, 98072, stack)
 				rt.St32(m.Mem, 98080, key)
 				rt.St32(m.Mem, 98084, expect)
 				rt.St32(m.Mem, 98088, block)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -30016,11 +30067,12 @@ l:
 
 // HlJulia is $hlJulia.
 func (m *Machine) HlJulia() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, status, strKind, strHl, seg, interp, interpKind, expect, member, importCtx, stmtHead, afterValue, depth, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, status, strKind, strHl, seg, interp, interpKind, expect, member, importCtx, stmtHead, afterValue, depth uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		strKind = rt.Ld32(m.Mem, 98068)
 		strHl = rt.Ld32(m.Mem, 98072)
@@ -30036,7 +30088,7 @@ func (m *Machine) HlJulia() {
 	} else {
 		stmtHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47408
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -30058,7 +30110,7 @@ func (m *Machine) HlJulia() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, strKind)
 				rt.St32(m.Mem, 98072, strHl)
@@ -30071,7 +30123,7 @@ next:
 				rt.St32(m.Mem, 98100, stmtHead)
 				rt.St32(m.Mem, 98104, afterValue)
 				rt.St32(m.Mem, 98108, depth)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -30331,11 +30383,11 @@ next:
 			stmtHead = 0
 			continue next
 		}
-		if m.JlIsOp(c)|rt.B2u(c == '.') != 0 {
+		if m.JlIsOp(c) != 0 || c == '.' {
 		op:
 			for {
 				c = m.JlByte(m.Ptr)
-				if m.JlIsOp(c)|rt.B2u(c == '.') == 0 {
+				if !(m.JlIsOp(c) != 0 || c == '.') {
 					break op
 				}
 				m.Ptr++
@@ -30485,12 +30537,12 @@ l:
 
 // HlJust is $hlJust.
 func (m *Machine) HlJust() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, lineHead, inRecipe, mode, depth, interp, cmdHead, expect, str, liveRoot, t1, t3 uint32
-	var t2, t4 bool
+	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, lineHead, inRecipe, mode, depth, interp, cmdHead, expect, str, t1, t3 uint32
+	var liveRoot, t2, t4 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		lineHead = rt.Ld32(m.Mem, 98068)
 		inRecipe = rt.Ld32(m.Mem, 98072)
@@ -30503,7 +30555,7 @@ func (m *Machine) HlJust() {
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47456
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -30522,7 +30574,7 @@ func (m *Machine) HlJust() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, lineHead)
 				rt.St32(m.Mem, 98072, inRecipe)
@@ -30532,7 +30584,7 @@ next:
 				rt.St32(m.Mem, 98088, cmdHead)
 				rt.St32(m.Mem, 98092, expect)
 				rt.St32(m.Mem, 98096, str)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -30885,11 +30937,12 @@ func (m *Machine) RustIsOp(c uint32) uint32 {
 
 // HlRust is $hlRust.
 func (m *Machine) HlRust() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, expect, member, attr, rawOpen, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, expect, member, attr, rawOpen uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -30897,7 +30950,7 @@ func (m *Machine) HlRust() {
 		rawOpen = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47488
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -30912,13 +30965,13 @@ func (m *Machine) HlRust() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, attr)
 				rt.St32(m.Mem, 98080, rawOpen)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -31257,12 +31310,12 @@ l:
 
 // HlKdl is $hlKdl.
 func (m *Machine) HlKdl() {
-	var streamRoot, c, c2, lhs, gap, p, hl, after, args, paren, join, open, mute, liveRoot uint32
-	var t0, t1, t2, t3 bool
+	var streamRoot, c, c2, lhs, gap, p, hl, after, args, paren, join, open, mute uint32
+	var liveRoot, t0, t1, t2, t3 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		args = rt.Ld32(m.Mem, 98068)
 		paren = rt.Ld32(m.Mem, 98072)
@@ -31271,7 +31324,7 @@ func (m *Machine) HlKdl() {
 		mute = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47504
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -31287,14 +31340,14 @@ func (m *Machine) HlKdl() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, args)
 				rt.St32(m.Mem, 98072, paren)
 				rt.St32(m.Mem, 98076, join)
 				rt.St32(m.Mem, 98080, open)
 				rt.St32(m.Mem, 98084, mute)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -31546,7 +31599,7 @@ next:
 				}
 				after = 1
 				hl = TokenNumber
-				if rt.B2u(m.LexIsDigit(c))|uint32(m.Mem[c+2448])&1&rt.B2u(m.LexIsDigit(c2)) != 0 {
+				if m.LexIsDigit(c) || uint32(m.Mem[c+2448])&1&rt.B2u(m.LexIsDigit(c2)) != 0 {
 					m.EmitTok(rt.Sel32(mute != 0, TokenComment, hl), lhs, m.Ptr)
 					if after == 2 {
 						mute = 0
@@ -31760,11 +31813,12 @@ func (m *Machine) KotlinIsOp(c uint32) uint32 {
 
 // HlKotlin is $hlKotlin.
 func (m *Machine) HlKotlin() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, fnAngle, strKind, seg, interp, interpKind, status, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, fnAngle, strKind, seg, interp, interpKind, status uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -31775,7 +31829,7 @@ func (m *Machine) HlKotlin() {
 		interpKind = rt.Ld32(m.Mem, 98092)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47528
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -31793,7 +31847,7 @@ func (m *Machine) HlKotlin() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
@@ -31802,7 +31856,7 @@ next:
 				rt.St32(m.Mem, 98084, seg)
 				rt.St32(m.Mem, 98088, interp)
 				rt.St32(m.Mem, 98092, interpKind)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -31893,7 +31947,7 @@ next:
 						hl = rt.Sel32(expect == 1, TokenFunctionDefinition, TokenType)
 						expect = 0
 					}
-				} else if rt.B2u(c2 == '(')|rt.B2u(c2 == '{')&(member|rt.B2u(c-65 > 25)) != 0 {
+				} else if c2 == '(' || rt.B2u(c2 == '{')&(member|rt.B2u(c-65 > 25)) != 0 {
 					hl = rt.Sel32(member != 0, TokenFunctionMethod, TokenFunction)
 				} else if member != 0 {
 					hl = TokenProperty
@@ -32052,12 +32106,13 @@ func (m *Machine) LatexEnvKey(lhs uint32, rhs uint32) uint32 {
 
 // HlLatex is $hlLatex.
 func (m *Machine) HlLatex() {
-	var streamRoot, c, c2, lhs, p, q, v, kind, hl, mask, math, raw, depth, pend, pendOpt, argHl, argDepth, outerHl, outerDepth, lineEmpty, liveRoot uint32
+	var streamRoot, c, c2, lhs, p, q, v, kind, hl, mask, math, raw, depth, pend, pendOpt, argHl, argDepth, outerHl, outerDepth, lineEmpty uint32
 	var w, rng, extra rt.V128
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		math = rt.Ld32(m.Mem, 98068)
 		raw = rt.Ld32(m.Mem, 98072)
@@ -32071,7 +32126,7 @@ func (m *Machine) HlLatex() {
 		lineEmpty = rt.Ld32(m.Mem, 98104)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47560
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -32092,7 +32147,7 @@ func (m *Machine) HlLatex() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, math)
 				rt.St32(m.Mem, 98072, raw)
@@ -32104,7 +32159,7 @@ next:
 				rt.St32(m.Mem, 98096, outerHl)
 				rt.St32(m.Mem, 98100, outerDepth)
 				rt.St32(m.Mem, 98104, lineEmpty)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -32369,7 +32424,7 @@ next:
 			w = rt.LdV(m.Mem, p)
 			mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(35)), rt.Splat8(3)), rt.LeU8(rt.Sub8(w, rt.Splat8(91)), rng)), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(123)), rt.Eq8(w, rt.Splat8(125))), rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, extra)))))
 			if mask != 0 {
-				p += rt.Ctz32(mask)
+				p += uint32(bits.TrailingZeros32(mask))
 				break wide
 			}
 			p += 16
@@ -32540,11 +32595,12 @@ scan:
 
 // HlLean is $hlLean.
 func (m *Machine) HlLean() {
-	var streamRoot, c, c2, cp, lhs, rhs, gap, kind, hl, expect, rawOpen, quoted, quotedKind, attribute, liveRoot uint32
+	var streamRoot, c, c2, cp, lhs, rhs, gap, kind, hl, expect, rawOpen, quoted, quotedKind, attribute uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		rawOpen = rt.Ld32(m.Mem, 98072)
@@ -32553,7 +32609,7 @@ func (m *Machine) HlLean() {
 		attribute = rt.Ld32(m.Mem, 98084)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47600
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -32569,14 +32625,14 @@ func (m *Machine) HlLean() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, rawOpen)
 				rt.St32(m.Mem, 98076, quoted)
 				rt.St32(m.Mem, 98080, quotedKind)
 				rt.St32(m.Mem, 98084, attribute)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -32822,7 +32878,7 @@ l:
 		c = uint32(m.Mem[lhs])
 		if m.LexIsDigit(c) {
 			digits = true
-		} else if rt.B2u(c == '.' || c == '/')|m.LispIsExponent(c)|rt.B2u(c == '+' || c == '-')&m.LispIsExponent(prev) == 0 {
+		} else if !(c == '.' || c == '/' || m.LispIsExponent(c)|rt.B2u(c == '+' || c == '-')&m.LispIsExponent(prev) != 0) {
 			return false
 		}
 		prev = c
@@ -32899,17 +32955,18 @@ func (m *Machine) LispBindStep(bl uint32, c uint32, arm uint32) uint32 {
 
 // HlLisp is $hlLisp.
 func (m *Machine) HlLisp() {
-	var streamRoot, c, c2, gap, lhs, rhs, kind, hl, expect, bl, arm, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, kind, hl, expect, bl, arm uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		bl = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47624
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -32922,11 +32979,11 @@ func (m *Machine) HlLisp() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, bl)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -33187,15 +33244,16 @@ scan:
 
 // HlLlvm is $hlLlvm.
 func (m *Machine) HlLlvm() {
-	var streamRoot, c, c2, lhs, rhs, gap, hl, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, gap, hl uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47632
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -33206,9 +33264,9 @@ func (m *Machine) HlLlvm() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -33322,7 +33380,7 @@ next:
 		}
 		m.Ptr = lhs + 1
 		hl = TokenNone
-		if uint32(m.Mem[c+2192])&1|rt.B2u(c|2 == 62) != 0 {
+		if uint32(m.Mem[c+2192])&1 != 0 || c|2 == 62 {
 			hl = TokenPunctuationBracket
 		}
 		if c == ',' || c == ':' {
@@ -33352,16 +33410,17 @@ func (m *Machine) LogIsMark(c uint32) uint32 {
 
 // HlLog is $hlLog.
 func (m *Machine) HlLog() {
-	var streamRoot, c, hl, lhs, n, p, plain, liveRoot, t0 uint32
+	var streamRoot, c, hl, lhs, n, p, plain, t0 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		plain = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47632
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -33373,10 +33432,10 @@ func (m *Machine) HlLog() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, plain)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -33552,11 +33611,11 @@ next:
 		number:
 			for {
 				p = m.TemplateByte(m.Ptr)
-				if uint32(m.Mem[p+3216])&1|rt.B2u(p == 44) == 0 {
+				if !(uint32(m.Mem[p+3216])&1 != 0 || p == 44) {
 					break number
 				}
 				c = m.TemplateByte(m.Ptr + 1)
-				if m.LexIsHex(c)|rt.B2u(p == 47 && (c|32)-97 <= 25) == 0 {
+				if !(m.LexIsHex(c) != 0 || (p == 47 && (c|32)-97 <= 25)) {
 					break number
 				}
 				m.Ptr += 2
@@ -33571,7 +33630,7 @@ next:
 				plain = m.Ptr
 				continue next
 			}
-			if rt.B2u(c != '\'')|rt.B2u(lhs > m.SrcBase)&m.LexIsIdentContinue(uint32(m.Mem[lhs-1])) == 0 {
+			if !(c != '\'' || rt.B2u(lhs > m.SrcBase)&m.LexIsIdentContinue(uint32(m.Mem[lhs-1])) != 0) {
 				p = m.ScanFindSpecial(m.Ptr, m.End, 39, 0, 1)
 				if !(p >= m.End || m.Mem[p] != '\'') {
 					m.Ptr = p + 1
@@ -33650,7 +33709,7 @@ scan:
 		m.Ptr++
 	}
 	m.EmitTok(hl, lhs, m.Ptr)
-	if !closed && m.Streaming != 0 && eq+2 <= 32 {
+	if !closed && m.Streaming && eq+2 <= 32 {
 		m.Mem[13952] = ']'
 		rt.Fill(m.Mem, 13953, 61, eq)
 		m.Mem[13953+eq] = ']'
@@ -33661,17 +33720,18 @@ scan:
 
 // HlLua is $hlLua.
 func (m *Machine) HlLua() {
-	var streamRoot, c, decl, group, hl, lhs, member, next, p, liveRoot uint32
+	var streamRoot, c, decl, group, hl, lhs, member, next, p uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		decl = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47632
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -33684,11 +33744,11 @@ func (m *Machine) HlLua() {
 token:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, decl)
 				rt.St32(m.Mem, 98072, member)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -33844,11 +33904,12 @@ scan:
 
 // HlLuau is $hlLuau.
 func (m *Machine) HlLuau() {
-	var streamRoot, c, decl, group, hl, lhs, member, next, p, typ, interp, liveRoot uint32
+	var streamRoot, c, decl, group, hl, lhs, member, next, p, typ, interp uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		decl = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -33856,7 +33917,7 @@ func (m *Machine) HlLuau() {
 		interp = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47640
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -33871,13 +33932,13 @@ func (m *Machine) HlLuau() {
 token:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, decl)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, typ)
 				rt.St32(m.Mem, 98080, interp)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -34011,7 +34072,7 @@ token:
 					p = m.TemplateByte(m.LexSkipSpaceAt(m.Ptr))
 					m.Ptr = lhs + 1
 				}
-				if uint32(m.Mem[p+3984])>>7|rt.B2u(p == 40) == 0 {
+				if !(uint32(m.Mem[p+3984])>>7 != 0 || p == 40) {
 					typ |= 1
 				}
 			}
@@ -34094,7 +34155,7 @@ token:
 				hl = TokenPunctuationBracket
 				typ = (typ - 8) | 2
 			} else if c == '=' {
-				typ = rt.Sel32(typ&4|rt.B2u(typ >= 8) != 0, typ&0xfffffff9, 0)
+				typ = rt.Sel32(typ&4 != 0 || typ >= 8, typ&0xfffffff9, 0)
 			} else if c != '?' {
 				typ = 0
 			}
@@ -34159,7 +34220,7 @@ l:
 			break l
 		}
 		c = uint32(m.Mem[q])
-		if m.LexIsIdentContinue(c)|rt.B2u(c == '-' || c == '.') == 0 {
+		if !(m.LexIsIdentContinue(c) != 0 || c == '-' || c == '.') {
 			break l
 		}
 		q++
@@ -34376,11 +34437,12 @@ func (m *Machine) MakeIsShellOp(c uint32) uint32 {
 
 // HlMakefile is $hlMakefile.
 func (m *Machine) HlMakefile() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, kind, lineHead, mode, targets, expectVar, cmdHead, inRule, define, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, kind, lineHead, mode, targets, expectVar, cmdHead, inRule, define uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		lineHead = rt.Ld32(m.Mem, 98068)
 		mode = rt.Ld32(m.Mem, 98072)
@@ -34392,7 +34454,7 @@ func (m *Machine) HlMakefile() {
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47656
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -34410,7 +34472,7 @@ func (m *Machine) HlMakefile() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, lineHead)
 				rt.St32(m.Mem, 98072, mode)
@@ -34419,7 +34481,7 @@ next:
 				rt.St32(m.Mem, 98084, cmdHead)
 				rt.St32(m.Mem, 98088, inRule)
 				rt.St32(m.Mem, 98092, define)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -34550,7 +34612,7 @@ next:
 				continue next
 			}
 			if mode == 2 {
-				if rt.B2u(c == '=')|(uint32(m.Mem[c+4496])>>3)&1&rt.B2u(c2 == '=' || (c2 == ':' && m.TemplateByte(m.Ptr+2) == '=')) != 0 {
+				if c == '=' || (uint32(m.Mem[c+4496])>>3)&1&rt.B2u(c2 == '=' || (c2 == ':' && m.TemplateByte(m.Ptr+2) == '=')) != 0 {
 					m.Ptr++
 				eq:
 					for {
@@ -34735,11 +34797,12 @@ func (m *Machine) MatIsOp(c uint32) uint32 {
 
 // HlMatlab is $hlMatlab.
 func (m *Machine) HlMatlab() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, pc, kind, hl, fnHead, fnOut, paren, fnDepth, afterValue, lineHead, member, atHead, classLine, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, pc, kind, hl, fnHead, fnOut, paren, fnDepth, afterValue, lineHead, member, atHead, classLine uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		fnHead = rt.Ld32(m.Mem, 98068)
 		fnOut = rt.Ld32(m.Mem, 98072)
@@ -34752,7 +34815,7 @@ func (m *Machine) HlMatlab() {
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47688
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -34771,7 +34834,7 @@ func (m *Machine) HlMatlab() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, fnHead)
 				rt.St32(m.Mem, 98072, fnOut)
@@ -34781,7 +34844,7 @@ next:
 				rt.St32(m.Mem, 98088, lineHead)
 				rt.St32(m.Mem, 98092, member)
 				rt.St32(m.Mem, 98096, classLine)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -34861,7 +34924,7 @@ next:
 				if member != 0 {
 					hl = rt.Sel32(pc == 40, TokenFunctionMethod, TokenProperty)
 				} else if fnHead == 1 {
-					if fnOut|rt.B2u(pc == 61) != 0 {
+					if fnOut != 0 || pc == 61 {
 						hl = TokenVariable
 					} else {
 						hl = TokenFunctionDefinition
@@ -34925,7 +34988,7 @@ next:
 			continue next
 		}
 		if c == '.' {
-			if m.MatIsOp(c2)|rt.B2u(c2 == '\'') != 0 {
+			if m.MatIsOp(c2) != 0 || c2 == '\'' {
 				m.Ptr += 2
 				m.EmitTok(TokenOperator, lhs, m.Ptr)
 				afterValue = rt.B2u(c2 == '\'')
@@ -35002,7 +35065,7 @@ func (m *Machine) MdxTsxRange(from uint32, to uint32) {
 				break name
 			}
 			c = uint32(m.Mem[m.Ptr])
-			if m.LexIsIdentContinue(c)|rt.B2u(c == '.' || c == ':' || c == '-') == 0 {
+			if !(m.LexIsIdentContinue(c) != 0 || c == '.' || c == ':' || c == '-') {
 				break name
 			}
 			if c == '.' {
@@ -35200,7 +35263,7 @@ openRun:
 		return 0
 	}
 	close_ = m.MarkdownFenceClose(m.MdxNextLine(q), fence, length, quotes, indent)
-	if m.MarkdownFenceEnded != 0 {
+	if m.MarkdownFenceEnded {
 		return close_
 	}
 	if close_ >= m.End {
@@ -35228,10 +35291,11 @@ func (m *Machine) MdxEsmStart(p uint32) bool {
 
 // MdxEsmRange is $mdxEsmRange.
 func (m *Machine) MdxEsmRange(from uint32, resume uint32) uint32 {
-	var lineEnd, p, saveEof, saveStreaming uint32
+	var lineEnd, p, saveEof uint32
+	var saveStreaming bool
 	saveEof = m.Eof
 	saveStreaming = m.Streaming
-	m.Streaming = 1
+	m.Streaming = true
 lines:
 	for {
 		if from >= m.End {
@@ -35252,7 +35316,7 @@ lines:
 	}
 	m.Eof = saveEof
 	m.Streaming = saveStreaming
-	if saveStreaming&rt.B2u(from == m.End) != 0 {
+	if saveStreaming && from == m.End {
 		m.MarkdownFenceSet(1, 0, LanguageTsx|resume<<8)
 	} else {
 		m.MarkdownClearEmbeddedStream()
@@ -35324,7 +35388,7 @@ attrs:
 				continue attrs
 			}
 		}
-		if rt.B2u(m.LexIsSpace(c))|m.LexIsIdentContinue(c)|uint32(m.Mem[c+4496])>>7 == 0 {
+		if !(m.LexIsSpace(c) || m.LexIsIdentContinue(c) != 0 || uint32(m.Mem[c+4496])>>7 != 0) {
 			return false
 		}
 		q++
@@ -35334,12 +35398,12 @@ attrs:
 
 // HlMdx is $hlMdx.
 func (m *Machine) HlMdx() {
-	var streamRoot, fenceAt, from, noClose, p, to, liveRoot, t4 uint32
-	var inFence, t5 bool
+	var streamRoot, fenceAt, from, noClose, p, to, t4 uint32
+	var inFence, liveRoot, t5 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		fenceAt = rt.Ld32(m.Mem, 98068)
 		from = rt.Ld32(m.Mem, 98072)
@@ -35347,7 +35411,7 @@ func (m *Machine) HlMdx() {
 		p = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47720
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -35370,13 +35434,13 @@ func (m *Machine) HlMdx() {
 scan:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, fenceAt)
 				rt.St32(m.Mem, 98072, from)
 				rt.St32(m.Mem, 98076, noClose)
 				rt.St32(m.Mem, 98080, p)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -35456,7 +35520,7 @@ scan:
 				p = to
 				continue scan
 			}
-			if m.Streaming != 0 && p+1 < m.End && m.LexIsIdentStart(uint32(m.Mem[p+1])) {
+			if m.Streaming && p+1 < m.End && m.LexIsIdentStart(uint32(m.Mem[p+1])) {
 				t5 = m.MdxTagStartContinues(p)
 				t4 = rt.B2u(t5)
 			} else {
@@ -35538,12 +35602,12 @@ run:
 
 // HlMermaid is $hlMermaid.
 func (m *Machine) HlMermaid() {
-	var streamRoot, c, c2, gap, lhs, tok, p, q, v, kind, mid, style, attr, dir, quote, liveRoot, t2 uint32
-	var first, t0, t1, t3 bool
+	var streamRoot, c, c2, gap, lhs, tok, p, q, v, kind, mid, style, attr, dir, quote, t2 uint32
+	var first, liveRoot, t0, t1, t3 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		kind = rt.Ld32(m.Mem, 98068)
 		mid = rt.Ld32(m.Mem, 98072)
@@ -35553,7 +35617,7 @@ func (m *Machine) HlMermaid() {
 		quote = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47720
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -35571,10 +35635,10 @@ func (m *Machine) HlMermaid() {
 			m.EmitTok(TokenPunctuationSpecial, m.Ptr, p)
 			q = m.FrontMatterClose(p)
 			m.MarkdownYamlRange(p, q)
-			if m.Streaming != 0 && q == m.End {
+			if m.Streaming && q == m.End {
 				m.StreamSetRegion(4)
 				m.StreamRegionStarted = 1
-			} else if m.Streaming != 0 {
+			} else if m.Streaming {
 				m.MarkdownClearEmbeddedStream()
 			}
 			m.FrontMatterCloser(q)
@@ -35587,7 +35651,7 @@ func (m *Machine) HlMermaid() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, kind)
 				rt.St32(m.Mem, 98072, mid)
@@ -35595,7 +35659,7 @@ next:
 				rt.St32(m.Mem, 98080, attr)
 				rt.St32(m.Mem, 98084, dir)
 				rt.St32(m.Mem, 98088, quote)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -35740,7 +35804,7 @@ next:
 				for {
 					if q < m.Ptr {
 						v = uint32(m.Mem[q])
-						if rt.B2u(m.LexIsDigit(v) || v == 46)|(uint32(m.Mem[v+1936])>>4)&1 != 0 {
+						if m.LexIsDigit(v) || v == 46 || (uint32(m.Mem[v+1936])>>4)&1 != 0 {
 							q++
 							continue digits
 						}
@@ -35822,7 +35886,7 @@ next:
 							continue next
 						}
 						m.EmitTok(TokenVariable, lhs, p)
-						if (uint32(m.Mem[c2+1680])>>2)&1|rt.B2u(c2 == '>') == 0 {
+						if !((uint32(m.Mem[c2+1680])>>2)&1 != 0 || c2 == '>') {
 							continue next
 						}
 					} else {
@@ -35952,19 +36016,19 @@ scan:
 
 // HlMoonbit is $hlMoonbit.
 func (m *Machine) HlMoonbit() {
-	var streamRoot, c, c2, gap, lhs, rhs, kind, hl, expect, member, str, liveRoot uint32
-	var path bool
+	var streamRoot, c, c2, gap, lhs, rhs, kind, hl, expect, member, str uint32
+	var path, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
 		str = rt.Ld32(m.Mem, 98076)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47744
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -35978,12 +36042,12 @@ func (m *Machine) HlMoonbit() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, str)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -36077,7 +36141,7 @@ next:
 			if int32(kind) >= 0 {
 				hl = kind & 255
 				kind >>= 8
-				if rt.B2u(path)|m.SigFnAngle == 0 {
+				if !(path || m.SigFnAngle != 0) {
 					expect = kind & 3
 				}
 				if kind == 1 {
@@ -36099,7 +36163,7 @@ next:
 					}
 					m.Ptr = rhs
 				}
-			} else if expect != 0 && rt.B2u(path)|m.SigFnAngle == 0 {
+			} else if expect != 0 && !(path || m.SigFnAngle != 0) {
 				if expect == 1 {
 					hl = TokenFunctionDefinition
 					m.SigFnPend = 1
@@ -36120,7 +36184,7 @@ next:
 					hl = TokenVariableParameter
 				} else if m.SigActive()&m.SigPattern&rt.B2u(m.SigObscure == 0) != 0 {
 					c2 = m.TemplateByte(m.LexSkipSpaceAt(rhs))
-					if (uint32(m.Mem[c2+1680])>>6)&1|rt.B2u(c2 == '?') != 0 {
+					if (uint32(m.Mem[c2+1680])>>6)&1 != 0 || c2 == '?' {
 						hl = TokenVariableParameter
 					}
 				}
@@ -36281,7 +36345,7 @@ scan:
 			continue scan
 		}
 		if c == '.' {
-			if rt.B2u(dot)|units != 0 {
+			if dot || units != 0 {
 				break scan
 			}
 			dot = true
@@ -36303,18 +36367,18 @@ scan:
 
 // HlNginx is $hlNginx.
 func (m *Machine) HlNginx() {
-	var streamRoot, c, depth, gap, hl, lhs, p, expect, open, liveRoot, t1 uint32
-	var t2 bool
+	var streamRoot, c, depth, gap, hl, lhs, p, expect, open, t1 uint32
+	var liveRoot, t2 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		open = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47760
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -36332,11 +36396,11 @@ func (m *Machine) HlNginx() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, open)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -36572,12 +36636,12 @@ func (m *Machine) NimBlockComment(lhs uint32, state uint32) uint32 {
 
 // HlNim is $hlNim.
 func (m *Machine) HlNim() {
-	var streamRoot, afterDecl, afterDot, c, c2, comment, decl, defEnd, depth, dot, g, gap, hl, import_, lhs, tok, nameEnd, p, pragma, triple, liveRoot, t6 uint32
-	var t1, t4, t5 bool
+	var streamRoot, afterDecl, afterDot, c, c2, comment, decl, defEnd, depth, dot, g, gap, hl, import_, lhs, tok, nameEnd, p, pragma, triple, t6 uint32
+	var liveRoot, t1, t4, t5 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		afterDecl = rt.Ld32(m.Mem, 98068)
 		afterDot = rt.Ld32(m.Mem, 98072)
@@ -36590,7 +36654,7 @@ func (m *Machine) HlNim() {
 		triple = rt.Ld32(m.Mem, 98100)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47768
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -36617,7 +36681,7 @@ func (m *Machine) HlNim() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, afterDecl)
 				rt.St32(m.Mem, 98072, afterDot)
@@ -36628,7 +36692,7 @@ next:
 				rt.St32(m.Mem, 98092, nameEnd)
 				rt.St32(m.Mem, 98096, pragma)
 				rt.St32(m.Mem, 98100, triple)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -36967,7 +37031,7 @@ func (m *Machine) NixIsArgAt(p uint32) uint32 {
 	var c, c2 uint32
 	c = m.NixByte(p)
 	c2 = m.NixByte(p + 1)
-	if rt.B2u(m.LexIsIdentStart(c) || m.LexIsDigit(c))|(uint32(m.Mem[c+5008])>>1)&1 != 0 {
+	if m.LexIsIdentStart(c) || m.LexIsDigit(c) || (uint32(m.Mem[c+5008])>>1)&1 != 0 {
 		return 1
 	}
 	if c == '\'' {
@@ -37057,11 +37121,12 @@ func (m *Machine) NixIsOp(c uint32) uint32 {
 
 // HlNix is $hlNix.
 func (m *Machine) HlNix() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, strKind, seg, interp, interpKind, afterValue, member, inherit, brackets, depth, top, pc, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, strKind, seg, interp, interpKind, afterValue, member, inherit, brackets, depth, top, pc uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		strKind = rt.Ld32(m.Mem, 98068)
 		seg = rt.Ld32(m.Mem, 98072)
@@ -37074,7 +37139,7 @@ func (m *Machine) HlNix() {
 		depth = rt.Ld32(m.Mem, 98100)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47800
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -37094,7 +37159,7 @@ func (m *Machine) HlNix() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, strKind)
 				rt.St32(m.Mem, 98072, seg)
@@ -37105,7 +37170,7 @@ next:
 				rt.St32(m.Mem, 98092, inherit)
 				rt.St32(m.Mem, 98096, brackets)
 				rt.St32(m.Mem, 98100, depth)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -37173,7 +37238,7 @@ next:
 			afterValue = 0
 			continue next
 		}
-		if rt.B2u(c == '/')&m.NixIsPathByte(c2)|rt.B2u((c == '.' && (c2 == '/' || (c2 == '.' && c3 == '/'))) || (c == '~' && c2 == '/')) != 0 {
+		if rt.B2u(c == '/')&m.NixIsPathByte(c2) != 0 || (c == '.' && (c2 == '/' || (c2 == '.' && c3 == '/'))) || (c == '~' && c2 == '/') {
 			if c == '~' {
 				m.Ptr++
 			}
@@ -37248,7 +37313,7 @@ next:
 					hl = TokenProperty
 				} else if pc == 61 && m.NixByte(p+1) != '=' {
 					hl = TokenProperty
-				} else if rt.B2u(pc == 58)|rt.B2u(top == 3)&rt.B2u(member == 0)&(uint32(m.Mem[pc+5008])>>3)&1 != 0 {
+				} else if pc == 58 || rt.B2u(top == 3)&rt.B2u(member == 0)&(uint32(m.Mem[pc+5008])>>3)&1 != 0 {
 					hl = TokenVariableParameter
 				} else if rt.B2u(afterValue == 0)&rt.B2u(top != 2)&m.NixIsArgAt(p) != 0 {
 					hl = TokenFunction
@@ -37395,12 +37460,12 @@ func (m *Machine) ObjcWordHl(lhs uint32, rhs uint32, at uint32, propAttrs uint32
 
 // HlObjc is $hlObjc.
 func (m *Machine) HlObjc() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, midLine, expectType, propAttrs, declHead, parens, brackets, member, prev, declColon, strCont, liveRoot uint32
-	var nl bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, midLine, expectType, propAttrs, declHead, parens, brackets, member, prev, declColon, strCont uint32
+	var nl, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		midLine = rt.Ld32(m.Mem, 98068)
 		expectType = rt.Ld32(m.Mem, 98072)
@@ -37413,7 +37478,7 @@ func (m *Machine) HlObjc() {
 		strCont = rt.Ld32(m.Mem, 98100)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47840
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -37434,7 +37499,7 @@ func (m *Machine) HlObjc() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, midLine)
 				rt.St32(m.Mem, 98072, expectType)
@@ -37445,7 +37510,7 @@ next:
 				rt.St32(m.Mem, 98092, member)
 				rt.St32(m.Mem, 98096, declColon)
 				rt.St32(m.Mem, 98100, strCont)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -37583,7 +37648,7 @@ next:
 				parens = 0
 			} else if m.CIsOp(c) != 0 {
 				m.Ptr++
-				if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
+				if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
 					m.Ptr++
 					if (c == '<' || c == '>') && c3 == '=' {
 						m.Ptr++
@@ -37776,7 +37841,7 @@ func (m *Machine) OdinTripleString(quote uint32) {
 	lhs = m.Ptr
 	m.Ptr += 3
 	closed = m.OdinTripleBody(quote, rt.B2u(quote == '`'), lhs)
-	if m.Streaming != 0 && !closed && m.Ptr == m.Eof {
+	if m.Streaming && !closed && m.Ptr == m.Eof {
 		m.StreamMode = 23
 		m.StreamA = quote
 		m.StreamB = rt.B2u(quote == '`')
@@ -37796,18 +37861,19 @@ func (m *Machine) OdinStreamResumeTriple() bool {
 
 // HlOdin is $hlOdin.
 func (m *Machine) HlOdin() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, decl, expect, member, attrDepth, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, decl, expect, member, attrDepth uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
 		attrDepth = rt.Ld32(m.Mem, 98076)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47880
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -37821,12 +37887,12 @@ func (m *Machine) HlOdin() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
 				rt.St32(m.Mem, 98076, attrDepth)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -38093,18 +38159,19 @@ next:
 
 // HlOpenscad is $hlOpenscad.
 func (m *Machine) HlOpenscad() {
-	var streamRoot, c, c2, lhs, rhs, gap, hl, p, depth, expr, define, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, gap, hl, p, depth, expr, define uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		depth = rt.Ld32(m.Mem, 98068)
 		expr = rt.Ld32(m.Mem, 98072)
 		define = rt.Ld32(m.Mem, 98076)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47896
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -38118,12 +38185,12 @@ func (m *Machine) HlOpenscad() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, depth)
 				rt.St32(m.Mem, 98072, expr)
 				rt.St32(m.Mem, 98076, define)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -38335,11 +38402,12 @@ func (m *Machine) PasIsOp(c uint32) uint32 {
 
 // HlPascal is $hlPascal.
 func (m *Machine) HlPascal() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, pc, kind, hl, expect, fnHead, paren, paramDepth, typeCtx, propCtx, propName, member, liveRoot, t0 uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, pc, kind, hl, expect, fnHead, paren, paramDepth, typeCtx, propCtx, propName, member, t0 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		fnHead = rt.Ld32(m.Mem, 98072)
@@ -38351,7 +38419,7 @@ func (m *Machine) HlPascal() {
 		member = rt.Ld32(m.Mem, 98096)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47912
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -38370,7 +38438,7 @@ func (m *Machine) HlPascal() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, fnHead)
@@ -38380,7 +38448,7 @@ next:
 				rt.St32(m.Mem, 98088, propCtx)
 				rt.St32(m.Mem, 98092, propName)
 				rt.St32(m.Mem, 98096, member)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -38412,7 +38480,7 @@ next:
 			m.EmitTok(TokenStringSpecial, lhs, m.Ptr)
 			continue next
 		}
-		if rt.B2u(c == '$')&m.LexIsHex(c2)|rt.B2u((c == '%' || c == '&') && m.LexIsDigit(c2)) != 0 {
+		if rt.B2u(c == '$')&m.LexIsHex(c2) != 0 || ((c == '%' || c == '&') && m.LexIsDigit(c2)) {
 			m.Ptr++
 			m.ScanIdentRun(95)
 			m.EmitTok(TokenNumber, lhs, m.Ptr)
@@ -38807,12 +38875,12 @@ func (m *Machine) PerlIsOp(c uint32) uint32 {
 
 // HlPerl is $hlPerl.
 func (m *Machine) HlPerl() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, status, operand, decl, member, lineHead, atHead, seg, sActive, sClose, sOpen, sDepth, sFlags, sSecond, hdLen, hdDelim, hdStrip, data, liveRoot, t2, t3, t4, t5 uint32
-	var path, t1 bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, status, operand, decl, member, lineHead, atHead, seg, sActive, sClose, sOpen, sDepth, sFlags, sSecond, hdLen, hdDelim, hdStrip, data, t2, t3, t4, t5 uint32
+	var path, liveRoot, t1 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		operand = rt.Ld32(m.Mem, 98068)
 		decl = rt.Ld32(m.Mem, 98072)
@@ -38833,7 +38901,7 @@ func (m *Machine) HlPerl() {
 		lineHead = 1
 		operand = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 47944
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -38859,7 +38927,7 @@ func (m *Machine) HlPerl() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, operand)
 				rt.St32(m.Mem, 98072, decl)
@@ -38876,7 +38944,7 @@ next:
 				rt.St32(m.Mem, 98116, hdDelim)
 				rt.St32(m.Mem, 98120, hdStrip)
 				rt.St32(m.Mem, 98124, data)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -39068,7 +39136,7 @@ next:
 				kind = t4
 				if kind != 0 {
 					sOpen = m.PerlByte(p)
-					if sOpen > 32 && sOpen < 128 && m.LexIsIdentContinue(sOpen)|rt.B2u(sOpen == 44 || sOpen == 59 || sOpen == 61 || sOpen == 41 || (sOpen == 35 && p > rhs)) == 0 {
+					if sOpen > 32 && sOpen < 128 && !(m.LexIsIdentContinue(sOpen) != 0 || sOpen == 44 || sOpen == 59 || sOpen == 61 || sOpen == 41 || (sOpen == 35 && p > rhs)) {
 						m.Ptr = p + 1
 						sClose = m.PerlCloser(sOpen)
 						if sClose == sOpen {
@@ -39405,7 +39473,7 @@ func (m *Machine) PlsqlQuote(p uint32) {
 	var close_, lhs uint32
 	lhs = m.Ptr
 	close_ = m.TemplateByte(p)
-	if (uint32(m.Mem[close_+1680])>>2)&1|rt.B2u(close_ == '<') != 0 {
+	if (uint32(m.Mem[close_+1680])>>2)&1 != 0 || close_ == '<' {
 		close_ += rt.Sel32(close_ == '(', 1, 2)
 	}
 	m.Ptr = p + 1
@@ -39542,17 +39610,17 @@ word:
 
 // HlSqlImpl is $hlSqlImpl.
 func (m *Machine) HlSqlImpl() {
-	var streamRoot, c, hl, lhs, next, p, expect, liveRoot uint32
-	var temp bool
+	var streamRoot, c, hl, lhs, next, p, expect uint32
+	var temp, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48008
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -39564,10 +39632,10 @@ func (m *Machine) HlSqlImpl() {
 token:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -39580,7 +39648,7 @@ token:
 		lhs = m.Ptr
 		c = uint32(m.Mem[m.Ptr])
 		next = rt.Sel32(m.Ptr+1 < m.End, uint32(m.Mem[m.Ptr+1]), 0)
-		if m.SqlPlsql != 0 {
+		if m.SqlPlsql {
 			if (c == ':' && next == '=') || (c == '.' && next == '.') {
 				m.Ptr = lhs + 2
 				m.EmitTok(TokenOperator, lhs, m.Ptr)
@@ -39668,7 +39736,7 @@ token:
 				m.LexScanIdent()
 			} else {
 				m.LexScanIdent()
-				if m.SqlPlsql != 0 {
+				if m.SqlPlsql {
 					if lhs <= m.SrcBase || m.Mem[lhs-1] != '.' {
 						hl = m.PlsqlWordHl(lhs, m.Ptr)
 					}
@@ -39716,7 +39784,7 @@ token:
 			m.EmitTok(TokenPunctuationDelimiter, lhs, m.Ptr)
 			continue token
 		}
-		if rt.B2u(c-60 <= 2)|rt.B2u(c-43 <= 3)|(uint32(m.Mem[c+5008])>>6)&1 != 0 {
+		if c-60 <= 2 || c-43 <= 3 || (uint32(m.Mem[c+5008])>>6)&1 != 0 {
 			m.Ptr += rt.Sel32(next == '=' || next == c, 2, 1)
 			m.EmitTok(TokenOperator, lhs, m.Ptr)
 			continue token
@@ -39739,13 +39807,13 @@ token:
 
 // HlSql is $hlSql.
 func (m *Machine) HlSql() {
-	m.SqlPlsql = 0
+	m.SqlPlsql = false
 	m.HlSqlImpl()
 }
 
 // HlPlsql is $hlPlsql.
 func (m *Machine) HlPlsql() {
-	m.SqlPlsql = 1
+	m.SqlPlsql = true
 	m.HlSqlImpl()
 }
 
@@ -39767,7 +39835,7 @@ func (m *Machine) PoPlaceholderEnd(p uint32, stop uint32) uint32 {
 				break name
 			}
 			c = uint32(m.Mem[q])
-			if m.LexIsIdentContinue(c)|rt.B2u(c == '.') == 0 {
+			if !(m.LexIsIdentContinue(c) != 0 || c == '.') {
 				break name
 			}
 			q++
@@ -39882,16 +39950,17 @@ l:
 
 // HlPo is $hlPo.
 func (m *Machine) HlPo() {
-	var streamRoot, c, gap, lhs, n, p, liveRoot uint32
+	var streamRoot, c, gap, lhs, n, p uint32
 	var w uint64
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48016
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -39902,9 +39971,9 @@ func (m *Machine) HlPo() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -39992,7 +40061,7 @@ func (m *Machine) PqText(seg uint32) bool {
 				for {
 					q++
 					c = m.TemplateByte(q)
-					if m.LexIsIdentContinue(c)&rt.B2u(c < 128)|rt.B2u(c == ',' || c == '#') == 0 {
+					if !(m.LexIsIdentContinue(c)&rt.B2u(c < 128) != 0 || c == ',' || c == '#') {
 						break
 					}
 				}
@@ -40010,18 +40079,18 @@ func (m *Machine) PqText(seg uint32) bool {
 
 // HlPowerquery is $hlPowerquery.
 func (m *Machine) HlPowerquery() {
-	var streamRoot, c, c2, lhs, rhs, p, v, hl, text, nest, liveRoot uint32
-	var dotted, t0, t1 bool
+	var streamRoot, c, c2, lhs, rhs, p, v, hl, text, nest uint32
+	var dotted, liveRoot, t0, t1 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		text = rt.Ld32(m.Mem, 98068)
 		nest = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48016
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -40038,11 +40107,11 @@ func (m *Machine) HlPowerquery() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, text)
 				rt.St32(m.Mem, 98072, nest)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -40119,7 +40188,7 @@ next:
 			hl = v
 			if int32(v) < 0 {
 				hl = TokenVariable
-				if rt.B2u(m.LexLineByteBefore(lhs) == 91)|nest&1&rt.B2u(c2 == '=' && m.TemplateByte(p+1) != '>') != 0 {
+				if m.LexLineByteBefore(lhs) == 91 || nest&1&rt.B2u(c2 == '=' && m.TemplateByte(p+1) != '>') != 0 {
 					hl = TokenProperty
 				} else if m.TemplateByte(rhs) == '(' {
 					hl = TokenFunction
@@ -40142,7 +40211,7 @@ next:
 			m.EmitTok(TokenNumber, lhs, m.Ptr)
 			continue next
 		}
-		if (uint32(m.Mem[c+5008])>>2)&1|rt.B2u(c == '.') != 0 {
+		if (uint32(m.Mem[c+5008])>>2)&1 != 0 || c == '.' {
 			m.Ptr = lhs + 1
 		op:
 			for {
@@ -40324,12 +40393,12 @@ l:
 
 // HlPowershell is $hlPowershell.
 func (m *Machine) HlPowershell() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, expect, want, member, cmdPos, strKind, seg, interp, interpKind, status, liveRoot uint32
-	var closed bool
+	var streamRoot, c, c2, gap, lhs, rhs, p, g, hl, expect, want, member, cmdPos, strKind, seg, interp, interpKind, status uint32
+	var closed, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -40341,7 +40410,7 @@ func (m *Machine) HlPowershell() {
 	} else {
 		cmdPos = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48024
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -40359,7 +40428,7 @@ func (m *Machine) HlPowershell() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
@@ -40368,7 +40437,7 @@ next:
 				rt.St32(m.Mem, 98084, seg)
 				rt.St32(m.Mem, 98088, interp)
 				rt.St32(m.Mem, 98092, interpKind)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -40696,11 +40765,12 @@ next:
 
 // HlPrisma is $hlPrisma.
 func (m *Machine) HlPrisma() {
-	var streamRoot, c, c2, gap, lhs, rhs, pc, g, hl, pending, block, col, paren, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, pc, g, hl, pending, block, col, paren uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		pending = rt.Ld32(m.Mem, 98068)
 		block = rt.Ld32(m.Mem, 98072)
@@ -40708,7 +40778,7 @@ func (m *Machine) HlPrisma() {
 		paren = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48056
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -40723,13 +40793,13 @@ func (m *Machine) HlPrisma() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, pending)
 				rt.St32(m.Mem, 98072, block)
 				rt.St32(m.Mem, 98076, col)
 				rt.St32(m.Mem, 98080, paren)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -40864,17 +40934,18 @@ func (m *Machine) PlIsSymbol(c uint32) uint32 {
 
 // HlProlog is $hlProlog.
 func (m *Machine) HlProlog() {
-	var streamRoot, c, c2, gap, lhs, rhs, hl, head, atHead, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, hl, head, atHead uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		head = rt.Ld32(m.Mem, 98068)
 	} else {
 		head = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48072
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -40886,10 +40957,10 @@ func (m *Machine) HlProlog() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, head)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -41025,17 +41096,18 @@ func (m *Machine) ProtoWordHl(lhs uint32, rhs uint32) uint32 {
 
 // HlProto is $hlProto.
 func (m *Machine) HlProto() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, kind, hl, expect, member, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, kind, hl, expect, member uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48080
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -41048,11 +41120,11 @@ func (m *Machine) HlProto() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -41099,7 +41171,7 @@ next:
 			} else if c-65 <= 25 {
 				hl = TokenType
 			} else {
-				hl = rt.Sel32(member|rt.B2u(c2 == '.') != 0, TokenNamespace, TokenVariable)
+				hl = rt.Sel32(member != 0 || c2 == '.', TokenNamespace, TokenVariable)
 			}
 			m.EmitTok(hl, lhs, rhs)
 			member = 0
@@ -41340,7 +41412,7 @@ name:
 			break name
 		}
 		c = uint32(m.Mem[m.Ptr])
-		if m.LexIsIdentContinue(c)&rt.B2u(c != '$')|rt.B2u(c == '-' || (c == ':' && m.LexIsIdentStart(m.TemplateByte(m.Ptr+1)))) == 0 {
+		if !(m.LexIsIdentContinue(c)&rt.B2u(c != '$') != 0 || c == '-' || (c == ':' && m.LexIsIdentStart(m.TemplateByte(m.Ptr+1)))) {
 			break name
 		}
 		m.Ptr++
@@ -41369,7 +41441,7 @@ part:
 				if m.Ptr >= stop {
 					break name
 				}
-				if m.LexIsIdentContinue(c)&rt.B2u(c != '$')|rt.B2u(c == '-') == 0 {
+				if !(m.LexIsIdentContinue(c)&rt.B2u(c != '$') != 0 || c == '-') {
 					break name
 				}
 				m.Ptr++
@@ -41599,17 +41671,18 @@ func (m *Machine) PugLine(stop uint32) uint32 {
 
 // HlPug is $hlPug.
 func (m *Machine) HlPug() {
-	var streamRoot, indent, kind, lhs, lineEnd, block, tag, liveRoot uint32
+	var streamRoot, indent, kind, lhs, lineEnd, block, tag uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		block = rt.Ld32(m.Mem, 98068)
 		tag = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48088
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -41622,11 +41695,11 @@ func (m *Machine) HlPug() {
 line:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, block)
 				rt.St32(m.Mem, 98072, tag)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -41848,7 +41921,7 @@ lines:
 		if p+n <= m.End && m.BashRangeEq(p, 13952, n) {
 			p = m.LexSkipSpaceAt(p + n)
 			c = m.TemplateByte(p)
-			if rt.B2u(p >= m.End)|(uint32(m.Mem[c+1424])>>2)&1 != 0 {
+			if p >= m.End || (uint32(m.Mem[c+1424])>>2)&1 != 0 {
 				m.Ptr = p
 				m.EmitTok(TokenString, seg, m.Ptr)
 				return true
@@ -41905,11 +41978,12 @@ back:
 
 // HlPuppet is $hlPuppet.
 func (m *Machine) HlPuppet() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, v, e, hl, expect, params, str, hd, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, v, e, hl, expect, params, str, hd uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		params = rt.Ld32(m.Mem, 98072)
@@ -41917,7 +41991,7 @@ func (m *Machine) HlPuppet() {
 		hd = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48096
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -41932,13 +42006,13 @@ func (m *Machine) HlPuppet() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, params)
 				rt.St32(m.Mem, 98076, str)
 				rt.St32(m.Mem, 98080, hd)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -41995,7 +42069,7 @@ next:
 				continue next
 			}
 			v = m.LexLineByteBefore(lhs)
-			if rt.B2u(e == 4 || v == 0)|(uint32(m.Mem[v+1680])>>2)&1|rt.B2u(v == 44 || v == 61 || v == 126) != 0 {
+			if e == 4 || v == 0 || (uint32(m.Mem[v+1680])>>2)&1 != 0 || v == 44 || v == 61 || v == 126 {
 				p = lhs + 1
 			rx:
 				for {
@@ -42200,7 +42274,7 @@ scan:
 		for {
 			p = m.ScanFindSpecial(p, m.End, c, 1, 1)
 			b = m.TemplateByte(p)
-			if rt.B2u(b == 0)|(uint32(m.Mem[b+1424])>>2)&1 != 0 {
+			if b == 0 || (uint32(m.Mem[b+1424])>>2)&1 != 0 {
 				break scan
 			}
 			p++
@@ -42208,7 +42282,7 @@ scan:
 				continue scan
 			}
 			b = m.TemplateByte(p)
-			if rt.B2u(b == 0)|(uint32(m.Mem[b+1424])>>2)&1 != 0 {
+			if b == 0 || (uint32(m.Mem[b+1424])>>2)&1 != 0 {
 				break scan
 			}
 			p++
@@ -42223,7 +42297,7 @@ func (m *Machine) QmlJs(to uint32, reset uint32) uint32 {
 	save = m.End
 	m.End = to
 	m.EcmaFeatures = 0
-	m.TsxStreaming = 1
+	m.TsxStreaming = true
 	m.TsxStreamExpressionClose = 1
 	m.TsxStreamExpressionClosed = 0
 	if reset != 0 {
@@ -42236,12 +42310,12 @@ func (m *Machine) QmlJs(to uint32, reset uint32) uint32 {
 
 // HlQml is $hlQml.
 func (m *Machine) HlQml() {
-	var streamRoot, c, c2, d, g, gap, hl, lhs, rhs, n, p, atMember, js, decl, params, enum, member, bind, liveRoot uint32
-	var upper bool
+	var streamRoot, c, c2, d, g, gap, hl, lhs, rhs, n, p, atMember, js, decl, params, enum, member, bind uint32
+	var upper, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		js = rt.Ld32(m.Mem, 98068)
 		decl = rt.Ld32(m.Mem, 98072)
@@ -42251,7 +42325,7 @@ func (m *Machine) HlQml() {
 		bind = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48112
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -42268,7 +42342,7 @@ func (m *Machine) HlQml() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, js)
 				rt.St32(m.Mem, 98072, decl)
@@ -42276,7 +42350,7 @@ next:
 				rt.St32(m.Mem, 98080, enum)
 				rt.St32(m.Mem, 98084, member)
 				rt.St32(m.Mem, 98088, bind)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -42373,7 +42447,7 @@ next:
 			} else if n == 40 {
 				hl = rt.Sel32(atMember != 0, TokenFunctionMethod, TokenFunction)
 			} else {
-				hl = rt.Sel32(upper, TokenType, rt.Sel32(atMember|rt.B2u(n == 123 || n == 46) != 0, TokenProperty, TokenVariable))
+				hl = rt.Sel32(upper, TokenType, rt.Sel32(atMember != 0 || n == 123 || n == 46, TokenProperty, TokenVariable))
 			}
 			m.EmitTok(hl, lhs, rhs)
 			continue next
@@ -42395,7 +42469,7 @@ next:
 				bind = 0
 				p = m.LexSkipSpaceAt(m.Ptr)
 				c = m.TemplateByte(p)
-				js = rt.B2u(rt.B2u(c == 0 || c == '[')|(uint32(m.Mem[c+1424])>>2)&1 == 0)
+				js = rt.B2u(!(c == 0 || c == '[' || (uint32(m.Mem[c+1424])>>2)&1 != 0))
 				if c-65 <= 25 {
 					m.Ptr = p
 					m.ScanIdentRun(46)
@@ -42518,7 +42592,7 @@ func (m *Machine) RDefinedAhead(p uint32) bool {
 		return false
 	}
 	c = m.RByte(p + 8)
-	return rt.Ld64(m.Mem, p) == 0x6e6f6974636e7566 && m.LexIsIdentContinue(c)|rt.B2u(c == '.') == 0
+	return rt.Ld64(m.Mem, p) == 0x6e6f6974636e7566 && !(m.LexIsIdentContinue(c) != 0 || c == '.')
 }
 
 // RRawString is $rRawString.
@@ -42574,11 +42648,12 @@ func (m *Machine) RIsOp(c uint32) uint32 {
 
 // HlR is $hlR.
 func (m *Machine) HlR() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, member, paren, fnHead, fnDepth, atFn, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, g, hl, member, paren, fnHead, fnDepth, atFn uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		member = rt.Ld32(m.Mem, 98068)
 		paren = rt.Ld32(m.Mem, 98072)
@@ -42586,7 +42661,7 @@ func (m *Machine) HlR() {
 		fnDepth = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48136
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -42601,13 +42676,13 @@ func (m *Machine) HlR() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, member)
 				rt.St32(m.Mem, 98072, paren)
 				rt.St32(m.Mem, 98076, fnHead)
 				rt.St32(m.Mem, 98080, fnDepth)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -42891,13 +42966,13 @@ name:
 
 // HlRazor is $hlRazor.
 func (m *Machine) HlRazor() {
-	var streamRoot, markup, await, xline, stmt, enter, lineMarkup, c, ev, lhs, lineEnd, p, parens, q, r, resumed, saveEnd, top, liveRoot uint32
+	var streamRoot, markup, await, xline, stmt, enter, lineMarkup, c, ev, lhs, lineEnd, p, parens, q, r, resumed, saveEnd, top uint32
 	var stack uint64
-	var skip, t0 bool
+	var skip, liveRoot, t0 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		stack = rt.Ld64(m.Mem, 98072)
 		markup = rt.Ld32(m.Mem, 98080)
@@ -42909,7 +42984,7 @@ func (m *Machine) HlRazor() {
 		resumed = rt.Ld32(m.Mem, 98104)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48152
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -42952,7 +43027,7 @@ func (m *Machine) HlRazor() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St64(m.Mem, 98072, stack)
 				rt.St32(m.Mem, 98080, markup)
@@ -42962,7 +43037,7 @@ next:
 				rt.St32(m.Mem, 98096, enter)
 				rt.St32(m.Mem, 98100, lineMarkup)
 				rt.St32(m.Mem, 98104, resumed)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -43407,11 +43482,12 @@ scan:
 
 // HlRdfImpl is $hlRdfImpl.
 func (m *Machine) HlRdfImpl(sparql uint32) {
-	var streamRoot, c, c2, lhs, rhs, p, g, hl, term, nest, long, liveRoot, t2 uint32
+	var streamRoot, c, c2, lhs, rhs, p, g, hl, term, nest, long, t2 uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		sparql = rt.Ld32(m.Mem, 98064)
 		streamRoot = rt.Ld32(m.Mem, 98068)
 		term = rt.Ld32(m.Mem, 98072)
@@ -43419,7 +43495,7 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 		long = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48184
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -43436,13 +43512,13 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, sparql)
 				rt.St32(m.Mem, 98068, streamRoot)
 				rt.St32(m.Mem, 98072, term)
 				rt.St32(m.Mem, 98076, nest)
 				rt.St32(m.Mem, 98080, long)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -43629,17 +43705,18 @@ next:
 
 // HlReg is $hlReg.
 func (m *Machine) HlReg() {
-	var streamRoot, c, lhs, gap, n, p, hl, col, liveRoot uint32
+	var streamRoot, c, lhs, gap, n, p, hl, col uint32
 	var w uint64
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		col = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48200
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -43651,10 +43728,10 @@ func (m *Machine) HlReg() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, col)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -43768,18 +43845,19 @@ next:
 
 // HlRosmsg is $hlRosmsg.
 func (m *Machine) HlRosmsg() {
-	var streamRoot, c, c2, lhs, gap, g, n, hl, col, str, liveRoot uint32
+	var streamRoot, c, c2, lhs, gap, g, n, hl, col, str uint32
 	var w uint64
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		col = rt.Ld32(m.Mem, 98068)
 		str = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48208
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -43792,11 +43870,11 @@ func (m *Machine) HlRosmsg() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, col)
 				rt.St32(m.Mem, 98072, str)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -43834,7 +43912,7 @@ next:
 			col = 3
 		} else {
 			hl = TokenNumber
-			if rt.B2u(m.LexIsDigit(c))|(uint32(m.Mem[c+2448])&1|rt.B2u(c == '.'))&rt.B2u(m.LexIsDigit(c2)) != 0 {
+			if m.LexIsDigit(c) || (uint32(m.Mem[c+2448])&1|rt.B2u(c == '.'))&rt.B2u(m.LexIsDigit(c2)) != 0 {
 				m.Ptr = lhs + uint32(m.Mem[c+2448])&1
 				m.LexScanNumber()
 			} else {
@@ -43980,12 +44058,12 @@ func (m *Machine) SasCards(mode uint32) uint32 {
 
 // HlSas is $hlSas.
 func (m *Machine) HlSas() {
-	var streamRoot, c, c2, lhs, rhs, p, v, hl, after, atStmt, stmt, opts, paren, expect, cards, liveRoot uint32
-	var pct, eq bool
+	var streamRoot, c, c2, lhs, rhs, p, v, hl, after, atStmt, stmt, opts, paren, expect, cards uint32
+	var pct, eq, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		stmt = rt.Ld32(m.Mem, 98068)
 		opts = rt.Ld32(m.Mem, 98072)
@@ -43995,7 +44073,7 @@ func (m *Machine) HlSas() {
 	} else {
 		stmt = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48216
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -44011,14 +44089,14 @@ func (m *Machine) HlSas() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, stmt)
 				rt.St32(m.Mem, 98072, opts)
 				rt.St32(m.Mem, 98076, paren)
 				rt.St32(m.Mem, 98080, expect)
 				rt.St32(m.Mem, 98084, cards)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -44114,7 +44192,7 @@ next:
 			}
 			if lhs > m.SrcBase && (m.Mem[lhs-1] == '"' || m.Mem[lhs-1] == '\'') {
 				p = rhs - lhs
-				if rt.B2u(p == 1)&(uint32(m.Mem[c+5264])>>5)&1|rt.B2u(p == 2 && rt.Ld16(m.Mem, lhs)|8224 == 29796) != 0 {
+				if rt.B2u(p == 1)&(uint32(m.Mem[c+5264])>>5)&1 != 0 || (p == 2 && rt.Ld16(m.Mem, lhs)|8224 == 29796) {
 					m.EmitTok(TokenStringSpecial, lhs, rhs)
 					continue next
 				}
@@ -44308,11 +44386,12 @@ func (m *Machine) ScalaIsOp(c uint32) uint32 {
 
 // HlScala is $hlScala.
 func (m *Machine) HlScala() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, expect, member, wasMember, importCtx, strKind, interp, interpKind, status, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, expect, member, wasMember, importCtx, strKind, interp, interpKind, status uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -44322,7 +44401,7 @@ func (m *Machine) HlScala() {
 		interpKind = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48240
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -44339,7 +44418,7 @@ func (m *Machine) HlScala() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
@@ -44347,7 +44426,7 @@ next:
 				rt.St32(m.Mem, 98080, strKind)
 				rt.St32(m.Mem, 98084, interp)
 				rt.St32(m.Mem, 98088, interpKind)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -44360,7 +44439,7 @@ next:
 				interpKind = strKind
 				interp = 1
 				strKind = 0
-			} else if rt.B2u(status == 1)|strKind&1&rt.B2u(status == 0) != 0 {
+			} else if status == 1 || strKind&1&rt.B2u(status == 0) != 0 {
 				strKind = 0
 			}
 			continue next
@@ -44673,7 +44752,7 @@ func (m *Machine) ShaderlabBody(kind uint32, resume uint32) {
 			if close_ < m.End {
 				m.ScanIdentRun(95)
 				m.EmitTok(TokenKeyword, close_, m.Ptr)
-				if m.Streaming != 0 {
+				if m.Streaming {
 					m.StreamMode = 0
 					m.StreamClearCheckpoints()
 				}
@@ -44695,7 +44774,7 @@ func (m *Machine) ShaderlabBody(kind uint32, resume uint32) {
 	if close_ < m.End {
 		m.ScanIdentRun(95)
 		m.EmitTok(TokenKeyword, close_, m.Ptr)
-		if m.Streaming != 0 {
+		if m.Streaming {
 			m.StreamMode = 0
 			m.StreamClearCheckpoints()
 		}
@@ -44712,16 +44791,17 @@ func (m *Machine) ShaderlabStreamResume() bool {
 
 // HlShaderlab is $hlShaderlab.
 func (m *Machine) HlShaderlab() {
-	var streamRoot, c, c2, lhs, rhs, gap, hl, n, attr, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, gap, hl, n, attr uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		attr = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48264
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -44733,10 +44813,10 @@ func (m *Machine) HlShaderlab() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, attr)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -44847,17 +44927,18 @@ next:
 
 // HlSolidity is $hlSolidity.
 func (m *Machine) HlSolidity() {
-	var streamRoot, c, c2, lhs, rhs, p, n, kind, hl, expect, member, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, p, n, kind, hl, expect, member uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48264
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -44870,11 +44951,11 @@ func (m *Machine) HlSolidity() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -45163,11 +45244,12 @@ scan:
 
 // HlStata is $hlStata.
 func (m *Machine) HlStata() {
-	var streamRoot, c, c2, lhs, rhs, v, hl, stop, atCmd, eol, cmd, colon, opt, paren, expect, cont, liveRoot uint32
+	var streamRoot, c, c2, lhs, rhs, v, hl, stop, atCmd, eol, cmd, colon, opt, paren, expect, cont uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		eol = rt.Ld32(m.Mem, 98068)
 		cmd = rt.Ld32(m.Mem, 98072)
@@ -45179,7 +45261,7 @@ func (m *Machine) HlStata() {
 	} else {
 		cmd = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48272
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -45197,7 +45279,7 @@ func (m *Machine) HlStata() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, eol)
 				rt.St32(m.Mem, 98072, cmd)
@@ -45206,7 +45288,7 @@ next:
 				rt.St32(m.Mem, 98084, paren)
 				rt.St32(m.Mem, 98088, expect)
 				rt.St32(m.Mem, 98092, cont)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -45327,7 +45409,7 @@ next:
 			opt = 0
 			continue next
 		}
-		if uint32(m.Mem[c+1936])>>7|rt.B2u(c == '\\') != 0 {
+		if uint32(m.Mem[c+1936])>>7 != 0 || c == '\\' {
 			m.Ptr = lhs + 1
 		op:
 			for {
@@ -45510,7 +45592,7 @@ func (m *Machine) SwiftCallAhead(lhs uint32, rhs uint32, p uint32, member uint32
 	if c == '?' || c == '!' {
 		return member == 0 && m.TemplateByte(p+1) == '(' && n == 4 && rt.Ld32(m.Mem, lhs) == 0x74696e69
 	}
-	if rt.B2u(c != '{')|cond != 0 {
+	if c != '{' || cond != 0 {
 		return false
 	}
 	if member != 0 {
@@ -45534,12 +45616,12 @@ func (m *Machine) SwiftCallAhead(lhs uint32, rhs uint32, p uint32, member uint32
 
 // HlSwift is $hlSwift.
 func (m *Machine) HlSwift() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, expect, member, seg, interp, stringMode, rawOpen, cond, condParen, liveRoot, t4, t5, t6, t7, t8, t9, t10 uint32
-	var openedInterp, t1 bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, expect, member, seg, interp, stringMode, rawOpen, cond, condParen, t4, t5, t6, t7, t8, t9, t10 uint32
+	var openedInterp, liveRoot, t1 bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
@@ -45551,7 +45633,7 @@ func (m *Machine) HlSwift() {
 		condParen = rt.Ld32(m.Mem, 98096)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48296
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -45570,7 +45652,7 @@ func (m *Machine) HlSwift() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
@@ -45580,7 +45662,7 @@ next:
 				rt.St32(m.Mem, 98088, rawOpen)
 				rt.St32(m.Mem, 98092, cond)
 				rt.St32(m.Mem, 98096, condParen)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -45796,7 +45878,7 @@ next:
 				}
 			}
 			if condParen < 32 && (c == '{' || c == '}' || c == ')' || c == ']') {
-				cond &= uint32(1)<<(condParen&31) ^ 0xffffffff
+				cond = cond & ^(uint32(1) << (condParen & 31))
 			}
 			if c == '(' || c == '[' {
 				condParen++
@@ -45847,7 +45929,7 @@ next:
 			m.SigPattern = rt.B2u(c == ',')
 			if c == ';' {
 				if condParen < 32 {
-					cond &= uint32(1)<<(condParen&31) ^ 0xffffffff
+					cond = cond & ^(uint32(1) << (condParen & 31))
 				}
 				if m.SigActive()&rt.B2u(m.SigObscure == 0) != 0 {
 					m.SigUnmark()
@@ -45998,21 +46080,22 @@ l:
 
 // HlTcl is $hlTcl.
 func (m *Machine) HlTcl() {
-	var streamRoot, c, gap, lhs, v, hl, e, pos, expect, param, inStr, depth, bits, liveRoot uint32
+	var streamRoot, c, gap, lhs, v, hl, e, pos, expect, param, inStr, depth, bitSet uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		pos = rt.Ld32(m.Mem, 98068)
 		expect = rt.Ld32(m.Mem, 98072)
 		param = rt.Ld32(m.Mem, 98076)
 		inStr = rt.Ld32(m.Mem, 98080)
 		depth = rt.Ld32(m.Mem, 98084)
-		bits = rt.Ld32(m.Mem, 98088)
+		bitSet = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48328
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -46022,22 +46105,22 @@ func (m *Machine) HlTcl() {
 				param = rt.Ld32(m.Mem, m.StreamWindow+8)
 				inStr = rt.Ld32(m.Mem, m.StreamWindow+12)
 				depth = rt.Ld32(m.Mem, m.StreamWindow+16)
-				bits = rt.Ld32(m.Mem, m.StreamWindow+20)
+				bitSet = rt.Ld32(m.Mem, m.StreamWindow+20)
 			}
 		}
 	}
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, pos)
 				rt.St32(m.Mem, 98072, expect)
 				rt.St32(m.Mem, 98076, param)
 				rt.St32(m.Mem, 98080, inStr)
 				rt.St32(m.Mem, 98084, depth)
-				rt.St32(m.Mem, 98088, bits)
-				m.LiveSuspended = 1
+				rt.St32(m.Mem, 98088, bitSet)
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -46051,7 +46134,7 @@ next:
 				lhs = m.Ptr
 				m.Ptr = lhs + 1
 				m.EmitTok(TokenPunctuationBracket, lhs, m.Ptr)
-				bits = bits<<1 | 1
+				bitSet = bitSet<<1 | 1
 				depth++
 				pos = 0
 			}
@@ -46153,17 +46236,17 @@ next:
 		if uint32(m.Mem[c+2192])&1 != 0 {
 			m.EmitTok(TokenPunctuationBracket, lhs, m.Ptr)
 			if c == '[' {
-				bits <<= 1
+				bitSet <<= 1
 				depth++
 				pos = 0
 			}
 			if c == ']' && depth != 0 {
-				inStr = bits & 1
-				bits >>= 1
+				inStr = bitSet & 1
+				bitSet >>= 1
 				depth--
 			}
 			if c == '{' {
-				if param|rt.B2u(e == 2) != 0 {
+				if param != 0 || e == 2 {
 					param++
 				} else {
 					pos = rt.Sel32(v == 0 || m.LexIsSpace(v), 0, 2)
@@ -46201,7 +46284,7 @@ next:
 		rt.St32(m.Mem, m.StreamWindow+8, param)
 		rt.St32(m.Mem, m.StreamWindow+12, inStr)
 		rt.St32(m.Mem, m.StreamWindow+16, depth)
-		rt.St32(m.Mem, m.StreamWindow+20, bits)
+		rt.St32(m.Mem, m.StreamWindow+20, bitSet)
 		if m.StreamStateLo > 2104 {
 			m.StreamStateLo = 2104
 		}
@@ -46268,12 +46351,12 @@ func (m *Machine) TfIsOp(c uint32) uint32 {
 
 // HlTerraform is $hlTerraform.
 func (m *Machine) HlTerraform() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, g, hl, member, lineHead, atHead, seg, interp, status, hdLen, hdDelim, liveRoot uint32
-	var hdStrip bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, g, hl, member, lineHead, atHead, seg, interp, status, hdLen, hdDelim uint32
+	var hdStrip, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		member = rt.Ld32(m.Mem, 98068)
 		lineHead = rt.Ld32(m.Mem, 98072)
@@ -46284,7 +46367,7 @@ func (m *Machine) HlTerraform() {
 	} else {
 		lineHead = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48352
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -46301,7 +46384,7 @@ func (m *Machine) HlTerraform() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, member)
 				rt.St32(m.Mem, 98072, lineHead)
@@ -46309,7 +46392,7 @@ next:
 				rt.St32(m.Mem, 98080, interp)
 				rt.St32(m.Mem, 98084, hdLen)
 				rt.St32(m.Mem, 98088, hdDelim)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -46489,7 +46572,7 @@ wide:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9))), rt.Or(rt.Eq8(w, rt.Splat8(95)), rt.Eq8(w, rt.Splat8(45))))) ^ 65535
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		p += 16
@@ -46698,7 +46781,7 @@ scan:
 
 // TomlStreamOpen is $tomlStreamOpen.
 func (m *Machine) TomlStreamOpen(quote uint32, trim uint32, hl uint32) {
-	if m.Streaming != 0 && m.Ptr == m.End {
+	if m.Streaming && m.Ptr == m.End {
 		m.StreamMode = 13
 		m.StreamA = quote
 		m.StreamB = trim
@@ -46763,12 +46846,12 @@ func (m *Machine) TomlLiteralString(hl uint32) {
 
 // HlToml is $hlToml.
 func (m *Machine) HlToml() {
-	var streamRoot, base, c, depth, gap, header, hl, key, lhs, limit, n, p, q, r, s, year, liveRoot, t0 uint32
-	var date, sawNewline, time bool
+	var streamRoot, base, c, depth, gap, header, hl, key, lhs, limit, n, p, q, r, s, year, t0 uint32
+	var date, sawNewline, time, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		depth = rt.Ld32(m.Mem, 98068)
 		header = rt.Ld32(m.Mem, 98072)
@@ -46776,7 +46859,7 @@ func (m *Machine) HlToml() {
 	} else {
 		key = 1
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48376
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -46790,12 +46873,12 @@ func (m *Machine) HlToml() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, depth)
 				rt.St32(m.Mem, 98072, header)
 				rt.St32(m.Mem, 98076, key)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -46955,7 +47038,7 @@ next:
 				if m.TomlTwoDigits(lhs+8, 1, limit) {
 					p = lhs + 10
 					c = m.TemplateByte(p)
-					if rt.B2u(c|32 == 116)|rt.B2u(c == ' ')&m.TomlHourMinute(p+1) != 0 {
+					if c|32 == 116 || rt.B2u(c == ' ')&m.TomlHourMinute(p+1) != 0 {
 						date = true
 						q = p + 1
 					} else {
@@ -47119,7 +47202,7 @@ wide:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(35)), rt.Splat8(1)), rt.LeU8(rt.Sub8(w, rt.Splat8(91)), rt.Splat8(5))), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(42)), rt.Eq8(w, rt.Splat8(47))), rt.Or(rt.Or(rt.Eq8(w, rt.Splat8(60)), rt.Eq8(w, rt.Splat8(64))), rt.LeU8(rt.Sub8(w, rt.Splat8(10)), rt.Splat8(3))))))
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		p += 16
@@ -47189,7 +47272,7 @@ func (m *Machine) TypstText(lhs uint32, flags uint32) {
 	url:
 		for {
 			v = m.TemplateByte(m.Ptr)
-			if rt.B2u(v <= 32)|(uint32(m.Mem[v+5264])>>1)&1|rt.B2u(v == 34) != 0 {
+			if v <= 32 || (uint32(m.Mem[v+5264])>>1)&1 != 0 || v == 34 {
 				break url
 			}
 			m.Ptr++
@@ -47209,13 +47292,13 @@ func (m *Machine) TypstText(lhs uint32, flags uint32) {
 
 // HlTypst is $hlTypst.
 func (m *Machine) HlTypst() {
-	var streamRoot, c, c2, lhs, tok, gap, p, q, v, top, flags, mid, raw, liveRoot uint32
-	var first, atom bool
+	var streamRoot, c, c2, lhs, tok, gap, p, q, v, top, flags, mid, raw uint32
+	var first, atom, liveRoot bool
 	var stack uint64
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		stack = rt.Ld64(m.Mem, 98072)
 		flags = rt.Ld32(m.Mem, 98080)
@@ -47223,7 +47306,7 @@ func (m *Machine) HlTypst() {
 		raw = rt.Ld32(m.Mem, 98088)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48392
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -47241,13 +47324,13 @@ func (m *Machine) HlTypst() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St64(m.Mem, 98072, stack)
 				rt.St32(m.Mem, 98080, flags)
 				rt.St32(m.Mem, 98084, mid)
 				rt.St32(m.Mem, 98088, raw)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -47262,7 +47345,7 @@ next:
 		unwind:
 			for {
 				top = uint32(stack & 7)
-				if rt.B2u(top-5 <= 1)|rt.B2u(top == 7)&v != 0 {
+				if top-5 <= 1 || rt.B2u(top == 7)&v != 0 {
 					stack >>= 3
 					continue unwind
 				}
@@ -47282,7 +47365,7 @@ next:
 		top = uint32(stack & 7)
 		atom = false
 		if top == 5 {
-			if rt.B2u(c == '(' || c == '[')|rt.Sel32(c == '.', rt.B2u(c2 >= 128 || (c2|32)-97 <= 25 || c2 == '_'), rt.B2u(m.Mem[lhs-1] == '.')) == 0 {
+			if !(c == '(' || c == '[' || rt.Sel32(c == '.', rt.B2u(c2 >= 128 || (c2|32)-97 <= 25 || c2 == '_'), rt.B2u(m.Mem[lhs-1] == '.')) != 0) {
 				stack >>= 3
 				m.Ptr = lhs
 				mid = rt.B2u(!first)
@@ -47327,7 +47410,7 @@ next:
 			continue next
 		}
 		if c == '#' && (top <= 1 || top == 4) {
-			if rt.B2u(c2 >= 128 || (c2|32)-97 <= 25 || c2 == '_')|(uint32(m.Mem[c2+5008])>>1)&1 != 0 {
+			if c2 >= 128 || (c2|32)-97 <= 25 || c2 == '_' || (uint32(m.Mem[c2+5008])>>1)&1 != 0 {
 				stack = stack<<3 | 6
 				mid = rt.B2u(!first)
 				continue next
@@ -47632,17 +47715,18 @@ func (m *Machine) VerilogNameFollows(p uint32) bool {
 
 // HlVerilog is $hlVerilog.
 func (m *Machine) HlVerilog() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, expect, strCont, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, expect, strCont uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		strCont = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48416
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -47656,11 +47740,11 @@ func (m *Machine) HlVerilog() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, strCont)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -47865,16 +47949,17 @@ l:
 
 // HlVhdl is $hlVhdl.
 func (m *Machine) HlVhdl() {
-	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, expect, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, rhs, p, v, hl, expect uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48424
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -47886,10 +47971,10 @@ func (m *Machine) HlVhdl() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -47922,7 +48007,7 @@ next:
 				v = uint32(m.Mem[lhs-1])
 			}
 			hl = TokenOperator
-			if m.LexIsIdentContinue(v)|rt.B2u(v == 41) != 0 {
+			if m.LexIsIdentContinue(v) != 0 || v == 41 {
 				if m.LexIsIdentStart(c2) {
 					m.ScanIdentRun(95)
 					hl = TokenAttribute
@@ -48045,11 +48130,12 @@ next:
 
 // HlViml is $hlViml.
 func (m *Machine) HlViml() {
-	var streamRoot, c, c2, gap, lhs, v, hl, st, bol, fn, multi, liveRoot uint32
+	var streamRoot, c, c2, gap, lhs, v, hl, st, bol, fn, multi uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		st = rt.Ld32(m.Mem, 98068)
 		bol = rt.Ld32(m.Mem, 98072)
@@ -48057,7 +48143,7 @@ func (m *Machine) HlViml() {
 		multi = rt.Ld32(m.Mem, 98080)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48432
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -48072,13 +48158,13 @@ func (m *Machine) HlViml() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, st)
 				rt.St32(m.Mem, 98072, bol)
 				rt.St32(m.Mem, 98076, fn)
 				rt.St32(m.Mem, 98080, multi)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -48111,7 +48197,7 @@ next:
 			multi = 0
 		}
 		if c == '"' {
-			if rt.B2u(st == 1)|multi != 0 {
+			if st == 1 || multi != 0 {
 				m.LexString(34, 0, TokenString)
 				st = 2
 				continue next
@@ -48311,11 +48397,11 @@ next:
 				m.EmitTok(hl, lhs, m.Ptr)
 				continue next
 			}
-			if rt.B2u(c == '.')|(uint32(m.Mem[c+1936])>>7)&rt.B2u(c != '@') != 0 {
+			if c == '.' || (uint32(m.Mem[c+1936])>>7)&rt.B2u(c != '@') != 0 {
 			op:
 				for {
 					v = m.TemplateByte(m.Ptr)
-					if rt.B2u(v == 46)|(uint32(m.Mem[v+1936])>>7)&rt.B2u(v != 64) == 0 {
+					if !(v == 46 || (uint32(m.Mem[v+1936])>>7)&rt.B2u(v != 64) != 0) {
 						break op
 					}
 					m.Ptr++
@@ -48400,7 +48486,7 @@ func (m *Machine) VueAttrs(state uint32, directive uint32, quote uint32, kind ui
 next:
 	for {
 		if m.Ptr >= m.End {
-			if m.Streaming != 0 && m.Ptr == m.Eof {
+			if m.Streaming && m.Ptr == m.Eof {
 				m.StreamSetRegion(11)
 				m.StreamA = kind
 				m.StreamB = state | directive<<4
@@ -48423,7 +48509,7 @@ next:
 					state = 0
 					tsxOpen = 0
 				} else {
-					if m.Streaming != 0 && m.End == m.Eof {
+					if m.Streaming && m.End == m.Eof {
 						m.VueTsxStream(lhs, m.End, rt.B2u(tsxOpen == 0))
 						tsxOpen = 1
 					} else {
@@ -48534,17 +48620,18 @@ func (m *Machine) VueTag() {
 
 // HlVue is $hlVue.
 func (m *Machine) HlVue() {
-	var streamRoot, c, from, p, q, liveRoot uint32
+	var streamRoot, c, from, p, q uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		from = rt.Ld32(m.Mem, 98068)
 		p = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48448
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -48557,11 +48644,11 @@ func (m *Machine) HlVue() {
 scan:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, from)
 				rt.St32(m.Mem, 98072, p)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -48730,15 +48817,16 @@ l:
 
 // HlWat is $hlWat.
 func (m *Machine) HlWat() {
-	var streamRoot, c, lhs, next, liveRoot uint32
+	var streamRoot, c, lhs, next uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48448
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -48749,9 +48837,9 @@ func (m *Machine) HlWat() {
 token:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -48851,17 +48939,18 @@ func (m *Machine) WgslIsOp(c uint32) uint32 {
 
 // HlWgsl is $hlWgsl.
 func (m *Machine) HlWgsl() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member, liveRoot uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, expect, member uint32
+	var liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expect = rt.Ld32(m.Mem, 98068)
 		member = rt.Ld32(m.Mem, 98072)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48448
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -48874,11 +48963,11 @@ func (m *Machine) HlWgsl() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expect)
 				rt.St32(m.Mem, 98072, member)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -48967,7 +49056,7 @@ next:
 			m.Ptr++
 			if c == '-' && c2 == '>' {
 				m.Ptr++
-			} else if rt.B2u(c2 == '=')|rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
+			} else if c2 == '=' || rt.B2u(c == c2)&(uint32(m.Mem[c+2192])>>7) != 0 {
 				m.Ptr++
 				if (c == '<' || c == '>') && m.WgslByte(m.Ptr) == '=' {
 					m.Ptr++
@@ -49073,16 +49162,16 @@ func (m *Machine) WlIsDefinition(p uint32) bool {
 
 // HlWolfram is $hlWolfram.
 func (m *Machine) HlWolfram() {
-	var streamRoot, c, c2, lhs, rhs, gap, p, q, kind, hl, liveRoot uint32
-	var call bool
+	var streamRoot, c, c2, lhs, rhs, gap, p, q, kind, hl uint32
+	var call, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48456
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -49093,9 +49182,9 @@ func (m *Machine) HlWolfram() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -49236,7 +49325,7 @@ next:
 								if q > m.SrcBase {
 									kind = uint32(m.Mem[q-1])
 								}
-								if (uint32(m.Mem[kind+1424])>>2)&1|rt.B2u(kind == 59 && (q < m.SrcBase+2 || m.Mem[q-2] != '/')) != 0 {
+								if (uint32(m.Mem[kind+1424])>>2)&1 != 0 || (kind == 59 && (q < m.SrcBase+2 || m.Mem[q-2] != '/')) {
 									if m.WlIsDefinition(p) {
 										hl = TokenFunctionDefinition
 									}
@@ -49331,7 +49420,7 @@ wide:
 		w = rt.LdV(m.Mem, p)
 		mask = rt.Bitmask8(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9)), rt.Eq8(w, rt.Splat8(95))))) ^ 65535
 		if mask != 0 {
-			p += rt.Ctz32(mask)
+			p += uint32(bits.TrailingZeros32(mask))
 			break wide
 		}
 		p += 16
@@ -49465,13 +49554,13 @@ func (m *Machine) ZigIsOp(c uint32) uint32 {
 
 // HlZig is $hlZig.
 func (m *Machine) HlZig() {
-	var streamRoot, base, c, expectFunc, expectLabel, expectType, expectVar, gap, hl, labelColon, lhs, p, parenDepth, payload, payloadReady, prevDot, q, word, wantBreakLabel, wantPayloadParen, liveRoot, t0 uint32
+	var streamRoot, base, c, expectFunc, expectLabel, expectType, expectVar, gap, hl, labelColon, lhs, p, parenDepth, payload, payloadReady, prevDot, q, word, wantBreakLabel, wantPayloadParen, t0 uint32
 	var payloadParens uint64
-	var wide bool
+	var wide, liveRoot bool
 	liveRoot = m.LiveEntering
-	m.LiveEntering = 0
-	if m.LiveSuspended != 0 {
-		m.LiveSuspended = 0
+	m.LiveEntering = false
+	if m.LiveSuspended {
+		m.LiveSuspended = false
 		streamRoot = rt.Ld32(m.Mem, 98064)
 		expectFunc = rt.Ld32(m.Mem, 98068)
 		expectLabel = rt.Ld32(m.Mem, 98072)
@@ -49487,7 +49576,7 @@ func (m *Machine) HlZig() {
 		wantPayloadParen = rt.Ld32(m.Mem, 98116)
 	} else {
 		m.LexEmitLeadingContinuation()
-		if m.Streaming != 0 && m.StreamDepth == 0 {
+		if m.Streaming && m.StreamDepth == 0 {
 			m.StreamWindow = 48456
 			streamRoot = 1
 			m.StreamDepth = streamRoot
@@ -49510,7 +49599,7 @@ func (m *Machine) HlZig() {
 next:
 	for {
 		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
+			if liveRoot {
 				rt.St32(m.Mem, 98064, streamRoot)
 				rt.St32(m.Mem, 98068, expectFunc)
 				rt.St32(m.Mem, 98072, expectLabel)
@@ -49524,7 +49613,7 @@ next:
 				rt.St32(m.Mem, 98108, prevDot)
 				rt.St32(m.Mem, 98112, wantBreakLabel)
 				rt.St32(m.Mem, 98116, wantPayloadParen)
-				m.LiveSuspended = 1
+				m.LiveSuspended = true
 				return
 			}
 		}
@@ -49750,7 +49839,7 @@ next:
 				}
 				if c == ')' && parenDepth != 0 {
 					payloadReady = uint32((payloadParens >> (uint64(parenDepth) & 63)) & 1)
-					payloadParens &= uint64(1)<<(uint64(parenDepth)&63) ^ 0xffffffffffffffff
+					payloadParens = payloadParens & ^(uint64(1) << (uint64(parenDepth) & 63))
 					parenDepth--
 				}
 				if c != '(' {
@@ -50044,7 +50133,7 @@ func (m *Machine) LvClassOf(size uint32) uint32 {
 	if size <= 64 {
 		return size >> 3
 	}
-	p = 32 - rt.Clz32(size-1)
+	p = uint32(bits.Len32(size - 1))
 	if p >= 17 {
 		return 31
 	}
@@ -50060,7 +50149,7 @@ func (m *Machine) LvRoundSize(size uint32) uint32 {
 	if size <= 64 {
 		return (size + 7) & 0xfffffff8
 	}
-	p = 32 - rt.Clz32(size-1)
+	p = uint32(bits.Len32(size - 1))
 	if p >= 17 {
 		return (size + 7) & 0xfffffff8
 	}
@@ -50206,7 +50295,7 @@ func (m *Machine) LvBytesEq(a uint32, b uint32, length uint32) bool {
 	for {
 		different = rt.Ne8(rt.LdV(m.Mem, a), rt.LdV(m.Mem, b))
 		if rt.AnyTrue(different) {
-			return rt.Ctz32(rt.Bitmask8(different)) >= length
+			return uint32(bits.TrailingZeros32(rt.Bitmask8(different))) >= length
 		}
 		if length <= 16 {
 			return true
@@ -50706,7 +50795,7 @@ func (m *Machine) LvCancelLine() {
 	m.LvTokenPtr = 0
 	m.LvOutgoing = 0
 	m.LvLinePhase = 0
-	m.LiveSuspended = 0
+	m.LiveSuspended = false
 	m.LiveLimit = 0x7fffffff
 	m.LvTransLo = 0
 	m.LvTransHi = 0
@@ -50745,7 +50834,7 @@ func (m *Machine) LvRunLine(i uint32, reset uint32, work uint32) uint32 {
 		m.Mem[1] = 3
 		rt.St32(m.Mem, 2, total)
 		m.SrcBase = inBase
-		m.Streaming = 1
+		m.Streaming = true
 		m.StreamReset = reset
 		m.DocStart = rt.Sel32(reset != 0, inBase, 0)
 		m.StreamDepth = 0
@@ -50759,11 +50848,11 @@ func (m *Machine) LvRunLine(i uint32, reset uint32, work uint32) uint32 {
 		m.LiveLimit = rt.Sel32(work != 0, m.Ptr+work, 0x7fffffff)
 		m.StreamChunk(m.LvLang, reset)
 		m.LiveLimit = 0x7fffffff
-		if m.LiveSuspended != 0 {
+		if m.LiveSuspended {
 			return 0xffffffff
 		}
 		m.RecStreamEnd()
-		m.Streaming = 0
+		m.Streaming = false
 		m.StreamDepth = 0
 		recStart = rt.Ld32(m.Mem, 6)
 		recLen = m.Out - recStart
@@ -50885,8 +50974,8 @@ wide:
 			break wide
 		}
 		w = rt.LdV(m.Mem, p)
-		n += 16 - rt.Popcnt32(rt.Bitmask8(rt.Eq8(rt.And(w, rt.Splat8(192)), rt.Splat8(128))))
-		n += rt.Popcnt32(rt.Bitmask8(rt.GeU8(w, rt.Splat8(240))))
+		n += 16 - uint32(bits.OnesCount32(rt.Bitmask8(rt.Eq8(rt.And(w, rt.Splat8(192)), rt.Splat8(128)))))
+		n += uint32(bits.OnesCount32(rt.Bitmask8(rt.GeU8(w, rt.Splat8(240)))))
 		p += 16
 	}
 loop4:
@@ -50979,7 +51068,7 @@ scan:
 	m.LvIncoming = 0
 	m.LvMachineId = 0xffffffff
 	m.LvRetok = 0
-	m.LvPhase = 1
+	m.LvPhase = true
 }
 
 // LvCharToByte is $lvCharToByte.
@@ -51270,7 +51359,7 @@ func (m *Machine) LvCloseRange(through uint32) {
 func (m *Machine) LvFinish() {
 	m.LvFree(m.LvRangePtr)
 	m.LvRangePtr = 0
-	m.LvPhase = 0
+	m.LvPhase = false
 	if m.LvHeapFreed > m.LvHeapLive && m.LvHeapFreed >= 0x100000 {
 		m.LvCompact()
 	}
@@ -51412,16 +51501,16 @@ func (m *Machine) LiveApplyEdits(staged uint32, undelivered uint32) {
 	var count, k, e, n, n0, shift, newFrom, newTo, ranges, rangeCount, slot, ext, pend, pendCount, pendIdx, pendSlot, a, b, os, oe uint32
 	m.LvCancelLine()
 	count = rt.Ld32(m.Mem, staged)
-	if m.LvPhase|undelivered != 0 {
+	if m.LvPhase || undelivered != 0 {
 		a = m.LvCursor
 		b = rt.Sel32(m.LvDirtyTo > a, m.LvDirtyTo, a+1)
 		if undelivered != 0 {
 			a = undelivered - 1
-			if m.LvPhase == 0 {
+			if !m.LvPhase {
 				b = undelivered
 			}
 		}
-		pendCount = rt.Sel32(m.LvPhase != 0, m.LvRangeCount-m.LvRangeIdx, 1)
+		pendCount = rt.Sel32(m.LvPhase, m.LvRangeCount-m.LvRangeIdx, 1)
 		pend = m.LvAlloc(pendCount << 3)
 		rt.St32(m.Mem, pend, a)
 		rt.St32(m.Mem, pend+4, b)
@@ -51439,7 +51528,7 @@ func (m *Machine) LiveApplyEdits(staged uint32, undelivered uint32) {
 		}
 		m.LvFree(m.LvRangePtr)
 		m.LvRangePtr = 0
-		m.LvPhase = 0
+		m.LvPhase = false
 	}
 	k = count
 desc:
@@ -51525,7 +51614,7 @@ pendFlush:
 		} else {
 			m.LvIncoming = 0
 		}
-		m.LvPhase = 1
+		m.LvPhase = true
 	} else {
 		m.LvFinish()
 	}
@@ -51534,7 +51623,7 @@ pendFlush:
 // LiveRun is (export "liveRun").
 func (m *Machine) LiveRun(budget uint32, end uint32, work uint32) uint32 {
 	var i, slot, oldId, newId, next uint32
-	if m.LvPhase == 0 {
+	if !m.LvPhase {
 		return 0
 	}
 	for {
@@ -51663,7 +51752,7 @@ func (m *Machine) LiveStats(k uint32) uint32 {
 		return m.LvHeapCeil
 	}
 	if k == 9 {
-		return m.LvPhase
+		return rt.B2u(m.LvPhase)
 	}
 	if k == 10 {
 		return m.LvCursor
@@ -51678,7 +51767,7 @@ func (m *Machine) LiveStats(k uint32) uint32 {
 func (m *Machine) Highlight() {
 	m.SrcBase = 0x14000
 	m.DocStart = 0x14000
-	m.Streaming = 0
+	m.Streaming = false
 	m.StreamDepth = 0
 	m.SigReset()
 	m.HlBegin()
@@ -51709,15 +51798,15 @@ func (m *Machine) StreamResetGlobals() {
 
 // StreamChunk is $streamChunk.
 func (m *Machine) StreamChunk(lang uint32, reset uint32) {
-	m.LiveEntering = 1
+	m.LiveEntering = true
 	if m.EcmaStreamLang(lang, reset) {
 		return
 	}
-	if m.LiveSuspended != 0 {
+	if m.LiveSuspended {
 		m.HighlightLang(lang)
 		return
 	}
-	m.LiveEntering = 0
+	m.LiveEntering = false
 	if reset != 0 {
 		m.SigReset()
 	}
@@ -51739,14 +51828,14 @@ func (m *Machine) StreamChunk(lang uint32, reset uint32) {
 	if m.StreamResumeLang(lang) {
 		return
 	}
-	m.LiveEntering = 1
+	m.LiveEntering = true
 	m.HighlightLang(lang)
 }
 
 // HighlightStream is (export "highlightStream").
 func (m *Machine) HighlightStream(reset uint32) {
 	m.SrcBase = 0x14000
-	m.Streaming = 1
+	m.Streaming = true
 	m.StreamReset = reset
 	m.DocStart = rt.Sel32(reset != 0, 0x14000, 0)
 	m.StreamDepth = 0
@@ -51758,7 +51847,7 @@ func (m *Machine) HighlightStream(reset uint32) {
 	m.StreamChunk(uint32(m.Mem[0]), reset)
 	m.RecStreamEnd()
 	m.HlEnd()
-	m.Streaming = 0
+	m.Streaming = false
 	m.StreamDepth = 0
 }
 

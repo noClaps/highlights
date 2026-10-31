@@ -130,24 +130,6 @@ func Grow(mem *[]byte, n uint32) uint32 {
 	return old
 }
 
-// Clz32 implements i32.clz.
-func Clz32(x uint32) uint32 { return uint32(bits.LeadingZeros32(x)) }
-
-// Ctz32 implements i32.ctz.
-func Ctz32(x uint32) uint32 { return uint32(bits.TrailingZeros32(x)) }
-
-// Popcnt32 implements i32.popcnt.
-func Popcnt32(x uint32) uint32 { return uint32(bits.OnesCount32(x)) }
-
-// Clz64 implements i64.clz.
-func Clz64(x uint64) uint64 { return uint64(bits.LeadingZeros64(x)) }
-
-// Ctz64 implements i64.ctz.
-func Ctz64(x uint64) uint64 { return uint64(bits.TrailingZeros64(x)) }
-
-// Popcnt64 implements i64.popcnt.
-func Popcnt64(x uint64) uint64 { return uint64(bits.OnesCount64(x)) }
-
 // Rotl32 implements i32.rotl.
 func Rotl32(x, k uint32) uint32 { return bits.RotateLeft32(x, int(k&31)) }
 
