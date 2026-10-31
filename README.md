@@ -55,10 +55,12 @@ describe them). Rather than run Wasm, the Go port translates the WAT to Go:
 - `internal/wat` ports the WAT preprocessor (`transformWat` in
   `scripts/build.ts`); its output is byte-identical to the TypeScript one.
 - `internal/watgo` translates the expanded module to Go: each Wasm function
-  becomes a method on `engine.Machine`, which owns the linear memory. WAT
-  names become Go names, loops become labeled `for` loops, and other
-  branches become `goto` forward to the end of their block.
-  `internal/wasmrt` holds the runtime helpers, including 128-bit vectors.
+  becomes a method on `engine.Machine`, which owns the linear memory. The
+  output reads like hand-written Go: WAT names and enum members become Go
+  names, loops become labeled `for` loops, byte switches become `switch`
+  statements with rune literals, tail branches become `if`/`else` arms, and
+  expressions print with Go precedence. A few join points of the token
+  scanners stay forward `goto`s (158 in about 53,000 lines).
 - `internal/engine` is the generated engine (`go generate ./internal/engine`
   regenerates it and `tables_gen.go`).
 - The root package ports the TypeScript host, whose original is in

@@ -1,6 +1,20 @@
 // Package watgo translates an expanded WAT module into Go source. Each Wasm
 // function becomes a method on a Machine that owns the linear memory and
 // globals, so the lexers run as native Go code.
+//
+// The output aims to read like hand-written Go:
+//
+//   - WAT names become Go names, and enum members named constants.
+//   - Loops become labeled for loops with continue and break, and an
+//     expanded byte-switch a switch on the byte with rune-literal cases.
+//   - A branch to a block's end in tail position becomes if/else arms, and
+//     one followed by a short tail runs that tail in place.
+//   - A block whose result is stored to a local stores it at each exit.
+//   - Expressions print with Go precedence; stores nobody reads disappear.
+//
+// A branch to a block whose continuation holds control flow of its own
+// stays a forward goto: these are the join points of the token scanners,
+// and a goto states them more plainly than flags or duplicated code would.
 package watgo
 
 import (
