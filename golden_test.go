@@ -579,7 +579,6 @@ func (r *replayer) theme(e *event) ThemeSource {
 	return themeFromObject(obj)
 }
 
-
 func (r *replayer) themeArg(v any) ThemeSource {
 	switch x := v.(type) {
 	case *Theme:
@@ -1041,7 +1040,6 @@ func (r *replayer) fnCall(e *event) {
 		r.t.Fatalf("unknown function %s", e.Name)
 	}
 }
-
 
 func (r *replayer) encAny(v any) any {
 	switch x := v.(type) {

@@ -14,7 +14,7 @@ import (
 
 const (
 	pageSize = rt.PageSize
-	themePtr = 64 // $mem.themeTable in src/memory.wat
+	themePtr = 64    // $mem.themeTable in src/memory.wat
 	inputPtr = 81920 // $mem.input in internal/engine/wat/memory.wat
 )
 
