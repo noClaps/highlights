@@ -641,3 +641,65 @@ func themeHTMLOpeners(styles []*TokenStyle, fg, bg string) []byte {
 	}
 	return packHTMLOpeners(openers)
 }
+
+var cssNameRe = regexp.MustCompile(`(?i)^[a-z0-9_.-]+$`)
+
+// ToCSS converts a theme to CSS custom-property declarations. It emits only
+// hex and numeric Display P3 colors, omits invalid background and
+// foreground colors, uses `inherit` for invalid syntax colors, and skips
+// syntax scopes whose names are not plain dotted identifiers. The 16
+// `terminal-ansi-*` colors use VS Code's terminal colors when missing.
+func ToCSS(theme *Theme, cssVariablePrefix string) string {
+	if cssVariablePrefix == "" {
+		cssVariablePrefix = DefaultCSSVariablePrefix
+	}
+	style := theme.Style
+	if style == nil {
+		return ""
+	}
+	var css strings.Builder
+	background := ThemeBackground(style)
+	foreground := ThemeForeground(style)
+	if IsThemeColor(background) {
+		css.WriteString(cssVariablePrefix + "background: " + jsTrim(background.(string)) + ";")
+	}
+	if IsThemeColor(foreground) {
+		css.WriteString(cssVariablePrefix + "foreground: " + jsTrim(foreground.(string)) + ";")
+	}
+	syntax := syntaxOf(style)
+	seen := map[string]bool{}
+	var names []string
+	for _, name := range syntax.Keys() {
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	for _, name := range TokenTypes[1 : len(TokenTypes)-2] {
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	for _, name := range names {
+		if !cssNameRe.MatchString(name) {
+			continue
+		}
+		var color any
+		if s := resolveThemeSyntax(syntax, name); s != nil {
+			color = s.color
+		}
+		if color == nil {
+			color = foreground
+		}
+		value := "inherit"
+		if IsThemeColor(color) {
+			value = jsTrim(color.(string))
+		}
+		css.WriteString(cssVariablePrefix + strings.NewReplacer(".", "-", "_", "-").Replace(name) + ": " + value + ";")
+	}
+	for i, c := range ThemeAnsiColors(style) {
+		css.WriteString(cssVariablePrefix + "terminal-ansi-" + strings.Replace(AnsiNames[i], "_", "-", 1) + ": " + c + ";")
+	}
+	return css.String()
+}
