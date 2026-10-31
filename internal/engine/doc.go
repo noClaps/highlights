@@ -3,4 +3,4 @@
 // linear memory.
 package engine
 
-//go:generate go run ../cmd/genengine -src ../../vendor/pierre-highlights/src/highlights.wat -out . -pkg engine
+//go:generate go run ../cmd/genengine -src ../../vendor/pierre-highlights/src/highlights.wat -out . -pkg engine -tables ../../tables_gen.go

@@ -346,78 +346,78 @@ func (m *Machine) Fis_id_continue(p0 uint32, p1 uint32) uint32 {
 	return m.Imports.IsIdContinue(m, p0, p1)
 }
 
-// Exporthighlight calls the "highlight" export.
-func (m *Machine) Exporthighlight() {
+// ExportHighlight calls the "highlight" export.
+func (m *Machine) ExportHighlight() {
 	m.Xhighlight()
 }
 
-// ExporthighlightStream calls the "highlightStream" export.
-func (m *Machine) ExporthighlightStream(p0 uint32) {
+// ExportHighlightStream calls the "highlightStream" export.
+func (m *Machine) ExportHighlightStream(p0 uint32) {
 	m.XhighlightStream(p0)
 }
 
-// ExportliveApplyEdits calls the "liveApplyEdits" export.
-func (m *Machine) ExportliveApplyEdits(p0 uint32, p1 uint32) {
+// ExportLiveApplyEdits calls the "liveApplyEdits" export.
+func (m *Machine) ExportLiveApplyEdits(p0 uint32, p1 uint32) {
 	m.XliveApplyEdits(p0, p1)
 }
 
-// ExportliveChangesPtr calls the "liveChangesPtr" export.
-func (m *Machine) ExportliveChangesPtr() uint32 {
+// ExportLiveChangesPtr calls the "liveChangesPtr" export.
+func (m *Machine) ExportLiveChangesPtr() uint32 {
 	return m.XliveChangesPtr()
 }
 
-// ExportliveInitDoc calls the "liveInitDoc" export.
-func (m *Machine) ExportliveInitDoc(p0 uint32, p1 uint32, p2 uint32) {
+// ExportLiveInitDoc calls the "liveInitDoc" export.
+func (m *Machine) ExportLiveInitDoc(p0 uint32, p1 uint32, p2 uint32) {
 	m.XliveInitDoc(p0, p1, p2)
 }
 
-// ExportliveLineByteLen calls the "liveLineByteLen" export.
-func (m *Machine) ExportliveLineByteLen(p0 uint32) uint32 {
+// ExportLiveLineByteLen calls the "liveLineByteLen" export.
+func (m *Machine) ExportLiveLineByteLen(p0 uint32) uint32 {
 	return m.XliveLineByteLen(p0)
 }
 
-// ExportliveLineCount calls the "liveLineCount" export.
-func (m *Machine) ExportliveLineCount() uint32 {
+// ExportLiveLineCount calls the "liveLineCount" export.
+func (m *Machine) ExportLiveLineCount() uint32 {
 	return m.XliveLineCount()
 }
 
-// ExportliveLineFlags calls the "liveLineFlags" export.
-func (m *Machine) ExportliveLineFlags(p0 uint32) uint32 {
+// ExportLiveLineFlags calls the "liveLineFlags" export.
+func (m *Machine) ExportLiveLineFlags(p0 uint32) uint32 {
 	return m.XliveLineFlags(p0)
 }
 
-// ExportliveLineLen calls the "liveLineLen" export.
-func (m *Machine) ExportliveLineLen(p0 uint32) uint32 {
+// ExportLiveLineLen calls the "liveLineLen" export.
+func (m *Machine) ExportLiveLineLen(p0 uint32) uint32 {
 	return m.XliveLineLen(p0)
 }
 
-// ExportliveLineTextPtr calls the "liveLineTextPtr" export.
-func (m *Machine) ExportliveLineTextPtr(p0 uint32) uint32 {
+// ExportLiveLineTextPtr calls the "liveLineTextPtr" export.
+func (m *Machine) ExportLiveLineTextPtr(p0 uint32) uint32 {
 	return m.XliveLineTextPtr(p0)
 }
 
-// ExportliveLineTokCount calls the "liveLineTokCount" export.
-func (m *Machine) ExportliveLineTokCount(p0 uint32) uint32 {
+// ExportLiveLineTokCount calls the "liveLineTokCount" export.
+func (m *Machine) ExportLiveLineTokCount(p0 uint32) uint32 {
 	return m.XliveLineTokCount(p0)
 }
 
-// ExportliveLineTokPtr calls the "liveLineTokPtr" export.
-func (m *Machine) ExportliveLineTokPtr(p0 uint32) uint32 {
+// ExportLiveLineTokPtr calls the "liveLineTokPtr" export.
+func (m *Machine) ExportLiveLineTokPtr(p0 uint32) uint32 {
 	return m.XliveLineTokPtr(p0)
 }
 
-// ExportliveRun calls the "liveRun" export.
-func (m *Machine) ExportliveRun(p0 uint32, p1 uint32, p2 uint32) uint32 {
+// ExportLiveRun calls the "liveRun" export.
+func (m *Machine) ExportLiveRun(p0 uint32, p1 uint32, p2 uint32) uint32 {
 	return m.XliveRun(p0, p1, p2)
 }
 
-// ExportliveStage calls the "liveStage" export.
-func (m *Machine) ExportliveStage(p0 uint32) uint32 {
+// ExportLiveStage calls the "liveStage" export.
+func (m *Machine) ExportLiveStage(p0 uint32) uint32 {
 	return m.XliveStage(p0)
 }
 
-// ExportliveStats calls the "liveStats" export.
-func (m *Machine) ExportliveStats(p0 uint32) uint32 {
+// ExportLiveStats calls the "liveStats" export.
+func (m *Machine) ExportLiveStats(p0 uint32) uint32 {
 	return m.XliveStats(p0)
 }
 

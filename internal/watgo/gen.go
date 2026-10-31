@@ -147,8 +147,8 @@ func generate(mod *Module, opts Options) (string, []byte) {
 	sort.Strings(exportNames)
 	for _, e := range exportNames {
 		f := exportOf[e]
-		w("// Export%s calls the %q export.\n", goIdent(e), e)
-		w("func (m *Machine) Export%s(%s)%s {\n\t", goIdent(e), paramDecls(f), resultType(f))
+		w("// Export%s calls the %q export.\n", exportIdent(e), e)
+		w("func (m *Machine) Export%s(%s)%s {\n\t", exportIdent(e), paramDecls(f), resultType(f))
 		if len(f.Results) > 0 {
 			w("return ")
 		}
@@ -161,9 +161,9 @@ func generate(mod *Module, opts Options) (string, []byte) {
 	for _, g := range mod.Globals {
 		for _, e := range g.Exports {
 			if g.Mutable {
-				w("// ExportGlobal%s reads the %q global.\nfunc (m *Machine) ExportGlobal%s() %s { return m.%s }\n\n", goIdent(e), e, goIdent(e), g.Type.goType(), g.GoName)
+				w("// ExportGlobal%s reads the %q global.\nfunc (m *Machine) ExportGlobal%s() %s { return m.%s }\n\n", exportIdent(e), e, exportIdent(e), g.Type.goType(), g.GoName)
 			} else {
-				w("// ExportGlobal%s reads the %q global.\nfunc (m *Machine) ExportGlobal%s() %s { return %s }\n\n", goIdent(e), e, goIdent(e), g.Type.goType(), g.GoName)
+				w("// ExportGlobal%s reads the %q global.\nfunc (m *Machine) ExportGlobal%s() %s { return %s }\n\n", exportIdent(e), e, exportIdent(e), g.Type.goType(), g.GoName)
 			}
 		}
 	}
@@ -176,6 +176,14 @@ func generate(mod *Module, opts Options) (string, []byte) {
 		sb.WriteString(g.genFunc())
 	}
 	return sb.String(), mem
+}
+
+func exportIdent(name string) string {
+	id := goIdent(name)
+	if id != "" && id[0] >= 'a' && id[0] <= 'z' {
+		id = string(id[0]-'a'+'A') + id[1:]
+	}
+	return id
 }
 
 func importField(f *Func) string {
