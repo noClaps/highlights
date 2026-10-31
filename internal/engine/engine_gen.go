@@ -706,7 +706,6 @@ func (m *Machine) FthemeRec(l_hl uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (uint32(64) + ((l_hl << 2) + l_hl))
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanToLineEnd is $scanToLineEnd.
@@ -798,7 +797,6 @@ B2:
 		l_p = l_stop
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanWhitespace is $scanWhitespace.
@@ -892,7 +890,6 @@ L3:
 	}
 B2:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // Futf8SpanEnd is $utf8SpanEnd.
@@ -913,7 +910,6 @@ L3:
 	goto L3
 B2:
 	return l_e
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanHexRun is $scanHexRun.
@@ -940,7 +936,6 @@ L3:
 	goto L3
 B2:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FstreamClearCheckpoints is $streamClearCheckpoints.
@@ -1279,7 +1274,6 @@ L2:
 	goto L2
 B1:
 	return rt.Sel32((l_p < m.Geof), l_p, m.Geof)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrecLinesPost is $recLinesPost.
@@ -1490,7 +1484,6 @@ func (m *Machine) FmultiRec(l_i uint32, l_hl uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((m.GmultiTables + (l_i * uint32(384))) + (l_hl * uint32(5)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmultiSlot is $multiSlot.
@@ -1498,7 +1491,6 @@ func (m *Machine) FmultiSlot(l_i uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (m.GmultiBlob + (uint32(32) + (l_i << 4)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmultiName is $multiName.
@@ -2046,7 +2038,6 @@ func (m *Machine) FsigActive() uint32 {
 		return uint32(0)
 	}
 	return ((m.GsigMask >> (m.GsigParens & 31)) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FsigMark is $sigMark.
@@ -2117,7 +2108,6 @@ func (m *Machine) FlexIsSpace(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((l_c == uint32(32)) || ((l_c - uint32(9)) <= uint32(4))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexIsDigit is $lexIsDigit.
@@ -2125,7 +2115,6 @@ func (m *Machine) FlexIsDigit(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((l_c - uint32(48)) <= uint32(9)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexIsHex is $lexIsHex.
@@ -2133,7 +2122,6 @@ func (m *Machine) FlexIsHex(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+1424) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexIsIdentStart is $lexIsIdentStart.
@@ -2141,7 +2129,6 @@ func (m *Machine) FlexIsIdentStart(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((l_c >= uint32(128)) || ((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || ((l_c == uint32(95)) || (l_c == uint32(36))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexIsNameStart is $lexIsNameStart.
@@ -2149,7 +2136,6 @@ func (m *Machine) FlexIsNameStart(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((l_c >= uint32(128)) || ((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || (l_c == uint32(95)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexIsIdentContinue is $lexIsIdentContinue.
@@ -2157,7 +2143,6 @@ func (m *Machine) FlexIsIdentContinue(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+1424) >> 1) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexScanIdent is $lexScanIdent.
@@ -2293,7 +2278,6 @@ func (m *Machine) FlexEscapeEnd(l_p uint32) uint32 {
 		l_e = (l_e + uint32(1))
 	}
 	return l_e
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexStringBody is $lexStringBody.
@@ -2340,7 +2324,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexString is $lexString.
@@ -2382,7 +2365,6 @@ func (m *Machine) FlexRawStringBody(l_quote uint32, l_multiline uint32, l_hl uin
 	}
 	m.FemitTok(l_hl, l_lhs, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexRawString is $lexRawString.
@@ -2474,7 +2456,6 @@ func (m *Machine) FlexCEscapeEnd(l_p uint32) uint32 {
 B1:
 	t5 = m.Futf8SpanEnd(l_e, m.Gend)
 	return t5
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexCStringBody is $lexCStringBody.
@@ -2533,7 +2514,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexCString is $lexCString.
@@ -2556,7 +2536,6 @@ func (m *Machine) FlexCString(l_hl uint32) uint32 {
 	t1 = l_q
 	t2 = m.FlexCStringBody(l_q, l_hl, l_lhs, uint32(0))
 	return rt.Sel32((t2 == uint32(2)), t1, uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexLineByteBefore is $lexLineByteBefore.
@@ -2580,7 +2559,6 @@ L2:
 	return l_c
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexCStringResume is $lexCStringResume.
@@ -2603,7 +2581,6 @@ func (m *Machine) FlexCStringResume(l_q uint32) uint32 {
 		t1 = uint32(0)
 	}
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexLineComment is $lexLineComment.
@@ -2700,7 +2677,6 @@ B2:
 	}
 	l_c = rt.Ld8(m.Mem, int(l_p))
 	return rt.B2u((((l_c == uint32(10)) || (l_c == uint32(13))) || (((l_c == uint32(59)) || (l_c == uint32(44))) || ((l_c == uint32(41)) || ((l_c == uint32(46)) || (l_c == uint32(35)))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlineDelimiterEnds is $lineDelimiterEnds.
@@ -2723,7 +2699,6 @@ func (m *Machine) FlineDelimiterEnds(l_p uint32, l_trim uint32) uint32 {
 		return rt.B2u((((l_c | uint32(32)) - uint32(97)) > uint32(25)))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FstreamSetLine is $streamSetLine.
@@ -2797,7 +2772,6 @@ B1:
 	m.Gptr = m.Gend
 	m.FemitTok(m.GstreamHl, l_lhs, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexNestedScan is $lexNestedScan.
@@ -2854,7 +2828,6 @@ B3:
 	goto L2
 B1:
 	return l_depth
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexNestedBlockComment is $lexNestedBlockComment.
@@ -2897,7 +2870,6 @@ func (m *Machine) FstreamResumeNested() uint32 {
 		return uint32(0)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FstreamResumeLine is $streamResumeLine.
@@ -3000,7 +2972,6 @@ B1:
 	m.Gptr = m.Gend
 	m.FemitTok(m.GstreamHl, l_lhs, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FstreamResumeCommon is $streamResumeCommon.
@@ -3063,7 +3034,6 @@ func (m *Machine) FstreamResumeCommon() uint32 {
 		return t5
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexSkipSpaceAt is $lexSkipSpaceAt.
@@ -3084,7 +3054,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexEmitIncludeDirective is $lexEmitIncludeDirective.
@@ -3174,7 +3143,6 @@ B13:
 	m.FemitTok(uint32(44), l_header, l_p)
 	m.FemitTok(uint32(27), l_p, l_rhs)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexKeywordLookup is $lexKeywordLookup.
@@ -3210,7 +3178,6 @@ func (m *Machine) FlexKeywordLookup(l_start uint32, l_end uint32, l_base uint32,
 		}
 	}
 	return ((l_entry >> 14) & uint32(31))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexKeywordValue is $lexKeywordValue.
@@ -3229,7 +3196,6 @@ func (m *Machine) FlexKeywordValue(l_start uint32, l_end uint32, l_base uint32, 
 		return uint32(4294967295)
 	}
 	return rt.Ld16s(m.Mem, int(((l_base + (l_bucketMask + uint32(1))) + ((l_slots * uint32(3)) + (l_g << 1)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexLowerCopy is $lexLowerCopy.
@@ -3256,7 +3222,6 @@ L3:
 	goto L3
 B2:
 	return l_n
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexFindEither is $lexFindEither.
@@ -3283,7 +3248,6 @@ L3:
 	}
 B2:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexFindByte is $lexFindByte.
@@ -3307,7 +3271,6 @@ L3:
 	}
 B2:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexIsTypeGlue is $lexIsTypeGlue.
@@ -3328,7 +3291,6 @@ L2:
 	goto L2
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexGapHasBreak is $lexGapHasBreak.
@@ -3349,7 +3311,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlexIsConstCase is $lexIsConstCase.
@@ -3382,7 +3343,6 @@ L3:
 	goto L3
 B2:
 	return l_upper
-	panic(rt.Trap("unreachable"))
 }
 
 // FtemplateByte is $templateByte.
@@ -3390,7 +3350,6 @@ func (m *Machine) FtemplateByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FstringEscapeAt is $stringEscapeAt.
@@ -3409,7 +3368,6 @@ func (m *Machine) FstringEscapeAt(l_seg uint32) uint32 {
 	m.FemitTok(uint32(45), m.Gptr, l_e)
 	m.Gptr = l_e
 	return rt.B2u(((m.Gptr == m.Gend) && ((rt.Ld8(m.Mem, int((m.Gptr-uint32(1)))) == uint32(10)) || (rt.Ld8(m.Mem, int((m.Gptr-uint32(1)))) == uint32(13)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FstringDollarAt is $stringDollarAt.
@@ -3477,7 +3435,6 @@ func (m *Machine) FstringDollarAt(l_seg uint32, l_dialect uint32, l_nested uint3
 	}
 	m.Gptr = (m.Gptr + uint32(1))
 	return l_seg
-	panic(rt.Trap("unreachable"))
 }
 
 // FcssIdentStart is $cssIdentStart.
@@ -3485,7 +3442,6 @@ func (m *Machine) FcssIdentStart(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u((((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || (l_c == uint32(95))) || (l_c >= uint32(128))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcssScanIdent is $cssScanIdent.
@@ -3632,7 +3588,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FcssIsQueryOp is $cssIsQueryOp.
@@ -3660,7 +3615,6 @@ func (m *Machine) FcssIsQueryOp(l_lhs uint32, l_rhs uint32) uint32 {
 		return rt.B2u(((rt.Ld64(m.Mem, int(l_lhs)) & uint64(72057594037927935)) == uint64(29387151656511604)))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcssDecide is $cssDecide.
@@ -3826,7 +3780,6 @@ B24:
 B4:
 	t7 = m.FcssDecideAtEnd(l_depth, l_colon, l_stop)
 	return t7
-	panic(rt.Trap("unreachable"))
 }
 
 // FcssDecideAtEnd is $cssDecideAtEnd.
@@ -3890,7 +3843,6 @@ B6:
 	t3 = m.FscanFindSpecial(l_p, l_stop, uint32(44), uint32(0), uint32(0))
 	t4 = m.FscanFindSpecial(l_p, l_stop, uint32(40), uint32(0), uint32(0))
 	return rt.B2u((t3 < t4))
-	panic(rt.Trap("unreachable"))
 }
 
 // FstylusStart is $stylusStart.
@@ -3969,7 +3921,6 @@ func (m *Machine) FstylusStart(l_c uint32, l_nested uint32) uint32 {
 		return uint32(0)
 	}
 	return rt.Sel32((((l_nested & rt.B2u((l_q > l_p))) & ((rt.B2u((l_c > uint32(13))) & (rt.Clz32((((rt.Ld8(m.Mem, int(l_c)+1424) >> 4) & uint32(1)) | (rt.B2u((l_c == uint32(46))) & l_name))) >> 5)) & l_v)) != 0), uint32(2), uint32(4294967295))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlCss is $hlCss.
@@ -4695,7 +4646,6 @@ B7:
 		m.GstreamDepth = uint32(0)
 	}
 	return t35
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlStylusImpl is $hlStylusImpl.
@@ -5356,7 +5306,6 @@ B7:
 		m.GstreamDepth = uint32(0)
 	}
 	return t30
-	panic(rt.Trap("unreachable"))
 }
 
 // FxmlNameStart is $xmlNameStart.
@@ -5364,7 +5313,6 @@ func (m *Machine) FxmlNameStart(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((l_c >= uint32(128)) || ((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || ((l_c == uint32(95)) || (l_c == uint32(58))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FxmlScanName is $xmlScanName.
@@ -5407,7 +5355,6 @@ func (m *Machine) FxmlQuotedBody(l_quote uint32, l_lhs uint32) uint32 {
 	}
 	m.FemitTok(uint32(44), l_lhs, m.Gptr)
 	return l_quote
-	panic(rt.Trap("unreachable"))
 }
 
 // FxmlSection is $xmlSection.
@@ -5558,7 +5505,6 @@ B1:
 		m.GstreamC = uint32(1)
 	}
 	return l_closed
-	panic(rt.Trap("unreachable"))
 }
 
 // FxmlDoctype is $xmlDoctype.
@@ -5610,7 +5556,6 @@ L2:
 B1:
 	m.Gptr = l_lhs
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FxmlAttrs is $xmlAttrs.
@@ -5711,7 +5656,6 @@ B13:
 	goto L3
 B2:
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlXml is $hlXml.
@@ -5850,7 +5794,6 @@ func (m *Machine) FxmlStreamResumeTag() uint32 {
 	m.GstreamRegionKind = uint32(0)
 	m.GstreamMode = uint32(0)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrawTextKind is $rawTextKind.
@@ -5867,7 +5810,6 @@ func (m *Machine) FrawTextKind(l_lhs uint32, l_rhs uint32) uint32 {
 		return (rt.B2u((l_w == uint64(128026154263411))) | (rt.B2u((l_w == uint64(435611595891))) << 1))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FisRawTextClose is $isRawTextClose.
@@ -5893,7 +5835,6 @@ func (m *Machine) FisRawTextClose(l_p uint32, l_kind uint32) uint32 {
 	}
 	l_t = rt.Ld8(m.Mem, int(l_tp))
 	return rt.B2u((((l_t == uint32(62)) || (l_t == uint32(47))) || ((l_t == uint32(32)) || ((l_t - uint32(9)) <= uint32(4)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlEntity is $htmlEntity.
@@ -5935,7 +5876,6 @@ B2:
 	m.FemitTok(uint32(47), m.Gptr, (l_q + uint32(1)))
 	m.Gptr = (l_q + uint32(1))
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlComment is $htmlComment.
@@ -5991,7 +5931,6 @@ L2:
 	goto L2
 B1:
 	return l_q
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlValueEnd is $htmlValueEnd.
@@ -6012,7 +5951,6 @@ L2:
 	goto L2
 B1:
 	return l_q
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlQuotedBody is $htmlQuotedBody.
@@ -6035,7 +5973,6 @@ func (m *Machine) FhtmlQuotedBody(l_quote uint32, l_lhs uint32) uint32 {
 	}
 	m.FemitTok(uint32(44), l_lhs, m.Gptr)
 	return l_quote
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlLangName is $htmlLangName.
@@ -6047,7 +5984,6 @@ func (m *Machine) FhtmlLangName(l_kind uint32, l_lhs uint32, l_rhs uint32) uint3
 		l_kind = (l_kind | uint32(64))
 	}
 	return l_kind
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlLangValue is $htmlLangValue.
@@ -6077,7 +6013,6 @@ func (m *Machine) FhtmlLangValue(l_kind uint32, l_lhs uint32, l_rhs uint32) uint
 		return uint32(16)
 	}
 	return l_kind
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlAttrs is $htmlAttrs.
@@ -6202,7 +6137,6 @@ L3:
 	goto L3
 B2:
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlStyleBody is $htmlStyleBody.
@@ -6441,7 +6375,6 @@ func (m *Machine) FhtmlTagResumeEnd(l_status uint32, l_kind uint32) uint32 {
 	}
 	m.GstreamDepth = uint32(0)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlTagResume is $htmlTagResume.
@@ -6461,7 +6394,6 @@ func (m *Machine) FhtmlTagResume(l_region uint32) uint32 {
 	l_r = t1
 	t2 = m.FhtmlTagResumeEnd((l_r & uint32(3)), (l_r >> 8))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FhtmlStreamResumeTag is $htmlStreamResumeTag.
@@ -6474,7 +6406,6 @@ func (m *Machine) FhtmlStreamResumeTag() uint32 {
 	_ = t1
 	t1 = m.FhtmlTagResume(uint32(9))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FbraceHtmlRange is $braceHtmlRange.
@@ -6526,7 +6457,6 @@ func (m *Machine) FbraceRawKind(l_p uint32) uint32 {
 		}
 	}
 	return l_kind
-	panic(rt.Trap("unreachable"))
 }
 
 // FbraceNextCut is $braceNextCut.
@@ -6559,7 +6489,6 @@ L2:
 	goto L2
 B1:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbraceExpression is $braceExpression.
@@ -6607,7 +6536,6 @@ func (m *Machine) FbraceExpression(l_from uint32, l_tag uint32, l_astro uint32) 
 		return uint32(1)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbraceTagRest is $braceTagRest.
@@ -6751,7 +6679,6 @@ func (m *Machine) FbraceStreamResumeTag(l_astro uint32) uint32 {
 		l_r = rt.B2u((m.Gptr >= m.Gend))
 	}
 	return l_r
-	panic(rt.Trap("unreachable"))
 }
 
 // FangularKeyword is $angularKeyword.
@@ -6767,7 +6694,6 @@ func (m *Machine) FangularKeyword(l_from uint32, l_to uint32) uint32 {
 	t1 = m.FlexKeywordValue(l_from, l_to, uint32(13984), uint32(15), uint32(37))
 	l_hl = t1
 	return rt.Sel32((int32(l_hl) >= int32(uint32(0))), l_hl, uint32(58))
-	panic(rt.Trap("unreachable"))
 }
 
 // FangularExpression is $angularExpression.
@@ -6976,7 +6902,6 @@ L2:
 	goto L2
 B1:
 	return (l_mode | ((l_expr << 7) | ((l_quote << 10) | ((l_depth << 17) | (l_member << 29)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlAngularHtml is $hlAngularHtml.
@@ -7235,7 +7160,6 @@ L2:
 	goto L2
 B1:
 	return l_state
-	panic(rt.Trap("unreachable"))
 }
 
 // FemitCssTemplateBody is $emitCssTemplateBody.
@@ -7299,7 +7223,6 @@ func (m *Machine) FecmaHasTypeScript() uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((m.GecmaFeatures & uint32(1)) != uint32(0)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FecmaHasJsx is $ecmaHasJsx.
@@ -7307,7 +7230,6 @@ func (m *Machine) FecmaHasJsx() uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((m.GecmaFeatures & uint32(2)) != uint32(0)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FecmaHasTsrx is $ecmaHasTsrx.
@@ -7315,7 +7237,6 @@ func (m *Machine) FecmaHasTsrx() uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((m.GecmaFeatures & uint32(4)) != uint32(0)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbrkPush is $brkPush.
@@ -7334,7 +7255,6 @@ func (m *Machine) FbrkTopKind() uint32 {
 		return uint32(0)
 	}
 	return (rt.Ld8(m.Mem, int((uint32(37632)+(m.GbrkSp-uint32(1))))) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbrkPop is $brkPop.
@@ -7360,7 +7280,6 @@ func (m *Machine) FternaryCount() uint32 {
 		return uint32(0)
 	}
 	return (rt.Ld8(m.Mem, int((uint32(37631)+m.GbrkSp))) >> 1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FternarySet is $ternarySet.
@@ -7386,7 +7305,6 @@ func (m *Machine) FtsxByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // Futf8Bits is $utf8Bits.
@@ -7397,7 +7315,6 @@ func (m *Machine) Futf8Bits(l_c uint32) uint32 {
 		return rt.Clz32(((l_c ^ uint32(4294967295)) << 24))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FisKeyword is $isKeyword.
@@ -7440,7 +7357,6 @@ func (m *Machine) FisKeyword(l_start uint32, l_end uint32) uint32 {
 		}
 	}
 	return rt.Ld8(m.Mem, int(l_p))
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanIdentTail is $scanIdentTail.
@@ -7543,7 +7459,6 @@ B3:
 	goto L2
 B1:
 	return uint32(42)
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanStringBody is $scanStringBody.
@@ -7586,7 +7501,6 @@ L2:
 	goto L2
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanString is $scanString.
@@ -7600,7 +7514,6 @@ func (m *Machine) FscanString(l_quote uint32) uint32 {
 	m.Gptr = (m.Gptr + uint32(1))
 	t1 = m.FscanStringBody(l_quote)
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanTemplateBody is $scanTemplateBody.
@@ -7651,7 +7564,6 @@ L2:
 	goto L2
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanRegexp is $scanRegexp.
@@ -7701,7 +7613,6 @@ B8:
 	return uint32(58)
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrxAllowedAfter is $rxAllowedAfter.
@@ -7736,7 +7647,6 @@ func (m *Machine) FrxAllowedAfter(l_t uint32) uint32 {
 		return uint32(0)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FregexpAllowed is $regexpAllowed.
@@ -7747,7 +7657,6 @@ func (m *Machine) FregexpAllowed() uint32 {
 	_ = t1
 	t1 = m.FrxAllowedAfter(m.Glto)
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxCanStart is $jsxCanStart.
@@ -7769,7 +7678,6 @@ func (m *Machine) FjsxCanStart(l_t uint32) uint32 {
 	}
 	t2 = m.FrxAllowedAfter(l_t)
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FafterModuleSpecifier is $afterModuleSpecifier.
@@ -7780,7 +7688,6 @@ func (m *Machine) FafterModuleSpecifier() uint32 {
 	_ = t0
 	l_t = m.GprevLto
 	return rt.B2u(((l_t == uint32(121)) || ((l_t == uint32(92)) || (l_t == uint32(85)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FparenIsCtrl is $parenIsCtrl.
@@ -7788,7 +7695,6 @@ func (m *Machine) FparenIsCtrl() uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((rt.Ld8(m.Mem, int(m.Glto)+38656) & uint32(4)) != uint32(0)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbraceIsBlock is $braceIsBlock.
@@ -7802,7 +7708,6 @@ func (m *Machine) FbraceIsBlock() uint32 {
 		return uint32(1)
 	}
 	return rt.B2u(((rt.Ld8(m.Mem, int(m.Glto)+38656) & uint32(2)) != uint32(0)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FscanToken is $scanToken.
@@ -8430,7 +8335,6 @@ B19:
 	l_take = t9
 	m.Gptr = (m.Gptr + (l_take & uint32(7)))
 	return (l_take >> 3)
-	panic(rt.Trap("unreachable"))
 }
 
 // FnextToken is $nextToken.
@@ -8473,7 +8377,6 @@ func (m *Machine) FnextToken() uint32 {
 		m.Glto = l_t
 	}
 	return l_t
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsxExpressionEnd is $tsxExpressionEnd.
@@ -8591,7 +8494,6 @@ func (m *Machine) FtsxExpressionEnd(l_from uint32, l_body uint32) uint32 {
 	m.GjsxMute = uint32(0)
 	m.Gptr = l_save
 	return l_to
-	panic(rt.Trap("unreachable"))
 }
 
 // FemitEscaped is $emitEscaped.
@@ -8676,7 +8578,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsTemplateOpenState is $jsTemplateOpenState.
@@ -8708,7 +8609,6 @@ func (m *Machine) FjsTemplateOpenState(l_lhs uint32, l_rhs uint32) uint32 {
 		return l_m
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FemitTemplate is $emitTemplate.
@@ -8792,7 +8692,6 @@ func (m *Machine) FisParamTag(l_lhs uint32, l_rhs uint32) uint32 {
 		l_w = (l_w & ((uint64(1) << (uint64((l_len << 3)) & 63)) - uint64(1)))
 	}
 	return rt.B2u(((((l_w == uint64(469786321264)) || (l_w == uint64(6779489))) || ((l_w == uint64(8389754676633367137)) || (l_w == uint64(1886351984)))) || (((l_w == uint64(8751745755891331696)) || (l_w == uint64(7310575213499737460))) || ((l_w == uint64(28821929497491828)) || (l_w == uint64(7738135660106375523))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FdocNameChar is $docNameChar.
@@ -8800,7 +8699,6 @@ func (m *Machine) FdocNameChar(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u((((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || ((l_c - uint32(48)) <= uint32(9))) || (((l_c == uint32(95)) || (l_c == uint32(36))) || (l_c == uint32(46)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FemitDocCommentRange is $emitDocCommentRange.
@@ -8956,7 +8854,6 @@ func (m *Machine) FblockCommentOpen(l_lhs uint32, l_rhs uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u((((l_rhs - l_lhs) < uint32(4)) || (rt.Ld16(m.Mem, int((l_rhs-uint32(2)))) != uint32(12074))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FisDocComment is $isDocComment.
@@ -8973,7 +8870,6 @@ func (m *Machine) FisDocComment(l_lhs uint32, l_rhs uint32) uint32 {
 	t2 = ((l_rhs - l_lhs) > uint32(4))
 	t3 = m.FblockCommentOpen(l_lhs, l_rhs)
 	return (rt.B2u((t1 == uint32(42))) & (rt.B2u(t2) | t3))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlJs is $hlJs.
@@ -9010,7 +8906,6 @@ func (m *Machine) FjsxTopSlot() uint32 {
 		l_i = uint32(511)
 	}
 	return (uint32(40992) + (l_i << 3))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxTopMode is $jsxTopMode.
@@ -9024,7 +8919,6 @@ func (m *Machine) FjsxTopMode() uint32 {
 	}
 	t1 = m.FjsxTopSlot()
 	return rt.Ld32(m.Mem, int(t1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxTopTarget is $jsxTopTarget.
@@ -9038,7 +8932,6 @@ func (m *Machine) FjsxTopTarget() uint32 {
 	}
 	t1 = m.FjsxTopSlot()
 	return rt.Ld32(m.Mem, int(t1)+4)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxByteMode is $jsxByteMode.
@@ -9046,7 +8939,6 @@ func (m *Machine) FjsxByteMode(l_mode uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u((((l_mode - uint32(1)) <= uint32(1)) || (l_mode >= uint32(6))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxPop is $jsxPop.
@@ -9099,7 +8991,6 @@ func (m *Machine) FjsxNameStart(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || ((l_c == uint32(95)) || (l_c == uint32(36)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxNameCont is $jsxNameCont.
@@ -9107,7 +8998,6 @@ func (m *Machine) FjsxNameCont(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+1680) >> 7)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxNameEndAt is $jsxNameEndAt.
@@ -9128,7 +9018,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxSpaceEndAt is $jsxSpaceEndAt.
@@ -9149,7 +9038,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxValidate is $jsxValidate.
@@ -9263,7 +9151,6 @@ func (m *Machine) FjsxValidate(l_p uint32) uint32 {
 	t18 = (l_c == uint32(123))
 	t19 = m.FjsxNameStart(l_c)
 	return ((rt.B2u(t17) | (rt.B2u(t18) | t19)) | rt.B2u(((l_c == uint32(34)) || (l_c == uint32(39)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxEmitName is $jsxEmitName.
@@ -9311,7 +9198,6 @@ B1:
 		}
 	}
 	return l_kind
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxOpenContainer is $jsxOpenContainer.
@@ -9515,7 +9401,6 @@ L2:
 	goto L2
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxCloseTailStep is $jsxCloseTailStep.
@@ -9535,7 +9420,6 @@ func (m *Machine) FjsxRootDone(l_m uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((m.GjsxSp == 0) || ((m.GjsxSp == uint32(1)) && (l_m == uint32(2)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsxRunBytes is $jsxRunBytes.
@@ -9814,7 +9698,6 @@ func (m *Machine) FisIdentish(l_t uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((l_t == uint32(26)) || ((l_t - uint32(73)) <= uint32(61))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FisBuiltinConst is $isBuiltinConst.
@@ -9834,7 +9717,6 @@ func (m *Machine) FisBuiltinConst(l_lhs uint32, l_rhs uint32) uint32 {
 		return rt.B2u((rt.Ld64(m.Mem, int(l_lhs)) == uint64(8751735898823355977)))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FisPredefinedType is $isPredefinedType.
@@ -9862,7 +9744,6 @@ func (m *Machine) FisPredefinedType(l_lhs uint32, l_rhs uint32) uint32 {
 		return rt.B2u(((l_w == uint64(31069335677005666)) || (l_w == uint64(31093567915781749))))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FisConstructorWord is $isConstructorWord.
@@ -9873,7 +9754,6 @@ func (m *Machine) FisConstructorWord(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(0)
 	}
 	return rt.B2u(((rt.Ld64(m.Mem, int(l_lhs)) == uint64(7166760226508402531)) && (rt.Ld32(m.Mem, int(l_lhs)+7) == uint32(1919906915))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsBlanksBefore is $tsBlanksBefore.
@@ -9894,7 +9774,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsByteBefore is $tsByteBefore.
@@ -9905,7 +9784,6 @@ func (m *Machine) FtsByteBefore(l_p uint32) uint32 {
 		return uint32(0)
 	}
 	return rt.Ld8(m.Mem, int((l_p - uint32(1))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsReturnColonBefore is $tsReturnColonBefore.
@@ -9931,7 +9809,6 @@ func (m *Machine) FtsReturnColonBefore(l_lhs uint32) uint32 {
 	t3 = m.FtsBlanksBefore((l_p - uint32(1)))
 	t4 = m.FtsByteBefore(t3)
 	return rt.B2u((t4 == uint32(41)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsArrowReturnType is $tsArrowReturnType.
@@ -9954,7 +9831,6 @@ func (m *Machine) FtsArrowReturnType(l_prev uint32, l_lhs uint32) uint32 {
 		return t2
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsNewMemberBefore is $tsNewMemberBefore.
@@ -10007,7 +9883,6 @@ B1:
 	t6 = m.FtsByteBefore((l_p - uint32(3)))
 	t7 = m.FjsxNameStart(t6)
 	return rt.B2u((t5 && (t7 == 0)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsTypeSlot is $tsTypeSlot.
@@ -10050,7 +9925,6 @@ func (m *Machine) FtsTypeSlot(l_prev uint32, l_next uint32, l_lhs uint32) uint32
 		return t2
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FsigArrowAhead is $sigArrowAhead.
@@ -10083,7 +9957,6 @@ B1:
 	t2 = (l_c == uint32(61))
 	t3 = m.FtsxByte((l_p + uint32(1)))
 	return rt.B2u((t2 && (t3 == uint32(62))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FsigStep is $sigStep.
@@ -10254,7 +10127,6 @@ func (m *Machine) FctxwordHl(l_prev uint32, l_t uint32, l_next uint32) uint32 {
 		return rt.Sel32((l_t == uint32(134)), uint32(19), uint32(17))
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FctxIdentHl is $ctxIdentHl.
@@ -10310,7 +10182,6 @@ func (m *Machine) FctxIdentHl(l_prev uint32, l_next uint32, l_lhs uint32, l_rhs 
 		}
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FidentHl is $identHl.
@@ -10537,7 +10408,6 @@ func (m *Machine) FidentHl(l_prev uint32, l_t uint32, l_next uint32, l_lhs uint3
 		return uint32(55)
 	}
 	return uint32(58)
-	panic(rt.Trap("unreachable"))
 }
 
 // FisConstCase is $isConstCase.
@@ -10566,7 +10436,6 @@ B4:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // Fclassify is $classify.
@@ -10609,7 +10478,6 @@ func (m *Machine) Fclassify(l_prev uint32, l_t uint32, l_next uint32, l_lhs uint
 		}
 	}
 	return rt.Sel32((l_t == uint32(15)), uint32(35), uint32(25))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlTs is $hlTs.
@@ -10634,7 +10502,6 @@ func (m *Machine) FtsrxWord(l_p uint32, l_len uint32) uint64 {
 		return rt.Ld64(m.Mem, int(l_p))
 	}
 	return (rt.Ld64(m.Mem, int(l_p)) & ((uint64(1) << (uint64((l_len << 3)) & 63)) - uint64(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxIdentByte is $tsrxIdentByte.
@@ -10645,7 +10512,6 @@ func (m *Machine) FtsrxIdentByte(l_c uint32) uint32 {
 	_ = t1
 	t1 = m.FjsxNameStart(l_c)
 	return (t1 | rt.B2u(((l_c - uint32(48)) <= uint32(9))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxDirectiveKind is $tsrxDirectiveKind.
@@ -10680,7 +10546,6 @@ func (m *Machine) FtsrxDirectiveKind(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(83)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxDirectiveAt is $tsrxDirectiveAt.
@@ -10707,7 +10572,6 @@ L2:
 B1:
 	t2 = m.FtsrxDirectiveKind(l_p, l_e)
 	return rt.B2u((t2 != uint32(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxWordKind is $tsrxWordKind.
@@ -10757,7 +10621,6 @@ func (m *Machine) FtsrxWordKind(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(130)
 	}
 	return uint32(26)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxForClauseWord is $tsrxForClauseWord.
@@ -10780,7 +10643,6 @@ func (m *Machine) FtsrxForClauseWord(l_lhs uint32, l_rhs uint32) uint32 {
 		return rt.B2u((t2 == uint64(7955819)))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxRawKind is $tsrxRawKind.
@@ -10807,7 +10669,6 @@ func (m *Machine) FtsrxRawKind(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxRawClose is $tsrxRawClose.
@@ -10836,7 +10697,6 @@ func (m *Machine) FtsrxRawClose(l_p uint32, l_kind uint32) uint32 {
 	}
 	l_c = rt.Ld8(m.Mem, int((l_p + l_n)))
 	return rt.B2u((((l_c == uint32(62)) || (l_c == uint32(47))) || ((l_c == uint32(32)) || ((l_c - uint32(9)) <= uint32(4)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxContentFind is $tsrxContentFind.
@@ -10863,7 +10723,6 @@ L3:
 	}
 B2:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxAtBoundary is $tsrxAtBoundary.
@@ -10887,7 +10746,6 @@ L2:
 	goto L2
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxFinallyAhead is $tsrxFinallyAhead.
@@ -10929,7 +10787,6 @@ func (m *Machine) FtsrxFinallyAhead(l_p uint32) uint32 {
 	t6 = m.FjsxSpaceEndAt(l_q)
 	t7 = m.FtsxByte(t6)
 	return rt.Sel32((t7 == uint32(123)), t5, uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtsrxStyleStep is $tsrxStyleStep.
@@ -11184,7 +11041,6 @@ B3:
 	return uint32(0)
 B2:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FecmaReset is $ecmaReset.
@@ -11559,7 +11415,6 @@ func (m *Machine) FhlTsxExpressionStream(l_reset uint32, l_closeLen uint32) uint
 	}
 	m.FhlEcmaImpl(l_reset)
 	return m.GtsxStreamExpressionClosed
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlTsxExpression is $hlTsxExpression.
@@ -11585,7 +11440,6 @@ func (m *Machine) FhlTsxExpression(l_closeLen uint32, l_open uint32, l_region ui
 		m.GstreamRegionStarted = uint32(1)
 	}
 	return l_closed
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlWordHl is $yamlWordHl.
@@ -11619,7 +11473,6 @@ func (m *Machine) FyamlWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	l_w = (l_w & uint32(65535))
 	return rt.Sel32(((l_w == uint32(28526)) || (l_w == uint32(28271))), uint32(3), uint32(44))
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlSkipHorizontal is $yamlSkipHorizontal.
@@ -11637,7 +11490,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlAfterLine is $yamlAfterLine.
@@ -11653,7 +11505,6 @@ func (m *Machine) FyamlAfterLine(l_p uint32) uint32 {
 		}
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlLineIndent is $yamlLineIndent.
@@ -11674,7 +11525,6 @@ L2:
 B1:
 	t1 = m.FyamlSkipHorizontal(l_p)
 	return (t1 - l_p)
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlBlockBodyEnd is $yamlBlockBodyEnd.
@@ -11709,7 +11559,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlBlockScalar is $yamlBlockScalar.
@@ -11784,7 +11633,6 @@ B1:
 		m.GstreamA = l_indent
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlStreamResume is $yamlStreamResume.
@@ -11806,7 +11654,6 @@ func (m *Machine) FyamlStreamResume() uint32 {
 	}
 	m.GstreamMode = uint32(0)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlColonEnds is $yamlColonEnds.
@@ -11833,7 +11680,6 @@ func (m *Machine) FyamlColonEnds(l_p uint32, l_flow uint32) uint32 {
 		return uint32(1)
 	}
 	return rt.B2u(((l_flow != uint32(0)) && ((l_c == uint32(44)) || ((l_c == uint32(93)) || (l_c == uint32(125))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FyamlScanPlain is $yamlScanPlain.
@@ -11915,7 +11761,6 @@ func (m *Machine) FyamlAtLineStart(l_p uint32) uint32 {
 	}
 	l_c = rt.Ld8(m.Mem, int((l_p - uint32(1))))
 	return rt.B2u(((l_c == uint32(10)) || (l_c == uint32(13))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlYaml is $hlYaml.
@@ -12178,7 +12023,6 @@ func (m *Machine) FastroLineEnd(l_p uint32) uint32 {
 	_ = t1
 	t1 = m.FlexFindEither(l_p, uint32(10), uint32(13))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FastroAfterLine is $astroAfterLine.
@@ -12192,7 +12036,6 @@ func (m *Machine) FastroAfterLine(l_p uint32) uint32 {
 		return (l_p + uint32(1))
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FfrontMatterOpen is $frontMatterOpen.
@@ -12213,7 +12056,6 @@ func (m *Machine) FfrontMatterOpen() uint32 {
 		}
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FfrontMatterClose is $frontMatterClose.
@@ -12242,7 +12084,6 @@ L2:
 	goto L2
 B1:
 	return m.Gend
-	panic(rt.Trap("unreachable"))
 }
 
 // FfrontMatterCloser is $frontMatterCloser.
@@ -12340,7 +12181,6 @@ func (m *Machine) FmarkdownFenceSlot(l_depth uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (uint32(45104) + ((l_depth - uint32(1)) * uint32(12)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownFenceReg is $markdownFenceReg.
@@ -12354,7 +12194,6 @@ func (m *Machine) FmarkdownFenceReg() uint32 {
 	}
 	t1 = m.FmarkdownFenceSlot(m.GmarkdownDepth)
 	return rt.Ld32(m.Mem, int(t1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownFenceSet is $markdownFenceSet.
@@ -12526,7 +12365,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownFenceBody is $markdownFenceBody.
@@ -12575,7 +12413,6 @@ func (m *Machine) FmarkdownQuotedLines(l_quotes uint32, l_lang uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((l_quotes != uint32(0)) && ((l_lang != uint32(87)) && (l_lang != uint32(89)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownQuotedBody is $markdownQuotedBody.
@@ -12661,7 +12498,6 @@ func (m *Machine) FmarkdownLineEnd(l_p uint32) uint32 {
 	_ = t1
 	t1 = m.FlexFindEither(l_p, uint32(10), uint32(13))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownIsAlnum is $markdownIsAlnum.
@@ -12669,7 +12505,6 @@ func (m *Machine) FmarkdownIsAlnum(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.B2u((l_c >= uint32(128))) | ((rt.Ld8(m.Mem, int(l_c)+1936) >> 3) & uint32(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownIsPunct is $markdownIsPunct.
@@ -12677,7 +12512,6 @@ func (m *Machine) FmarkdownIsPunct(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((((l_c - uint32(33)) <= uint32(14)) || ((l_c - uint32(58)) <= uint32(6))) || (((l_c - uint32(91)) <= uint32(5)) || ((l_c - uint32(123)) <= uint32(3)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownCodeSpanEnd is $markdownCodeSpanEnd.
@@ -12716,7 +12550,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownTickRunEnd is $markdownTickRunEnd.
@@ -12734,7 +12567,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownAfterLine is $markdownAfterLine.
@@ -12748,7 +12580,6 @@ func (m *Machine) FmarkdownAfterLine(l_p uint32) uint32 {
 		return (l_p + uint32(1))
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownListMarkerEnd is $markdownListMarkerEnd.
@@ -12781,7 +12612,6 @@ B2:
 		return (l_q + uint32(1))
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownSkipIndent is $markdownSkipIndent.
@@ -12805,7 +12635,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownFenceClose is $markdownFenceClose.
@@ -12909,7 +12738,6 @@ B3:
 	goto L2
 B1:
 	return m.Gend
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownClearEmbeddedStream is $markdownClearEmbeddedStream.
@@ -12992,7 +12820,6 @@ func (m *Machine) FmarkdownStreamResume() uint32 {
 	m.FmarkdownFenceSet(uint32(0), uint32(0), uint32(0))
 	m.FmarkdownFenceClearDeeper()
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownPlainEnd is $markdownPlainEnd.
@@ -13034,7 +12861,6 @@ L5:
 	goto L5
 B4:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownHtmlEnd is $markdownHtmlEnd.
@@ -13160,7 +12986,6 @@ B8:
 		}
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownAutolinkEnd is $markdownAutolinkEnd.
@@ -13225,7 +13050,6 @@ B9:
 		return (l_p + uint32(1))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownImageLink is $markdownImageLink.
@@ -13269,7 +13093,6 @@ func (m *Machine) FmarkdownImageLink(l_lhs uint32, l_lineEnd uint32, l_alt uint3
 	m.FmarkdownLink((l_lhs + uint32(2)), l_alt, l_src)
 	m.FmarkdownLinkTail((l_src + uint32(1)), l_href)
 	return (l_href + uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownLink is $markdownLink.
@@ -13314,7 +13137,6 @@ L3:
 	}
 B2:
 	return rt.Sel32((l_p < l_stop), l_p, l_stop)
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownEmphasisEnd is $markdownEmphasisEnd.
@@ -13402,7 +13224,6 @@ L4:
 	}
 	l_p = (l_p + uint32(1))
 	goto L4
-	panic(rt.Trap("unreachable"))
 }
 
 // FmarkdownHtmlRange is $markdownHtmlRange.
@@ -14039,7 +13860,6 @@ func (m *Machine) FstreamResumeAnyRegion() uint32 {
 	}
 	t5 = m.FstreamResumeRegion()
 	return t5
-	panic(rt.Trap("unreachable"))
 }
 
 // FstreamResumeRegion is $streamResumeRegion.
@@ -14171,7 +13991,6 @@ func (m *Machine) FstreamResumeRegion() uint32 {
 		m.Gptr = l_after
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FabapQuoted is $abapQuoted.
@@ -14245,7 +14064,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_r
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlAbap is $hlAbap.
@@ -14806,7 +14624,6 @@ func (m *Machine) FjavaByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjavaWordHl is $javaWordHl.
@@ -14819,7 +14636,6 @@ func (m *Machine) FjavaWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(21088), uint32(15), uint32(61))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FapexWordHl is $apexWordHl.
@@ -14841,7 +14657,6 @@ func (m *Machine) FapexWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t2 = m.FlexKeywordValue(uint32(1360), (uint32(1360) + l_n), uint32(35648), uint32(31), uint32(96))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FjavaTextBlockBody is $javaTextBlockBody.
@@ -14884,7 +14699,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjavaIsOp is $javaIsOp.
@@ -14892,7 +14706,6 @@ func (m *Machine) FjavaIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlJavaImpl is $hlJavaImpl.
@@ -15378,7 +15191,6 @@ func (m *Machine) FiniIsBoolean(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	l_w = ((rt.Ld64(m.Mem, int(l_lhs)) | uint64(2314885530818453536)) & ((uint64(1) << (uint64((l_n << 3)) & 63)) - uint64(1)))
 	return rt.B2u((((l_w == uint64(1702195828)) || (l_w == uint64(435728179558))) || (((l_w == uint64(7562617)) || (l_w == uint64(28526))) || ((l_w == uint64(28271)) || (l_w == uint64(6710895))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FiniIsNumber is $iniIsNumber.
@@ -15420,7 +15232,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FiniFind is $iniFind.
@@ -15456,7 +15267,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FiniTrim is $iniTrim.
@@ -15477,7 +15287,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FiniValue is $iniValue.
@@ -15557,7 +15366,6 @@ B8:
 	goto L7
 B6:
 	return (l_slashes & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlIni is $hlIni.
@@ -16057,7 +15865,6 @@ func (m *Machine) FapplescriptWord(l_n uint32) uint32 {
 		return uint32(21)
 	}
 	return rt.Sel32((l_w == uint64(128009175786866)), uint32(60), uint32(4294967295))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlApplescript is $hlApplescript.
@@ -16442,7 +16249,6 @@ func (m *Machine) FrstIsAlnum(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.B2u((l_c >= uint32(128))) | ((rt.Ld8(m.Mem, int(l_c)+1936) >> 3) & uint32(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrstCloseEnd is $rstCloseEnd.
@@ -16482,7 +16288,6 @@ L1:
 	}
 	l_p = (l_p + uint32(1))
 	goto L1
-	panic(rt.Trap("unreachable"))
 }
 
 // FrstTrimEnd is $rstTrimEnd.
@@ -16503,7 +16308,6 @@ L2:
 	goto L2
 B1:
 	return l_stop
-	panic(rt.Trap("unreachable"))
 }
 
 // FrstIsRule is $rstIsRule.
@@ -16547,7 +16351,6 @@ L3:
 	goto L3
 B2:
 	return rt.Sel32((l_q == l_stop), (l_gaps + uint32(1)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrstLinkSuffix is $rstLinkSuffix.
@@ -16569,7 +16372,6 @@ L2:
 	}
 B1:
 	return l_n
-	panic(rt.Trap("unreachable"))
 }
 
 // FrstPlainEnd is $rstPlainEnd.
@@ -16605,7 +16407,6 @@ L3:
 	}
 B2:
 	return rt.Sel32((l_p < l_stop), l_p, l_stop)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrstWordStart is $rstWordStart.
@@ -16629,7 +16430,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlRst is $hlRst.
@@ -17285,7 +17085,6 @@ func (m *Machine) FadocIsAdmonition(l_p uint32, l_stop uint32) uint32 {
 	l_n = (l_stop - l_p)
 	l_w = rt.Ld64(m.Mem, int(l_p))
 	return rt.B2u(((((l_n == uint32(3)) && ((uint32(l_w) & uint32(16777215)) == uint32(5261652))) || ((l_n == uint32(4)) && (uint32(l_w) == uint32(1163153230)))) || (((l_n == uint32(7)) && (((l_w & uint64(72057594037927935)) == uint64(20070800100049239)) || ((l_w & uint64(72057594037927935)) == uint64(22042224549511491)))) || ((l_n == uint32(9)) && (l_w == uint64(5638880920939285833))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlAsciidoc is $hlAsciidoc.
@@ -17915,7 +17714,6 @@ func (m *Machine) FasmIsRegister(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return rt.B2u((((((l_w & uint32(255)) - uint32(97)) <= uint32(3)) && ((l_w >> 8) == uint32(120))) || (((l_w == uint32(26995)) || (l_w == uint32(26980))) || ((l_w == uint32(28770)) || (l_w == uint32(28787))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlAsm is $hlAsm.
@@ -18363,7 +18161,6 @@ func (m *Machine) FbashByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashWordHl is $bashWordHl.
@@ -18380,7 +18177,6 @@ func (m *Machine) FbashWordHl(l_group uint32) uint32 {
 		return uint32(19)
 	}
 	return uint32(17)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashIsPunctWordStart is $bashIsPunctWordStart.
@@ -18391,7 +18187,6 @@ func (m *Machine) FbashIsPunctWordStart(l_c uint32, l_c2 uint32) uint32 {
 	_ = t1
 	t1 = m.FlexIsIdentStart(l_c2)
 	return ((t1 & rt.B2u((l_c2 != uint32(36)))) | rt.Sel32((l_c == uint32(45)), rt.B2u((l_c2 == uint32(45))), rt.B2u(((l_c2-uint32(46)) <= uint32(1)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashIsSpecialParam is $bashIsSpecialParam.
@@ -18402,7 +18197,6 @@ func (m *Machine) FbashIsSpecialParam(l_c uint32) uint32 {
 	_ = t1
 	t1 = m.FlexIsDigit(l_c)
 	return (t1 | ((rt.Ld8(m.Mem, int(l_c)+2704) >> 2) & uint32(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashScanWord is $bashScanWord.
@@ -18460,7 +18254,6 @@ B1:
 		m.FemitTok(uint32(40), l_seg, m.Gptr)
 	}
 	return l_depth
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashBraceScan is $bashBraceScan.
@@ -18487,7 +18280,6 @@ func (m *Machine) FbashBraceScan() uint32 {
 	m.Gptr = (m.Gptr + uint32(1))
 	m.FemitTok(uint32(40), l_seg, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashDollar is $bashDollar.
@@ -18560,7 +18352,6 @@ func (m *Machine) FbashDollar(l_quoted uint32) uint32 {
 	}
 	m.FemitTok(uint32(58), l_lhs, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashDoubleBody is $bashDoubleBody.
@@ -18634,7 +18425,6 @@ B1:
 	m.GstreamA = rt.Sel32((int32(l_open) > int32(uint32(0))), l_open, uint32(0))
 	m.GstreamB = rt.B2u((l_open == uint32(4294967295)))
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashDouble is $bashDouble.
@@ -18671,7 +18461,6 @@ L2:
 	goto L2
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashIsWordEnd is $bashIsWordEnd.
@@ -18682,7 +18471,6 @@ func (m *Machine) FbashIsWordEnd(l_c uint32) uint32 {
 	_ = t1
 	t1 = m.FlexIsSpace(l_c)
 	return (t1 | ((rt.Ld8(m.Mem, int(l_c)+2704) >> 4) & uint32(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashHeredocBody is $bashHeredocBody.
@@ -18744,7 +18532,6 @@ func (m *Machine) FbashIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2704) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbashIsArrayOpen is $bashIsArrayOpen.
@@ -18764,7 +18551,6 @@ func (m *Machine) FbashIsArrayOpen(l_p uint32) uint32 {
 	l_c = rt.Ld8(m.Mem, int((l_p - uint32(2))))
 	t1 = m.FlexIsIdentContinue(l_c)
 	return (t1 | rt.B2u(((l_c == uint32(43)) || (l_c == uint32(93)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlBash is $hlBash.
@@ -19286,7 +19072,6 @@ func (m *Machine) FbashStreamResume() uint32 {
 		return uint32(0)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbatchByte is $batchByte.
@@ -19294,7 +19079,6 @@ func (m *Machine) FbatchByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FbatchVariableEnd is $batchVariableEnd.
@@ -19429,7 +19213,6 @@ L16:
 	goto L16
 B15:
 	return l_lhs
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlBatch is $hlBatch.
@@ -19693,7 +19476,6 @@ L2:
 	goto L2
 B1:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FbibValue is $bibValue.
@@ -19765,7 +19547,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlBibtex is $hlBibtex.
@@ -20030,7 +19811,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlBicep is $hlBicep.
@@ -20351,7 +20131,6 @@ func (m *Machine) FphpIsOpen(l_p uint32) uint32 {
 	t1 = ((l_p + uint32(5)) == m.Gend)
 	t2 = m.FlexIsSpace(rt.Ld8(m.Mem, int(l_p)+5))
 	return (rt.B2u(t1) | t2)
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpFindOpen is $phpFindOpen.
@@ -20378,7 +20157,6 @@ L2:
 	goto L2
 B1:
 	return m.Gend
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpLineComment is $phpLineComment.
@@ -20451,7 +20229,6 @@ func (m *Machine) FphpUpperName(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(6)
 	}
 	return l_plain
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpWordHl is $phpWordHl.
@@ -20530,7 +20307,6 @@ B2:
 	t1 = m.FlexKeywordValue(uint32(1360), (uint32(1360) + l_n), uint32(24704), uint32(15), uint32(51))
 	l_hl = t1
 	return rt.Sel32((int32(l_hl) >= int32(uint32(0))), l_hl, uint32(58))
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpAfterLine is $phpAfterLine.
@@ -20544,7 +20320,6 @@ func (m *Machine) FphpAfterLine(l_p uint32) uint32 {
 		return (l_p + uint32(1))
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpLineEndAt is $phpLineEndAt.
@@ -20557,7 +20332,6 @@ func (m *Machine) FphpLineEndAt(l_p uint32) uint32 {
 	_ = t1
 	t1 = m.FlexFindEither(l_p, uint32(10), uint32(13))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpBlanksAt is $phpBlanksAt.
@@ -20575,7 +20349,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpBytesEq is $phpBytesEq.
@@ -20609,7 +20382,6 @@ L4:
 	}
 B3:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpHeredocBody is $phpHeredocBody.
@@ -20671,7 +20443,6 @@ B1:
 	m.FemitTok(uint32(44), l_start, (l_start + l_n))
 	m.Gptr = (l_start + l_n)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpHeredocResume is $phpHeredocResume.
@@ -20688,7 +20459,6 @@ func (m *Machine) FphpHeredocResume() uint32 {
 		return uint32(0)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpHeredoc is $phpHeredoc.
@@ -20775,7 +20545,6 @@ B5:
 	m.FemitGap(l_start, l_body)
 	t5 = m.FphpHeredocBody(l_body, l_delim, l_n)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpSingleBody is $phpSingleBody.
@@ -20817,7 +20586,6 @@ B1:
 		m.GstreamMode = uint32(15)
 	}
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpCode is $phpCode.
@@ -21131,7 +20899,6 @@ func (m *Machine) FphpStreamResume() uint32 {
 		return uint32(0)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpLooksLikeMarkup is $phpLooksLikeMarkup.
@@ -21151,7 +20918,6 @@ func (m *Machine) FphpLooksLikeMarkup(l_p uint32) uint32 {
 	l_c = rt.Ld8(m.Mem, int(l_p)+1)
 	t1 = m.FlexIsIdentStart(l_c)
 	return (t1 | rt.B2u(((l_c == uint32(33)) || (l_c == uint32(47)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FphpSkipWhitespaceAt is $phpSkipWhitespaceAt.
@@ -21172,7 +20938,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlPhp is $hlPhp.
@@ -21289,7 +21054,6 @@ L3:
 	}
 B2:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtmplFindWord is $tmplFindWord.
@@ -21316,7 +21080,6 @@ L2:
 	goto L2
 B1:
 	return rt.Sel32(((l_p + l_n) <= m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtmplComment is $tmplComment.
@@ -21359,7 +21122,6 @@ func (m *Machine) FtmplIsVoid(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	l_w = ((rt.Ld64(m.Mem, int(l_lhs)) | uint64(35322350018592)) & ((uint64(1) << (uint64((l_n << 3)) & 63)) - uint64(1)))
 	return rt.B2u((((((l_w == uint64(29282)) || (l_w == uint64(29288))) || ((l_w == uint64(6778217)) || (l_w == uint64(7106403)))) || (((l_w == uint64(7496311)) || (l_w == uint64(1634038369))) || ((l_w == uint64(1702060386)) || (l_w == uint64(1802398060))))) || ((((l_w == uint64(1635018093)) || (l_w == uint64(431197678949))) || ((l_w == uint64(500186508905)) || (l_w == uint64(469786321264)))) || ((l_w == uint64(461228831348)) || (l_w == uint64(111477796466547))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtmplMarkup is $tmplMarkup.
@@ -21612,7 +21374,6 @@ L3:
 	goto L3
 B2:
 	return l_state
-	panic(rt.Trap("unreachable"))
 }
 
 // FbladeDirective is $bladeDirective.
@@ -21643,7 +21404,6 @@ func (m *Machine) FbladeDirective(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return l_hl
-	panic(rt.Trap("unreachable"))
 }
 
 // FbladeVerbatimEnd is $bladeVerbatimEnd.
@@ -21667,7 +21427,6 @@ L2:
 	goto L2
 B1:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlBlade is $hlBlade.
@@ -22141,7 +21900,6 @@ func (m *Machine) FcWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(55)
 	}
 	return uint32(58)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcIsOp is $cIsOp.
@@ -22149,7 +21907,6 @@ func (m *Machine) FcIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2960) >> 4) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlC is $hlC.
@@ -22355,7 +22112,6 @@ func (m *Machine) Fc3Byte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // Fc3WordHl is $c3WordHl.
@@ -22388,7 +22144,6 @@ func (m *Machine) Fc3WordHl(l_lhs uint32, l_rhs uint32, l_ct uint32) uint32 {
 		return uint32(60)
 	}
 	return rt.Sel32(((l_g & uint32(1024)) != 0), uint32(4294967295), l_g)
-	panic(rt.Trap("unreachable"))
 }
 
 // Fc3IsOp is $c3IsOp.
@@ -22396,7 +22151,6 @@ func (m *Machine) Fc3IsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlC3 is $hlC3.
@@ -22738,7 +22492,6 @@ func (m *Machine) FcljWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcljIsDelim is $cljIsDelim.
@@ -22746,7 +22499,6 @@ func (m *Machine) FcljIsDelim(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2960) >> 6) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcljScanSymbol is $cljScanSymbol.
@@ -22787,7 +22539,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlClojure is $hlClojure.
@@ -23103,7 +22854,6 @@ func (m *Machine) FcmakeByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcmakeCommandGroup is $cmakeCommandGroup.
@@ -23122,7 +22872,6 @@ func (m *Machine) FcmakeCommandGroup(l_lhs uint32, l_rhs uint32) uint32 {
 	l_n = t1
 	t2 = m.FlexKeywordLookup(uint32(1360), (uint32(1360) + l_n), uint32(15296), uint32(15), uint32(71))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FcmakeIsCondition is $cmakeIsCondition.
@@ -23139,7 +22888,6 @@ func (m *Machine) FcmakeIsCondition(l_n uint32) uint32 {
 		return rt.B2u(((rt.Ld32(m.Mem, 1360) == uint32(1702063205)) && (rt.Ld16(m.Mem, 1364) == uint32(26217))))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcmakeBracketEquals is $cmakeBracketEquals.
@@ -23167,7 +22915,6 @@ B1:
 		return uint32(4294967295)
 	}
 	return l_n
-	panic(rt.Trap("unreachable"))
 }
 
 // FcmakeBracketBody is $cmakeBracketBody.
@@ -23214,7 +22961,6 @@ L2:
 	goto L2
 B1:
 	return rt.B2u(((l_c == uint32(123)) || (l_c == uint32(60))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcmakeReference is $cmakeReference.
@@ -23327,7 +23073,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcmakeIsWordByte is $cmakeIsWordByte.
@@ -23341,7 +23086,6 @@ func (m *Machine) FcmakeIsWordByte(l_c uint32) uint32 {
 	t1 = (l_c != uint32(36))
 	t2 = m.FlexIsIdentContinue(l_c)
 	return (rt.B2u(t1) & (t2 | (rt.Ld8(m.Mem, int(l_c)+3216) & uint32(1))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcmakeScanWord is $cmakeScanWord.
@@ -23662,7 +23406,6 @@ func (m *Machine) FcobolWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(19)
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlCobol is $hlCobol.
@@ -24471,7 +24214,6 @@ func (m *Machine) FcoffeeArrowAt(l_p uint32) uint32 {
 	t6 = m.FtemplateByte(l_p)
 	t7 = m.FtemplateByte((l_p + uint32(1)))
 	return rt.B2u((((t5 == uint32(45)) || (t6 == uint32(61))) && (t7 == uint32(62))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcoffeeRegex is $coffeeRegex.
@@ -24518,7 +24260,6 @@ L2:
 	return uint32(1)
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcoffeeLiteral is $coffeeLiteral.
@@ -24626,7 +24367,6 @@ L2:
 	t1 = t2
 B1:
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FcoffeeJs is $coffeeJs.
@@ -24714,7 +24454,6 @@ B3:
 	goto L2
 B1:
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlCoffee is $hlCoffee.
@@ -25224,7 +24963,6 @@ func (m *Machine) FcoqWordKind(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(56208), uint32(31), uint32(114))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlCoq is $hlCoq.
@@ -25499,7 +25237,6 @@ func (m *Machine) FcppByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcppIsOp is $cppIsOp.
@@ -25507,7 +25244,6 @@ func (m *Machine) FcppIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2960) >> 4) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcppScanNumber is $cppScanNumber.
@@ -25575,7 +25311,6 @@ func (m *Machine) FcppStringKind(l_p uint32, l_c uint32, l_n uint32, l_c3 uint32
 		return rt.Sel32((l_n == uint32(82)), uint32(259), uint32(2))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcppString is $cppString.
@@ -25680,7 +25415,6 @@ B1:
 	t4 = l_q
 	t5 = m.FlexCStringBody(l_q, rt.Sel32((l_q == uint32(39)), uint32(24), uint32(44)), l_lhs, uint32(1))
 	return rt.Sel32((t5 == uint32(2)), t4, uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcppDirectiveScan is $cppDirectiveScan.
@@ -25711,7 +25445,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcppWordHl is $cppWordHl.
@@ -25732,7 +25465,6 @@ func (m *Machine) FcppWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(15552), uint32(31), uint32(96))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlCpp is $hlCpp.
@@ -26121,7 +25853,6 @@ func (m *Machine) FcsByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FcsWordHl is $csWordHl.
@@ -26142,7 +25873,6 @@ func (m *Machine) FcsWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return l_hl
-	panic(rt.Trap("unreachable"))
 }
 
 // FcsContextual is $csContextual.
@@ -26206,7 +25936,6 @@ func (m *Machine) FcsContextual(l_kind uint32, l_p uint32, l_c uint32, l_query u
 	t10 = m.FcsByte((l_p + uint32(4)))
 	t11 = m.FlexIsIdentContinue(t10)
 	return rt.Sel32((t9 && (t11 == 0)), uint32(4294967295), t8)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcsStringBody is $csStringBody.
@@ -26307,7 +26036,6 @@ B5:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FcsStringPrefix is $csStringPrefix.
@@ -26330,7 +26058,6 @@ func (m *Machine) FcsStringPrefix(l_c uint32, l_c2 uint32, l_c3 uint32) uint32 {
 		return ((l_flags | uint32(288)) | rt.Sel32((l_c2 == uint32(36)), uint32(1), uint32(2)))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FcsIsOp is $csIsOp.
@@ -26338,7 +26065,6 @@ func (m *Machine) FcsIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlCsharp is $hlCsharp.
@@ -26875,7 +26601,6 @@ func (m *Machine) FcsvColumnTok(l_col uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (uint32((uint64(4331645964924303148) >> (uint64((l_col << 3)) & 63))) & uint32(255))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlCsvImpl is $hlCsvImpl.
@@ -27262,7 +26987,6 @@ func (m *Machine) FdWordKind(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t2 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(54416), uint32(31), uint32(110))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FdStringBody is $dStringBody.
@@ -27298,7 +27022,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FdTokenString is $dTokenString.
@@ -27326,7 +27049,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_lhs, m.Gptr)
 	return l_depth
-	panic(rt.Trap("unreachable"))
 }
 
 // FdDelimitedString is $dDelimitedString.
@@ -27776,7 +27498,6 @@ func (m *Machine) FdartWordHl(l_g uint32) uint32 {
 		return uint32(60)
 	}
 	return uint32(21)
-	panic(rt.Trap("unreachable"))
 }
 
 // FdartStringBody is $dartStringBody.
@@ -27858,7 +27579,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FdartIsOp is $dartIsOp.
@@ -27866,7 +27586,6 @@ func (m *Machine) FdartIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlDart is $hlDart.
@@ -28506,7 +28225,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FdiffSkipDigits is $diffSkipDigits.
@@ -28527,7 +28245,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlDiff is $hlDiff.
@@ -28823,7 +28540,6 @@ func (m *Machine) FdockerWordGroup(l_lhs uint32, l_rhs uint32) uint32 {
 	l_n = t1
 	t2 = m.FlexKeywordLookup(uint32(1360), (uint32(1360) + l_n), uint32(16800), uint32(3), uint32(19))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FdockerHeredoc is $dockerHeredoc.
@@ -28906,7 +28622,6 @@ B4:
 		m.FstreamSetLine(l_delim, l_n, (l_strip << 1), uint32(44))
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FdockerLineJoin is $dockerLineJoin.
@@ -28944,7 +28659,6 @@ func (m *Machine) FdockerLineJoin() uint32 {
 	m.FemitGap(m.Gptr, l_p)
 	m.Gptr = l_p
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FdockerVar is $dockerVar.
@@ -28975,7 +28689,6 @@ func (m *Machine) FdockerVar(l_c2 uint32) uint32 {
 	m.Gptr = (m.Gptr + uint32(1))
 	m.FscanIdentRun(uint32(95))
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FdockerIsShellOp is $dockerIsShellOp.
@@ -28983,7 +28696,6 @@ func (m *Machine) FdockerIsShellOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+3472) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlDockerfile is $hlDockerfile.
@@ -29440,7 +29152,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlDotenv is $hlDotenv.
@@ -29698,7 +29409,6 @@ func (m *Machine) FexWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(7)
 	}
 	return uint32(60)
-	panic(rt.Trap("unreachable"))
 }
 
 // FexCloser is $exCloser.
@@ -29718,7 +29428,6 @@ func (m *Machine) FexCloser(l_open uint32) uint32 {
 		return uint32(62)
 	}
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FexLiteralBody is $exLiteralBody.
@@ -29841,7 +29550,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return (l_status | (l_depth << 2))
-	panic(rt.Trap("unreachable"))
 }
 
 // FexIsOp is $exIsOp.
@@ -29849,7 +29557,6 @@ func (m *Machine) FexIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+3472) >> 1) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlElixir is $hlElixir.
@@ -30368,7 +30075,6 @@ L2:
 B1:
 	t2 = m.FlexKeywordLookup(l_p, l_e, uint32(16864), uint32(15), uint32(46))
 	return rt.B2u((t2 == 0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FelmByte is $elmByte.
@@ -30376,7 +30082,6 @@ func (m *Machine) FelmByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlElm is $hlElm.
@@ -30688,7 +30393,6 @@ func (m *Machine) FrubyByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrubyWordHl is $rubyWordHl.
@@ -30740,7 +30444,6 @@ func (m *Machine) FrubyWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(60)
 	}
 	return uint32(14)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrubyCloser is $rubyCloser.
@@ -30760,7 +30463,6 @@ func (m *Machine) FrubyCloser(l_open uint32) uint32 {
 		return uint32(62)
 	}
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FrubyLiteralBody is $rubyLiteralBody.
@@ -30848,7 +30550,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return (l_status | (l_depth << 2))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrubyRangeEq is $rubyRangeEq.
@@ -30868,7 +30569,6 @@ L2:
 	goto L2
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrubyLineDelimited is $rubyLineDelimited.
@@ -30940,7 +30640,6 @@ func (m *Machine) FrubyPercentKind(l_c uint32) uint32 {
 		return uint32(2)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrubyIsOp is $rubyIsOp.
@@ -30948,7 +30647,6 @@ func (m *Machine) FrubyIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlRuby is $hlRuby.
@@ -31764,7 +31462,6 @@ L2:
 B1:
 	t2 = m.FlexKeywordLookup(l_p, l_e, uint32(25856), uint32(15), uint32(59))
 	return rt.B2u((t2 == 0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FerbNextCut is $erbNextCut.
@@ -31809,7 +31506,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FerbRawKind is $erbRawKind.
@@ -31826,7 +31522,6 @@ func (m *Machine) FerbRawKind(l_p uint32) uint32 {
 	t2 = m.FhtmlNameEnd((l_p + uint32(1)))
 	t3 = m.FrawTextKind(t1, t2)
 	return t3
-	panic(rt.Trap("unreachable"))
 }
 
 // FerbIsOpen is $erbIsOpen.
@@ -31840,7 +31535,6 @@ func (m *Machine) FerbIsOpen(l_p uint32) uint32 {
 	t1 = m.FtemplateByte((l_p + uint32(1)))
 	t2 = m.FtemplateByte((l_p + uint32(2)))
 	return rt.B2u(((t1 == uint32(37)) && (t2 != uint32(37))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FerbFindClose is $erbFindClose.
@@ -31867,7 +31561,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FerbBody is $erbBody.
@@ -31935,7 +31628,6 @@ func (m *Machine) FerbBody(l_state uint32) uint32 {
 		}
 	}
 	return rt.B2u((l_open == 0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FerbTag is $erbTag.
@@ -31978,7 +31670,6 @@ func (m *Machine) FerbTag(l_tag uint32) uint32 {
 	m.FemitTok(uint32(40), l_lhs, m.Gptr)
 	t5 = m.FerbBody(l_tag)
 	return t5
-	panic(rt.Trap("unreachable"))
 }
 
 // FerbTagRest is $erbTagRest.
@@ -32188,7 +31879,6 @@ func (m *Machine) FerbStreamResume() uint32 {
 		l_r = rt.B2u((m.Gptr >= m.Gend))
 	}
 	return l_r
-	panic(rt.Trap("unreachable"))
 }
 
 // FerlWordHl is $erlWordHl.
@@ -32201,7 +31891,6 @@ func (m *Machine) FerlWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(17152), uint32(15), uint32(41))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FerlScanNumber is $erlScanNumber.
@@ -32229,7 +31918,6 @@ func (m *Machine) FerlIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+3472) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlErlang is $hlErlang.
@@ -32599,7 +32287,6 @@ L1:
 	}
 	m.FemitTok(uint32(58), l_lhs, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FfishStringBody is $fishStringBody.
@@ -32673,7 +32360,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(2)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlFish is $hlFish.
@@ -32999,7 +32685,6 @@ func (m *Machine) FfortranWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(17344), uint32(63), uint32(138))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FfortranFixedLineKind is $fortranFixedLineKind.
@@ -33051,7 +32736,6 @@ B2:
 	t7 = m.FtemplateByte(t6)
 	l_c = t7
 	return rt.Sel32(((l_c == 0) || ((l_c == uint32(10)) || (l_c == uint32(13)))), uint32(3), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlFortranImpl is $hlFortranImpl.
@@ -33452,7 +33136,6 @@ func (m *Machine) FmlByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmlWordHl is $mlWordHl.
@@ -33465,7 +33148,6 @@ func (m *Machine) FmlWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(23616), uint32(15), uint32(70))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FmlIsCharLiteral is $mlIsCharLiteral.
@@ -33485,7 +33167,6 @@ func (m *Machine) FmlIsCharLiteral(l_p uint32) uint32 {
 	t1 = m.Futf8SpanEnd((l_p + uint32(2)), m.Gend)
 	l_e = t1
 	return rt.B2u(((l_e < m.Gend) && (rt.Ld8(m.Mem, int(l_e)) == uint32(39))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmlIsSymbol is $mlIsSymbol.
@@ -33493,7 +33174,6 @@ func (m *Machine) FmlIsSymbol(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+3728) >> 4) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlOcaml is $hlOcaml.
@@ -34004,7 +33684,6 @@ func (m *Machine) FmlIsArgStart(l_c uint32) uint32 {
 	t1 = m.FlexIsIdentStart(l_c)
 	t2 = m.FlexIsDigit(l_c)
 	return ((t1 | t2) | ((rt.Ld8(m.Mem, int(l_c)+3728) >> 5) & uint32(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmlIdEnd is $mlIdEnd.
@@ -34022,7 +33701,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmlQuoted is $mlQuoted.
@@ -34088,7 +33766,6 @@ func (m *Machine) FmlIsArgAt(l_p uint32) uint32 {
 	t6 = m.FmlWordHl(l_p, l_e)
 	l_kind = t6
 	return rt.B2u(((int32(l_kind) < int32(uint32(0))) || ((l_kind & uint32(255)) == uint32(3))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmlQuotedBody is $mlQuotedBody.
@@ -34132,7 +33809,6 @@ func (m *Machine) FfsByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FfsWordHl is $fsWordHl.
@@ -34145,7 +33821,6 @@ func (m *Machine) FfsWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(17856), uint32(31), uint32(108))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FfsStringBody is $fsStringBody.
@@ -34277,7 +33952,6 @@ B3:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FfsIdEnd is $fsIdEnd.
@@ -34298,7 +33972,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FfsTickIdEnd is $fsTickIdEnd.
@@ -34329,7 +34002,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FfsIsArgAt is $fsIsArgAt.
@@ -34354,7 +34026,6 @@ func (m *Machine) FfsIsArgAt(l_p uint32, l_c uint32) uint32 {
 		return rt.B2u((int32(t4) < int32(uint32(0))))
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlFsharp is $hlFsharp.
@@ -35011,7 +34682,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return (l_status | (l_depth << 2))
-	panic(rt.Trap("unreachable"))
 }
 
 // FpyString is $pyString.
@@ -35073,7 +34743,6 @@ func (m *Machine) FpyStreamResume() uint32 {
 	}
 	m.GstreamMode = uint32(0)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpyWordHl is $pyWordHl.
@@ -35095,7 +34764,6 @@ func (m *Machine) FpyWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(0)
 	}
 	return l_hl
-	panic(rt.Trap("unreachable"))
 }
 
 // FpySoftKeyword is $pySoftKeyword.
@@ -35125,7 +34793,6 @@ func (m *Machine) FpySoftKeyword(l_lhs uint32, l_rhs uint32) uint32 {
 	t2 = ((l_c >= uint32(128)) || ((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || (l_c == uint32(95))))
 	t3 = m.FlexIsDigit(l_c)
 	return ((rt.B2u(t2) | t3) | ((rt.Ld8(m.Mem, int(l_c)+3728) >> 6) & uint32(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FpyIsOp is $pyIsOp.
@@ -35133,7 +34800,6 @@ func (m *Machine) FpyIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+3728) >> 7)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlPython is $hlPython.
@@ -35518,7 +35184,6 @@ func (m *Machine) FgdTypeHl(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t2 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(18240), uint32(7), uint32(27))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlGdscript is $hlGdscript.
@@ -36046,7 +35711,6 @@ func (m *Machine) FglslWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(56)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlGlsl is $hlGlsl.
@@ -36651,7 +36315,6 @@ func (m *Machine) FgleamWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(19616), uint32(7), uint32(25))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FgleamIsOp is $gleamIsOp.
@@ -36659,7 +36322,6 @@ func (m *Machine) FgleamIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 4) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlGleam is $hlGleam.
@@ -37298,7 +36960,6 @@ func (m *Machine) FgoByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FgoWordHl is $goWordHl.
@@ -37311,7 +36972,6 @@ func (m *Machine) FgoWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(20032), uint32(15), uint32(51))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FgoIsOp is $goIsOp.
@@ -37319,7 +36979,6 @@ func (m *Machine) FgoIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+3984) >> 4) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlGo is $hlGo.
@@ -37869,7 +37528,6 @@ func (m *Machine) FgroqByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FgroqEscapeEnd is $groqEscapeEnd.
@@ -37911,7 +37569,6 @@ func (m *Machine) FgroqEscapeEnd(l_p uint32) uint32 {
 	}
 	t8 = m.FlexEscapeEnd(l_p)
 	return t8
-	panic(rt.Trap("unreachable"))
 }
 
 // FgroqStringBody is $groqStringBody.
@@ -37955,7 +37612,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FgroqString is $groqString.
@@ -37990,7 +37646,6 @@ func (m *Machine) FgroqStreamResume() uint32 {
 	}
 	m.GstreamMode = uint32(0)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FgroqStarIsEverything is $groqStarIsEverything.
@@ -38023,7 +37678,6 @@ func (m *Machine) FgroqStarIsEverything(l_p uint32, l_operand uint32, l_lineStar
 	t4 = (l_c == uint32(47))
 	t5 = m.FgroqByte((l_p + uint32(1)))
 	return rt.B2u(((t3 || (t4 && (t5 == uint32(47)))) || (((l_c == uint32(124)) || (l_c == uint32(10))) || ((l_c == uint32(13)) || (l_c == 0)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlGroq is $hlGroq.
@@ -38329,7 +37983,6 @@ func (m *Machine) FgroovyWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(20384), uint32(15), uint32(60))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FgroovyStringBody is $groovyStringBody.
@@ -38411,7 +38064,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FgroovyIsOp is $groovyIsOp.
@@ -38419,7 +38071,6 @@ func (m *Machine) FgroovyIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2704) >> 1) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlGroovy is $hlGroovy.
@@ -38880,7 +38531,6 @@ func (m *Machine) FhackStreamResume() uint32 {
 	l_done = t1
 	m.GphpHack = uint32(0)
 	return l_done
-	panic(rt.Trap("unreachable"))
 }
 
 // FindentLineEnd is $indentLineEnd.
@@ -38893,7 +38543,6 @@ func (m *Machine) FindentLineEnd(l_p uint32) uint32 {
 	_ = t1
 	t1 = m.FscanFindSpecial(l_p, m.Gend, uint32(10), uint32(0), uint32(1))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FindentAfterBreak is $indentAfterBreak.
@@ -38913,7 +38562,6 @@ func (m *Machine) FindentAfterBreak(l_p uint32) uint32 {
 		return (l_p + uint32(2))
 	}
 	return (l_p + uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FindentBlockEnd is $indentBlockEnd.
@@ -38951,7 +38599,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FindentFilterKind is $indentFilterKind.
@@ -38989,7 +38636,6 @@ func (m *Machine) FindentFilterKind(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(7)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FindentBody is $indentBody.
@@ -39065,7 +38711,6 @@ B2:
 		m.GstreamC = (l_indent | (l_kind << 16))
 	}
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FindentStreamResume is $indentStreamResume.
@@ -39085,7 +38730,6 @@ func (m *Machine) FindentStreamResume() uint32 {
 	m.GstreamC = uint32(0)
 	m.FstreamClearCheckpoints()
 	return rt.B2u((m.Gptr >= m.Gend))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhamlRuby is $hamlRuby.
@@ -39146,7 +38790,6 @@ L2:
 	goto L2
 B1:
 	return l_depth
-	panic(rt.Trap("unreachable"))
 }
 
 // FhamlText is $hamlText.
@@ -39217,7 +38860,6 @@ func (m *Machine) FhamlRubyLine(l_stop uint32) uint32 {
 	m.FhamlRuby(l_stop)
 	t1 = m.FlexLineByteBefore(l_stop)
 	return rt.B2u((t1 == uint32(44)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhamlParen is $hamlParen.
@@ -39296,7 +38938,6 @@ B6:
 	goto L2
 B1:
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FhamlTag is $hamlTag.
@@ -39389,7 +39030,6 @@ L2:
 B1:
 	t7 = m.FhamlContent(l_stop)
 	return t7
-	panic(rt.Trap("unreachable"))
 }
 
 // FhamlContent is $hamlContent.
@@ -39436,7 +39076,6 @@ func (m *Machine) FhamlContent(l_stop uint32) uint32 {
 	m.Gptr = l_lhs
 	m.FhamlText(l_stop)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlHaml is $hlHaml.
@@ -39676,7 +39315,6 @@ func (m *Machine) FjinjaTrim(l_c uint32, l_dialect uint32, l_kind uint32) uint32
 	var t0 uint32
 	_ = t0
 	return (rt.B2u(((l_c == uint32(45)) && (l_dialect != uint32(3)))) | ((rt.B2u((l_c == uint32(126))) & (l_dialect & uint32(1))) | (rt.B2u((l_c == uint32(43))) & (rt.Clz32((l_dialect | (l_kind ^ uint32(2)))) >> 5))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjinjaCloser is $jinjaCloser.
@@ -39719,7 +39357,6 @@ func (m *Machine) FjinjaCloser(l_p uint32, l_kind uint32, l_dialect uint32, l_br
 		l_p = (l_p + uint32(1))
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FjinjaOpens is $jinjaOpens.
@@ -39736,7 +39373,6 @@ func (m *Machine) FjinjaOpens(l_p uint32, l_dialect uint32) uint32 {
 	l_c = t1
 	t2 = m.FtemplateByte(l_p)
 	return rt.B2u(((t2 == uint32(123)) && ((l_c == uint32(123)) || (((l_c == uint32(37)) && (l_dialect != uint32(3))) || ((l_c == uint32(35)) && (l_dialect < uint32(2)))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjinjaNextCut is $jinjaNextCut.
@@ -39792,7 +39428,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FjinjaOpen is $jinjaOpen.
@@ -39878,7 +39513,6 @@ func (m *Machine) FjinjaOpen(l_dialect uint32) uint32 {
 	}
 	m.FemitTok(uint32(40), l_lhs, m.Gptr)
 	return rt.Sel32((l_kind == uint32(2)), uint32(18), uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjinjaTag is $jinjaTag.
@@ -40264,7 +39898,6 @@ B12:
 	goto L8
 B1:
 	return ((l_state | l_kind) | (l_ctx << 4))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjinjaRaw is $jinjaRaw.
@@ -40340,7 +39973,6 @@ B1:
 	m.Gptr = m.Gend
 	m.FemitTok(l_hl, l_lhs, m.Gptr)
 	return l_state
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlJinjaImpl is $hlJinjaImpl.
@@ -40548,7 +40180,6 @@ func (m *Machine) FhsIsCharLiteral(l_p uint32) uint32 {
 	t1 = m.Futf8SpanEnd((l_p + uint32(2)), m.Gend)
 	l_e = t1
 	return rt.B2u(((l_e < m.Gend) && (rt.Ld8(m.Mem, int(l_e)) == uint32(39))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhsIsSymbol is $hsIsSymbol.
@@ -40556,7 +40187,6 @@ func (m *Machine) FhsIsSymbol(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+4240) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlHaskell is $hlHaskell.
@@ -40939,7 +40569,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhxCondEnd is $hxCondEnd.
@@ -40998,7 +40627,6 @@ L3:
 	goto L3
 B2:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlHaxe is $hlHaxe.
@@ -41391,7 +41019,6 @@ func (m *Machine) FhlslTypeHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(56)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlslWordHl is $hlslWordHl.
@@ -41414,7 +41041,6 @@ func (m *Machine) FhlslWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return rt.Sel32((l_g != 0), l_g, uint32(4294967295))
 	}
 	return l_g
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlslIsOp is $hlslIsOp.
@@ -41422,7 +41048,6 @@ func (m *Machine) FhlslIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlHlsl is $hlHlsl.
@@ -42087,7 +41712,6 @@ func (m *Machine) FjsonWordHl(l_lhs uint32, l_rhs uint32, l_json5 uint32) uint32
 		return uint32(7)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsonString is $jsonString.
@@ -42152,7 +41776,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // Fjson5Number is $json5Number.
@@ -42187,7 +41810,6 @@ func (m *Machine) Fjson5Number() uint32 {
 	}
 	m.FjsonNumber()
 	return uint32(24)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjsonNumber is $jsonNumber.
@@ -42248,7 +41870,6 @@ L2:
 	goto L2
 B1:
 	return m.Gend
-	panic(rt.Trap("unreachable"))
 }
 
 // FhttpText is $httpText.
@@ -42326,7 +41947,6 @@ func (m *Machine) FhttpVersion(l_rhs uint32) uint32 {
 	m.FemitTok(uint32(24), m.Gptr, l_p)
 	m.Gptr = l_p
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhttpBody is $httpBody.
@@ -42405,7 +42025,6 @@ func (m *Machine) FhttpStreamResume() uint32 {
 	_ = t0
 	m.FhttpBody(m.GstreamRegionStarted, uint32(1))
 	return rt.B2u((m.Gptr >= m.Gend))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlHttp is $hlHttp.
@@ -42692,7 +42311,6 @@ L2:
 	goto L2
 B1:
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlJsonnet is $hlJsonnet.
@@ -42971,7 +42589,6 @@ func (m *Machine) FjlByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjlWordHl is $jlWordHl.
@@ -42993,7 +42610,6 @@ func (m *Machine) FjlWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(21)
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjlDefinedAhead is $jlDefinedAhead.
@@ -43035,7 +42651,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjlStringBody is $jlStringBody.
@@ -43140,7 +42755,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjlIsOp is $jlIsOp.
@@ -43148,7 +42762,6 @@ func (m *Machine) FjlIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+3216) >> 3) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjlIsConstName is $jlIsConstName.
@@ -43175,7 +42788,6 @@ L3:
 	goto L3
 B2:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlJulia is $hlJulia.
@@ -43718,7 +43330,6 @@ func (m *Machine) FjustExpectHl(l_e uint32) uint32 {
 		return uint32(23)
 	}
 	return rt.Sel32((l_e == uint32(5)), uint32(14), uint32(58))
-	panic(rt.Trap("unreachable"))
 }
 
 // FjustStringBody is $justStringBody.
@@ -43796,7 +43407,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FjustBodyString is $justBodyString.
@@ -43878,7 +43488,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlJust is $hlJust.
@@ -44366,7 +43975,6 @@ func (m *Machine) FrustByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrustWordHl is $rustWordHl.
@@ -44387,7 +43995,6 @@ func (m *Machine) FrustWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return l_hl
-	panic(rt.Trap("unreachable"))
 }
 
 // FrustRawOpen is $rustRawOpen.
@@ -44420,7 +44027,6 @@ B1:
 	l_prefix = ((l_p - m.Gptr) - l_prefix)
 	m.Gptr = l_p
 	return l_prefix
-	panic(rt.Trap("unreachable"))
 }
 
 // FrustRawBody is $rustRawBody.
@@ -44465,7 +44071,6 @@ B3:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrustIsOp is $rustIsOp.
@@ -44473,7 +44078,6 @@ func (m *Machine) FrustIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+3984) >> 4) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlRust is $hlRust.
@@ -44959,7 +44563,6 @@ B1:
 	t2 = (l_q - l_p)
 	t3 = m.FtemplateByte(l_q)
 	return rt.Sel32((t3 == uint32(34)), t2, uint32(4294967295))
-	panic(rt.Trap("unreachable"))
 }
 
 // FkdlLiteral is $kdlLiteral.
@@ -44978,7 +44581,6 @@ func (m *Machine) FkdlLiteral(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return rt.Sel32((((l_rhs - l_lhs) == uint32(5)) && ((l_w == uint32(1936482662)) && (rt.Ld8(m.Mem, int(l_lhs)+4) == uint32(101)))), uint32(3), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FkdlStringBody is $kdlStringBody.
@@ -45029,7 +44631,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlKdl is $hlKdl.
@@ -45363,7 +44964,6 @@ func (m *Machine) FkotlinByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FkotlinModifies is $kotlinModifies.
@@ -45406,7 +45006,6 @@ B1:
 	}
 	l_w = rt.Ld16(m.Mem, int(l_p))
 	return (rt.Clz32(rt.B2u(((l_w == uint32(28265)) || ((l_w == uint32(29545)) || (l_w == uint32(29537)))))) >> 5)
-	panic(rt.Trap("unreachable"))
 }
 
 // FkotlinWordHl is $kotlinWordHl.
@@ -45432,7 +45031,6 @@ func (m *Machine) FkotlinWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return l_hl
-	panic(rt.Trap("unreachable"))
 }
 
 // FkotlinStringBody is $kotlinStringBody.
@@ -45511,7 +45109,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FkotlinIsOp is $kotlinIsOp.
@@ -45519,7 +45116,6 @@ func (m *Machine) FkotlinIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+4240) >> 3) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlKotlin is $hlKotlin.
@@ -45898,7 +45494,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FlatexEnvKey is $latexEnvKey.
@@ -45914,7 +45509,6 @@ func (m *Machine) FlatexEnvKey(l_lhs uint32, l_rhs uint32) uint32 {
 	l_star = rt.B2u(((l_rhs > l_lhs) && (rt.Ld8(m.Mem, int((l_rhs-uint32(1)))) == uint32(42))))
 	t1 = m.FlexKeywordValue(l_lhs, (l_rhs - l_star), uint32(21760), uint32(31), uint32(64))
 	return (t1 | (l_star << 12))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlLatex is $hlLatex.
@@ -46542,7 +46136,6 @@ func (m *Machine) FleanByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FleanCodepoint is $leanCodepoint.
@@ -46592,7 +46185,6 @@ func (m *Machine) FleanCodepoint(l_p uint32) uint32 {
 	t9 = m.FleanByte((l_p + uint32(2)))
 	t10 = m.FleanByte((l_p + uint32(3)))
 	return ((t7 | ((t8 & uint32(63)) << 12)) | (((t9 & uint32(63)) << 6) | (t10 & uint32(63))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FleanIsLetter is $leanIsLetter.
@@ -46624,7 +46216,6 @@ func (m *Machine) FleanIsLetter(l_c uint32) uint32 {
 		return uint32(1)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FleanIsRest is $leanIsRest.
@@ -46638,7 +46229,6 @@ func (m *Machine) FleanIsRest(l_c uint32) uint32 {
 	t1 = m.FleanIsLetter(l_c)
 	t2 = m.FlexIsDigit(l_c)
 	return (t1 | (t2 | rt.B2u((((l_c == uint32(33)) || ((l_c == uint32(63)) || (l_c == uint32(39)))) || (((l_c - uint32(8320)) <= uint32(9)) || (((l_c - uint32(8336)) <= uint32(12)) || (((l_c - uint32(7522)) <= uint32(8)) || (l_c == uint32(11388)))))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FleanWordKind is $leanWordKind.
@@ -46660,7 +46250,6 @@ func (m *Machine) FleanWordKind(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(28704), uint32(31), uint32(158))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FleanNameKind is $leanNameKind.
@@ -46674,7 +46263,6 @@ func (m *Machine) FleanNameKind(l_expect uint32) uint32 {
 		return uint32(55)
 	}
 	return rt.Sel32((l_expect == uint32(3)), uint32(23), uint32(58))
-	panic(rt.Trap("unreachable"))
 }
 
 // FleanRawOpen is $leanRawOpen.
@@ -46707,7 +46295,6 @@ B1:
 	l_prefix = ((l_p - m.Gptr) - l_prefix)
 	m.Gptr = l_p
 	return l_prefix
-	panic(rt.Trap("unreachable"))
 }
 
 // FleanRawBody is $leanRawBody.
@@ -46752,7 +46339,6 @@ B3:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlLean is $hlLean.
@@ -47068,7 +46654,6 @@ func (m *Machine) FlispByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlispWordHl is $lispWordHl.
@@ -47107,7 +46692,6 @@ func (m *Machine) FlispWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(4294967295)
 	}
 	return l_g
-	panic(rt.Trap("unreachable"))
 }
 
 // FlispIsDelim is $lispIsDelim.
@@ -47115,7 +46699,6 @@ func (m *Machine) FlispIsDelim(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+4240) >> 6) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlispScanSymbol is $lispScanSymbol.
@@ -47140,7 +46723,6 @@ func (m *Machine) FlispIsExponent(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+4240) >> 7)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlispIsNumber is $lispIsNumber.
@@ -47193,7 +46775,6 @@ L4:
 	goto L4
 B3:
 	return l_digits
-	panic(rt.Trap("unreachable"))
 }
 
 // FlispBindOpen is $lispBindOpen.
@@ -47220,7 +46801,6 @@ func (m *Machine) FlispBindOpen(l_bl uint32) uint32 {
 		return ((l_kind | uint32(768)) | (rt.Sel32(((l_kind == uint32(3)) && (l_elem == uint32(1))), uint32(4), uint32(0)) | (rt.Sel32((l_elem < uint32(3)), (l_elem+uint32(1)), uint32(3)) << 3)))
 	}
 	return ((l_bl & uint32(31)) | (l_depth << 8))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlispBindClose is $lispBindClose.
@@ -47237,7 +46817,6 @@ func (m *Machine) FlispBindClose(l_bl uint32) uint32 {
 		return uint32(0)
 	}
 	return ((l_bl & rt.Sel32((l_depth == uint32(2)), uint32(27), uint32(31))) | (l_depth << 8))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlispBindName is $lispBindName.
@@ -47263,7 +46842,6 @@ func (m *Machine) FlispBindName(l_bl uint32) uint32 {
 		return uint32(58)
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlispBindStep is $lispBindStep.
@@ -47280,7 +46858,6 @@ func (m *Machine) FlispBindStep(l_bl uint32, l_c uint32, l_arm uint32) uint32 {
 		return (l_arm << 5)
 	}
 	return rt.Sel32(((l_c == uint32(58)) || ((l_bl & uint32(4294967167)) == uint32(64))), l_bl, uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlLisp is $hlLisp.
@@ -47611,7 +47188,6 @@ func (m *Machine) FllvmWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(54800), uint32(63), uint32(198))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FllvmName is $llvmName.
@@ -47925,7 +47501,6 @@ func (m *Machine) FlogIsMark(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (((rt.Ld8(m.Mem, int(l_c)+2192) >> 2) & uint32(1)) | rt.B2u(((l_c == uint32(61)) || ((l_c == uint32(58)) || (l_c == uint32(124))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlLog is $hlLog.
@@ -48295,7 +47870,6 @@ B6:
 		m.FstreamSetFixed(uint32(13952), (l_eq + uint32(2)), l_hl)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlLua is $hlLua.
@@ -48548,7 +48122,6 @@ B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	m.Gend = l_saveEnd
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlLuau is $hlLuau.
@@ -48965,7 +48538,6 @@ func (m *Machine) FmakeIsEndef(l_lhs uint32, l_rhs uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u((((l_rhs - l_lhs) == uint32(5)) && ((rt.Ld32(m.Mem, int(l_lhs)) == uint32(1701080677)) && (rt.Ld8(m.Mem, int(l_lhs)+4) == uint32(102)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmakeIsWordEnd is $makeIsWordEnd.
@@ -48973,7 +48545,6 @@ func (m *Machine) FmakeIsWordEnd(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+4496) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmakeScanWord is $makeScanWord.
@@ -49059,7 +48630,6 @@ B1:
 	}
 	t6 = m.FtemplateByte(l_q)
 	return rt.B2u((t6 == uint32(61)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmakeLineKind is $makeLineKind.
@@ -49132,7 +48702,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FmakeDollar is $makeDollar.
@@ -49338,7 +48907,6 @@ func (m *Machine) FmakeIsShellOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+3472) >> 6) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlMakefile is $hlMakefile.
@@ -49784,7 +49352,6 @@ func (m *Machine) FmatWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(22656), uint32(7), uint32(37))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FmatRestBlank is $matRestBlank.
@@ -49802,7 +49369,6 @@ func (m *Machine) FmatRestBlank(l_p uint32) uint32 {
 	t2 = m.FtemplateByte(l_p)
 	l_c = t2
 	return rt.B2u(((l_p >= m.Gend) || ((l_c == uint32(10)) || (l_c == uint32(13)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmatBlockComment is $matBlockComment.
@@ -49851,7 +49417,6 @@ func (m *Machine) FmatIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+4496) >> 6) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlMatlab is $hlMatlab.
@@ -50309,7 +49874,6 @@ func (m *Machine) FmdxNextLine(l_p uint32) uint32 {
 	t1 = m.FmarkdownLineEnd(l_p)
 	t2 = m.FmarkdownAfterLine(t1)
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FmdxCommentEnd is $mdxCommentEnd.
@@ -50339,7 +49903,6 @@ func (m *Machine) FmdxCommentEnd(l_p uint32) uint32 {
 	l_p = m.Gptr
 	m.Gptr = l_save
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FmdxJsxEnd is $mdxJsxEnd.
@@ -50454,7 +50017,6 @@ L8:
 	goto L8
 B7:
 	return (l_lhs + uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FmdxFenceEnd is $mdxFenceEnd.
@@ -50553,7 +50115,6 @@ B8:
 	}
 	t6 = m.FmdxNextLine(l_close)
 	return t6
-	panic(rt.Trap("unreachable"))
 }
 
 // FmdxEsmStart is $mdxEsmStart.
@@ -50576,7 +50137,6 @@ func (m *Machine) FmdxEsmStart(l_p uint32) uint32 {
 		return uint32(0)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FmdxEsmRange is $mdxEsmRange.
@@ -50632,7 +50192,6 @@ B1:
 	}
 	m.Gptr = l_from
 	return l_from
-	panic(rt.Trap("unreachable"))
 }
 
 // FmdxEsmResume is $mdxEsmResume.
@@ -50649,7 +50208,6 @@ func (m *Machine) FmdxEsmResume(l_reg uint32) uint32 {
 	}
 	m.FmarkdownFenceSet(uint32(0), uint32(0), uint32(0))
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FmdxTagStartContinues is $mdxTagStartContinues.
@@ -50735,7 +50293,6 @@ L6:
 	goto L6
 B5:
 	return l_evidence
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlMdx is $hlMdx.
@@ -51008,7 +50565,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FmmdArrowEnd is $mmdArrowEnd.
@@ -51053,7 +50609,6 @@ B1:
 		l_q = (l_q + uint32(1))
 	}
 	return rt.Sel32(((l_shaft & rt.B2u(((l_q - l_p) >= uint32(2)))) != 0), l_q, l_p)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlMermaid is $hlMermaid.
@@ -51682,7 +51237,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlMoonbit is $hlMoonbit.
@@ -52185,7 +51739,6 @@ L2:
 	}
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlNginx is $hlNginx.
@@ -52490,7 +52043,6 @@ func (m *Machine) FnimEscapeEnd(l_p uint32) uint32 {
 	}
 	t11 = m.FlexEscapeEnd(l_p)
 	return t11
-	panic(rt.Trap("unreachable"))
 }
 
 // FnimRawString is $nimRawString.
@@ -52556,7 +52108,6 @@ L3:
 B1:
 	m.FemitTok(uint32(44), l_lhs, m.Gptr)
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FnimBlockComment is $nimBlockComment.
@@ -52588,7 +52139,6 @@ func (m *Machine) FnimBlockComment(l_lhs uint32, l_state uint32) uint32 {
 	}
 	m.FemitTok(rt.Sel32((l_doc != 0), uint32(5), uint32(4)), l_lhs, m.Gptr)
 	return rt.Sel32((l_depth != 0), (l_depth | l_doc), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlNim is $hlNim.
@@ -53135,7 +52685,6 @@ func (m *Machine) FnixByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FnixWordHl is $nixWordHl.
@@ -53148,7 +52697,6 @@ func (m *Machine) FnixWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(23200), uint32(3), uint32(29))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FnixIsPathByte is $nixIsPathByte.
@@ -53159,7 +52707,6 @@ func (m *Machine) FnixIsPathByte(l_c uint32) uint32 {
 	_ = t1
 	t1 = m.FlexIsIdentContinue(l_c)
 	return (t1 | (rt.Ld8(m.Mem, int(l_c)+4752) >> 7))
-	panic(rt.Trap("unreachable"))
 }
 
 // FnixIsUriByte is $nixIsUriByte.
@@ -53170,7 +52717,6 @@ func (m *Machine) FnixIsUriByte(l_c uint32) uint32 {
 	_ = t1
 	t1 = m.FlexIsIdentContinue(l_c)
 	return (t1 | (rt.Ld8(m.Mem, int(l_c)+5008) & uint32(1)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FnixIsArgAt is $nixIsArgAt.
@@ -53226,7 +52772,6 @@ func (m *Machine) FnixIsArgAt(l_p uint32) uint32 {
 		return (t9 & rt.B2u((l_c2 != uint32(47))))
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FnixStringBody is $nixStringBody.
@@ -53320,7 +52865,6 @@ B3:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FnixIsOp is $nixIsOp.
@@ -53328,7 +52872,6 @@ func (m *Machine) FnixIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+5008) >> 2) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlNix is $hlNix.
@@ -53797,7 +53340,6 @@ func (m *Machine) FobjcByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FobjcWordHl is $objcWordHl.
@@ -53831,7 +53373,6 @@ func (m *Machine) FobjcWordHl(l_lhs uint32, l_rhs uint32, l_at uint32, l_propAtt
 		return uint32(4294967295)
 	}
 	return (l_n & uint32(255))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlObjc is $hlObjc.
@@ -54229,7 +53770,6 @@ func (m *Machine) FodinByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FodinEndianType is $odinEndianType.
@@ -54279,7 +53819,6 @@ B4:
 		return uint32(1)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FodinDeclKind is $odinDeclKind.
@@ -54367,7 +53906,6 @@ func (m *Machine) FodinDeclKind(l_p uint32) uint32 {
 		return uint32(2)
 	}
 	return uint32(3)
-	panic(rt.Trap("unreachable"))
 }
 
 // FodinOpLen is $odinOpLen.
@@ -54399,7 +53937,6 @@ func (m *Machine) FodinOpLen(l_c uint32, l_c2 uint32, l_c3 uint32) uint32 {
 		l_n = uint32(3)
 	}
 	return l_n
-	panic(rt.Trap("unreachable"))
 }
 
 // FodinTripleBody is $odinTripleBody.
@@ -54438,7 +53975,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FodinTripleString is $odinTripleString.
@@ -54479,7 +54015,6 @@ func (m *Machine) FodinStreamResumeTriple() uint32 {
 	}
 	m.GstreamMode = uint32(0)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlOdin is $hlOdin.
@@ -55137,7 +54672,6 @@ func (m *Machine) FpasWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(60)
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpasIsTypeName is $pasIsTypeName.
@@ -55151,7 +54685,6 @@ func (m *Machine) FpasIsTypeName(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	l_c = rt.Ld8(m.Mem, int(l_lhs))
 	return (((rt.Ld8(m.Mem, int(l_c)+5008) >> 4) & uint32(1)) & rt.B2u(((rt.Ld8(m.Mem, int(l_lhs)+1) - uint32(65)) <= uint32(25))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FpasBraced is $pasBraced.
@@ -55252,7 +54785,6 @@ func (m *Machine) FpasIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+5008) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlPascal is $hlPascal.
@@ -55634,7 +55166,6 @@ func (m *Machine) FperlByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FperlWordHl is $perlWordHl.
@@ -55686,7 +55217,6 @@ func (m *Machine) FperlWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(17)
 	}
 	return uint32(14)
-	panic(rt.Trap("unreachable"))
 }
 
 // FperlQuoteKind is $perlQuoteKind.
@@ -55727,7 +55257,6 @@ func (m *Machine) FperlQuoteKind(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FperlCloser is $perlCloser.
@@ -55747,7 +55276,6 @@ func (m *Machine) FperlCloser(l_open uint32) uint32 {
 		return uint32(62)
 	}
 	return l_open
-	panic(rt.Trap("unreachable"))
 }
 
 // FperlQuoteBody is $perlQuoteBody.
@@ -55847,7 +55375,6 @@ L2:
 B1:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return (l_status | (l_depth << 1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FperlRangeEq is $perlRangeEq.
@@ -55867,7 +55394,6 @@ L2:
 	goto L2
 B1:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FperlLineDelimited is $perlLineDelimited.
@@ -55933,7 +55459,6 @@ func (m *Machine) FperlIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+3984) >> 3) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlPerl is $hlPerl.
@@ -56799,7 +56324,6 @@ B3:
 	goto B2
 B2:
 	return uint32(58)
-	panic(rt.Trap("unreachable"))
 }
 
 // FplsqlWordHl is $plsqlWordHl.
@@ -56828,7 +56352,6 @@ func (m *Machine) FplsqlWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		t3 = t4
 	}
 	return t3
-	panic(rt.Trap("unreachable"))
 }
 
 // FplsqlQuote is $plsqlQuote.
@@ -56965,7 +56488,6 @@ B7:
 		m.FstreamSetFixed(l_lhs, l_n, uint32(44))
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FsqlTableBefore is $sqlTableBefore.
@@ -57020,7 +56542,6 @@ L7:
 B6:
 	l_w = (l_w - l_p)
 	return rt.B2u((((l_w == uint32(4)) && ((rt.Ld32(m.Mem, int(l_p)) | uint32(538976288)) == uint32(1869901417))) || ((l_w == uint32(5)) && (((rt.Ld64(m.Mem, int(l_p)) | uint64(137977929760)) & uint64(1099511627775)) == uint64(435610083700)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlSqlImpl is $hlSqlImpl.
@@ -57325,7 +56846,6 @@ func (m *Machine) FpoInMask(l_c uint32, l_base uint32, l_mask uint64) uint32 {
 	_ = t0
 	l_c = (l_c - l_base)
 	return (rt.B2u((l_c < uint32(64))) & uint32(((l_mask >> (uint64(l_c) & 63)) & uint64(1))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FpoPlaceholderEnd is $poPlaceholderEnd.
@@ -57432,7 +56952,6 @@ L12:
 	}
 B11:
 	return rt.Sel32(((l_other == 0) && (l_digits > l_flags)), l_digits, l_p)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpoString is $poString.
@@ -57695,7 +57214,6 @@ L1:
 		l_seg = l_q
 	}
 	goto L1
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlPowerquery is $hlPowerquery.
@@ -57998,7 +57516,6 @@ func (m *Machine) FpsWordGroup(l_lhs uint32, l_rhs uint32) uint32 {
 	l_n = t1
 	t2 = m.FlexKeywordLookup(uint32(1360), (uint32(1360) + l_n), uint32(24960), uint32(31), uint32(101))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FpsVarEnd is $psVarEnd.
@@ -58039,7 +57556,6 @@ L2:
 	goto L2
 B1:
 	return l_e
-	panic(rt.Trap("unreachable"))
 }
 
 // FpsStringBody is $psStringBody.
@@ -58173,7 +57689,6 @@ B5:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FpsIsOp is $psIsOp.
@@ -58181,7 +57696,6 @@ func (m *Machine) FpsIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+5008) >> 7)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpsIsKey is $psIsKey.
@@ -58208,7 +57722,6 @@ B1:
 	t2 = (l_c == uint32(61))
 	t3 = m.FtemplateByte((l_p + uint32(1)))
 	return rt.B2u((t2 && (t3 != uint32(61))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlPowershell is $hlPowershell.
@@ -58966,7 +58479,6 @@ func (m *Machine) FplIsSymbol(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+5264) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlProlog is $hlProlog.
@@ -59212,7 +58724,6 @@ func (m *Machine) FprotoWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return l_g
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlProto is $hlProto.
@@ -59497,7 +59008,6 @@ L2:
 	goto L2
 B1:
 	return rt.Sel32((l_p > l_stop), l_stop, l_p)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpugAttrs is $pugAttrs.
@@ -59592,7 +59102,6 @@ B6:
 	goto L2
 B1:
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FpugText is $pugText.
@@ -59712,7 +59221,6 @@ B1:
 	l_c = t7
 	t8 = m.FpugTail(l_stop, rt.Sel32((l_c <= uint32(2)), l_c, uint32(0)))
 	return t8
-	panic(rt.Trap("unreachable"))
 }
 
 // FpugTail is $pugTail.
@@ -59854,7 +59362,6 @@ B1:
 	}
 	m.FpugText(l_stop)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpugLine is $pugLine.
@@ -60124,7 +59631,6 @@ func (m *Machine) FpugLine(l_stop uint32) uint32 {
 	}
 	m.FpugJs(l_stop)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlPug is $hlPug.
@@ -60306,7 +59812,6 @@ func (m *Machine) FpuppetVariable(l_hl uint32) uint32 {
 	}
 	m.FemitTok(l_hl, l_lhs, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpuppetInterp is $puppetInterp.
@@ -60344,7 +59849,6 @@ func (m *Machine) FpuppetInterp() uint32 {
 		m.FemitTok(uint32(40), l_lhs, m.Gptr)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpuppetStringBody is $puppetStringBody.
@@ -60436,7 +59940,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpuppetHeredoc is $puppetHeredoc.
@@ -60547,7 +60050,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FpuppetAfterArrow is $puppetAfterArrow.
@@ -60569,7 +60071,6 @@ L2:
 B1:
 	l_c = rt.Ld8(m.Mem, int((l_p - uint32(2))))
 	return rt.B2u(((l_p >= (m.GsrcBase + uint32(2))) && ((rt.Ld8(m.Mem, int((l_p-uint32(1)))) == uint32(62)) && ((l_c == uint32(61)) || (l_c == uint32(43))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlPuppet is $hlPuppet.
@@ -61049,7 +60550,6 @@ L7:
 	goto L7
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FqmlJs is $qmlJs.
@@ -61072,7 +60572,6 @@ func (m *Machine) FqmlJs(l_to uint32, l_reset uint32) uint32 {
 	m.FhlEcmaImpl(l_reset)
 	m.Gend = l_save
 	return rt.Sel32((m.GtsxStreamExpressionClosed != 0), uint32(0), (rt.B2u((((m.GbrkSp | m.GtsxStreamMode) | m.GjsTemplateLexSp) != uint32(0))) << 1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlQml is $hlQml.
@@ -61464,7 +60963,6 @@ func (m *Machine) FrByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrDefinedAhead is $rDefinedAhead.
@@ -61530,7 +61028,6 @@ func (m *Machine) FrDefinedAhead(l_p uint32) uint32 {
 	t10 = (rt.Ld64(m.Mem, int(l_p)) == uint64(7957695015192261990))
 	t11 = m.FlexIsIdentContinue(l_c)
 	return (rt.B2u(t10) & (rt.Clz32((t11 | rt.B2u((l_c == uint32(46))))) >> 5))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrRawString is $rRawString.
@@ -61602,7 +61099,6 @@ B1:
 		m.GstreamHl = uint32(0)
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrIsOp is $rIsOp.
@@ -61610,7 +61106,6 @@ func (m *Machine) FrIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+5264) >> 3) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlR is $hlR.
@@ -61956,7 +61451,6 @@ func (m *Machine) FrazorPush(l_stack uint64, l_kind uint32) uint64 {
 		return l_stack
 	}
 	return ((rt.Sel64((l_stack != uint64(0)), l_stack, uint64(1)) << 2) | uint64(l_kind))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrazorPop is $razorPop.
@@ -61965,7 +61459,6 @@ func (m *Machine) FrazorPop(l_stack uint64) uint64 {
 	_ = t0
 	l_stack = (l_stack >> 2)
 	return rt.Sel64((l_stack > uint64(1)), l_stack, uint64(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FrazorExprEnd is $razorExprEnd.
@@ -62031,7 +61524,6 @@ L2:
 	goto L2
 B1:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FrazorVerbatimEnd is $razorVerbatimEnd.
@@ -62053,7 +61545,6 @@ L1:
 		goto L1
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FrazorImplicitEnd is $razorImplicitEnd.
@@ -62113,7 +61604,6 @@ L3:
 B1:
 	m.Gptr = l_save
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlRazor is $hlRazor.
@@ -63071,7 +62561,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return rt.Sel32((l_long != 0), l_q, uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlRdfImpl is $hlRdfImpl.
@@ -63823,7 +63312,6 @@ B3:
 		return uint32(17)
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FsasFormatEnd is $sasFormatEnd.
@@ -63845,7 +63333,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FsasCards is $sasCards.
@@ -63883,7 +63370,6 @@ L1:
 	}
 	m.FemitTok(uint32(44), l_lhs, m.Gptr)
 	goto L1
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlSas is $hlSas.
@@ -64308,7 +63794,6 @@ func (m *Machine) FscalaWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	_ = t1
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(26304), uint32(15), uint32(55))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FscalaStringBody is $scalaStringBody.
@@ -64400,7 +63885,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FscalaIsOp is $scalaIsOp.
@@ -64408,7 +63892,6 @@ func (m *Machine) FscalaIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+1936) >> 7)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlScala is $hlScala.
@@ -64855,7 +64338,6 @@ func (m *Machine) FshaderlabWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t2 = m.FlexKeywordValue(l_p, (l_p + l_n), uint32(55600), uint32(31), uint32(86))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FshaderlabOpener is $shaderlabOpener.
@@ -64881,7 +64363,6 @@ func (m *Machine) FshaderlabOpener(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(38)
 	}
 	return rt.Sel32((rt.Ld32(m.Mem, int(l_lhs)) == uint32(1280527431)), uint32(39), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FshaderlabBodyEnd is $shaderlabBodyEnd.
@@ -64925,7 +64406,6 @@ L2:
 	goto L2
 B1:
 	return m.Gend
-	panic(rt.Trap("unreachable"))
 }
 
 // FshaderlabBody is $shaderlabBody.
@@ -64989,7 +64469,6 @@ func (m *Machine) FshaderlabStreamResume() uint32 {
 	_ = t0
 	m.FshaderlabBody(m.GstreamRegionKind, uint32(1))
 	return rt.B2u((m.Gptr >= m.Gend))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlShaderlab is $hlShaderlab.
@@ -65459,7 +64938,6 @@ func (m *Machine) FstataWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return uint32(4294967295)
-	panic(rt.Trap("unreachable"))
 }
 
 // FstataTwoBreaks is $stataTwoBreaks.
@@ -65487,7 +64965,6 @@ L1:
 	}
 	t3 = m.FlexGapHasBreak(l_p, l_stop)
 	return t3
-	panic(rt.Trap("unreachable"))
 }
 
 // FstataIsFactorOp is $stataIsFactorOp.
@@ -65518,7 +64995,6 @@ L4:
 	return uint32(0)
 B3:
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FstataMacro is $stataMacro.
@@ -65576,7 +65052,6 @@ func (m *Machine) FstataMacro() uint32 {
 	}
 	m.FemitTok(uint32(60), l_lhs, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FstataString is $stataString.
@@ -66022,7 +65497,6 @@ func (m *Machine) FswiftWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		}
 	}
 	return l_hl
-	panic(rt.Trap("unreachable"))
 }
 
 // FswiftRawStart is $swiftRawStart.
@@ -66046,7 +65520,6 @@ L2:
 B1:
 	t2 = m.FtemplateByte(l_p)
 	return rt.B2u((t2 == uint32(34)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FswiftHashOpen is $swiftHashOpen.
@@ -66083,7 +65556,6 @@ B1:
 	m.Gptr = (m.Gptr + rt.Sel32((l_triple != 0), uint32(3), uint32(1)))
 	m.FemitTok(uint32(44), l_lhs, m.Gptr)
 	return (((l_hashes + uint32(1)) << 1) | l_triple)
-	panic(rt.Trap("unreachable"))
 }
 
 // FswiftHashBody is $swiftHashBody.
@@ -66165,7 +65637,6 @@ L2:
 	goto L2
 B1:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FswiftIsOp is $swiftIsOp.
@@ -66173,7 +65644,6 @@ func (m *Machine) FswiftIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FswiftWordFollows is $swiftWordFollows.
@@ -66197,7 +65667,6 @@ L2:
 B1:
 	t2 = m.FlexIsIdentStart(l_c)
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FswiftCallAhead is $swiftCallAhead.
@@ -66242,7 +65711,6 @@ func (m *Machine) FswiftCallAhead(l_lhs uint32, l_rhs uint32, l_p uint32, l_memb
 		return rt.B2u(((rt.Ld64(m.Mem, int(l_lhs)) & uint64(72057594037927935)) != uint64(32762506274171255)))
 	}
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlSwift is $hlSwift.
@@ -66838,7 +66306,6 @@ func (m *Machine) FtclVariable() uint32 {
 	}
 	m.FemitTok(uint32(58), l_lhs, m.Gptr)
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtclScanName is $tclScanName.
@@ -66928,7 +66395,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return uint32(2)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlTcl is $hlTcl.
@@ -67314,7 +66780,6 @@ L2:
 B1:
 	m.FemitTok(uint32(44), l_seg, m.Gptr)
 	return l_status
-	panic(rt.Trap("unreachable"))
 }
 
 // FtfIsOp is $tfIsOp.
@@ -67322,7 +66787,6 @@ func (m *Machine) FtfIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2960) >> 3) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlTerraform is $hlTerraform.
@@ -67652,7 +67116,6 @@ func (m *Machine) FtomlIsBareKey(l_c uint32) uint32 {
 	_ = t1
 	t1 = m.FlexIsDigit(l_c)
 	return (t1 | rt.B2u(((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || ((l_c == uint32(95)) || (l_c == uint32(45))))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlBareKeyEnd is $tomlBareKeyEnd.
@@ -67680,7 +67143,6 @@ B1:
 		l_p = m.Gend
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlScanDigits is $tomlScanDigits.
@@ -67713,7 +67175,6 @@ L2:
 	}
 B1:
 	return l_q
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlIsValueEnd is $tomlIsValueEnd.
@@ -67727,7 +67188,6 @@ func (m *Machine) FtomlIsValueEnd(l_p uint32) uint32 {
 	}
 	l_c = rt.Ld8(m.Mem, int(l_p))
 	return (rt.Ld8(m.Mem, int(l_c)+5264) >> 7)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlTwoDigitValue is $tomlTwoDigitValue.
@@ -67741,7 +67201,6 @@ func (m *Machine) FtomlTwoDigitValue(l_p uint32) uint32 {
 	l_hi = (rt.Ld8(m.Mem, int(l_p)) - uint32(48))
 	l_lo = (rt.Ld8(m.Mem, int(l_p)+1) - uint32(48))
 	return rt.Sel32((((l_p + uint32(2)) <= m.Gend) && ((l_hi <= uint32(9)) && (l_lo <= uint32(9)))), ((l_hi * uint32(10)) + l_lo), uint32(4294967295))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlTwoDigits is $tomlTwoDigits.
@@ -67752,7 +67211,6 @@ func (m *Machine) FtomlTwoDigits(l_p uint32, l_min uint32, l_max uint32) uint32 
 	_ = t1
 	t1 = m.FtomlTwoDigitValue(l_p)
 	return rt.B2u(((t1 - l_min) <= (l_max - l_min)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlHourMinute is $tomlHourMinute.
@@ -67776,7 +67234,6 @@ func (m *Machine) FtomlHourMinute(l_p uint32) uint32 {
 		t2 = uint32(0)
 	}
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlTrimEnd is $tomlTrimEnd.
@@ -67807,7 +67264,6 @@ L2:
 	goto L2
 B1:
 	return l_q
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlBasicStringBody is $tomlBasicStringBody.
@@ -67950,7 +67406,6 @@ L4:
 B3:
 	m.FemitTok(l_hl, l_seg, m.Gptr)
 	return rt.Sel32((l_closed != 0), uint32(1), rt.Sel32((l_trim != 0), uint32(2), uint32(0)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlStreamOpen is $tomlStreamOpen.
@@ -68023,7 +67478,6 @@ B3:
 B1:
 	m.FemitTok(l_hl, l_lhs, m.Gptr)
 	return l_closed
-	panic(rt.Trap("unreachable"))
 }
 
 // FtomlLiteralString is $tomlLiteralString.
@@ -68587,7 +68041,6 @@ func (m *Machine) FtomlStreamResume() uint32 {
 	}
 	m.GstreamMode = uint32(0)
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlTwig is $hlTwig.
@@ -68619,7 +68072,6 @@ L2:
 	goto L2
 B1:
 	return rt.Sel32((l_p < m.Gend), l_p, m.Gend)
-	panic(rt.Trap("unreachable"))
 }
 
 // FtypstLabelName is $typstLabelName.
@@ -68682,7 +68134,6 @@ L3:
 B1:
 	m.FemitTok(uint32(53), l_seg, m.Gptr)
 	return l_n
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlTypst is $hlTypst.
@@ -69578,7 +69029,6 @@ func (m *Machine) FverilogWord(l_lhs uint32, l_rhs uint32) uint32 {
 	}
 	t1 = m.FlexKeywordValue(l_lhs, l_rhs, uint32(31264), uint32(63), uint32(139))
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FverilogNameFollows is $verilogNameFollows.
@@ -69619,7 +69069,6 @@ func (m *Machine) FverilogNameFollows(l_p uint32) uint32 {
 	m.Gptr = l_save
 	t4 = m.FverilogWord(l_p, l_rhs)
 	return rt.B2u((int32(t4) < int32(uint32(0))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlVerilog is $hlVerilog.
@@ -70862,7 +70311,6 @@ L2:
 	goto L2
 B1:
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // FvueTag is $vueTag.
@@ -71020,7 +70468,6 @@ func (m *Machine) FvueStreamResumeTag() uint32 {
 	l_r = t1
 	t2 = m.FhtmlTagResumeEnd((l_r & uint32(3)), (l_r >> 8))
 	return t2
-	panic(rt.Trap("unreachable"))
 }
 
 // FwatWordHl is $watWordHl.
@@ -71100,7 +70547,6 @@ L13:
 	goto L13
 B12:
 	return uint32(17)
-	panic(rt.Trap("unreachable"))
 }
 
 // FwatBlockComment is $watBlockComment.
@@ -71262,7 +70708,6 @@ func (m *Machine) FwgslByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FwgslTypeHl is $wgslTypeHl.
@@ -71298,7 +70743,6 @@ func (m *Machine) FwgslTypeHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(56)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FwgslWordHl is $wgslWordHl.
@@ -71321,7 +70765,6 @@ func (m *Machine) FwgslWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return rt.Sel32((l_g != 0), l_g, uint32(4294967295))
 	}
 	return l_g
-	panic(rt.Trap("unreachable"))
 }
 
 // FwgslIsOp is $wgslIsOp.
@@ -71329,7 +70772,6 @@ func (m *Machine) FwgslIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return (rt.Ld8(m.Mem, int(l_c)+3216) >> 7)
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlWgsl is $hlWgsl.
@@ -71667,7 +71109,6 @@ L2:
 		return rt.B2u(((l_depth != uint32(61)) && ((l_depth != uint32(33)) && (l_depth != uint32(46)))))
 	}
 	return rt.B2u(((l_c == uint32(47)) && (l_depth == uint32(59))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlWolfram is $hlWolfram.
@@ -72065,7 +71506,6 @@ func (m *Machine) FzigByte(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.Sel32((l_p < m.Gend), rt.Ld8(m.Mem, int(l_p)), uint32(0))
-	panic(rt.Trap("unreachable"))
 }
 
 // FzigIsIdentStart is $zigIsIdentStart.
@@ -72073,7 +71513,6 @@ func (m *Machine) FzigIsIdentStart(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((((l_c | uint32(32)) - uint32(97)) <= uint32(25)) || (l_c == uint32(95))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FzigIdentEnd is $zigIdentEnd.
@@ -72101,7 +71540,6 @@ B1:
 		l_p = m.Gend
 	}
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FzigIsDigitForBase is $zigIsDigitForBase.
@@ -72112,7 +71550,6 @@ func (m *Machine) FzigIsDigitForBase(l_c uint32, l_base uint32) uint32 {
 	_ = t1
 	t1 = m.FlexIsHex(l_c)
 	return rt.Sel32((l_base == uint32(16)), t1, rt.B2u(((l_c - uint32(48)) < l_base)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FzigScanDigits is $zigScanDigits.
@@ -72149,7 +71586,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FzigString is $zigString.
@@ -72280,7 +71716,6 @@ func (m *Machine) FzigWordHl(l_lhs uint32, l_rhs uint32) uint32 {
 		return uint32(4294967295)
 	}
 	return l_g
-	panic(rt.Trap("unreachable"))
 }
 
 // FzigIsOp is $zigIsOp.
@@ -72288,7 +71723,6 @@ func (m *Machine) FzigIsOp(l_c uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((rt.Ld8(m.Mem, int(l_c)+2192) >> 5) & uint32(1))
-	panic(rt.Trap("unreachable"))
 }
 
 // FhlZig is $hlZig.
@@ -73026,7 +72460,6 @@ B4:
 	goto L3
 B2:
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FisEcmaLang is $isEcmaLang.
@@ -73034,7 +72467,6 @@ func (m *Machine) FisEcmaLang(l_lang uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u((((l_lang == uint32(67)) || (l_lang == uint32(72))) || (((l_lang == uint32(135)) || (l_lang == uint32(138))) || (l_lang == uint32(136)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FecmaStreamLang is $ecmaStreamLang.
@@ -73064,7 +72496,6 @@ func (m *Machine) FecmaStreamLang(l_lang uint32, l_reset uint32) uint32 {
 		return uint32(1)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FstreamResumeLang is $streamResumeLang.
@@ -73162,7 +72593,6 @@ func (m *Machine) FstreamResumeLang(l_lang uint32) uint32 {
 		return t14
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvGrowTo is $lvGrowTo.
@@ -73194,7 +72624,6 @@ func (m *Machine) FlvClassOf(l_size uint32) uint32 {
 		return uint32(31)
 	}
 	return ((uint32(6) + ((l_p - uint32(7)) << 1)) + (l_size >> ((l_p - uint32(2)) & 31)))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvRoundSize is $lvRoundSize.
@@ -73217,7 +72646,6 @@ func (m *Machine) FlvRoundSize(l_size uint32) uint32 {
 	}
 	l_quarter = (uint32(1) << ((l_p - uint32(2)) & 31))
 	return ((l_size + (l_quarter - uint32(1))) & (uint32(0) - l_quarter))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvExtendHeap is $lvExtendHeap.
@@ -73293,7 +72721,6 @@ func (m *Machine) FlvAlloc(l_len uint32) uint32 {
 	rt.St32(m.Mem, int(l_head)+4, uint32(0))
 	m.GlvHeapLive = (m.GlvHeapLive + l_total)
 	return (l_head + uint32(8))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvFree is $lvFree.
@@ -73393,7 +72820,6 @@ B1:
 	l_h = ((l_h ^ (l_h >> 33)) * uint64(18397679294719823053))
 	l_h = ((l_h ^ (l_h >> 33)) * uint64(14181476777654086739))
 	return (l_h ^ (l_h >> 33))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvBytesEq is $lvBytesEq.
@@ -73417,7 +72843,6 @@ L2:
 	l_b = (l_b + uint32(16))
 	l_len = (l_len - uint32(16))
 	goto L2
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvStateInit is $lvStateInit.
@@ -73468,7 +72893,6 @@ func (m *Machine) FlvAllocId(l_blob uint32) uint32 {
 	}
 	rt.St32(m.Mem, int((m.GlvIdTab + (l_id << 2))), l_blob)
 	return l_id
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvGrowBuckets is $lvGrowBuckets.
@@ -73585,7 +73009,6 @@ B1:
 		m.FlvGrowBuckets()
 	}
 	return l_id
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvRelease is $lvRelease.
@@ -73626,7 +73049,6 @@ func (m *Machine) FlvIsJson(l_lang uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return rt.B2u(((l_lang == uint32(68)) || ((l_lang == uint32(69)) || (l_lang == uint32(70)))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvFenceStack is $lvFenceStack.
@@ -73646,7 +73068,6 @@ func (m *Machine) FlvFenceStack(l_reg uint32) uint32 {
 		return uint32(45200)
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvStackBase is $lvStackBase.
@@ -73697,7 +73118,6 @@ func (m *Machine) FlvStackBase() uint32 {
 	B6:
 	}
 	return uint32(38944)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvStackPrefix is $lvStackPrefix.
@@ -73715,7 +73135,6 @@ func (m *Machine) FlvStackPrefix(l_base uint32) uint32 {
 		l_n = uint32(1024)
 	}
 	return l_n
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvCaptureBlob is $lvCaptureBlob.
@@ -73838,7 +73257,6 @@ B6:
 	rt.St16(m.Mem, int(l_p), l_lo)
 	rt.Copy(m.Mem, (l_p + uint32(2)), (uint32(46224) + l_lo), (m.GstreamStateHi - l_lo))
 	return (((l_p + uint32(2)) + (m.GstreamStateHi - l_lo)) - l_dst)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvTrimBlob is $lvTrimBlob.
@@ -73869,7 +73287,6 @@ L4:
 	goto L4
 B3:
 	return (l_p - l_base)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvRestoreBlob is $lvRestoreBlob.
@@ -73980,7 +73397,6 @@ func (m *Machine) FlvSlot(l_i uint32) uint32 {
 		l_i = (l_i + (m.GlvLineCap - m.GlvLineCount))
 	}
 	return (m.GlvLineTab + (l_i << 5))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvMoveGap is $lvMoveGap.
@@ -74290,7 +73706,6 @@ B14:
 	m.GlvTokenPtr = uint32(0)
 	m.GlvLinePhase = uint32(0)
 	return m.GlvIncoming
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvUtf16Len is $lvUtf16Len.
@@ -74327,7 +73742,6 @@ L4:
 	goto L4
 B3:
 	return l_n
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvAppendLine is $lvAppendLine.
@@ -74365,7 +73779,6 @@ func (m *Machine) XliveStage(l_len uint32) uint32 {
 	m.FlvHeapInit()
 	t1 = m.FlvAlloc(l_len)
 	return t1
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveInitDoc is (export "liveInitDoc").
@@ -74482,7 +73895,6 @@ L2:
 	goto L2
 B1:
 	return l_p
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvReadAstral is $lvReadAstral.
@@ -74490,7 +73902,6 @@ func (m *Machine) FlvReadAstral(l_p uint32) uint32 {
 	var t0 uint32
 	_ = t0
 	return ((((rt.Ld8(m.Mem, int(l_p)) & uint32(7)) << 18) | ((rt.Ld8(m.Mem, int(l_p)+1) & uint32(63)) << 12)) | (((rt.Ld8(m.Mem, int(l_p)+2) & uint32(63)) << 6) | (rt.Ld8(m.Mem, int(l_p)+3) & uint32(63))))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvWriteSurrogate is $lvWriteSurrogate.
@@ -74814,7 +74225,6 @@ B23:
 		m.FlvFreeLineText(l_eText, l_eByteLen, l_eFlags)
 	}
 	return ((l_n << 1) | l_ext)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvAddChange is $lvAddChange.
@@ -74850,7 +74260,6 @@ func (m *Machine) FlvAddChange(l_os uint32, l_oe uint32, l_ns uint32, l_ne uint3
 	rt.St32(m.Mem, int(l_last)+12, l_ne)
 	rt.St32(m.Mem, 81920, (l_count + uint32(1)))
 	return uint32(1)
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvAbsorbChange is $lvAbsorbChange.
@@ -74899,7 +74308,6 @@ func (m *Machine) FlvNewAddr(l_body uint32) uint32 {
 		return uint32(0)
 	}
 	return (rt.Ld32(m.Mem, int((l_body-uint32(8)))+4) + uint32(8))
-	panic(rt.Trap("unreachable"))
 }
 
 // FlvCompact is $lvCompact.
@@ -75094,7 +74502,6 @@ func (m *Machine) FlvAddPend(l_a uint32, l_b uint32, l_shift uint32, l_ranges ui
 		rt.St32(m.Mem, int(l_slot)+4, (l_b + l_shift))
 	}
 	return l_rangeCount
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveApplyEdits is (export "liveApplyEdits").
@@ -75365,7 +74772,6 @@ B7:
 		}
 	}
 	goto L3
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveLineCount is (export "liveLineCount").
@@ -75373,7 +74779,6 @@ func (m *Machine) XliveLineCount() uint32 {
 	var t0 uint32
 	_ = t0
 	return m.GlvLineCount
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveLineLen is (export "liveLineLen").
@@ -75384,7 +74789,6 @@ func (m *Machine) XliveLineLen(l_i uint32) uint32 {
 	_ = t1
 	t1 = m.FlvSlot(l_i)
 	return rt.Ld32(m.Mem, int(t1)+8)
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveLineByteLen is (export "liveLineByteLen").
@@ -75395,7 +74799,6 @@ func (m *Machine) XliveLineByteLen(l_i uint32) uint32 {
 	_ = t1
 	t1 = m.FlvSlot(l_i)
 	return rt.Ld32(m.Mem, int(t1)+4)
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveLineTextPtr is (export "liveLineTextPtr").
@@ -75406,7 +74809,6 @@ func (m *Machine) XliveLineTextPtr(l_i uint32) uint32 {
 	_ = t1
 	t1 = m.FlvSlot(l_i)
 	return rt.Ld32(m.Mem, int(t1))
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveLineFlags is (export "liveLineFlags").
@@ -75417,7 +74819,6 @@ func (m *Machine) XliveLineFlags(l_i uint32) uint32 {
 	_ = t1
 	t1 = m.FlvSlot(l_i)
 	return rt.Ld32(m.Mem, int(t1)+24)
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveLineTokPtr is (export "liveLineTokPtr").
@@ -75428,7 +74829,6 @@ func (m *Machine) XliveLineTokPtr(l_i uint32) uint32 {
 	_ = t1
 	t1 = m.FlvSlot(l_i)
 	return rt.Ld32(m.Mem, int(t1)+12)
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveLineTokCount is (export "liveLineTokCount").
@@ -75439,7 +74839,6 @@ func (m *Machine) XliveLineTokCount(l_i uint32) uint32 {
 	_ = t1
 	t1 = m.FlvSlot(l_i)
 	return rt.Ld32(m.Mem, int(t1)+16)
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveChangesPtr is (export "liveChangesPtr").
@@ -75447,7 +74846,6 @@ func (m *Machine) XliveChangesPtr() uint32 {
 	var t0 uint32
 	_ = t0
 	return uint32(81920)
-	panic(rt.Trap("unreachable"))
 }
 
 // XliveStats is (export "liveStats").
@@ -75491,7 +74889,6 @@ func (m *Machine) XliveStats(l_k uint32) uint32 {
 		return m.GlvChangeIdx
 	}
 	return uint32(0)
-	panic(rt.Trap("unreachable"))
 }
 
 // Xhighlight is (export "highlight").

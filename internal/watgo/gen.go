@@ -385,11 +385,23 @@ func (g *fgen) genFunc() string {
 			sb.WriteString("Lreturn:\n")
 		}
 	}
-	if result != "" {
+	if result != "" && !fnLabel.used && !endsTerminating(g.out.String()) {
 		sb.WriteString("\tpanic(rt.Trap(\"unreachable\"))\n")
 	}
 	sb.WriteString("}\n\n")
 	return sb.String()
+}
+
+// endsTerminating reports whether the last top-level statement of a body
+// ends the function.
+func endsTerminating(body string) bool {
+	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
+	last := lines[len(lines)-1]
+	if !strings.HasPrefix(last, "\t") || strings.HasPrefix(last, "\t\t") {
+		return false
+	}
+	last = strings.TrimSpace(last)
+	return strings.HasPrefix(last, "return") || strings.HasPrefix(last, "panic(") || strings.HasPrefix(last, "goto ")
 }
 
 func (g *fgen) push(v value) { g.stack = append(g.stack, v) }

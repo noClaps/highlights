@@ -224,9 +224,16 @@ func (o *ThemeOptions) prefix() string {
 	return o.CSSVariablePrefix
 }
 
+// Theme sets are cached per first prepared theme, at most 128 each, so
+// their style caches and blob IDs stay stable.
+type setList struct {
+	keys []string
+	sets map[string]*themeSet
+}
+
 var (
 	setCacheMu  sync.Mutex
-	setCache    = map[string]*themeSet{}
+	setCache    = map[*PreparedTheme]*setList{}
 	preparedIDs = map[*PreparedTheme]int{}
 	nextBlobID  atomic.Uint32
 )
@@ -318,6 +325,14 @@ func resolveOptionThemes(o *ThemeOptions) (*themeSet, error) {
 	return cachedSet(themes), nil
 }
 
+// forgetPrepared drops the theme sets of a collected theme.
+func forgetPrepared(p *PreparedTheme) {
+	setCacheMu.Lock()
+	defer setCacheMu.Unlock()
+	delete(setCache, p)
+	delete(preparedIDs, p)
+}
+
 // cachedSet reuses a theme set so its style caches stay available.
 func cachedSet(themes []resolvedTheme) *themeSet {
 	setCacheMu.Lock()
@@ -327,18 +342,21 @@ func cachedSet(themes []resolvedTheme) *themeSet {
 		fmt.Fprintf(&key, "%d/%d/%q;", preparedID(t.PreparedTheme), t.role, t.color)
 	}
 	k := key.String()
-	if s := setCache[k]; s != nil {
+	list := setCache[themes[0].PreparedTheme]
+	if list == nil {
+		list = &setList{sets: map[string]*themeSet{}}
+		setCache[themes[0].PreparedTheme] = list
+	}
+	if s := list.sets[k]; s != nil {
 		return s
 	}
-	if len(setCache) >= 512 {
-		clear(setCache)
-	}
-	if len(preparedIDs) >= 4096 {
-		clear(preparedIDs)
-		clear(setCache)
-	}
 	s := &themeSet{themes: themes}
-	setCache[k] = s
+	list.sets[k] = s
+	list.keys = append(list.keys, k)
+	if len(list.keys) > 128 {
+		delete(list.sets, list.keys[0])
+		list.keys = list.keys[1:]
+	}
 	return s
 }
 

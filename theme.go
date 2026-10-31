@@ -476,9 +476,10 @@ func PrepareTheme(theme ThemeSource, cssVariablePrefix string) (*PreparedTheme, 
 			themeCacheMu.Lock()
 			defer themeCacheMu.Unlock()
 			delete(themeTracked, p)
-			for k := range themeCache {
+			for k, prepared := range themeCache {
 				if k.theme == p {
 					delete(themeCache, k)
+					forgetPrepared(prepared)
 				}
 			}
 		}, key.theme)

@@ -71,6 +71,8 @@ type event struct {
 	} `json:"family"`
 	Table     map[string]string `json:"table"`
 	Inherited bool              `json:"inherited"`
+	Ctrl      string            `json:"ctrl"`
+	Gid       int               `json:"gid"`
 	OK        *bool             `json:"ok"`
 	Error     string            `json:"error"`
 }
@@ -136,19 +138,25 @@ type liveReplay struct {
 	lt *LiveTokenizer
 }
 
+// shared holds highlighters by suite-wide id: the TypeScript helpers cache
+// some instances across test files, so files replay in suite order.
+var (
+	shared       = map[int]*Highlighter{}
+	sharedThemes = map[int]ThemeSource{}
+)
+
 func TestGolden(t *testing.T) {
-	files, err := filepath.Glob("testdata/golden/*.jsonl.gz")
+	order, err := os.ReadFile("testdata/golden/order.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
+	files := strings.Fields(string(order))
 	if len(files) == 0 {
 		t.Fatal("no golden files")
 	}
-	sort.Strings(files)
-	for _, path := range files {
-		name := strings.TrimSuffix(filepath.Base(path), ".jsonl.gz")
+	for _, name := range files {
+		path := filepath.Join("testdata", "golden", name+".jsonl.gz")
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
 			replayFile(t, path, name)
 		})
 	}
@@ -276,7 +284,14 @@ func (r *replayer) run(e *event, c *cursor) {
 	case "module":
 		r.modules[e.ID] = e.Src
 	case "theme":
+		if th, ok := sharedThemes[e.Gid]; ok && e.Gid != 0 {
+			r.themes[e.ID] = th
+			return
+		}
 		r.themes[e.ID] = r.theme(e)
+		if e.Gid != 0 {
+			sharedThemes[e.Gid] = r.themes[e.ID]
+		}
 	case "hl":
 		h := r.newHighlighter(e)
 		r.hls[e.ID] = h
@@ -758,7 +773,13 @@ func (r *replayer) harness(src *moduleSrc) func(*engine.Machine) {
 }
 
 func (r *replayer) newHighlighter(e *event) *Highlighter {
+	if h, ok := shared[e.Gid]; ok && e.Gid != 0 {
+		return h
+	}
 	h := NewHighlighter()
+	if e.Gid != 0 {
+		defer func() { shared[e.Gid] = h }()
+	}
 	if e.Module == nil {
 		return h
 	}
@@ -805,6 +826,10 @@ func (r *replayer) input(v any) (string, []byte, bool) {
 
 func (r *replayer) hlCall(e *event) {
 	h := r.hl(e.HL)
+	if e.Ctrl != "" {
+		b, _ := base64.StdEncoding.DecodeString(e.Ctrl)
+		copy(h.m.Mem, b)
+	}
 	if e.Mem != nil {
 		r.applyMem(&h.m.Mem, e.Mem)
 	}
@@ -870,12 +895,7 @@ func (r *replayer) hlCall(e *event) {
 		r.t.Fatalf("unknown highlighter method %s", e.Name)
 	}
 	if e.MemAfter != nil || e.MemAfterHash != "" {
-		if r.inherited[h] {
-			r.skipped++
-			r.skips["memory of an instance an earlier test file used"]++
-		} else {
-			r.checkValue(e, "memory", memDiff(before, h.m.Mem), nil, e.MemAfter, e.MemAfterHash)
-		}
+		r.checkValue(e, "memory", memDiff(before, h.m.Mem), nil, e.MemAfter, e.MemAfterHash)
 	}
 }
 

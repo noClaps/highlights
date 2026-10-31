@@ -38,6 +38,10 @@ function fileLog(file: string): FileLog {
 function flush(file: string): void {
   const log = files.get(file);
   if (log === undefined) return;
+  if (!flushedFiles.has(file)) {
+    flushedFiles.add(file);
+    appendFileSync(`${OUT}/order.txt`, file + '\n');
+  }
   const pendingStrs = pendingStrsByFile.get(file);
   if (pendingStrs !== undefined && Object.keys(pendingStrs).length > 0) {
     appendFileSync(`${OUT}/${file}.jsonl`, JSON.stringify({ k: 'strs', table: pendingStrs }) + '\n');
@@ -85,6 +89,10 @@ process.on('exit', () => {
 const idsByFile = new Map<string, Map<object, string>>();
 // the file in which each object was first seen
 const firstFile = new WeakMap<object, string>();
+// a suite-wide id, so the replay can share an instance between files
+const globalIds = new WeakMap<object, number>();
+let nextGlobalId = 1;
+const flushedFiles = new Set<string>();
 let nextId = 1;
 function idOf(obj: object, prefix: string, define?: (id: string) => Ev): string {
   // ids are per file so each file replays on its own
@@ -103,6 +111,9 @@ function idOf(obj: object, prefix: string, define?: (id: string) => Ev): string 
       const ev = define(id);
       // an instance an earlier file used has memory the replay cannot know
       if (first !== undefined && first !== currentFile) ev.inherited = true;
+      let gid = globalIds.get(obj);
+      if (gid === undefined) globalIds.set(obj, (gid = nextGlobalId++));
+      ev.gid = gid;
       sink.push(ev);
     }
   }
@@ -306,6 +317,7 @@ function hlId(hl: object): string {
 
 // instances whose memory the tests touch: diff memory before each call
 const touched = new WeakSet<object>();
+const callFile = new WeakMap<object, string>();
 const shadows = new WeakMap<object, Uint8Array>();
 
 export function markTouched(hl: object): void {
@@ -426,6 +438,11 @@ export function hlMethod(name: string, self: object, args: unknown[], run: () =>
   const id = hlId(self);
   const ev: Ev = { k: 'hl.call', hl: id, name, args: name === 'codeToHtml' || name === 'codeToTokens' ? [enc(args[0]), encOptions(args[1])] : args.map((a) => enc(a)) };
   const wasTouched = touched.has(self);
+  if (wasTouched && callFile.get(self) !== currentFile) {
+    // the control block a test set in an earlier file
+    ev.ctrl = b64(memoryOf(self).subarray(0, 64));
+  }
+  callFile.set(self, currentFile);
   if (wasTouched) {
     const mem = memoryOf(self);
     const d = diffMemory(self, mem);

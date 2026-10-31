@@ -16,4 +16,5 @@ rm -f "$root"/testdata/golden/*.jsonl.gz
 for f in "$work"/rec/*.jsonl; do
 	gzip -9 -c "$f" > "$root/testdata/golden/$(basename "$f").gz"
 done
+cp "$work/rec/order.txt" "$root/testdata/golden/order.txt"
 rm -rf "$work"
