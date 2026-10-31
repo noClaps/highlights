@@ -506,12 +506,16 @@ func (g *fgen) genFunc() string {
 	if len(f.Results) > 0 {
 		result = f.Results[0]
 	}
-	fnBody := nameLabels(storeBlockResults(f.Body))
+	var fnResult ValType
+	if len(f.Results) > 0 {
+		fnResult = f.Results[0]
+	}
+	fnBody := nameLabels(explicitReturn(storeBlockResults(f.Body), fnResult))
 	g.dead = deadSets(fnBody)
 	// the function body is the outermost branch target: branching to it
 	// returns
 	g.labels = append(g.labels, &label{result: result, isFunc: true})
-	g.genSeq(explicitReturn(fnBody, result))
+	g.genSeq(fnBody)
 	if !g.unreachable && result != "" {
 		v := g.pop()
 		g.line("return %s", trimParens(g.asValue(v)))
@@ -602,6 +606,12 @@ func explicitReturn(body []*wat.Sexpr, result ValType) []*wat.Sexpr {
 	if n := len(body); n > 0 && isSimple(body[n-1]) && body[n-1].Head() != "return" {
 		out := slices.Clone(body[:n-1])
 		return append(out, &wat.Sexpr{IsList: true, List: []*wat.Sexpr{ret, body[n-1]}})
+	}
+	// a block whose value is the result returns it at each exit
+	if n := len(body); n > 0 {
+		if b := returnedBlock(body[n-1]); b != nil {
+			return append(slices.Clone(body[:n-1]), b)
+		}
 	}
 	return body
 }

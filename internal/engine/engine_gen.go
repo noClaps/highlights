@@ -4543,7 +4543,7 @@ func (m *Machine) XmlEntity() uint32 {
 
 // XmlAttrs is $xmlAttrs.
 func (m *Machine) XmlAttrs(quote uint32) uint32 {
-	var c, lhs, t1 uint32
+	var c, lhs uint32
 	if quote != 0 {
 		quote = m.XmlQuotedBody(quote, m.Ptr)
 	}
@@ -4556,8 +4556,7 @@ next:
 				m.StreamB = quote
 				m.StreamC = 0
 			}
-			t1 = 0
-			goto done
+			return 0
 		}
 		lhs = m.Ptr
 		c = rt.Ld8(m.Mem, int(m.Ptr))
@@ -4569,14 +4568,12 @@ next:
 		if c == '>' {
 			m.Ptr++
 			m.EmitTok(TokenPunctuationBracketHtml, lhs, m.Ptr)
-			t1 = 1
-			goto done
+			return 1
 		}
 		if c == '/' && m.Ptr+1 < m.End && rt.Ld8(m.Mem, int(m.Ptr)+1) == '>' {
 			m.Ptr += 2
 			m.EmitTok(TokenPunctuationBracketHtml, lhs, m.Ptr)
-			t1 = 2
-			goto done
+			return 2
 		}
 		if c == '=' {
 			m.Ptr++
@@ -4594,8 +4591,7 @@ next:
 			continue next
 		}
 		if c == '<' {
-			t1 = 0
-			goto done
+			return 0
 		}
 		m.Ptr++
 		for {
@@ -4615,8 +4611,6 @@ next:
 			m.Ptr++
 		}
 	}
-done:
-	return t1
 }
 
 // HlXml is $hlXml.
@@ -4908,7 +4902,7 @@ func (m *Machine) HtmlLangValue(kind uint32, lhs uint32, rhs uint32) uint32 {
 
 // HtmlAttrs is $htmlAttrs.
 func (m *Machine) HtmlAttrs(afterEq uint32, quote uint32, kind uint32, region uint32) uint32 {
-	var c, lhs, t1 uint32
+	var c, lhs uint32
 	if quote != 0 {
 		quote = m.HtmlQuotedBody(quote, m.Ptr)
 	}
@@ -4923,8 +4917,7 @@ next:
 			} else if region >= 12 {
 				m.HtmlOpenTag = 1 | afterEq<<1 | quote<<8 | kind<<16
 			}
-			t1 = 0
-			goto done
+			return 0
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
 		lhs = m.Ptr
@@ -4936,8 +4929,7 @@ next:
 		if c == '>' {
 			m.Ptr++
 			m.EmitTok(TokenPunctuationBracketHtml, lhs, m.Ptr)
-			t1 = 1 | (kind&63)<<8
-			goto done
+			return 1 | (kind&63)<<8
 		}
 		if afterEq != 0 {
 			afterEq = 0
@@ -4950,8 +4942,7 @@ next:
 				continue next
 			}
 			if c == '<' {
-				t1 = 0
-				goto done
+				return 0
 			}
 			m.Ptr = m.HtmlValueEnd(m.Ptr)
 			m.EmitTok(TokenString, lhs, m.Ptr)
@@ -4965,8 +4956,7 @@ next:
 			if m.Ptr < m.End && rt.Ld8(m.Mem, int(m.Ptr)) == '>' {
 				m.Ptr++
 				m.EmitTok(TokenPunctuationBracketHtml, lhs, m.Ptr)
-				t1 = 2 | (kind&63)<<8
-				goto done
+				return 2 | (kind&63)<<8
 			}
 			m.EmitTok(TokenNone, lhs, m.Ptr)
 			continue next
@@ -4983,8 +4973,7 @@ next:
 			continue next
 		}
 		if c == '<' {
-			t1 = 0
-			goto done
+			return 0
 		}
 		m.Ptr = m.HtmlNameEnd(m.Ptr)
 		m.EmitTok(TokenAttribute, lhs, m.Ptr)
@@ -4992,8 +4981,6 @@ next:
 			kind = m.HtmlLangName(kind, lhs, m.Ptr)
 		}
 	}
-done:
-	return t1
 }
 
 // HtmlStyleBody is $htmlStyleBody.
@@ -6123,8 +6110,8 @@ func (m *Machine) BraceIsBlock() uint32 {
 
 // ScanToken is $scanToken.
 func (m *Machine) ScanToken() uint32 {
-	var c, c2, bits, kw, take, after, t1, t5, t8, t9, t11, t14, t18, t19, t20, t21, t23, t27, t28, t29, t30, t32, t37, t38 uint32
-	var t0, t10, t36 bool
+	var c, c2, bits, kw, take, after, t1, t5, t8, t10, t13, t15, t18, t19, t20, t21, t22, t23, t24, t26, t27, t31, t32, t33, t34, t35, t36, t37, t38, t39, t40, t41, t43, t48 uint32
+	var t0, t9, t47 bool
 	m.NlBefore = 0
 	if m.TsxStreaming != 0 {
 		m.NlBefore = m.TsxStreamNl
@@ -6205,8 +6192,8 @@ ws:
 	c2 = m.TsxByte(m.Ptr + 1)
 	switch c {
 	case '(':
-		t9 = m.ParenIsCtrl()
-		m.BrkPush(t9)
+		t8 = m.ParenIsCtrl()
+		m.BrkPush(t8)
 		take = 265
 		m.Ptr += take & 7
 		return take >> 3
@@ -6216,9 +6203,9 @@ ws:
 		m.Ptr += take & 7
 		return take >> 3
 	case '.':
-		t10 = c2 == '.'
-		t11 = m.TsxByte(m.Ptr + 2)
-		if t10 && t11 == 46 {
+		t9 = c2 == '.'
+		t10 = m.TsxByte(m.Ptr + 2)
+		if t9 && t10 == 46 {
 			take = 499
 			m.Ptr += take & 7
 			return take >> 3
@@ -6251,8 +6238,8 @@ ws:
 		m.Ptr += take & 7
 		return take >> 3
 	case '{':
-		t14 = m.BraceIsBlock()
-		m.BrkPush(t14)
+		t13 = m.BraceIsBlock()
+		m.BrkPush(t13)
 		m.BraceDepth++
 		take = 217
 		m.Ptr += take & 7
@@ -6274,8 +6261,31 @@ ws:
 			m.Ptr += take & 7
 			return take >> 3
 		}
-		t8 = 190
-		goto family
+		take = 190
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t15 = m.TsxByte(m.Ptr + 2)
+					if t15 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '/':
 		if c2 == '/' {
 			m.Ptr += 2
@@ -6290,15 +6300,61 @@ ws:
 		if m.RegexpAllowed() != 0 {
 			return m.ScanRegexp()
 		}
-		t8 = 489
-		goto family
+		take = 489
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t18 = m.TsxByte(m.Ptr + 2)
+					if t18 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '&':
-		t8 = 47
-		goto family
+		take = 47
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t19 = m.TsxByte(m.Ptr + 2)
+					if t19 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '!':
 		if c2 == '=' {
-			t18 = m.TsxByte(m.Ptr + 2)
-			if t18 == 61 {
+			t20 = m.TsxByte(m.Ptr + 2)
+			if t20 == 61 {
 				take = 99
 				m.Ptr += take & 7
 				return take >> 3
@@ -6311,30 +6367,76 @@ ws:
 		m.Ptr += take & 7
 		return take >> 3
 	case '|':
-		t8 = 375
-		goto family
+		take = 375
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t21 = m.TsxByte(m.Ptr + 2)
+					if t21 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '?':
 		if c2 == '.' {
-			t19 = m.TsxByte(m.Ptr + 2)
-			if t19-48 > 9 {
+			t22 = m.TsxByte(m.Ptr + 2)
+			if t22-48 > 9 {
 				take = 322
 				m.Ptr += take & 7
 				return take >> 3
 			}
 		}
 		if c2 != '?' {
-			t20 = m.EcmaHasTypeScript()
-			if rt.Clz32(t20&rt.B2u(c2 == '(' || c2 == '<'))>>5 != 0 {
-				t21 = m.LexSkipSpaceAt(m.Ptr + 1)
-				after = m.TsxByte(t21)
+			t23 = m.EcmaHasTypeScript()
+			if rt.Clz32(t23&rt.B2u(c2 == '(' || c2 == '<'))>>5 != 0 {
+				t24 = m.LexSkipSpaceAt(m.Ptr + 1)
+				after = m.TsxByte(t24)
 				if rt.Clz32(rt.Ld8(m.Mem, int(after)+1680)&64)>>5 != 0 {
-					t23 = m.TernaryCount()
-					m.TernarySet(t23 + 1)
+					t26 = m.TernaryCount()
+					m.TernarySet(t26 + 1)
 				}
 			}
 		}
-		t8 = 334
-		goto family
+		take = 334
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t27 = m.TsxByte(m.Ptr + 2)
+					if t27 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '[':
 		m.BrkPush(0)
 		take = 225
@@ -6346,20 +6448,43 @@ ws:
 		return m.ScanString(39)
 	case '<':
 		if m.EcmaHasTsrx() != 0 {
-			t27 = m.JsxTopMode()
-			t28 = m.TsrxRawClose(m.Ptr, 1)
-			if rt.B2u(t27 == 5)&t28 != 0 {
+			t31 = m.JsxTopMode()
+			t32 = m.TsrxRawClose(m.Ptr, 1)
+			if rt.B2u(t31 == 5)&t32 != 0 {
 				return LexEof
 			}
 		}
-		t8 = 263
-		goto family
+		take = 263
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t33 = m.TsxByte(m.Ptr + 2)
+					if t33 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '>':
 		if c2 == '>' {
-			t29 = m.TsxByte(m.Ptr + 2)
-			if t29 == 62 {
-				t30 = m.TsxByte(m.Ptr + 3)
-				if t30 == 61 {
+			t34 = m.TsxByte(m.Ptr + 2)
+			if t34 == 62 {
+				t35 = m.TsxByte(m.Ptr + 3)
+				if t35 == 61 {
 					take = 564
 					m.Ptr += take & 7
 					return take >> 3
@@ -6369,23 +6494,161 @@ ws:
 				return take >> 3
 			}
 		}
-		t8 = 447
-		goto family
+		take = 447
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t36 = m.TsxByte(m.Ptr + 2)
+					if t36 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '+':
-		t8 = 395
-		goto family
+		take = 395
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t37 = m.TsxByte(m.Ptr + 2)
+					if t37 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '-':
-		t8 = 291
-		goto family
+		take = 291
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t38 = m.TsxByte(m.Ptr + 2)
+					if t38 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '*':
-		t8 = 79
-		goto family
+		take = 79
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t39 = m.TsxByte(m.Ptr + 2)
+					if t39 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '%':
-		t8 = 537
-		goto family
+		take = 537
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t40 = m.TsxByte(m.Ptr + 2)
+					if t40 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '^':
-		t8 = 521
-		goto family
+		take = 521
+		kw = take & 0xfffffff8
+		if c2 == c {
+			if take&2 != 0 {
+				if take&4 != 0 {
+					t41 = m.TsxByte(m.Ptr + 2)
+					if t41 == 61 {
+						take = kw - 21
+						m.Ptr += take & 7
+						return take >> 3
+					}
+				}
+				take = kw - 14
+				m.Ptr += take & 7
+				return take >> 3
+			}
+		}
+		if take&1&rt.B2u(c2 == '=') != 0 {
+			take = kw - 6
+			m.Ptr += take & 7
+			return take >> 3
+		}
+		take = kw | 1
+		m.Ptr += take & 7
+		return take >> 3
 	case '~':
 		take = 569
 		m.Ptr += take & 7
@@ -6394,8 +6657,8 @@ ws:
 		m.Ptr++
 		return m.ScanTemplateBody()
 	case '@':
-		t32 = m.EcmaHasTsrx()
-		if t32&rt.B2u(c2 == '{') != 0 {
+		t43 = m.EcmaHasTsrx()
+		if t43&rt.B2u(c2 == '{') != 0 {
 			m.BrkPush(1)
 			m.BraceDepth++
 			take = 218
@@ -6423,9 +6686,9 @@ ws:
 	}
 	if c >= 128 {
 		bits = m.Utf8Bits(c)
-		t36 = bits != 0
-		t37 = m.IsIdStart(m.Ptr, bits)
-		if rt.B2u(t36)&t37 != 0 {
+		t47 = bits != 0
+		t48 = m.IsIdStart(m.Ptr, bits)
+		if rt.B2u(t47)&t48 != 0 {
 			m.Ptr += bits
 			m.ScanIdentTail()
 			return LexIdentifier
@@ -6438,31 +6701,6 @@ ws:
 	}
 	m.Ptr++
 	return LexInvalid
-family:
-	take = t8
-	kw = take & 0xfffffff8
-	if c2 == c {
-		if take&2 != 0 {
-			if take&4 != 0 {
-				t38 = m.TsxByte(m.Ptr + 2)
-				if t38 == 61 {
-					take = kw - 21
-					m.Ptr += take & 7
-					return take >> 3
-				}
-			}
-			take = kw - 14
-			m.Ptr += take & 7
-			return take >> 3
-		}
-	}
-	if take&1&rt.B2u(c2 == '=') != 0 {
-		take = kw - 6
-	} else {
-		take = kw | 1
-	}
-	m.Ptr += take & 7
-	return take >> 3
 }
 
 // NextToken is $nextToken.
@@ -18032,8 +18270,8 @@ scan:
 
 // CoffeeLiteral is $coffeeLiteral.
 func (m *Machine) CoffeeLiteral(lq uint32, nested uint32) uint32 {
-	var c, e, hl, q, seg, triple, t0, t1, t5, t8, t9, t11 uint32
-	var t4, t6, t7, t10 bool
+	var c, e, hl, q, seg, triple, t0, t4, t7, t8, t10 uint32
+	var t3, t5, t6, t9 bool
 	q = lq & 255
 	triple = lq >> 8
 	hl = rt.Sel32(q == '/', TokenStringRegex, TokenString)
@@ -18043,8 +18281,7 @@ scan:
 		m.Ptr = m.ScanFind3(m.Ptr, q, 92, rt.Sel32(q == '\'', q, 35))
 		if m.Ptr >= m.End {
 			m.EmitTok(hl, seg, m.Ptr)
-			t0 = 0
-			goto done
+			return 0
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
 		if c == '\\' {
@@ -18056,20 +18293,19 @@ scan:
 			continue scan
 		}
 		if c == '#' {
-			t4 = nested == 0
-			t5 = m.TemplateByte(m.Ptr + 1)
-			if t4 && t5 == 123 {
+			t3 = nested == 0
+			t4 = m.TemplateByte(m.Ptr + 1)
+			if t3 && t4 == 123 {
 				m.EmitTok(hl, seg, m.Ptr)
 				seg = m.Ptr
 				m.Ptr += 2
 				m.EmitTok(TokenPunctuationSpecial, seg, m.Ptr)
-				t0 = 2
-				goto done
+				return 2
 			}
-			t6 = q == '/'
-			t7 = m.Ptr <= m.SrcBase
-			t8 = m.LexIsSpace(rt.Ld8(m.Mem, int(m.Ptr-1)))
-			if rt.B2u(t6)&(rt.B2u(t7)|t8) != 0 {
+			t5 = q == '/'
+			t6 = m.Ptr <= m.SrcBase
+			t7 = m.LexIsSpace(rt.Ld8(m.Mem, int(m.Ptr-1)))
+			if rt.B2u(t5)&(rt.B2u(t6)|t7) != 0 {
 				m.EmitTok(hl, seg, m.Ptr)
 				m.LexLineComment(1, TokenComment)
 				seg = m.Ptr
@@ -18080,10 +18316,10 @@ scan:
 		}
 		m.Ptr++
 		if triple != 0 {
-			t9 = m.TemplateByte(m.Ptr)
-			t10 = t9 != q
-			t11 = m.TemplateByte(m.Ptr + 1)
-			if t10 || t11 != q {
+			t8 = m.TemplateByte(m.Ptr)
+			t9 = t8 != q
+			t10 = m.TemplateByte(m.Ptr + 1)
+			if t9 || t10 != q {
 				continue scan
 			}
 			m.Ptr += 2
@@ -18092,11 +18328,9 @@ scan:
 			m.LexScanIdent()
 		}
 		m.EmitTok(hl, seg, m.Ptr)
-		t1 = 1
+		t0 = 1
 		break
 	}
-	t0 = t1
-done:
 	return t0
 }
 
@@ -21047,8 +21281,8 @@ func (m *Machine) DiffSkipDigits(p uint32, lineEnd uint32) uint32 {
 
 // HlDiff is $hlDiff.
 func (m *Machine) HlDiff() {
-	var streamRoot, c, lhs, lineEnd, p, tok, length, hl, liveRoot, t2, t3, t7, t13 uint32
-	var t0, t1, t4, t5, t6, t10, t11, t12 bool
+	var streamRoot, c, lhs, lineEnd, p, tok, length, hl, liveRoot, t2, t6, t12 uint32
+	var t0, t1, t3, t4, t5, t9, t10, t11 bool
 	liveRoot = m.LiveEntering
 	m.LiveEntering = 0
 	if m.LiveSuspended != 0 {
@@ -21107,136 +21341,133 @@ line:
 		} else {
 			p = lhs
 			if length >= 2 && rt.Ld16(m.Mem, int(lhs)) == 16448 {
-				t3 = TokenAttribute
-				goto rest
-			}
-			if c == '#' {
-				t3 = TokenComment
-				goto rest
-			}
-			if rt.Clz32(rt.B2u(c == 'B' || c-99 <= 1 || c == 'i' || c-110 <= 1 || c-114 <= 1))>>5 == 0 {
-				t4 = length >= 4
-				t5 = rt.Ld32(m.Mem, int(lhs)) == 0x66666964
-				t6 = lhs+4 == lineEnd
-				t7 = m.LexIsSpace(rt.Ld8(m.Mem, int(lhs)+4))
-				if rt.B2u(t4)&rt.B2u(t5)&(rt.B2u(t6)|t7) != 0 {
-					m.EmitTok(TokenFunction, lhs, lhs+4)
-					p = lhs + 4
-					tok = p
-					p = m.DiffSkipSpace(p, lineEnd)
-					m.EmitGap(tok, p)
-					tok = p
-				loop20:
-					for {
-						if p >= lineEnd {
-							break loop20
+				hl = TokenAttribute
+			} else if c == '#' {
+				hl = TokenComment
+			} else {
+				if rt.Clz32(rt.B2u(c == 'B' || c-99 <= 1 || c == 'i' || c-110 <= 1 || c-114 <= 1))>>5 == 0 {
+					t3 = length >= 4
+					t4 = rt.Ld32(m.Mem, int(lhs)) == 0x66666964
+					t5 = lhs+4 == lineEnd
+					t6 = m.LexIsSpace(rt.Ld8(m.Mem, int(lhs)+4))
+					if rt.B2u(t3)&rt.B2u(t4)&(rt.B2u(t5)|t6) != 0 {
+						m.EmitTok(TokenFunction, lhs, lhs+4)
+						p = lhs + 4
+						tok = p
+						p = m.DiffSkipSpace(p, lineEnd)
+						m.EmitGap(tok, p)
+						tok = p
+						for {
+							if p >= lineEnd {
+								m.EmitTok(TokenVariableParameter, tok, p)
+								hl = TokenNone
+								goto rest
+							}
+							if m.LexIsSpace(rt.Ld8(m.Mem, int(p))) != 0 {
+								m.EmitTok(TokenVariableParameter, tok, p)
+								hl = TokenNone
+								goto rest
+							}
+							p++
 						}
-						if m.LexIsSpace(rt.Ld8(m.Mem, int(p))) != 0 {
-							break loop20
+					}
+					t9 = length >= 5
+					t10 = rt.Ld64(m.Mem, int(lhs))&0xffffffffff == 0x7865646e69
+					t11 = lhs+5 == lineEnd
+					t12 = m.LexIsSpace(rt.Ld8(m.Mem, int(lhs)+5))
+					if rt.B2u(t9)&rt.B2u(t10)&(rt.B2u(t11)|t12) != 0 {
+						m.EmitTok(TokenKeyword, lhs, lhs+5)
+						p = lhs + 5
+						tok = p
+						p = m.DiffSkipSpace(p, lineEnd)
+						m.EmitGap(tok, p)
+						tok = p
+						p = m.ScanHexRun(p, lineEnd-p)
+						if p == tok {
+							hl = TokenNone
+							goto rest
 						}
-						p++
-					}
-					m.EmitTok(TokenVariableParameter, tok, p)
-					t3 = TokenNone
-					goto rest
-				}
-				t10 = length >= 5
-				t11 = rt.Ld64(m.Mem, int(lhs))&0xffffffffff == 0x7865646e69
-				t12 = lhs+5 == lineEnd
-				t13 = m.LexIsSpace(rt.Ld8(m.Mem, int(lhs)+5))
-				if rt.B2u(t10)&rt.B2u(t11)&(rt.B2u(t12)|t13) != 0 {
-					m.EmitTok(TokenKeyword, lhs, lhs+5)
-					p = lhs + 5
-					tok = p
-					p = m.DiffSkipSpace(p, lineEnd)
-					m.EmitGap(tok, p)
-					tok = p
-					p = m.ScanHexRun(p, lineEnd-p)
-					if p == tok {
-						t3 = TokenNone
+						m.EmitTok(TokenConstant, tok, p)
+						if p+2 > lineEnd || rt.Ld16(m.Mem, int(p)) != 11822 {
+							hl = TokenNone
+							goto rest
+						}
+						m.EmitTok(TokenPunctuationSpecial, p, p+2)
+						p += 2
+						tok = p
+						p = m.ScanHexRun(p, lineEnd-p)
+						if p == tok {
+							hl = TokenNone
+							goto rest
+						}
+						m.EmitTok(TokenConstant, tok, p)
+						tok = p
+						p = m.DiffSkipSpace(p, lineEnd)
+						m.EmitGap(tok, p)
+						tok = p
+						p = m.DiffSkipDigits(p, lineEnd)
+						m.EmitTok(TokenNumber, tok, p)
+						hl = TokenNone
 						goto rest
 					}
-					m.EmitTok(TokenConstant, tok, p)
-					if p+2 > lineEnd || rt.Ld16(m.Mem, int(p)) != 11822 {
-						t3 = TokenNone
+					if length >= 16 && rt.Ld64(m.Mem, int(lhs)) == 0x6972616c696d6973 && rt.Ld64(m.Mem, int(lhs)+8) == 0x7865646e69207974 {
+						p = lhs + 16
+						p = m.DiffSkipSpace(p, lineEnd)
+						m.EmitTok(TokenLabel, lhs, p)
+						tok = p
+						p = m.DiffSkipDigits(p, lineEnd)
+						m.EmitTok(TokenNumber, tok, p)
+						if p < lineEnd && rt.Ld8(m.Mem, int(p)) == '%' {
+							m.EmitTok(TokenNumber, p, p+1)
+							p++
+						}
+						hl = TokenLabel
 						goto rest
 					}
-					m.EmitTok(TokenPunctuationSpecial, p, p+2)
-					p += 2
-					tok = p
-					p = m.ScanHexRun(p, lineEnd-p)
-					if p == tok {
-						t3 = TokenNone
+					tok = 0
+					if length >= 13 && rt.Ld64(m.Mem, int(lhs)) == 0x656c69662077656e && rt.Ld64(m.Mem, int(lhs)+8)&0xffffffffff == 0x65646f6d20 {
+						tok = lhs + 13
+					}
+					if length >= 17 && rt.Ld64(m.Mem, int(lhs)) == 0x20646574656c6564 && rt.Ld64(m.Mem, int(lhs)+8) == 0x646f6d20656c6966 && rt.Ld8(m.Mem, int(lhs)+16) == 'e' {
+						tok = lhs + 17
+					}
+					if length >= 8 && (rt.Ld64(m.Mem, int(lhs)) == 0x65646f6d2077656e || rt.Ld64(m.Mem, int(lhs)) == 0x65646f6d20646c6f) {
+						tok = lhs + 8
+					}
+					if tok != 0 {
+						p = m.DiffSkipSpace(tok, lineEnd)
+						m.EmitTok(TokenLabel, lhs, p)
+						tok = p
+						p = m.DiffSkipDigits(p, lineEnd)
+						m.EmitTok(TokenNumber, tok, p)
+						hl = TokenLabel
 						goto rest
 					}
-					m.EmitTok(TokenConstant, tok, p)
-					tok = p
-					p = m.DiffSkipSpace(p, lineEnd)
-					m.EmitGap(tok, p)
-					tok = p
-					p = m.DiffSkipDigits(p, lineEnd)
-					m.EmitTok(TokenNumber, tok, p)
-					t3 = TokenNone
-					goto rest
-				}
-				if length >= 16 && rt.Ld64(m.Mem, int(lhs)) == 0x6972616c696d6973 && rt.Ld64(m.Mem, int(lhs)+8) == 0x7865646e69207974 {
-					p = lhs + 16
-					p = m.DiffSkipSpace(p, lineEnd)
-					m.EmitTok(TokenLabel, lhs, p)
-					tok = p
-					p = m.DiffSkipDigits(p, lineEnd)
-					m.EmitTok(TokenNumber, tok, p)
-					if p < lineEnd && rt.Ld8(m.Mem, int(p)) == '%' {
-						m.EmitTok(TokenNumber, p, p+1)
-						p++
+					if (length >= 11 && rt.Ld64(m.Mem, int(lhs)) == 0x6620656d616e6572 && rt.Ld32(m.Mem, int(lhs)+8)&0xffffff == 0x6d6f72) || (length >= 9 && rt.Ld64(m.Mem, int(lhs)) == 0x7420656d616e6572 && rt.Ld8(m.Mem, int(lhs)+8) == 'o') || (length >= 9 && rt.Ld64(m.Mem, int(lhs)) == 0x6f72662079706f63 && rt.Ld8(m.Mem, int(lhs)+8) == 'm') || (length >= 7 && rt.Ld64(m.Mem, int(lhs))&0xffffffffffffff == 0x6f742079706f63) {
+						hl = TokenLabel
+						goto rest
 					}
-					t3 = TokenLabel
-					goto rest
+					if length >= 12 && rt.Ld64(m.Mem, int(lhs)) == 0x66207972616e6942 && rt.Ld32(m.Mem, int(lhs)+8) == 0x73656c69 {
+						hl = TokenLabel
+						goto rest
+					}
 				}
-				tok = 0
-				if length >= 13 && rt.Ld64(m.Mem, int(lhs)) == 0x656c69662077656e && rt.Ld64(m.Mem, int(lhs)+8)&0xffffffffff == 0x65646f6d20 {
-					tok = lhs + 13
+				m.EmitTok(TokenNone, lhs, lineEnd)
+				lhs = m.Ptr
+				for {
+					if m.Ptr >= m.End {
+						m.EmitGap(lhs, m.Ptr)
+						continue line
+					}
+					c = rt.Ld8(m.Mem, int(m.Ptr))
+					if rt.Clz32(rt.B2u(c == '\n' || c == '\r'))>>5 != 0 {
+						m.EmitGap(lhs, m.Ptr)
+						continue line
+					}
+					m.Ptr++
 				}
-				if length >= 17 && rt.Ld64(m.Mem, int(lhs)) == 0x20646574656c6564 && rt.Ld64(m.Mem, int(lhs)+8) == 0x646f6d20656c6966 && rt.Ld8(m.Mem, int(lhs)+16) == 'e' {
-					tok = lhs + 17
-				}
-				if length >= 8 && (rt.Ld64(m.Mem, int(lhs)) == 0x65646f6d2077656e || rt.Ld64(m.Mem, int(lhs)) == 0x65646f6d20646c6f) {
-					tok = lhs + 8
-				}
-				if tok != 0 {
-					p = m.DiffSkipSpace(tok, lineEnd)
-					m.EmitTok(TokenLabel, lhs, p)
-					tok = p
-					p = m.DiffSkipDigits(p, lineEnd)
-					m.EmitTok(TokenNumber, tok, p)
-					t3 = TokenLabel
-					goto rest
-				}
-				if (length >= 11 && rt.Ld64(m.Mem, int(lhs)) == 0x6620656d616e6572 && rt.Ld32(m.Mem, int(lhs)+8)&0xffffff == 0x6d6f72) || (length >= 9 && rt.Ld64(m.Mem, int(lhs)) == 0x7420656d616e6572 && rt.Ld8(m.Mem, int(lhs)+8) == 'o') || (length >= 9 && rt.Ld64(m.Mem, int(lhs)) == 0x6f72662079706f63 && rt.Ld8(m.Mem, int(lhs)+8) == 'm') || (length >= 7 && rt.Ld64(m.Mem, int(lhs))&0xffffffffffffff == 0x6f742079706f63) {
-					t3 = TokenLabel
-					goto rest
-				}
-				if length >= 12 && rt.Ld64(m.Mem, int(lhs)) == 0x66207972616e6942 && rt.Ld32(m.Mem, int(lhs)+8) == 0x73656c69 {
-					t3 = TokenLabel
-					goto rest
-				}
-			}
-			m.EmitTok(TokenNone, lhs, lineEnd)
-			lhs = m.Ptr
-			for {
-				if m.Ptr >= m.End {
-					m.EmitGap(lhs, m.Ptr)
-					continue line
-				}
-				c = rt.Ld8(m.Mem, int(m.Ptr))
-				if rt.Clz32(rt.B2u(c == '\n' || c == '\r'))>>5 != 0 {
-					m.EmitGap(lhs, m.Ptr)
-					continue line
-				}
-				m.Ptr++
 			}
 		rest:
-			hl = t3
 			m.EmitTok(hl, p, lineEnd)
 		}
 		lhs = m.Ptr
@@ -51637,7 +51868,7 @@ func (m *Machine) VueTsxStream(from uint32, to uint32, reset uint32) {
 
 // VueAttrs is $vueAttrs.
 func (m *Machine) VueAttrs(state uint32, directive uint32, quote uint32, kind uint32) uint32 {
-	var c, lhs, p, tsxOpen, fresh, t0 uint32
+	var c, lhs, p, tsxOpen, fresh uint32
 	tsxOpen = rt.B2u(state == 3) & directive
 next:
 	for {
@@ -51648,8 +51879,7 @@ next:
 				m.StreamB = state | directive<<4
 				m.StreamC = quote
 			}
-			t0 = 0
-			goto done
+			return 0
 		}
 		if state == 3 {
 			lhs = m.Ptr
@@ -51699,12 +51929,10 @@ next:
 		if c == '>' {
 			m.Ptr++
 			m.EmitTok(TokenPunctuationBracketHtml, lhs, m.Ptr)
-			t0 = 1 | (kind&63)<<8
-			goto done
+			return 1 | (kind&63)<<8
 		}
 		if c == '<' {
-			t0 = 0
-			goto done
+			return 0
 		}
 		if state == 1 {
 			state = 0
@@ -51718,8 +51946,7 @@ next:
 		if c == '/' && m.Ptr+1 < m.End && rt.Ld8(m.Mem, int(m.Ptr)+1) == '>' {
 			m.Ptr += 2
 			m.EmitTok(TokenPunctuationBracketHtml, lhs, m.Ptr)
-			t0 = 2 | (kind&63)<<8
-			goto done
+			return 2 | (kind&63)<<8
 		}
 		if state == 2 {
 			state = 0
@@ -51755,8 +51982,6 @@ next:
 		}
 		state = 1
 	}
-done:
-	return t0
 }
 
 // VueTag is $vueTag.

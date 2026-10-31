@@ -56,19 +56,31 @@ func rewriteNode(n *wat.Sexpr) *wat.Sexpr {
 // storedBlock rewrites a value block whose result goes to local, or
 // returns nil when the block has another shape.
 func storedBlock(b, local *wat.Sexpr) *wat.Sexpr {
+	return rewriteValueBlock(b, func(v *wat.Sexpr) *wat.Sexpr { return list(atom("local.set"), local, v) })
+}
+
+// returnedBlock rewrites a value block that ends a function, so each exit
+// returns its value.
+func returnedBlock(b *wat.Sexpr) *wat.Sexpr {
+	return rewriteValueBlock(b, func(v *wat.Sexpr) *wat.Sexpr { return list(atom("return"), v) })
+}
+
+// rewriteValueBlock turns the exits of a value block into set(value).
+func rewriteValueBlock(b *wat.Sexpr, set func(*wat.Sexpr) *wat.Sexpr) *wat.Sexpr {
 	if !b.IsList || b.Head() != "block" || len(b.List) < 4 || b.List[1].IsList ||
 		b.List[1].Atom == "" || b.List[1].Atom[0] != '$' || b.List[2].Head() != "result" {
 		return nil
 	}
 	label := b.List[1].Atom
 	body := b.List[3:]
-	if !rewritable(body, label) || !producesValue(body[len(body)-1]) {
+	if !rewritable(body, label) {
 		return nil
 	}
-	set := func(v *wat.Sexpr) *wat.Sexpr { return list(atom("local.set"), local, v) }
+	// a body that ends in a branch or trap leaves only through branches
+	wrapLast := producesValue(body[len(body)-1])
 	var newBody []*wat.Sexpr
 	for i, s := range body {
-		if i == len(body)-1 {
+		if i == len(body)-1 && wrapLast {
 			newBody = append(newBody, set(storeOne(s, label, set)))
 			continue
 		}
