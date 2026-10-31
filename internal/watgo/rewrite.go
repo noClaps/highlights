@@ -1,6 +1,11 @@
 package watgo
 
-import "highlights/internal/wat"
+import (
+	"fmt"
+	"strings"
+
+	"highlights/internal/wat"
+)
 
 // storeBlockResults rewrites `(local.set $x (block $L (result T) body))`
 // into a block without a result that sets $x where it exits: each
@@ -158,6 +163,36 @@ func storeOne(n *wat.Sexpr, label string, set func(*wat.Sexpr) *wat.Sexpr) *wat.
 			continue
 		}
 		out.List = append(out.List, storeOne(c, label, set))
+	}
+	return out
+}
+
+// nameLabels gives every block, loop, and if a label, so the generator can
+// name the end of any sequence.
+func nameLabels(nodes []*wat.Sexpr) []*wat.Sexpr {
+	n := 0
+	var walk func(x *wat.Sexpr) *wat.Sexpr
+	walk = func(x *wat.Sexpr) *wat.Sexpr {
+		if !x.IsList {
+			return x
+		}
+		out := &wat.Sexpr{IsList: true}
+		for _, c := range x.List {
+			out.List = append(out.List, walk(c))
+		}
+		switch x.Head() {
+		case "block", "loop", "if":
+			if len(out.List) < 2 || out.List[1].IsList || !strings.HasPrefix(out.List[1].Atom, "$") {
+				n++
+				name := atom(fmt.Sprintf("$__%d", n))
+				out.List = append([]*wat.Sexpr{out.List[0], name}, out.List[1:]...)
+			}
+		}
+		return out
+	}
+	out := make([]*wat.Sexpr, len(nodes))
+	for i, x := range nodes {
+		out[i] = walk(x)
 	}
 	return out
 }

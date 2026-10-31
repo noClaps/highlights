@@ -138,21 +138,23 @@ func (m *Machine) ThemeRec(hl uint32) uint32 {
 func (m *Machine) ScanToLineEnd() {
 	var mask uint32
 	var w rt.V128
-wide:
 	for {
 		if m.Ptr >= m.End {
-			break wide
+			if m.Ptr > m.End {
+				m.Ptr = m.End
+			}
+			return
 		}
 		w = rt.LdV(m.Mem, int(m.Ptr))
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(10)), rt.Eq8(w, rt.Splat8(13))))
 		if mask != 0 {
 			m.Ptr += rt.Ctz32(mask)
-			break wide
+			if m.Ptr > m.End {
+				m.Ptr = m.End
+			}
+			return
 		}
 		m.Ptr += 16
-	}
-	if m.Ptr > m.End {
-		m.Ptr = m.End
 	}
 }
 
@@ -160,23 +162,25 @@ wide:
 func (m *Machine) ScanBlockCommentEnd() {
 	var mask uint32
 	var stars rt.V128
-wide:
 	for {
 		if m.Ptr >= m.End {
-			break wide
+			if m.Ptr > m.End {
+				m.Ptr = m.End
+			}
+			return
 		}
 		stars = rt.Eq8(rt.LdV(m.Mem, int(m.Ptr)), rt.Splat8(42))
 		if rt.AnyTrue(stars) {
 			mask = rt.Bitmask8(rt.And(stars, rt.Eq8(rt.LdV(m.Mem, int(m.Ptr)+1), rt.Splat8(47))))
 			if mask != 0 {
 				m.Ptr += rt.Ctz32(mask) + 2
-				break wide
+				if m.Ptr > m.End {
+					m.Ptr = m.End
+				}
+				return
 			}
 		}
 		m.Ptr += 16
-	}
-	if m.Ptr > m.End {
-		m.Ptr = m.End
 	}
 }
 
@@ -197,7 +201,10 @@ wide:
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.Eq8(w, qv), rt.Eq8(w, ev)), rt.Or(rt.Eq8(w, nv), rt.Eq8(w, rv))))
 		if mask != 0 {
 			p += rt.Ctz32(mask)
-			break wide
+			if p > stop {
+				p = stop
+			}
+			return p
 		}
 		p += 16
 		if p < stop {
@@ -230,21 +237,23 @@ func (m *Machine) ScanWhitespace() {
 	if rt.Clz32(rt.B2u(c == ' ' || c-9 <= 4))>>5 != 0 {
 		return
 	}
-wide:
 	for {
 		if m.Ptr >= m.End {
-			break wide
+			if m.Ptr > m.End {
+				m.Ptr = m.End
+			}
+			return
 		}
 		w = rt.LdV(m.Mem, int(m.Ptr))
 		mask = rt.Bitmask8(rt.Or(rt.Eq8(w, rt.Splat8(32)), rt.LeU8(rt.Sub8(w, rt.Splat8(9)), rt.Splat8(4)))) ^ 65535
 		if mask != 0 {
 			m.Ptr += rt.Ctz32(mask)
-			break wide
+			if m.Ptr > m.End {
+				m.Ptr = m.End
+			}
+			return
 		}
 		m.Ptr += 16
-	}
-	if m.Ptr > m.End {
-		m.Ptr = m.End
 	}
 }
 
@@ -261,7 +270,10 @@ wide:
 		mask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(rt.Or(w, rt.Splat8(32)), rt.Splat8(97)), rt.Splat8(25)), w), rt.Or(rt.LeU8(rt.Sub8(w, rt.Splat8(48)), rt.Splat8(9)), rt.Or(rt.Eq8(w, rt.Splat8(95)), rt.Eq8(w, rt.Splat8(x)))))) ^ 65535
 		if mask != 0 {
 			m.Ptr += rt.Ctz32(mask)
-			break wide
+			if m.Ptr > m.End {
+				m.Ptr = m.End
+			}
+			return
 		}
 		m.Ptr += 16
 		if m.Ptr < m.End {
@@ -537,7 +549,6 @@ outer:
 			m.Out = dst
 			m.EnsureCap((limit-lhs)*5 + 16)
 		}
-	wide:
 		for {
 			w = rt.LdV(m.Mem, int(lhs))
 			rt.StV(m.Mem, int(dst), w)
@@ -548,7 +559,19 @@ outer:
 				if k < rem {
 					dst += k
 					lhs += k
-					break wide
+					c = rt.Ld8(m.Mem, int(lhs))
+					if c == '&' {
+						rt.St64(m.Mem, int(dst), 0x3b706d6126)
+						dst += 5
+					} else if c == '<' {
+						rt.St32(m.Mem, int(dst), 0x3b746c26)
+						dst += 4
+					} else {
+						rt.St32(m.Mem, int(dst), 0x3b746726)
+						dst += 4
+					}
+					lhs++
+					continue outer
 				}
 			}
 			if rem <= 16 {
@@ -559,18 +582,6 @@ outer:
 			dst += 16
 			lhs += 16
 		}
-		c = rt.Ld8(m.Mem, int(lhs))
-		if c == '&' {
-			rt.St64(m.Mem, int(dst), 0x3b706d6126)
-			dst += 5
-		} else if c == '<' {
-			rt.St32(m.Mem, int(dst), 0x3b746c26)
-			dst += 4
-		} else {
-			rt.St32(m.Mem, int(dst), 0x3b746726)
-			dst += 4
-		}
-		lhs++
 	}
 }
 
@@ -1696,22 +1707,25 @@ func (m *Machine) LexHeredocArgument(p uint32) uint32 {
 	if c == '"' || c == '\'' {
 		return 1
 	}
-name:
 	for {
 		if p >= m.End {
-			break name
+			p = m.LexSkipSpaceAt(p)
+			if p >= m.End {
+				return 1
+			}
+			c = rt.Ld8(m.Mem, int(p))
+			return rt.B2u(c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#')
 		}
 		if m.LexIsIdentContinue(rt.Ld8(m.Mem, int(p))) == 0 {
-			break name
+			p = m.LexSkipSpaceAt(p)
+			if p >= m.End {
+				return 1
+			}
+			c = rt.Ld8(m.Mem, int(p))
+			return rt.B2u(c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#')
 		}
 		p++
 	}
-	p = m.LexSkipSpaceAt(p)
-	if p >= m.End {
-		return 1
-	}
-	c = rt.Ld8(m.Mem, int(p))
-	return rt.B2u(c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#')
 }
 
 // LineDelimiterEnds is $lineDelimiterEnds.
@@ -1757,6 +1771,7 @@ func (m *Machine) StreamResumeFixed() uint32 {
 	var i, lhs, matched, p uint32
 	lhs = m.Ptr
 	p = m.Ptr
+search:
 	for {
 		p = m.LexFindByte(p, rt.Ld8(m.Mem, 13952))
 		if p+m.StreamA > m.End {
@@ -1766,27 +1781,36 @@ func (m *Machine) StreamResumeFixed() uint32 {
 		}
 		i = 1
 		matched = 1
-	compare:
 		for {
 			if i >= m.StreamA {
-				break compare
+				if m.StreamB != 0 && p > lhs && rt.Ld8(m.Mem, int(p-1)) == m.StreamB {
+					matched = 0
+				}
+				if matched != 0 {
+					m.Ptr = p + m.StreamA
+					m.EmitTok(m.StreamHl, lhs, m.Ptr)
+					m.StreamMode = 0
+					return 0
+				}
+				p++
+				continue search
 			}
 			if rt.Ld8(m.Mem, int(p+i)) != rt.Ld8(m.Mem, int(13952+i)) {
 				matched = 0
-				break compare
+				if m.StreamB != 0 && p > lhs && rt.Ld8(m.Mem, int(p-1)) == m.StreamB {
+					matched = 0
+				}
+				if matched != 0 {
+					m.Ptr = p + m.StreamA
+					m.EmitTok(m.StreamHl, lhs, m.Ptr)
+					m.StreamMode = 0
+					return 0
+				}
+				p++
+				continue search
 			}
 			i++
 		}
-		if m.StreamB != 0 && p > lhs && rt.Ld8(m.Mem, int(p-1)) == m.StreamB {
-			matched = 0
-		}
-		if matched != 0 {
-			m.Ptr = p + m.StreamA
-			m.EmitTok(m.StreamHl, lhs, m.Ptr)
-			m.StreamMode = 0
-			return 0
-		}
-		p++
 	}
 }
 
@@ -1800,33 +1824,46 @@ func (m *Machine) LexNestedScan(depth uint32, open uint32, close_ uint32) uint32
 	c1 = rt.Splat8(close_ >> 8)
 scan:
 	for {
-	wide:
 		for {
 			if m.Ptr >= m.End {
-				break wide
+				if m.Ptr+1 >= m.End {
+					m.Ptr = m.End
+					return depth
+				}
+				if rt.Ld16(m.Mem, int(m.Ptr)) == open {
+					depth++
+					m.Ptr += 2
+					continue scan
+				}
+				depth--
+				m.Ptr += 2
+				if depth == 0 {
+					return depth
+				}
+				continue scan
 			}
 			w = rt.LdV(m.Mem, int(m.Ptr))
 			w1 = rt.LdV(m.Mem, int(m.Ptr)+1)
 			mask = rt.Bitmask8(rt.Or(rt.And(rt.Eq8(w, o0), rt.Eq8(w1, o1)), rt.And(rt.Eq8(w, c0), rt.Eq8(w1, c1))))
 			if mask != 0 {
 				m.Ptr += rt.Ctz32(mask)
-				break wide
+				if m.Ptr+1 >= m.End {
+					m.Ptr = m.End
+					return depth
+				}
+				if rt.Ld16(m.Mem, int(m.Ptr)) == open {
+					depth++
+					m.Ptr += 2
+					continue scan
+				}
+				depth--
+				m.Ptr += 2
+				if depth == 0 {
+					return depth
+				}
+				continue scan
 			}
 			m.Ptr += 16
-		}
-		if m.Ptr+1 >= m.End {
-			m.Ptr = m.End
-			return depth
-		}
-		if rt.Ld16(m.Mem, int(m.Ptr)) == open {
-			depth++
-			m.Ptr += 2
-			continue scan
-		}
-		depth--
-		m.Ptr += 2
-		if depth == 0 {
-			return depth
 		}
 	}
 }
