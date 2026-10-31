@@ -82,7 +82,11 @@ type fgen struct {
 	mod       *Module
 	pure      map[string]bool // Go names of functions without side effects
 	boolFuncs map[string]bool // Go names of functions that return a bool
-	flags     map[*Global]bool
+	// boolParams holds, by function, the parameters taken to be bools;
+	// notBoolParam collects those a call passes another value
+	boolParams   map[string]map[int]bool
+	notBoolParam map[string]map[int]bool
+	flags        map[*Global]bool
 	// nonBool is set when the function returns a value other than 0 or 1
 	nonBool bool
 	// boolLocals are the Go names of i32 locals taken to hold only 0 or 1,
@@ -284,27 +288,57 @@ func generate(mod *Module, opts Options) (string, []byte) {
 			inTable[f.GoName] = true
 		}
 	}
+	// so does a parameter that every call passes 0 or 1 and the function
+	// never assigns. Both start assumed and are dropped when a pass finds
+	// otherwise, until a pass finds nothing to drop.
 	boolFuncs := map[string]bool{}
+	boolParams := map[string]map[int]bool{}
+	for _, f := range mod.Funcs {
+		if f.Import != nil || len(f.Exports) > 0 || inTable[f.GoName] {
+			continue
+		}
+		if len(f.Results) == 1 && f.Results[0] == I32 {
+			boolFuncs[f.GoName] = true
+		}
+		assigned := assignedLocals(f)
+		for i, p := range f.Params {
+			if p.Type == I32 && !assigned[strconv.Itoa(i)] && (p.Name == "" || !assigned[p.Name]) {
+				if boolParams[f.GoName] == nil {
+					boolParams[f.GoName] = map[int]bool{}
+				}
+				boolParams[f.GoName][i] = true
+			}
+		}
+	}
 	var consts *enumConsts
 	var funcs strings.Builder
 	for {
 		consts = newEnumConsts(opts.Enums, mod)
 		funcs.Reset()
-		found := 0
+		dropped := 0
+		notBoolParam := map[string]map[int]bool{}
 		for _, f := range mod.Funcs {
 			if f.Import != nil {
 				continue
 			}
-			g := genBoolLocals(f, func(boolLocals map[string]bool) *fgen {
-				return &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts, pure: pure, boolFuncs: boolFuncs, flags: flags, boolLocals: boolLocals, notBool: map[string]bool{}}
+			g := genBoolLocals(f, boolParams[f.GoName], func(boolLocals map[string]bool) *fgen {
+				return &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts, pure: pure, boolFuncs: boolFuncs, boolParams: boolParams, notBoolParam: notBoolParam, flags: flags, boolLocals: boolLocals, notBool: map[string]bool{}}
 			})
 			funcs.WriteString(g.code)
-			if !g.nonBool && !boolFuncs[f.GoName] && len(f.Results) == 1 && f.Results[0] == I32 && len(f.Exports) == 0 && !inTable[f.GoName] {
-				boolFuncs[f.GoName] = true
-				found++
+			if g.nonBool && boolFuncs[f.GoName] {
+				delete(boolFuncs, f.GoName)
+				dropped++
 			}
 		}
-		if found == 0 {
+		for fn, params := range notBoolParam {
+			for i := range params {
+				if boolParams[fn][i] {
+					delete(boolParams[fn], i)
+					dropped++
+				}
+			}
+		}
+		if dropped == 0 {
 			break
 		}
 	}
@@ -400,16 +434,41 @@ func flagGlobals(mod *Module) map[*Global]bool {
 
 var comparisonRe = regexp.MustCompile(`^i(32|64)\.(eqz?|ne|[lg][te](_[su])?)$`)
 
+// assignedLocals returns the locals and parameters f sets, by name and by
+// index as the code names them.
+func assignedLocals(f *Func) map[string]bool {
+	assigned := map[string]bool{}
+	var walk func(n *wat.Sexpr)
+	walk = func(n *wat.Sexpr) {
+		if !n.IsList {
+			return
+		}
+		if h := n.Head(); (h == "local.set" || h == "local.tee") && len(n.List) > 1 {
+			assigned[n.List[1].Atom] = true
+		}
+		for _, c := range n.List[1:] {
+			walk(c)
+		}
+	}
+	for _, n := range f.Body {
+		walk(n)
+	}
+	return assigned
+}
+
 // genBoolLocals writes f with each i32 local that holds only 0 or 1
 // declared bool. It starts from every i32 local and drops those assigned
 // another value until none is.
-func genBoolLocals(f *Func, newGen func(map[string]bool) *fgen) *fgen {
+func genBoolLocals(f *Func, boolParams map[int]bool, newGen func(map[string]bool) *fgen) *fgen {
 	boolLocals := map[string]bool{}
 	probe := newGen(nil)
 	taken := map[string]bool{}
 	// the names genFunc gives the parameters and locals
 	for i, p := range f.Params {
-		probe.localGoName(p.Name, fmt.Sprintf("p%d", i), taken)
+		name := probe.localGoName(p.Name, fmt.Sprintf("p%d", i), taken)
+		if boolParams[i] {
+			boolLocals[name] = true
+		}
 	}
 	for i, l := range f.Locals {
 		name := probe.localGoName(l.Name, fmt.Sprintf("v%d", len(f.Params)+i), taken)
@@ -685,7 +744,11 @@ func (g *fgen) genFunc() string {
 		}
 		g.localName[strconv.Itoa(i)] = name
 		g.localType[strconv.Itoa(i)] = p.Type
-		params = append(params, name+" "+p.Type.goType())
+		if g.boolParams[f.GoName][i] {
+			params = append(params, name+" bool")
+		} else {
+			params = append(params, name+" "+p.Type.goType())
+		}
 	}
 	var locals []Local
 	for i, l := range f.Locals {
@@ -2853,7 +2916,18 @@ func (g *fgen) apply(head string, imms []string) {
 		}
 		args := make([]string, len(f.Params))
 		for i := len(f.Params) - 1; i >= 0; i-- {
-			args[i] = trimParens(g.asValue(g.pop()))
+			v := g.pop()
+			if g.boolParams[f.GoName][i] {
+				if !zeroOrOne(v) {
+					if g.notBoolParam[f.GoName] == nil {
+						g.notBoolParam[f.GoName] = map[int]bool{}
+					}
+					g.notBoolParam[f.GoName][i] = true
+				}
+				args[i] = trimParens(g.asBool(v))
+				continue
+			}
+			args[i] = trimParens(g.asValue(v))
 		}
 		call := fmt.Sprintf("m.%s(%s)", f.GoName, strings.Join(args, ", "))
 		isBool := g.boolFuncs[f.GoName]
@@ -3121,6 +3195,35 @@ func (g *fgen) binary(op binOp, a, b value) value {
 			join = " || "
 		}
 		return value{expr: "(" + g.asBool(a) + join + g.asBool(b) + ")", typ: I32, isBool: true, stable: stable}
+	}
+	// a 0-or-1 value: x&1 is x, x == 1 and x != 0 are x, x == 0 is !x
+	if k, x := b, a; (k.isConst && !x.isConst) || (a.isConst && !b.isConst) {
+		if a.isConst {
+			k, x = a, b
+		}
+		if zeroOrOne(x) && k.c <= 1 {
+			switch {
+			case op.goOp == "&" && !op.isCmp && k.c == 1:
+				return x
+			case op.isCmp && (op.goOp == "==") == (k.c == 1) && (op.goOp == "==" || op.goOp == "!="):
+				return value{expr: "(" + g.asBool(x) + ")", typ: I32, isBool: true, stable: x.stable}
+			case op.isCmp && (op.goOp == "==" || op.goOp == "!="):
+				return value{expr: "(" + negate(g.asBool(x)) + ")", typ: I32, isBool: true, stable: x.stable}
+			}
+		}
+	}
+	// two 0-or-1 values compare as bools
+	if op.isCmp && (op.goOp == "==" || op.goOp == "!=") && zeroOrOne(a) && zeroOrOne(b) && !a.isConst && !b.isConst {
+		return value{expr: "(" + g.asBool(a) + " " + op.goOp + " " + g.asBool(b) + ")", typ: I32, isBool: true, stable: stable}
+	}
+	// a bool and a number: B2u(a)&x is a && x&1 != 0
+	if op.typ == I32 && op.goOp == "&" && zeroOrOne(a) != zeroOrOne(b) && !a.isConst && !b.isConst {
+		c, x := a, b
+		if !zeroOrOne(a) {
+			c, x = b, a
+		}
+		return value{expr: "(" + g.asValue(a) + " & " + g.asValue(b) + ")", typ: I32, stable: stable, flag: true,
+			cond: "(" + g.asBool(c) + " && " + g.asValue(x) + "&1 != 0)"}
 	}
 	// x>>k & 1 is bit k of x, tested as x&(1<<k) != 0
 	if op.goOp == "&" && b.isConst && b.c == 1 && !a.isBool {
