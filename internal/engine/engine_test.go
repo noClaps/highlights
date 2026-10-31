@@ -22,7 +22,9 @@ var styleRules = []struct {
 	{regexp.MustCompile(`!!`), "a double negation cancels"},
 	{regexp.MustCompile(`(?m)^\t_ = `), "an unread variable is not declared"},
 	{regexp.MustCompile(`bits\.LeadingZeros32\([^()]*\)\)\s*>>\s*5`), "x == 0 is not a bit trick"},
-	{regexp.MustCompile(`\brt\.(Ld|St)\d|\brt\.Rot[lr]|\brt\.(Clz|Ctz|Popcnt)`), "encoding/binary and math/bits have these"},
+	{regexp.MustCompile(`\brt\.(Ld|St)\d|\brt\.Rot[lr]|\brt\.(Clz|Ctz|Popcnt|Copy)\b`), "encoding/binary, math/bits and copy have these"},
+	{regexp.MustCompile(`\brt\.Sel(32|64|V)\(`), "Go chooses with if, not a select helper"},
+	{regexp.MustCompile(`rt\.Fill\(m\.Mem, [^,]+, 0,`), "clear zeroes memory"},
 	{regexp.MustCompile(`(?m)^\s*if [^\n]*\{\n\s*continue \w+\n\s*\}\n\s*break\n`), "a do-while loop ends with if !c { break }"},
 }
 

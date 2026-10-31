@@ -76,15 +76,23 @@ describe them). Rather than run Wasm, the Go port translates the WAT to Go:
      since linters skip generated files and staticcheck holds back its style
      checks on them.
   2. Control flow is structured: no `goto` (`TestGeneratedCodeStyle`).
-  3. Conditions are Go bools, not 0/1 arithmetic: no `rt.B2u(c) != 0` and
-     the like (`TestGeneratedCodeStyle`). `rt.B2u` remains only where a
-     condition is used as a number, as in `n += 1 + rt.B2u(c)` or flags
-     packed into a word, since Go has no bool-to-int conversion.
-  4. The standard library is used where it has the operation:
-     `encoding/binary` for wide loads and stores, `math/bits` for bit counts
-     and rotations (`TestGeneratedCodeStyle`). `internal/wasmrt` keeps what
-     the standard library lacks: the bounds-checked `memory.copy` and
-     `memory.fill`, memory growth, and the 16-byte vector type `V128`.
+  3. Conditions are Go bools, not 0/1 arithmetic: `TestGeneratedCodeStyle`
+     walks the syntax tree and fails on any comparison of `rt.B2u(c)`, or of
+     an and/or/xor with one as an operand, against 0 or 1. `rt.B2u` remains
+     only where a condition is a number: bits packed into a word
+     (`maps<<1 | rt.B2u(c == '{')`), an offset (`lhs + rt.B2u(c == 'm')`),
+     or an integer that also holds other values, since Go has no
+     bool-to-int conversion.
+  4. The standard library and built-ins are used where they have the
+     operation: `encoding/binary` for wide loads and stores, `math/bits` for
+     bit counts and rotations, `copy` and `clear` for memory copies and zero
+     fills (`TestGeneratedCodeStyle`). `internal/wasmrt` keeps what they
+     lack: filling memory with a non-zero byte, memory growth, and the
+     16-byte vector type `V128` with its operations as methods.
+  5. Go has no conditional expression, so a choice is an `if`: there is no
+     select helper left, and temporaries are named after what they hold
+     (the callee, the parameter they are passed to, `result`, `cond`), not
+     numbered.
 - `internal/engine` is the generated engine (`go generate ./internal/engine`
   regenerates it and `tables_gen.go`).
 - The root package ports the TypeScript host, whose original is in
