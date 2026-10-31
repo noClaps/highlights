@@ -1,0 +1,470 @@
+import type {
+  Theme,
+  ThemeFamily,
+  ThemeStyle,
+  ThemeSyntaxSettings,
+} from './index';
+import tokenTypes from './token-types';
+
+export const defaultCssVariablePrefix = '--hls-';
+
+/**
+ * Bytes of one packed Wasm theme table: 73 five-byte records padded for the
+ * emitter's SIMD comparisons. Mirrors `$mem.themeTable` in src/memory.wat.
+ */
+export const themeTableBytes = 384;
+
+const enc = new TextEncoder();
+const colorReg = /^#([a-f0-9]{3,4}|[a-f0-9]{6}|[a-f0-9]{8})$/i;
+const displayP3Reg =
+  /^color\(display-p3\s+[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s+[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s+[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:\s*\/\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+))?\s*\)$/i;
+
+/** One theme slot's resolved styling for a token type. */
+export interface TokenStyle {
+  color: string | undefined;
+  italic: boolean;
+  weight: number;
+}
+
+/**
+ * Accept hex and numeric Display P3 colors that cannot escape a CSS declaration.
+ * Named colors, variables, and arbitrary CSS fragments are rejected.
+ */
+export function isThemeColor(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    (colorReg.test(value.trim()) || displayP3Reg.test(value.trim()))
+  );
+}
+
+/** A theme's default text color: `editor.foreground`, `text`, then `foreground`. */
+export function themeForeground(style: ThemeStyle): string | undefined {
+  return style['editor.foreground'] ?? style.text ?? style.foreground;
+}
+
+/** A theme's editor background: `editor.background`, then `background`. */
+export function themeBackground(style: ThemeStyle): string | undefined {
+  return style['editor.background'] ?? style.background;
+}
+
+/** ANSI color names in SGR order, as in Zed's `terminal.ansi.<name>` keys. */
+export const ansiNames: readonly string[] = [
+  'black',
+  'red',
+  'green',
+  'yellow',
+  'blue',
+  'magenta',
+  'cyan',
+  'white',
+  'bright_black',
+  'bright_red',
+  'bright_green',
+  'bright_yellow',
+  'bright_blue',
+  'bright_magenta',
+  'bright_cyan',
+  'bright_white',
+];
+
+// VS Code's terminal colors, which Shiki uses when a theme has none.
+const ansiDefaults = [
+  '#000000',
+  '#cd3131',
+  '#0dbc79',
+  '#e5e510',
+  '#2472c8',
+  '#bc3fbc',
+  '#11a8cd',
+  '#e5e5e5',
+  '#666666',
+  '#f14c4c',
+  '#23d18b',
+  '#f5f543',
+  '#3b8eea',
+  '#d670d6',
+  '#29b8db',
+  '#ffffff',
+];
+
+/** The 16 ANSI colors of a theme. Missing or invalid colors use VS Code's. */
+export function themeAnsiColors(style: ThemeStyle): string[] {
+  return ansiNames.map(
+    (name, i) =>
+      resolveThemeStyle(
+        { foreground: style[`terminal.ansi.${name}`] as string },
+        'foreground'
+      ).color ?? ansiDefaults[i]
+  );
+}
+
+/** Describe a rejected theme value for the `invalid theme` error message. */
+function describeThemeValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'string') {
+    return `the string ${JSON.stringify(value)} (theme ids are not supported; import the theme object from "@pierre/highlights/themes")`;
+  }
+  if (Array.isArray(value)) return 'an array';
+  if (typeof value === 'object') {
+    if ('themes' in value && Array.isArray(value.themes)) {
+      return `a ThemeFamily whose first member is ${describeThemeValue(value.themes[0])}`;
+    }
+    return 'an object without a `name`';
+  }
+  return `a ${typeof value}`;
+}
+
+/** True for an object with a non-empty `name`, the shape every theme needs. */
+function isThemeObject(value: unknown): value is Theme {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    value.name !== ''
+  );
+}
+
+/**
+ * Resolve a `theme` option. For a `ThemeFamily`, use its first member.
+ * Throw a `TypeError` that describes the received value if it is invalid.
+ * Theme ID strings are not supported.
+ */
+export function resolveTheme(theme: Theme | ThemeFamily): Theme {
+  const resolved: unknown =
+    theme != null &&
+    typeof theme === 'object' &&
+    'themes' in theme &&
+    theme.themes != null
+      ? theme.themes[0]
+      : theme;
+  if (!isThemeObject(resolved)) {
+    throw new TypeError(
+      `invalid theme: expected a Theme or ThemeFamily object, received ${describeThemeValue(theme)}`
+    );
+  }
+  return resolved;
+}
+
+/** Keep the nearest scope's font settings while finding an inherited color. */
+export function resolveThemeSyntax(
+  syntax: Record<string, string | ThemeSyntaxSettings>,
+  name: string
+): ThemeSyntaxSettings | undefined {
+  let settings: ThemeSyntaxSettings | undefined;
+  for (let k = name; k !== ''; ) {
+    const v = syntax[k];
+    if (typeof v === 'string') return { ...settings, color: v };
+    if (v != null && typeof v === 'object') {
+      settings ??= v;
+      if (v.color != null) return { ...settings, color: v.color };
+    }
+    const dot = k.lastIndexOf('.');
+    k = dot < 0 ? '' : k.slice(0, dot);
+  }
+  return settings;
+}
+
+/** Resolve identical colors and font settings for Wasm and JavaScript output. */
+export function resolveThemeStyle(style: ThemeStyle, name: string): TokenStyle {
+  let color: string | undefined;
+  let font_style: string | undefined;
+  let font_weight: number | undefined;
+  if (name === 'background') color = themeBackground(style);
+  else if (name === 'foreground') color = themeForeground(style);
+  else {
+    ({ color, font_style, font_weight } =
+      resolveThemeSyntax(style.syntax ?? {}, name) ?? {});
+    if (font_style != null || font_weight != null)
+      color ??= themeForeground(style);
+  }
+  if (isThemeColor(color)) {
+    color = color.trim().toLowerCase();
+    if (color.startsWith('#')) {
+      if (color.length <= 5) color = color.replace(/[^#]/g, '$&$&');
+      if (color.length === 9 && color.endsWith('ff')) color = color.slice(0, 7);
+      // A zero RGBA record inherits the foreground in the Wasm emitter.
+      if (color === '#00000000') color = undefined;
+    }
+  } else {
+    color = undefined;
+  }
+  return {
+    color,
+    italic: font_style === 'italic',
+    weight:
+      font_weight != null && font_weight >= 100 && font_weight <= 900
+        ? Math.round(font_weight / 100) * 100
+        : 0,
+  };
+}
+
+/** A prefixed CSS variable for a token slot, matching the Wasm emitter. */
+function cssVariable(name: string, cssVariablePrefix: string): string {
+  return `var(${cssVariablePrefix}${name.replace(/[._]/g, '-')})`;
+}
+
+/**
+ * Escape a string for a double-quoted HTML attribute.
+ * Prefixes and theme keys need escaping. Validated theme colors do not.
+ */
+export function escapeAttribute(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+/**
+ * Pack HTML openers for Wasm mode 4. Store the u32 span reserve, then
+ * u32 byte offset/length pairs per token ID, then the UTF-8 bytes.
+ * Slot 0 holds the root opener with `<code>`. Other slots hold span openers.
+ */
+export function packHtmlOpeners(openers: string[]): Uint8Array {
+  const bytes = openers.map((opener) => enc.encode(opener));
+  let offset = 4 + 8 * bytes.length;
+  const blob = new Uint8Array(
+    offset + bytes.reduce((sum, entry) => sum + entry.length, 0)
+  );
+  const dv = new DataView(blob.buffer);
+  let spanReserve = 32;
+  for (let i = 0; i < bytes.length; i++) {
+    dv.setUint32(4 + 8 * i, offset, true);
+    dv.setUint32(8 + 8 * i, bytes[i].length, true);
+    blob.set(bytes[i], offset);
+    offset += bytes[i].length;
+    if (i !== 0) spanReserve = Math.max(spanReserve, bytes[i].length + 32);
+  }
+  dv.setUint32(0, spanReserve, true);
+  return blob;
+}
+
+/** Resolved token styles, root colors, and the theme's HTML representation. */
+export interface PreparedTheme {
+  name: string;
+  /** Indexed by token id; null slots inherit the foreground. */
+  styles: (TokenStyle | null)[];
+  fg?: string;
+  bg?: string;
+  /** Five-byte RGBA/style records; undefined for Display P3 and CSS variables. */
+  table: Uint8Array | undefined;
+  /** Lazy UTF-8 HTML openers for Display P3 themes and named CSS palettes. */
+  readonly htmlOpeners: Uint8Array | undefined;
+  /** Lazy colors for ANSI palette indexes 0–15, in `ansiNames` order. */
+  readonly ansi: readonly string[];
+}
+
+// Theme names are not unique. Replace the object to change its cached styles.
+const preparedCache = new WeakMap<Theme, Map<string, PreparedTheme>>();
+
+/**
+ * Resolve all token styles for a theme or family.
+ * Cache by theme object identity and, for CSS-variable themes, by prefix.
+ * HTML, token, stream, and live output share the prepared object.
+ */
+export function prepareTheme(
+  theme: Theme | ThemeFamily,
+  cssVariablePrefix: string = defaultCssVariablePrefix
+): PreparedTheme {
+  const resolved = resolveTheme(theme);
+  const prefix = resolved.cssVariables === true ? cssVariablePrefix : '';
+  let prefixes = preparedCache.get(resolved);
+  const cached = prefixes?.get(prefix);
+  if (cached !== undefined) return cached;
+  const prepared =
+    resolved.cssVariables === true
+      ? prepareCssVariables(resolved.name, cssVariablePrefix)
+      : typeof resolved.cssVariables === 'object'
+        ? prepareCssPalette(resolved)
+        : prepareStyles(resolved);
+  if (prefixes === undefined) {
+    prefixes = new Map();
+    preparedCache.set(resolved, prefixes);
+  }
+  prefixes.set(prefix, prepared);
+  return prepared;
+}
+
+/** Palette colors are variable suffixes, not literal CSS values. */
+function prepareCssPalette(theme: Theme): PreparedTheme {
+  const config = theme.cssVariables;
+  if (typeof config !== 'object') throw new Error('Expected CSS palette');
+  const prefix = config.prefix ?? defaultCssVariablePrefix;
+  const variable = (name: string): string => {
+    const fallback = config.defaults?.[name];
+    return `var(${prefix}${name}${fallback ? `, ${fallback}` : ''})`;
+  };
+  const styles: (TokenStyle | null)[] = new Array(tokenTypes.length).fill(null);
+  const syntax = theme.style.syntax ?? {};
+  for (let i = 1; i < tokenTypes.length; i++) {
+    const setting = resolveThemeSyntax(syntax, tokenTypes[i]);
+    styles[i] = {
+      color: variable(setting?.color ?? 'foreground'),
+      italic: setting?.font_style === 'italic',
+      weight:
+        setting?.font_weight === undefined
+          ? 0
+          : Math.round(setting.font_weight / 100) * 100,
+    };
+  }
+  const fg = variable(themeForeground(theme.style) ?? 'foreground');
+  const bg = variable(themeBackground(theme.style) ?? 'background');
+  let htmlOpeners: Uint8Array | undefined;
+  let ansi: string[] | undefined;
+  return {
+    name: theme.name,
+    styles,
+    fg,
+    bg,
+    table: undefined,
+    get htmlOpeners() {
+      return (htmlOpeners ??= themeHtmlOpeners(styles, fg, bg));
+    },
+    get ansi() {
+      return (ansi ??= ansiNames.map((name) => {
+        const value = theme.style[`terminal.ansi.${name}`];
+        return variable(
+          typeof value === 'string'
+            ? value
+            : `terminal-ansi-${name.replace('_', '-')}`
+        );
+      }));
+    },
+  };
+}
+
+/**
+ * Each slot uses its prefixed CSS custom property. The theme's `style`
+ * is not read. Build these references on first use. HTML output only
+ * needs to know that there is no packed theme table.
+ */
+function prepareCssVariables(
+  name: string,
+  cssVariablePrefix: string
+): PreparedTheme {
+  let variables: Pick<PreparedTheme, 'styles' | 'fg' | 'bg'> | undefined;
+  const resolve = () => (variables ??= cssVariableStyles(cssVariablePrefix));
+  let ansi: string[] | undefined;
+  return {
+    name,
+    get styles() {
+      return resolve().styles;
+    },
+    get fg() {
+      return resolve().fg;
+    },
+    get bg() {
+      return resolve().bg;
+    },
+    table: undefined,
+    htmlOpeners: undefined,
+    get ansi() {
+      return (ansi ??= ansiNames.map((name) =>
+        cssVariable(`terminal.ansi.${name}`, cssVariablePrefix)
+      ));
+    },
+  };
+}
+
+/** Variable references for every token slot plus the foreground and background. */
+function cssVariableStyles(
+  cssVariablePrefix: string
+): Pick<PreparedTheme, 'styles' | 'fg' | 'bg'> {
+  const styles: (TokenStyle | null)[] = new Array(tokenTypes.length).fill(null);
+  for (let i = 1; i < tokenTypes.length; i++) {
+    styles[i] = {
+      color: cssVariable(tokenTypes[i], cssVariablePrefix),
+      italic: false,
+      weight: 0,
+    };
+  }
+  return {
+    styles,
+    fg: cssVariable('foreground', cssVariablePrefix),
+    bg: cssVariable('background', cssVariablePrefix),
+  };
+}
+
+/**
+ * Resolve token styles and pack hex colors and font settings into a Wasm
+ * theme table. Keep font settings even when the color is absent.
+ * Display P3 colors do not fit RGBA records. Themes with these colors
+ * use prepared HTML openers instead of a packed table.
+ */
+function prepareStyles(theme: Theme): PreparedTheme {
+  const themeStyle = theme.style ?? {};
+  const styles: (TokenStyle | null)[] = new Array(tokenTypes.length).fill(null);
+  const table = new Uint8Array(tokenTypes.length * 5);
+  let fg: string | undefined;
+  let bg: string | undefined;
+  let usesDisplayP3 = false;
+  for (let i = 1; i < tokenTypes.length; i++) {
+    const name = tokenTypes[i];
+    const style = resolveThemeStyle(themeStyle, name);
+    const { color, italic, weight } = style;
+    const o = i * 5;
+    if (color !== undefined) {
+      if (color.startsWith('#')) {
+        const rgb = parseInt(color.slice(1, 7), 16);
+        table[o] = rgb >> 16;
+        table[o + 1] = (rgb >> 8) & 0xff;
+        table[o + 2] = rgb & 0xff;
+        table[o + 3] = color.length === 9 ? parseInt(color.slice(7), 16) : 0xff;
+      } else {
+        // `resolveThemeStyle` only returns hex or `color(display-p3 …)`.
+        usesDisplayP3 = true;
+      }
+    }
+    table[o + 4] = (italic ? 0x10 : 0) | (weight / 100);
+    if (color === undefined && !italic && weight === 0) continue;
+    if (name === 'foreground') fg = color;
+    else if (name === 'background') bg = color;
+    else styles[i] = style;
+  }
+  let htmlOpeners: Uint8Array | undefined;
+  let ansi: string[] | undefined;
+  return {
+    name: theme.name,
+    styles,
+    fg,
+    bg,
+    table: usesDisplayP3 ? undefined : table,
+    get htmlOpeners() {
+      if (!usesDisplayP3) return undefined;
+      return (htmlOpeners ??= themeHtmlOpeners(styles, fg, bg));
+    },
+    get ansi() {
+      return (ansi ??= themeAnsiColors(themeStyle));
+    },
+  };
+}
+
+/**
+ * Pack theme colors and font styles for the Wasm HTML emitter.
+ * Escape attributes because CSS prefixes and defaults may contain quotes.
+ */
+function themeHtmlOpeners(
+  styles: (TokenStyle | null)[],
+  fg: string | undefined,
+  bg: string | undefined
+): Uint8Array {
+  const rootStyle =
+    (bg === undefined ? '' : `background-color:${bg};`) +
+    (fg === undefined ? '' : `color:${fg}`);
+  const openers = [
+    `<pre class="highlights" style="${escapeAttribute(rootStyle)}"><code>`,
+  ];
+  for (let i = 1; i < tokenTypes.length; i++) {
+    const style = styles[i];
+    const css =
+      `color:${style?.color ?? 'inherit'}` +
+      (style?.italic === true ? ';font-style:italic' : '') +
+      (style != null && style.weight !== 0
+        ? `;font-weight:${style.weight}`
+        : '');
+    openers.push(`<span style="${escapeAttribute(css)}">`);
+  }
+  return packHtmlOpeners(openers);
+}

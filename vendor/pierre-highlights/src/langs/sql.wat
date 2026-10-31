@@ -1,0 +1,683 @@
+(module
+  (import "../common.wat")
+
+  (func $sqlWordHl (param $lhs i32) (param $rhs i32) (result i32)
+    (local $c i32)
+    (local $n i32)
+    (local $w i64)
+    (local.set $n (i32.sub (local.get $rhs) (local.get $lhs)))
+    (if (i32.gt_u (i32.sub (local.get $n) (i32.const 2)) (i32.const 6))
+      (then (return (enum.get $Token.variable))))
+    (local.set $w
+      (i64.and
+        (i64.or (i64.load (local.get $lhs)) (i64.const 0x2020202020202020))
+        (i64.shr_u
+          (i64.const -1)
+          (i64.extend_i32_u (i32.shl (i32.sub (i32.const 8) (local.get $n)) (i32.const 3))))))
+    (local.set $c (i32.and (i32.wrap_i64 (local.get $w)) (i32.const 255)))
+    (byte-switch (local.get $c)
+      (case "a"
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "all"))
+            (i32.or
+              (i64.eq (local.get $w) (i64.const "as"))
+              (i64.eq (local.get $w) (i64.const "asc"))))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "and"))
+          (then (return (enum.get $Token.keyword.operator)))))
+      (case "b"
+        (if (i64.eq (local.get $w) (i64.const "by"))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "between"))
+          (then (return (enum.get $Token.keyword.operator))))
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "bigint"))
+            (i32.or
+              (i64.eq (local.get $w) (i64.const "blob"))
+              (i64.eq (local.get $w) (i64.const "boolean"))))
+          (then (return (enum.get $Token.type.builtin)))))
+      (case "c"
+        (if (i64.eq (local.get $w) (i64.const "create"))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "case"))
+          (then (return (enum.get $Token.keyword.control))))
+        (if (i64.eq (local.get $w) (i64.const "char"))
+          (then (return (enum.get $Token.type.builtin)))))
+      (case "d"
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "default"))
+            (i32.or
+              (i64.eq (local.get $w) (i64.const "delete"))
+              (i32.or
+                (i64.eq (local.get $w) (i64.const "desc"))
+                (i64.eq (local.get $w) (i64.const "distinct")))))
+          (then (return (enum.get $Token.keyword))))
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "date"))
+            (i32.or
+              (i64.eq (local.get $w) (i64.const "decimal"))
+              (i64.eq (local.get $w) (i64.const "double"))))
+          (then (return (enum.get $Token.type.builtin)))))
+      (case "e"
+        (if (i64.eq (local.get $w) (i64.const "end"))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "exists"))
+          (then (return (enum.get $Token.keyword.operator))))
+        (if (i64.eq (local.get $w) (i64.const "else"))
+          (then (return (enum.get $Token.keyword.control)))))
+      (case "f"
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "foreign"))
+            (i32.or
+              (i64.eq (local.get $w) (i64.const "from"))
+              (i64.eq (local.get $w) (i64.const "full"))))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "false"))
+          (then (return (enum.get $Token.boolean)))))
+      (case "g"
+        (if (i64.eq (local.get $w) (i64.const "group"))
+          (then (return (enum.get $Token.keyword)))))
+      (case "h"
+        (if (i64.eq (local.get $w) (i64.const "having"))
+          (then (return (enum.get $Token.keyword)))))
+      (case "i"
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "inner"))
+            (i32.or
+              (i64.eq (local.get $w) (i64.const "insert"))
+              (i64.eq (local.get $w) (i64.const "into"))))
+          (then (return (enum.get $Token.keyword))))
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "in"))
+            (i64.eq (local.get $w) (i64.const "is")))
+          (then (return (enum.get $Token.keyword.operator))))
+        (if (i64.eq (local.get $w) (i64.const "integer"))
+          (then (return (enum.get $Token.type.builtin)))))
+      (case "j"
+        (if (i64.eq (local.get $w) (i64.const "join"))
+          (then (return (enum.get $Token.keyword))))
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "json"))
+            (i64.eq (local.get $w) (i64.const "jsonb")))
+          (then (return (enum.get $Token.type.builtin)))))
+      (case "l"
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "left"))
+            (i64.eq (local.get $w) (i64.const "limit")))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "like"))
+          (then (return (enum.get $Token.keyword.operator)))))
+      (case "n"
+        (if (i64.eq (local.get $w) (i64.const "not"))
+          (then (return (enum.get $Token.keyword.operator))))
+        (if (i64.eq (local.get $w) (i64.const "nchar"))
+          (then (return (enum.get $Token.type.builtin))))
+        (if (i64.eq (local.get $w) (i64.const "null"))
+          (then (return (enum.get $Token.constant.builtin)))))
+      (case "o"
+        (if
+          (i32.or
+            (i64.eq (local.get $w) (i64.const "on"))
+            (i32.or
+              (i64.eq (local.get $w) (i64.const "order"))
+              (i64.eq (local.get $w) (i64.const "outer"))))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "or"))
+          (then (return (enum.get $Token.keyword.operator)))))
+      (case "p"
+        (if (i64.eq (local.get $w) (i64.const "primary"))
+          (then (return (enum.get $Token.keyword)))))
+      (case "r"
+        (if (i64.eq (local.get $w) (i64.const "right"))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "real"))
+          (then (return (enum.get $Token.type.builtin)))))
+      (case "s"
+        (if
+          (i32.or
+        (i64.eq (local.get $w) (i64.const "select"))
+        (i64.eq (local.get $w) (i64.const "set")))
+          (then (return (enum.get $Token.keyword)))))
+      (case "t"
+        (if
+          (i32.or
+        (i64.eq (local.get $w) (i64.const "table"))
+        (i64.eq (local.get $w) (i64.const "to")))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "then"))
+          (then (return (enum.get $Token.keyword.control))))
+        (if (i64.eq (local.get $w) (i64.const "text"))
+          (then (return (enum.get $Token.type.builtin))))
+        (if (i64.eq (local.get $w) (i64.const "true"))
+          (then (return (enum.get $Token.boolean)))))
+      (case "u"
+        (if
+          (i32.or
+        (i64.eq (local.get $w) (i64.const "union"))
+        (i32.or
+          (i64.eq (local.get $w) (i64.const "update"))
+          (i64.eq (local.get $w) (i64.const "using"))))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "uuid"))
+          (then (return (enum.get $Token.type.builtin)))))
+      (case "v"
+        (if (i64.eq (local.get $w) (i64.const "values"))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "varchar"))
+          (then (return (enum.get $Token.type.builtin)))))
+      (case "w"
+        (if
+          (i32.or
+        (i64.eq (local.get $w) (i64.const "where"))
+        (i64.eq (local.get $w) (i64.const "with")))
+          (then (return (enum.get $Token.keyword))))
+        (if (i64.eq (local.get $w) (i64.const "when"))
+          (then (return (enum.get $Token.keyword.control))))))
+    (enum.get $Token.variable))
+
+  (global $sqlPlsql (mut i32) (i32.const 0))
+
+  ;; Lowercase words $sqlWordHl does not know. Bits 8-9 capture the next name:
+  ;; 1 a routine, 2 a package, 3 a type. Bit 10 (`body`) keeps a capture armed.
+  (keyword-table $plsqlWords $mem.plsqlWords $mem.cobolWords
+    (group $Token.keyword.control
+      "if" "elsif" "loop" "while" "for" "exit" "continue" "return" "goto" "raise"
+      "forall")
+    (group $Token.keyword.declaration+256 "procedure" "function" "trigger")
+    (group $Token.keyword.declaration+512 "package")
+    (group $Token.keyword.declaration+768 "type" "subtype")
+    (group $Token.keyword.declaration+1024 "body")
+    (group $Token.keyword.declaration
+      "declare" "cursor" "constant" "pragma" "record" "varray" "nocopy" "deterministic"
+      "pipelined")
+    (group $Token.keyword
+      "begin" "exception" "is" "of" "out" "replace" "alter" "drop" "grant" "revoke" "view"
+      "index" "sequence" "merge" "minus" "intersect" "returning" "bulk" "collect" "open" "fetch"
+      "close" "commit" "rollback" "savepoint" "execute" "immediate" "others" "row" "rows" "only"
+      "first" "last" "next" "prior" "start" "level" "nulls" "key" "references"
+      "constraint" "unique" "check" "each" "before" "after" "instead" "partition" "over" "cross"
+      "matched" "current" "authid")
+    (group $Token.type.builtin
+      "varchar2" "nvarchar2" "number" "int" "pls_integer" "binary_integer" "simple_integer"
+      "timestamp" "interval" "clob" "nclob" "bfile" "raw" "long" "rowid" "float" "numeric"
+      "smallint" "binary_float" "binary_double" "sys_refcursor" "natural" "positive" "xmltype")
+    (group $Token.constant.builtin
+      "no_data_found" "too_many_rows" "dup_val_on_index" "value_error" "zero_divide"
+      "invalid_number" "cursor_already_open")
+    (group $Token.variable.special "sql" "sqlcode" "sqlerrm" "sysdate" "systimestamp"))
+
+  (func $plsqlWordHl (param $lhs i32) (param $rhs i32) (result i32)
+    (local $v i32)
+    (local.set $v
+      (keyword-table.value $plsqlWords
+        (i32.const $mem.lexLowerScratch)
+        (i32.add
+          (i32.const $mem.lexLowerScratch)
+          (call $lexLowerCopy (local.get $lhs) (local.get $rhs) (i32.const $mem.lexLowerScratch)))))
+    (if (result i32) (i32.ge_s (local.get $v) (i32.const 0))
+      (then (local.get $v))
+      (else (call $sqlWordHl (local.get $lhs) (local.get $rhs)))))
+
+  ;; Streaming checkpoints the closer at $end.
+  (func $plsqlQuote (param $p i32)
+    (local $close i32)
+    (local $lhs i32)
+    (local.set $lhs (global.get $ptr))
+    (local.set $close (call $templateByte (local.get $p)))
+    (if (i32.or (byteset.get "([{" (local.get $close)) (i32.eq (local.get $close) (i32.const "<")))
+      (then
+        (local.set $close
+          (i32.add
+            (local.get $close)
+            (select (i32.const 1) (i32.const 2) (i32.eq (local.get $close) (i32.const "(")))))))
+    (global.set $ptr (i32.add (local.get $p) (i32.const 1)))
+    (block $done
+      (loop $scan
+        (global.set $ptr (call $lexFindByte (global.get $ptr) (local.get $close)))
+        (if (i32.ge_u (i32.add (global.get $ptr) (i32.const 1)) (global.get $end))
+          (then
+            (global.set $ptr (global.get $end))
+            (call $emitTok (enum.get $Token.string) (local.get $lhs) (global.get $ptr))
+            (call $streamSetFixed32
+              (i32.or (local.get $close) (i32.const 0x2700))
+              (i32.const 2)
+              (enum.get $Token.string))
+            (return)))
+        (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+        (br_if $scan (i32.ne (i32.load8_u (global.get $ptr)) (i32.const 39)))))
+    (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+    (call $emitTok (enum.get $Token.string) (local.get $lhs) (global.get $ptr)))
+
+  (func $sqlDollarString (result i32)
+    (local $candidate i32)
+    (local $delimiter i32)
+    (local $i i32)
+    (local $lhs i32)
+    (local $mask i64)
+    (local $matched i32)
+    (local $n i32)
+    (local $p i32)
+    (local.set $lhs (global.get $ptr))
+    (local.set $p (i32.add (local.get $lhs) (i32.const 1)))
+    (if (i32.ge_u (local.get $p) (global.get $end))
+      (then (return (i32.const 0))))
+    (if
+      (i32.and
+        (i32.ne (i32.load8_u (local.get $p)) (i32.const "$"))
+        (i32.eqz (call $lexIsIdentStart (i32.load8_u (local.get $p)))))
+      (then (return (i32.const 0))))
+    (block $tagDone
+      (loop $tag
+        (br_if $tagDone (i32.ge_u (local.get $p) (global.get $end)))
+        (br_if $tagDone (i32.eq (i32.load8_u (local.get $p)) (i32.const "$")))
+        (if (i32.eqz (call $lexIsIdentContinue (i32.load8_u (local.get $p))))
+          (then (return (i32.const 0))))
+        (local.set $p (i32.add (local.get $p) (i32.const 1)))
+        (br $tag)))
+    (if
+      (i32.or
+        (i32.ge_u (local.get $p) (global.get $end))
+        (i32.ne (i32.load8_u (local.get $p)) (i32.const "$")))
+      (then (return (i32.const 0))))
+    (local.set $delimiter (i32.add (local.get $p) (i32.const 1)))
+    (local.set $n (i32.sub (local.get $delimiter) (local.get $lhs)))
+    ;; width mask for the packed compare below; only read when $n is 8 or less
+    (local.set $mask
+      (i64.shr_u
+        (i64.const -1)
+        (i64.extend_i32_u (i32.shl (i32.sub (i32.const 8) (local.get $n)) (i32.const 3)))))
+    (global.set $ptr (local.get $delimiter))
+    (block $done
+      (loop $search
+        (local.set $candidate (call $lexFindByte (global.get $ptr) (i32.const "$")))
+        ;; A tag that no longer fits before $end cannot fit at any later
+        ;; candidate either - candidates only move forward - so the first short
+        ;; one ends the search unterminated. This is also the miss case, where
+        ;; $lexFindByte returned $end itself.
+        (if (i32.gt_u (i32.add (local.get $candidate) (local.get $n)) (global.get $end))
+          (then
+            (local.set $matched (i32.const 0))
+            (global.set $ptr (global.get $end))
+            (br $done)))
+        (local.set $matched (i32.const 1))
+        (if (i32.le_u (local.get $n) (i32.const 8))
+          (then
+            (local.set $matched
+              (i64.eq
+                (i64.and (i64.load (local.get $lhs)) (local.get $mask))
+                (i64.and (i64.load (local.get $candidate)) (local.get $mask)))))
+          (else
+            (local.set $i (i32.const 0))
+            (block $compareDone
+              (loop $compare
+                (br_if $compareDone (i32.ge_u (local.get $i) (local.get $n)))
+                (if
+                  (i32.ne
+                    (i32.load8_u (i32.add (local.get $lhs) (local.get $i)))
+                    (i32.load8_u (i32.add (local.get $candidate) (local.get $i))))
+                  (then
+                    (local.set $matched (i32.const 0))
+                    (br $compareDone)))
+                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                (br $compare)))))
+        (if (local.get $matched)
+          (then
+            (global.set $ptr (i32.add (local.get $candidate) (local.get $n)))
+            (br $done)))
+        (global.set $ptr (i32.add (local.get $candidate) (i32.const 1)))
+        (br $search)))
+    (call $emitTok (enum.get $Token.string) (local.get $lhs) (global.get $ptr))
+    (if (i32.eqz (local.get $matched))
+      (then (call $streamSetFixed (local.get $lhs) (local.get $n) (enum.get $Token.string))))
+    (i32.const 1))
+
+  ;; Whether the name at $lhs follows INTO or TABLE, through blanks and one
+  ;; `schema.` qualifier: there a glued `t(a, b)` is the table and its column
+  ;; list rather than a call. The walk back stays on the current line, which
+  ;; is where every stream chunk starts, so whole-buffer and line-fed runs
+  ;; agree without carrying state.
+  (func $sqlTableBefore (param $lhs i32) (result i32)
+    (local $p i32)
+    (local $w i32)
+    (local.set $p (local.get $lhs))
+    (if
+      (i32.and
+        (i32.gt_u (local.get $p) (global.get $srcBase))
+        (i32.eq (i32.load8_u (i32.sub (local.get $p) (i32.const 1))) (i32.const ".")))
+      (then
+        (local.set $p (i32.sub (local.get $p) (i32.const 1)))
+        (block $qualDone
+          (loop $qual
+            (br_if $qualDone (i32.le_u (local.get $p) (global.get $srcBase)))
+            (br_if $qualDone
+              (i32.eqz
+                (call $lexIsIdentContinue (i32.load8_u (i32.sub (local.get $p) (i32.const 1))))))
+            (local.set $p (i32.sub (local.get $p) (i32.const 1)))
+            (br $qual)))))
+    (block $blankDone
+      (loop $blank
+        (br_if $blankDone (i32.le_u (local.get $p) (global.get $srcBase)))
+        (local.set $w (i32.load8_u (i32.sub (local.get $p) (i32.const 1))))
+        (br_if $blankDone
+          (i32.and (i32.ne (local.get $w) (i32.const 32)) (i32.ne (local.get $w) (i32.const 9))))
+        (local.set $p (i32.sub (local.get $p) (i32.const 1)))
+        (br $blank)))
+    (local.set $w (local.get $p))
+    (block $wordDone
+      (loop $word
+        (br_if $wordDone (i32.le_u (local.get $p) (global.get $srcBase)))
+        (br_if $wordDone
+          (i32.eqz (call $lexIsIdentContinue (i32.load8_u (i32.sub (local.get $p) (i32.const 1))))))
+        (local.set $p (i32.sub (local.get $p) (i32.const 1)))
+        (br $word)))
+    (local.set $w (i32.sub (local.get $w) (local.get $p)))
+    (i32.or
+      (i32.and
+        (i32.eq (local.get $w) (i32.const 4))
+        (i32.eq
+          (i32.or (i32.load (local.get $p)) (i32.const 0x20202020))
+          (i32.const "into")))
+      (i32.and
+        (i32.eq (local.get $w) (i32.const 5))
+        (i64.eq
+          (i64.and
+            (i64.or (i64.load (local.get $p)) (i64.const 0x2020202020))
+            (i64.const 0xffffffffff))
+          (i64.const "table")))))
+
+  ;; $temp is 1 when the token is a T-SQL temp table name, `#name` or
+  ;; `##name`. The name after the hashes is re-derived from $next where it is
+  ;; scanned, so no position carries between tokens. Only $expect, the PL/SQL
+  ;; name capture, is checkpointed.
+  (func $hlSqlImpl
+    (local $c i32)
+    (local $hl i32)
+    (local $lhs i32)
+    (local $next i32)
+    (local $p i32)
+    (local $temp i32)
+    (local $expect i32)
+    (call $lexEmitLeadingContinuation)
+    (block $done
+      (loop $token
+        (local.set $lhs (global.get $ptr))
+        (call $scanWhitespace)
+        (call $emitGap (local.get $lhs) (global.get $ptr))
+        (br_if $done (i32.ge_u (global.get $ptr) (global.get $end)))
+        (local.set $lhs (global.get $ptr))
+        (local.set $c (i32.load8_u (global.get $ptr)))
+        (local.set $next
+          (select
+            (i32.load8_u offset=1 (global.get $ptr))
+            (i32.const 0)
+            (i32.lt_u (i32.add (global.get $ptr) (i32.const 1)) (global.get $end))))
+
+        (if (global.get $sqlPlsql)
+          (then
+            (if
+              (i32.or
+                (i32.and (i32.eq (local.get $c) (i32.const ":")) (i32.eq (local.get $next) (i32.const "=")))
+                (i32.and (i32.eq (local.get $c) (i32.const ".")) (i32.eq (local.get $next) (i32.const "."))))
+              (then
+                (global.set $ptr (i32.add (local.get $lhs) (i32.const 2)))
+                (call $emitTok (enum.get $Token.operator) (local.get $lhs) (global.get $ptr))
+                (br $token)))
+            (if (i32.and (i32.eq (local.get $c) (i32.const "%")) (call $lexIsIdentStart (local.get $next)))
+              (then
+                (global.set $ptr (i32.add (local.get $lhs) (i32.const 1)))
+                (call $lexScanIdent)
+                (call $emitTok (enum.get $Token.keyword) (local.get $lhs) (global.get $ptr))
+                (br $token)))
+            (if (i32.eq (local.get $c) (i32.const "$"))
+              (then
+                (global.set $ptr (i32.add (local.get $lhs) (i32.const 1)))
+                (call $lexScanIdent)
+                (call $emitTok (enum.get $Token.preproc) (local.get $lhs) (global.get $ptr))
+                (br $token)))
+            (if (i32.eq (local.get $c) (i32.const "&"))
+              (then
+                (local.set $p
+                  (i32.add (local.get $lhs) (i32.add (i32.const 1) (i32.eq (local.get $next) (i32.const "&")))))
+                (if (call $lexIsIdentStart (call $templateByte (local.get $p)))
+                  (then
+                    (global.set $ptr (local.get $p))
+                    (call $lexScanIdent)
+                    (call $emitTok (enum.get $Token.variable.special) (local.get $lhs) (global.get $ptr))
+                    (br $token)))))
+            (if (i32.and (i32.eq (local.get $c) (i32.const "<")) (i32.eq (local.get $next) (i32.const "<")))
+              (then
+                (global.set $ptr (i32.add (local.get $lhs) (i32.const 2)))
+                (call $lexScanIdent)
+                (if
+                  (i32.and
+                    (i32.gt_u (global.get $ptr) (i32.add (local.get $lhs) (i32.const 2)))
+                    (i32.and
+                      (i32.eq (call $templateByte (global.get $ptr)) (i32.const ">"))
+                      (i32.eq (call $templateByte (i32.add (global.get $ptr) (i32.const 1))) (i32.const ">"))))
+                  (then
+                    (global.set $ptr (i32.add (global.get $ptr) (i32.const 2)))
+                    (call $emitTok (enum.get $Token.label) (local.get $lhs) (global.get $ptr))
+                    (br $token)))
+                (global.set $ptr (local.get $lhs))))
+            (local.set $p
+              (i32.add (local.get $lhs) (i32.eq (i32.or (local.get $c) (i32.const 32)) (i32.const "n"))))
+            ;; Oracle rejects a blank, tab, or line break as the delimiter
+            (if
+              (i32.and
+                (i32.and
+                  (i32.eq (i32.or (call $templateByte (local.get $p)) (i32.const 32)) (i32.const "q"))
+                  (i32.eq (call $templateByte (i32.add (local.get $p) (i32.const 1))) (i32.const 39)))
+                (i32.gt_u (call $templateByte (i32.add (local.get $p) (i32.const 2))) (i32.const 32)))
+              (then
+                (call $plsqlQuote (i32.add (local.get $p) (i32.const 2)))
+                (br $token)))
+            ;; `#` is a name byte in PL/SQL, never a MySQL comment
+            (if (i32.eq (local.get $c) (i32.const "#"))
+              (then
+                (global.set $ptr (i32.add (local.get $lhs) (i32.const 1)))
+                (call $emitTok (enum.get $Token.none) (local.get $lhs) (global.get $ptr))
+                (br $token)))))
+
+        ;; `#` is MySQL's line comment only where no other dialect gives it
+        ;; a meaning: PostgreSQL's `#>`, `#>>` and `#-` are JSON operators,
+        ;; and a `#`/`##` glued to a name is a T-SQL temp table
+        (local.set $temp (i32.const 0))
+        (if (i32.eq (local.get $c) (i32.const "#"))
+          (then
+            (if (i32.or (i32.eq (local.get $next) (i32.const ">")) (i32.eq (local.get $next) (i32.const "-")))
+              (then
+                (global.set $ptr (i32.add (global.get $ptr) (i32.const 2)))
+                (global.set $ptr
+                  (i32.add
+                    (global.get $ptr)
+                    (i32.and
+                      (i32.eq (local.get $next) (i32.const ">"))
+                      (i32.and
+                        (i32.lt_u (global.get $ptr) (global.get $end))
+                        (i32.eq (i32.load8_u (global.get $ptr)) (i32.const ">"))))))
+                (call $emitTok (enum.get $Token.operator) (local.get $lhs) (global.get $ptr))
+                (br $token)))
+            (local.set $p
+              (i32.add
+                (global.get $ptr)
+                (select (i32.const 2) (i32.const 1) (i32.eq (local.get $next) (i32.const "#")))))
+            (local.set $temp
+              (i32.and
+                (i32.lt_u (local.get $p) (global.get $end))
+                (call $lexIsIdentStart (i32.load8_u (local.get $p)))))))
+        (if
+          (i32.or
+            (i32.and
+              (i32.eq (local.get $c) (i32.const "-"))
+              (i32.eq (local.get $next) (i32.const "-")))
+            (i32.and (i32.eq (local.get $c) (i32.const "#")) (i32.eqz (local.get $temp))))
+          (then
+            (call $lexLineComment
+              (select (i32.const 2) (i32.const 1) (i32.eq (local.get $c) (i32.const "-")))
+              (enum.get $Token.comment))
+            (br $token)))
+        (if
+          (i32.and
+            (i32.eq (local.get $c) (i32.const "/"))
+            (i32.eq (local.get $next) (i32.const "*")))
+          (then
+            (call $lexBlockComment (i32.const 2) (enum.get $Token.comment))
+            (br $token)))
+
+        (if
+          (i32.or
+            (i32.or (i32.eq (local.get $c) (i32.const 34)) (i32.eq (local.get $c) (i32.const 39)))
+            (i32.eq (local.get $c) (i32.const "`")))
+          (then
+            ;; SQL has no backslash escapes: a doubled quote is the escape, so
+            ;; `'It''s'` lexes as a close and a reopen that merge into one
+            ;; string span, and `'C:\'` ends at its closing quote. Multiline,
+            ;; so a body left open at a chunk end resumes as common mode 3.
+            (call $lexRawString (local.get $c) (i32.const 1) (enum.get $Token.string))
+            (br $token)))
+        (if (i32.eq (local.get $c) (i32.const "$"))
+          (then
+            (if (call $sqlDollarString)
+              (then (br $token)))))
+
+        (if
+          (i32.or
+            (call $lexIsDigit (local.get $c))
+            (i32.and (i32.eq (local.get $c) (i32.const ".")) (call $lexIsDigit (local.get $next))))
+          (then
+            (call $lexScanNumber)
+            (call $emitTok (enum.get $Token.number) (local.get $lhs) (global.get $ptr))
+            (br $token)))
+        ;; A name is a call only with its `(` glued on - `COUNT(*)`, `NOW()` -
+        ;; since `INSERT INTO t (a, b)` and `CREATE TABLE users (` put a
+        ;; column list after a blank; right after INTO or TABLE, through a
+        ;; schema prefix such as `dbo.`, even a glued list belongs to the
+        ;; table. Temp table names skip the keywords.
+        (if (i32.or (call $lexIsIdentStart (local.get $c)) (local.get $temp))
+          (then
+            (local.set $hl (enum.get $Token.variable))
+            (if (local.get $temp)
+              (then
+                (global.set $ptr
+                  (i32.add
+                    (global.get $ptr)
+                    (select (i32.const 2) (i32.const 1) (i32.eq (local.get $next) (i32.const "#")))))
+                (call $lexScanIdent))
+              (else
+                (call $lexScanIdent)
+                (if (global.get $sqlPlsql)
+                  (then
+                    ;; a member after `.` is never a keyword: `l_tab.first`
+                    (if
+                      (i32.or
+                        (i32.le_u (local.get $lhs) (global.get $srcBase))
+                        (i32.ne (i32.load8_u (i32.sub (local.get $lhs) (i32.const 1))) (i32.const ".")))
+                      (then (local.set $hl (call $plsqlWordHl (local.get $lhs) (global.get $ptr)))))
+                    (if (i32.gt_u (local.get $hl) (i32.const 255))
+                      (then
+                        (if (i32.lt_u (local.get $hl) (i32.const 1024))
+                          (then (local.set $expect (i32.shr_u (local.get $hl) (i32.const 8)))))
+                        (local.set $hl (i32.and (local.get $hl) (i32.const 255))))
+                      (else
+                        (if (i32.ne (local.get $hl) (enum.get $Token.variable))
+                          (then (local.set $expect (i32.const 0))))))
+                    (if
+                      (i32.and
+                        (i32.ne (local.get $expect) (i32.const 0))
+                        (i32.eq (local.get $hl) (enum.get $Token.variable)))
+                      (then
+                        (if (i32.eq (call $templateByte (global.get $ptr)) (i32.const "."))
+                          (then (local.set $hl (enum.get $Token.namespace)))
+                          (else
+                            (local.set $hl
+                              (select
+                                (enum.get $Token.function.definition)
+                                (select
+                                  (enum.get $Token.namespace)
+                                  (enum.get $Token.type)
+                                  (i32.eq (local.get $expect) (i32.const 2)))
+                                (i32.eq (local.get $expect) (i32.const 1))))
+                            (local.set $expect (i32.const 0)))))))
+                  (else (local.set $hl (call $sqlWordHl (local.get $lhs) (global.get $ptr)))))))
+            (if
+              (i32.and
+                (i32.eq (local.get $hl) (enum.get $Token.variable))
+                (i32.and
+                  (i32.lt_u (global.get $ptr) (global.get $end))
+                  (i32.eq (i32.load8_u (global.get $ptr)) (i32.const "("))))
+              (then
+                (if (i32.eqz (call $sqlTableBefore (local.get $lhs)))
+                  (then (local.set $hl (enum.get $Token.function))))))
+            (call $emitTok (local.get $hl) (local.get $lhs) (global.get $ptr))
+            (br $token)))
+
+        (if
+          (i32.or
+            (i32.eq (local.get $c) (i32.const "?"))
+            (i32.or
+              (i32.eq (local.get $c) (i32.const "$"))
+              (i32.or
+                (i32.eq (local.get $c) (i32.const ":"))
+                (i32.eq (local.get $c) (i32.const "@")))))
+          (then
+            (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+            (call $lexScanIdent)
+            (call $emitTok (enum.get $Token.variable.special) (local.get $lhs) (global.get $ptr))
+            (br $token)))
+        (if
+          (i32.or
+            (i32.or (i32.eq (local.get $c) (i32.const "(")) (i32.eq (local.get $c) (i32.const ")")))
+            (i32.or
+              (i32.eq (local.get $c) (i32.const "["))
+              (i32.eq (local.get $c) (i32.const "]"))))
+          (then
+            (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+            (call $emitTok (enum.get $Token.punctuation.bracket) (local.get $lhs) (global.get $ptr))
+            (br $token)))
+        (if
+          (i32.or
+            (i32.eq (local.get $c) (i32.const ","))
+            (i32.or
+              (i32.eq (local.get $c) (i32.const ";"))
+              (i32.eq (local.get $c) (i32.const "."))))
+          (then
+            (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+            (call $emitTok
+              (enum.get $Token.punctuation.delimiter)
+              (local.get $lhs)
+              (global.get $ptr))
+            (br $token)))
+        (if
+          (i32.or
+            (i32.le_u (i32.sub (local.get $c) (i32.const "<")) (i32.const 2))
+            (i32.or
+              (i32.le_u (i32.sub (local.get $c) (i32.const "+")) (i32.const 3))
+              (byteset.get "!%&*/^|~" (local.get $c))))
+          (then
+            ;; $next is 0 at $end, which matches neither
+            (global.set $ptr
+              (i32.add
+                (global.get $ptr)
+                (select
+                  (i32.const 2)
+                  (i32.const 1)
+                  (i32.or (i32.eq (local.get $next) (i32.const "=")) (i32.eq (local.get $next) (local.get $c))))))
+            (call $emitTok (enum.get $Token.operator) (local.get $lhs) (global.get $ptr))
+            (br $token)))
+        (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+        (call $emitTok (enum.get $Token.none) (local.get $lhs) (global.get $ptr))
+        (br $token))))
+
+  (func $hlSql
+    (global.set $sqlPlsql (i32.const 0))
+    (call $hlSqlImpl))
+)

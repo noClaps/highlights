@@ -1,0 +1,147 @@
+import { expect, test } from 'bun:test';
+
+import { codeToTokens, type Lang } from '../lib/index';
+import languages from '../lib/languages';
+import { samples, zonSample } from './_samples';
+import {
+  assertLineFedParity,
+  distinctTheme,
+  initFullModule,
+  kindOfColor,
+  tokenKinds,
+} from './_util';
+
+const additions = [
+  ['apache', ['apache', 'apacheconf', 'htaccess']],
+  ['asciidoc', ['asciidoc', 'adoc']],
+  ['bicep', ['bicep']],
+  ['blade', ['blade']],
+  ['dotenv', ['dotenv', 'env']],
+  ['gherkin', ['gherkin', 'cucumber', 'feature']],
+  ['gnuplot', ['gnuplot', 'gp']],
+  ['http', ['http']],
+  ['log', ['log']],
+  ['nginx', ['nginx']],
+  ['po', ['po', 'pot', 'potx']],
+  ['prisma', ['prisma']],
+  ['razor', ['razor', 'cshtml']],
+  ['rst', ['rst', 'restructuredtext']],
+  ['ini', ['ini', 'desktop', 'properties', 'systemd']],
+  ['ada', ['ada', 'adb', 'ads']],
+  ['apex', ['apex']],
+  ['asm', ['mips', 'mipsasm', 'riscv']],
+  ['awk', ['awk']],
+  ['cobol', ['cobol', 'cbl', 'cob']],
+  ['coffee', ['coffee', 'coffeescript']],
+  ['css', ['postcss', 'qss']],
+  ['erb', ['erb']],
+  ['groovy', ['nextflow', 'nextflow-groovy', 'nf']],
+  ['haml', ['haml']],
+  ['handlebars', ['handlebars', 'hbs', 'mustache']],
+  ['haxe', ['haxe', 'hx']],
+  ['html', ['html-derivative']],
+  ['jinja', ['jinja', 'j2', 'jinja2']],
+  ['liquid', ['liquid']],
+  ['plsql', ['plsql']],
+  ['prolog', ['prolog']],
+  ['pug', ['pug', 'jade']],
+  ['qml', ['qml']],
+  ['tcl', ['tcl']],
+  ['ts', ['lit', 'ts-tags']],
+  ['twig', ['twig']],
+  ['verilog', ['verilog', 'sv', 'svh', 'system-verilog', 'systemverilog']],
+  ['vhdl', ['vhdl', 'vhd']],
+  ['viml', ['viml', 'vim', 'vimscript']],
+  ['vue', ['vue-html']],
+  ['xml', ['xsl', 'xslt']],
+  ['lean', ['lean', 'lean4']],
+  ['gdresource', ['gdresource', 'godot-resource', 'tres', 'tscn']],
+  ['gdscript', ['gdscript', 'gd']],
+  ['gdshader', ['gdshader', 'godot-shader', 'gdshaderinc']],
+  ['batch', ['batch', 'bat', 'batchfile', 'cmd', 'dos']],
+  ['elm', ['elm']],
+  ['cuda', ['cuda', 'cu', 'cuh']],
+  ['csv', ['csv']],
+  ['tsv', ['tsv']],
+  ['fortran', ['fortran', 'fortran-free-form', 'f90', 'f95', 'f03', 'f08']],
+  ['fortran-fixed-form', ['fortran-fixed-form', 'f', 'for', 'f77']],
+  ['groq', ['groq']],
+  ['solidity', ['solidity', 'sol']],
+  ['zig', ['zig', 'zon']],
+  ['abap', ['abap']],
+  ['applescript', ['applescript']],
+  ['bibtex', ['bibtex', 'bib']],
+  ['codeowners', ['codeowners']],
+  ['codeql', ['codeql', 'ql']],
+  ['coq', ['coq', 'rocq']],
+  ['cypher', ['cypher', 'cql']],
+  ['d', ['d']],
+  ['dax', ['dax']],
+  ['fish', ['fish']],
+  ['hack', ['hack']],
+  ['jsonnet', ['jsonnet', 'libsonnet']],
+  ['just', ['just', 'justfile']],
+  ['kdl', ['kdl']],
+  ['lisp', ['racket', 'rkt']],
+  ['llvm', ['llvm']],
+  ['luau', ['luau']],
+  ['mermaid', ['mermaid', 'mmd']],
+  ['moonbit', ['moonbit', 'mbt']],
+  ['openscad', ['openscad', 'scad']],
+  ['powerquery', ['powerquery', 'pq']],
+  ['puppet', ['puppet']],
+  ['reg', ['reg']],
+  ['rosmsg', ['rosmsg']],
+  ['sas', ['sas']],
+  ['shaderlab', ['shaderlab', 'shader']],
+  ['sparql', ['sparql']],
+  ['stata', ['stata']],
+  ['stylus', ['stylus', 'styl']],
+  ['turtle', ['turtle', 'ttl']],
+  ['typst', ['typst', 'typ']],
+  ['wolfram', ['wolfram', 'wl', 'mathematica']],
+] as const satisfies readonly (readonly [Lang, readonly Lang[]])[];
+
+test('mdc resolves to the Markdown lexer', () => {
+  expect(languages.mdc).toBe(languages.markdown);
+});
+
+test('plain text aliases retain ID zero and bypass language syntax', () => {
+  for (const alias of ['plain', 'plaintext', 'text', 'txt'] as const) {
+    expect(languages[alias]).toBe(0);
+    expect(tokenKinds(alias, 'if "λ😀" /* text */ <tag>')).toEqual([
+      ['if "λ😀" /* text */ <tag>', null],
+    ]);
+  }
+});
+
+for (const [lang, aliases] of additions) {
+  test(`${lang}: aliases and Markdown fences use the same lexer`, () => {
+    initFullModule();
+    const code = lang === 'zig' ? zonSample : samples[lang].code;
+    const expected = codeToTokens(code, { lang, theme: distinctTheme })
+      .tokens.slice(0, -1)
+      .map((line) =>
+        line.map((token) => [token.content, kindOfColor(token.color)])
+      );
+    for (const alias of aliases) {
+      expect(tokenKinds(alias, code)).toEqual(tokenKinds(lang, code));
+      for (const markup of ['markdown', 'mdx'] as const) {
+        const fence = `\`\`\`${alias}\n${code}\`\`\`\n`;
+        const actual = assertLineFedParity(markup, fence)
+          .slice(1, expected.length + 1)
+          .map((line) =>
+            line.map((token) => [token.content, kindOfColor(token.color)])
+          );
+        expect(actual).toEqual(expected);
+      }
+    }
+  });
+}
+
+test('CUDA words do not change ordinary C++ highlighting', () => {
+  expect(tokenKinds('cpp', '__global__ int value;')).toContainEqual([
+    '__global__',
+    'variable',
+  ]);
+});
