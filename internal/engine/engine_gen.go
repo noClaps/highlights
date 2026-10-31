@@ -658,13 +658,14 @@ func (m *Machine) ScanToLineEnd() {
 func (m *Machine) ScanBlockCommentEnd() {
 	var mask uint32
 	var stars rt.V128
+	mem := m.Mem
 	for {
 		if m.Ptr >= m.End {
 			break
 		}
-		stars = rt.LdV(m.Mem[m.Ptr:]).Eq8(rt.Splat8(42))
+		stars = rt.LdV(mem[m.Ptr:]).Eq8(rt.Splat8(42))
 		if stars.AnyTrue() {
-			mask = stars.And(rt.LdV(m.Mem[m.Ptr+1:]).Eq8(rt.Splat8(47))).Bitmask8()
+			mask = stars.And(rt.LdV(mem[m.Ptr+1:]).Eq8(rt.Splat8(47))).Bitmask8()
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask)) + 2
 				break
@@ -722,10 +723,11 @@ func (m *Machine) ScanFindSpecial(p, stop, q, esc, nl uint32) uint32 {
 func (m *Machine) ScanWhitespace() {
 	var mask uint32
 	var w rt.V128
+	mem := m.Mem
 	if m.Ptr >= m.End {
 		return
 	}
-	c := uint32(m.Mem[m.Ptr])
+	c := uint32(mem[m.Ptr])
 	if !(c == ' ' || c-9 <= 4) {
 		return
 	}
@@ -733,7 +735,7 @@ func (m *Machine) ScanWhitespace() {
 	if m.Ptr >= m.End {
 		return
 	}
-	c = uint32(m.Mem[m.Ptr])
+	c = uint32(mem[m.Ptr])
 	if !(c == ' ' || c-9 <= 4) {
 		return
 	}
@@ -741,7 +743,7 @@ func (m *Machine) ScanWhitespace() {
 		if m.Ptr >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem[m.Ptr:])
+		w = rt.LdV(mem[m.Ptr:])
 		mask = w.Eq8(rt.Splat8(32)).Or(w.Sub8(rt.Splat8(9)).LeU8(rt.Splat8(4))).Bitmask8() ^ 65535
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
@@ -853,8 +855,9 @@ func (m *Machine) StreamClearCheckpoints() {
 
 // HexByte is $hexByte.
 func (m *Machine) HexByte(b uint32) {
-	m.Mem[m.Out] = m.Mem[8592+b>>4]
-	m.Mem[m.Out+1] = m.Mem[8592+b&15]
+	mem := m.Mem
+	mem[m.Out] = mem[8592+b>>4]
+	mem[m.Out+1] = mem[8592+b&15]
 	m.Out += 2
 }
 
@@ -878,32 +881,34 @@ func (m *Machine) EmitColor(rec uint32) {
 
 // EmitCSSVariable is $emitCssVariable.
 func (m *Machine) EmitCSSVariable(hl, prefixLength uint32) {
-	copy(m.Mem[m.Out:m.Out+4], m.Mem[8706:8710])
+	mem := m.Mem
+	copy(mem[m.Out:m.Out+4], mem[8706:8710])
 	m.Out += 4
-	src := binary.LittleEndian.Uint32(m.Mem[14:])
-	copy(m.Mem[m.Out:m.Out+prefixLength], m.Mem[src:src+prefixLength])
+	src := binary.LittleEndian.Uint32(mem[14:])
+	copy(mem[m.Out:m.Out+prefixLength], mem[src:src+prefixLength])
 	m.Out += prefixLength
 	entry := 448 + hl*3
-	n := uint32(m.Mem[entry+2])
-	src2 := uint32(binary.LittleEndian.Uint16(m.Mem[entry:]))
-	copy(m.Mem[m.Out:m.Out+n], m.Mem[src2:src2+n])
+	n := uint32(mem[entry+2])
+	src2 := uint32(binary.LittleEndian.Uint16(mem[entry:]))
+	copy(mem[m.Out:m.Out+n], mem[src2:src2+n])
 	m.Out += n
-	m.Mem[m.Out] = ')'
+	mem[m.Out] = ')'
 	m.Out++
 }
 
 // EmitFont is $emitFont.
 func (m *Machine) EmitFont(style uint32) {
+	mem := m.Mem
 	if style&16 != 0 {
-		copy(m.Mem[m.Out:m.Out+18], m.Mem[8675:8693])
+		copy(mem[m.Out:m.Out+18], mem[8675:8693])
 		m.Out += 18
 	}
 	w := style & 15
 	if w != 0 {
-		copy(m.Mem[m.Out:m.Out+13], m.Mem[8693:8706])
+		copy(mem[m.Out:m.Out+13], mem[8693:8706])
 		m.Out += 13
-		m.Mem[m.Out] = byte(48 + w)
-		binary.LittleEndian.PutUint16(m.Mem[m.Out+1:], uint16(12336))
+		mem[m.Out] = byte(48 + w)
+		binary.LittleEndian.PutUint16(mem[m.Out+1:], uint16(12336))
 		m.Out += 3
 	}
 }
@@ -935,59 +940,61 @@ func (m *Machine) CloseSpan() {
 // EmitSpanOpen is $emitSpanOpen.
 func (m *Machine) EmitSpanOpen(hl uint32) {
 	var save, rec, prefixLength, src, src2, src3 uint32
+	mem := m.Mem
 	slot := 8744 + hl*66
-	length := uint32(m.Mem[slot])
+	length := uint32(mem[slot])
 	if length == 0 {
 		save = m.Out
 		m.Out = slot + 1
-		copy(m.Mem[m.Out:m.Out+19], m.Mem[8639:8658])
+		copy(mem[m.Out:m.Out+19], mem[8639:8658])
 		m.Out += 19
 		if m.CSSVariables {
 			m.EmitCSSVariable(hl, 0)
 		} else {
 			rec = m.ThemeRec(hl)
-			if binary.LittleEndian.Uint32(m.Mem[rec:]) != 0 {
+			if binary.LittleEndian.Uint32(mem[rec:]) != 0 {
 				m.EmitColor(rec)
 			} else {
-				binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x74697265686e69)
+				binary.LittleEndian.PutUint64(mem[m.Out:], 0x74697265686e69)
 				m.Out += 7
 			}
-			m.EmitFont(uint32(m.Mem[rec+4]))
+			m.EmitFont(uint32(mem[rec+4]))
 		}
-		binary.LittleEndian.PutUint16(m.Mem[m.Out:], uint16(15906))
+		binary.LittleEndian.PutUint16(mem[m.Out:], uint16(15906))
 		m.Out += 2
 		length = m.Out - (slot + 1)
-		m.Mem[slot] = byte(length)
+		mem[slot] = byte(length)
 		m.Out = save
 	}
 	if m.CSSVariables {
-		prefixLength = binary.LittleEndian.Uint32(m.Mem[18:])
+		prefixLength = binary.LittleEndian.Uint32(mem[18:])
 		src = slot + 1
-		copy(m.Mem[m.Out:m.Out+23], m.Mem[src:src+23])
+		copy(mem[m.Out:m.Out+23], mem[src:src+23])
 		m.Out += 23
-		src2 = binary.LittleEndian.Uint32(m.Mem[14:])
-		copy(m.Mem[m.Out:m.Out+prefixLength], m.Mem[src2:src2+prefixLength])
+		src2 = binary.LittleEndian.Uint32(mem[14:])
+		copy(mem[m.Out:m.Out+prefixLength], mem[src2:src2+prefixLength])
 		m.Out += prefixLength
 		src3 = slot + 24
-		copy(m.Mem[m.Out:m.Out+(length-23)], m.Mem[src3:src3+(length-23)])
+		copy(mem[m.Out:m.Out+(length-23)], mem[src3:src3+(length-23)])
 		m.Out += length - 23
 		return
 	}
-	rt.StV(m.Mem[m.Out:], rt.LdV(m.Mem[slot+1:]))
-	rt.StV(m.Mem[m.Out+16:], rt.LdV(m.Mem[slot+17:]))
-	rt.StV(m.Mem[m.Out+32:], rt.LdV(m.Mem[slot+33:]))
-	rt.StV(m.Mem[m.Out+48:], rt.LdV(m.Mem[slot+49:]))
+	rt.StV(mem[m.Out:], rt.LdV(mem[slot+1:]))
+	rt.StV(mem[m.Out+16:], rt.LdV(mem[slot+17:]))
+	rt.StV(mem[m.Out+32:], rt.LdV(mem[slot+33:]))
+	rt.StV(mem[m.Out+48:], rt.LdV(mem[slot+49:]))
 	m.Out += length
 }
 
 // SetSpan is $setSpan.
 func (m *Machine) SetSpan(hl uint32) {
 	var val uint64
+	mem := m.Mem
 	m.SpanHl = hl
 	if m.ThemeBlob != 0 {
 		if m.HTMLOpeners != 0 {
 			if m.SpanVal != 0 {
-				binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
+				binary.LittleEndian.PutUint64(mem[m.Out:], 0x3e6e6170732f3c)
 				m.Out += 7
 			}
 			m.SpanVal = uint64(hl)
@@ -1002,13 +1009,13 @@ func (m *Machine) SetSpan(hl uint32) {
 	if m.CSSVariables {
 		val = uint64(hl)
 	} else {
-		val = binary.LittleEndian.Uint64(m.Mem[m.ThemeRec(hl):]) & 0xffffffffff
+		val = binary.LittleEndian.Uint64(mem[m.ThemeRec(hl):]) & 0xffffffffff
 	}
 	if val == m.SpanVal {
 		return
 	}
 	if m.SpanVal != 0 {
-		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
+		binary.LittleEndian.PutUint64(mem[m.Out:], 0x3e6e6170732f3c)
 		m.Out += 7
 	}
 	m.SpanVal = val
@@ -1016,15 +1023,15 @@ func (m *Machine) SetSpan(hl uint32) {
 		return
 	}
 	slot := 8744 + hl*66
-	length := uint32(m.Mem[slot])
+	length := uint32(mem[slot])
 	if length == 0 || m.CSSVariables {
 		m.EmitSpanOpen(hl)
 		return
 	}
-	rt.StV(m.Mem[m.Out:], rt.LdV(m.Mem[slot+1:]))
-	rt.StV(m.Mem[m.Out+16:], rt.LdV(m.Mem[slot+17:]))
-	rt.StV(m.Mem[m.Out+32:], rt.LdV(m.Mem[slot+33:]))
-	rt.StV(m.Mem[m.Out+48:], rt.LdV(m.Mem[slot+49:]))
+	rt.StV(mem[m.Out:], rt.LdV(mem[slot+1:]))
+	rt.StV(mem[m.Out+16:], rt.LdV(mem[slot+17:]))
+	rt.StV(mem[m.Out+32:], rt.LdV(mem[slot+33:]))
+	rt.StV(mem[m.Out+48:], rt.LdV(mem[slot+49:]))
 	m.Out += length
 }
 
@@ -1118,8 +1125,9 @@ func (m *Machine) RecStreamBegin(reset uint32) {
 
 // RecStreamEnd is $recStreamEnd.
 func (m *Machine) RecStreamEnd() {
-	if m.Out > binary.LittleEndian.Uint32(m.Mem[6:]) {
-		m.RecCarryHl = binary.LittleEndian.Uint32(m.Mem[m.Out-4:])
+	mem := m.Mem
+	if m.Out > binary.LittleEndian.Uint32(mem[6:]) {
+		m.RecCarryHl = binary.LittleEndian.Uint32(mem[m.Out-4:])
 	}
 }
 
@@ -1313,113 +1321,119 @@ func (m *Machine) MultiSlot(i uint32) uint32 {
 
 // MultiName is $multiName.
 func (m *Machine) MultiName(i uint32) {
+	mem := m.Mem
 	slot := m.MultiSlot(i)
-	n := binary.LittleEndian.Uint32(m.Mem[slot+4:])
-	src := m.MultiBlob + binary.LittleEndian.Uint32(m.Mem[slot:])
-	copy(m.Mem[m.Out:m.Out+n], m.Mem[src:src+n])
+	n := binary.LittleEndian.Uint32(mem[slot+4:])
+	src := m.MultiBlob + binary.LittleEndian.Uint32(mem[slot:])
+	copy(mem[m.Out:m.Out+n], mem[src:src+n])
 	m.Out += n
 }
 
 // MultiColorDecl is $multiColorDecl.
 func (m *Machine) MultiColorDecl(i, rec uint32) {
-	v := binary.LittleEndian.Uint32(m.Mem[rec:])
+	mem := m.Mem
+	v := binary.LittleEndian.Uint32(mem[rec:])
 	if v == 0 {
 		return
 	}
-	if binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) != 0 {
-		copy(m.Mem[m.Out:m.Out+6], m.Mem[8652:8658])
+	if binary.LittleEndian.Uint32(mem[m.MultiSlot(i)+8:]) != 0 {
+		copy(mem[m.Out:m.Out+6], mem[8652:8658])
 		m.Out += 6
 	} else {
 		m.MultiName(i)
-		m.Mem[m.Out] = ':'
+		mem[m.Out] = ':'
 		m.Out++
 	}
 	m.EmitRgba(v)
-	m.Mem[m.Out] = ';'
+	mem[m.Out] = ';'
 	m.Out++
 }
 
 // MultiFontDecls is $multiFontDecls.
 func (m *Machine) MultiFontDecls(i, style uint32, named bool) {
+	mem := m.Mem
 	if style&16 != 0 {
 		if named {
 			m.MultiName(i)
-			m.Mem[m.Out] = '-'
+			mem[m.Out] = '-'
 			m.Out++
 		}
-		copy(m.Mem[m.Out:m.Out+17], m.Mem[8676:8693])
-		m.Mem[m.Out+17] = ';'
+		copy(mem[m.Out:m.Out+17], mem[8676:8693])
+		mem[m.Out+17] = ';'
 		m.Out += 18
 	}
 	w := style & 15
 	if w != 0 {
 		if named {
 			m.MultiName(i)
-			m.Mem[m.Out] = '-'
+			mem[m.Out] = '-'
 			m.Out++
 		}
-		copy(m.Mem[m.Out:m.Out+12], m.Mem[8694:8706])
-		m.Mem[m.Out+12] = byte(48 + w)
-		binary.LittleEndian.PutUint16(m.Mem[m.Out+13:], uint16(12336))
-		m.Mem[m.Out+15] = ';'
+		copy(mem[m.Out:m.Out+12], mem[8694:8706])
+		mem[m.Out+12] = byte(48 + w)
+		binary.LittleEndian.PutUint16(mem[m.Out+13:], uint16(12336))
+		mem[m.Out+15] = ';'
 		m.Out += 16
 	}
 }
 
 // EmitLightDarkSide is $emitLightDarkSide.
 func (m *Machine) EmitLightDarkSide(v uint32, kw bool) {
+	mem := m.Mem
 	if v != 0 {
 		m.EmitRgba(v)
 		return
 	}
 	if kw {
-		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x726170736e617274)
-		binary.LittleEndian.PutUint32(m.Mem[m.Out+8:], 0x746e65)
+		binary.LittleEndian.PutUint64(mem[m.Out:], 0x726170736e617274)
+		binary.LittleEndian.PutUint32(mem[m.Out+8:], 0x746e65)
 		m.Out += 11
 	} else {
-		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x63746e6572727563)
-		binary.LittleEndian.PutUint32(m.Mem[m.Out+8:], 0x726f6c6f)
+		binary.LittleEndian.PutUint64(mem[m.Out:], 0x63746e6572727563)
+		binary.LittleEndian.PutUint32(mem[m.Out+8:], 0x726f6c6f)
 		m.Out += 12
 	}
 }
 
 // EmitLightDark is $emitLightDark.
 func (m *Machine) EmitLightDark(a, b uint32, kw bool) {
+	mem := m.Mem
 	if a == b {
 		m.EmitRgba(a)
 		return
 	}
-	copy(m.Mem[m.Out:m.Out+11], m.Mem[8731:8742])
+	copy(mem[m.Out:m.Out+11], mem[8731:8742])
 	m.Out += 11
 	m.EmitLightDarkSide(a, kw)
-	binary.LittleEndian.PutUint16(m.Mem[m.Out:], uint16(8236))
+	binary.LittleEndian.PutUint16(mem[m.Out:], uint16(8236))
 	m.Out += 2
 	m.EmitLightDarkSide(b, kw)
-	m.Mem[m.Out] = ')'
+	mem[m.Out] = ')'
 	m.Out++
 }
 
 // MultiLightDarkDecls is $multiLightDarkDecls.
 func (m *Machine) MultiLightDarkDecls(hl uint32) {
+	mem := m.Mem
 	recA := m.MultiRec(0, hl)
 	recB := m.MultiRec(1, hl)
-	a := binary.LittleEndian.Uint32(m.Mem[recA:])
-	b := binary.LittleEndian.Uint32(m.Mem[recB:])
+	a := binary.LittleEndian.Uint32(mem[recA:])
+	b := binary.LittleEndian.Uint32(mem[recB:])
 	if a|b != 0 {
 		if a == 0 {
-			a = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(0, TokenForeground):])
+			a = binary.LittleEndian.Uint32(mem[m.MultiRec(0, TokenForeground):])
 		}
 		if b == 0 {
-			b = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(1, TokenForeground):])
+			b = binary.LittleEndian.Uint32(mem[m.MultiRec(1, TokenForeground):])
 		}
-		copy(m.Mem[m.Out:m.Out+6], m.Mem[8652:8658])
+		copy(mem[m.Out:m.Out+6], mem[8652:8658])
 		m.Out += 6
 		m.EmitLightDark(a, b, false)
-		m.Mem[m.Out] = ';'
+		mem[m.Out] = ';'
 		m.Out++
 	}
-	sa := uint32(m.Mem[recA+4])
-	sb := uint32(m.Mem[recB+4])
+	sa := uint32(mem[recA+4])
+	sb := uint32(mem[recB+4])
 	common := sa & sb & 16
 	if sa&15 == sb&15 {
 		common |= sa & 15
@@ -1432,22 +1446,23 @@ func (m *Machine) MultiLightDarkDecls(hl uint32) {
 // MultiSpanOpen is $multiSpanOpen.
 func (m *Machine) MultiSpanOpen(hl uint32) {
 	var save uint32
-	length := uint32(binary.LittleEndian.Uint16(m.Mem[8752+hl<<1:]))
+	mem := m.Mem
+	length := uint32(binary.LittleEndian.Uint16(mem[8752+hl<<1:]))
 	if length != 0 {
-		m.CopyWide(9048+uint32(binary.LittleEndian.Uint16(m.Mem[8898+hl<<1:])), length)
+		m.CopyWide(9048+uint32(binary.LittleEndian.Uint16(mem[8898+hl<<1:])), length)
 		return
 	}
-	at := 9048 + binary.LittleEndian.Uint32(m.Mem[8748:])
-	if binary.LittleEndian.Uint32(m.Mem[8748:])+m.SpanReserve <= 4520 {
+	at := 9048 + binary.LittleEndian.Uint32(mem[8748:])
+	if binary.LittleEndian.Uint32(mem[8748:])+m.SpanReserve <= 4520 {
 		save = m.Out
 		m.Out = at
 	}
 	m.MultiRenderOpen(hl)
 	if save != 0 {
 		length = m.Out - at
-		binary.LittleEndian.PutUint16(m.Mem[8752+hl<<1:], uint16(length))
-		binary.LittleEndian.PutUint16(m.Mem[8898+hl<<1:], uint16(at-9048))
-		binary.LittleEndian.PutUint32(m.Mem[8748:], binary.LittleEndian.Uint32(m.Mem[8748:])+length)
+		binary.LittleEndian.PutUint16(mem[8752+hl<<1:], uint16(length))
+		binary.LittleEndian.PutUint16(mem[8898+hl<<1:], uint16(at-9048))
+		binary.LittleEndian.PutUint32(mem[8748:], binary.LittleEndian.Uint32(mem[8748:])+length)
 		m.Out = save
 		m.CopyWide(at, length)
 	}
@@ -1456,8 +1471,9 @@ func (m *Machine) MultiSpanOpen(hl uint32) {
 // CopyWide is $copyWide.
 func (m *Machine) CopyWide(src, length uint32) {
 	var i uint32
+	mem := m.Mem
 	for {
-		rt.StV(m.Mem[m.Out+i:], rt.LdV(m.Mem[src+i:]))
+		rt.StV(mem[m.Out+i:], rt.LdV(mem[src+i:]))
 		i += 16
 		if i >= length {
 			break
@@ -1469,22 +1485,23 @@ func (m *Machine) CopyWide(src, length uint32) {
 // MultiRenderOpen is $multiRenderOpen.
 func (m *Machine) MultiRenderOpen(hl uint32) {
 	var i, rec uint32
-	copy(m.Mem[m.Out:m.Out+13], m.Mem[8639:8652])
+	mem := m.Mem
+	copy(mem[m.Out:m.Out+13], mem[8639:8652])
 	m.Out += 13
-	if m.Mem[m.MultiBlob+1] != 0 {
+	if mem[m.MultiBlob+1] != 0 {
 		m.MultiLightDarkDecls(hl)
 	} else {
 		for {
 			rec = m.MultiRec(i, hl)
 			m.MultiColorDecl(i, rec)
-			m.MultiFontDecls(i, uint32(m.Mem[rec+4]), binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) == 0)
+			m.MultiFontDecls(i, uint32(mem[rec+4]), binary.LittleEndian.Uint32(mem[m.MultiSlot(i)+8:]) == 0)
 			i++
 			if i >= m.MultiSlots {
 				break
 			}
 		}
 	}
-	binary.LittleEndian.PutUint16(m.Mem[m.Out-1:], uint16(15906))
+	binary.LittleEndian.PutUint16(mem[m.Out-1:], uint16(15906))
 	m.Out++
 }
 
@@ -1492,13 +1509,14 @@ func (m *Machine) MultiRenderOpen(hl uint32) {
 func (m *Machine) MultiSetSpan(hl uint32) {
 	var i uint32
 	var rec, anyRec uint64
+	mem := m.Mem
 	open := uint32(m.SpanVal)
 	same := true
 	for {
-		rec = binary.LittleEndian.Uint64(m.Mem[m.MultiRec(i, hl):]) & 0xffffffffff
+		rec = binary.LittleEndian.Uint64(mem[m.MultiRec(i, hl):]) & 0xffffffffff
 		anyRec |= rec
 		if open != 0 {
-			same = same && rec == binary.LittleEndian.Uint64(m.Mem[m.MultiRec(i, open):])&0xffffffffff
+			same = same && rec == binary.LittleEndian.Uint64(mem[m.MultiRec(i, open):])&0xffffffffff
 		}
 		i++
 		if i >= m.MultiSlots {
@@ -1509,7 +1527,7 @@ func (m *Machine) MultiSetSpan(hl uint32) {
 		if same && anyRec != 0 {
 			return
 		}
-		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
+		binary.LittleEndian.PutUint64(mem[m.Out:], 0x3e6e6170732f3c)
 		m.Out += 7
 	}
 	if anyRec == 0 {
@@ -1523,20 +1541,21 @@ func (m *Machine) MultiSetSpan(hl uint32) {
 // MultiRootDecls is $multiRootDecls.
 func (m *Machine) MultiRootDecls(bg bool) {
 	var i, rec uint32
+	mem := m.Mem
 	for {
 		if bg {
 			rec = m.MultiRec(i, TokenBackground)
-			if binary.LittleEndian.Uint32(m.Mem[rec:]) != 0 {
-				if binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) != 0 {
-					copy(m.Mem[m.Out:m.Out+17], m.Mem[8658:8675])
+			if binary.LittleEndian.Uint32(mem[rec:]) != 0 {
+				if binary.LittleEndian.Uint32(mem[m.MultiSlot(i)+8:]) != 0 {
+					copy(mem[m.Out:m.Out+17], mem[8658:8675])
 					m.Out += 17
 				} else {
 					m.MultiName(i)
-					binary.LittleEndian.PutUint32(m.Mem[m.Out:], 0x3a67622d)
+					binary.LittleEndian.PutUint32(mem[m.Out:], 0x3a67622d)
 					m.Out += 4
 				}
 				m.EmitColor(rec)
-				m.Mem[m.Out] = ';'
+				mem[m.Out] = ';'
 				m.Out++
 			}
 		} else {
@@ -1701,10 +1720,11 @@ func (m *Machine) HlBegin() {
 
 // CopyHTMLOpener is $copyHtmlOpener.
 func (m *Machine) CopyHTMLOpener(hl uint32) {
+	mem := m.Mem
 	slot := m.HTMLOpeners + 4 + hl<<3
-	length := binary.LittleEndian.Uint32(m.Mem[slot+4:])
-	src := m.HTMLOpeners + binary.LittleEndian.Uint32(m.Mem[slot:])
-	copy(m.Mem[m.Out:m.Out+length], m.Mem[src:src+length])
+	length := binary.LittleEndian.Uint32(mem[slot+4:])
+	src := m.HTMLOpeners + binary.LittleEndian.Uint32(mem[slot:])
+	copy(mem[m.Out:m.Out+length], mem[src:src+length])
 	m.Out += length
 }
 
@@ -1839,11 +1859,12 @@ func (m *Machine) LexScanNumber() {
 // LexScanNumberBody is $lexScanNumberBody.
 func (m *Machine) LexScanNumberBody(hex bool) {
 	var c, next, prev uint32
+	mem := m.Mem
 	for {
 		if m.Ptr >= m.End {
 			break
 		}
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		if m.LexIsIdentContinue(c) {
 			prev = c
 			m.Ptr++
@@ -1851,7 +1872,7 @@ func (m *Machine) LexScanNumberBody(hex bool) {
 		}
 		if c == '.' {
 			if m.Ptr+1 < m.End {
-				next = uint32(m.Mem[m.Ptr+1])
+				next = uint32(mem[m.Ptr+1])
 			} else {
 				next = 0
 			}
@@ -1874,39 +1895,40 @@ func (m *Machine) LexScanNumberBody(hex bool) {
 // LexScanHexNumber is $lexScanHexNumber.
 func (m *Machine) LexScanHexNumber(requireExponent bool) {
 	var next, p, c uint32
+	mem := m.Mem
 	lhs := m.Ptr
 	m.LexScanNumber()
-	if lhs+1 < m.End && m.Mem[lhs] == '0' && uint32(m.Mem[lhs+1])|32 == 120 {
+	if lhs+1 < m.End && mem[lhs] == '0' && uint32(mem[lhs+1])|32 == 120 {
 		if m.Ptr < m.End {
 			if m.Ptr+1 < m.End {
-				next = uint32(m.Mem[m.Ptr+1])
+				next = uint32(mem[m.Ptr+1])
 			} else {
 				next = 0
 			}
-			if m.Mem[m.Ptr] == '.' && (m.LexIsHex(next) || next|32 == 112) {
+			if mem[m.Ptr] == '.' && (m.LexIsHex(next) || next|32 == 112) {
 				if requireExponent || next|32 == 112 {
 					p = m.Ptr + 1
 					for {
 						if p >= m.End {
 							break
 						}
-						c = uint32(m.Mem[p])
+						c = uint32(mem[p])
 						if !(m.LexIsHex(c) || c == '_') {
 							break
 						}
 						p++
 					}
-					if p >= m.End || uint32(m.Mem[p])|32 != 112 {
+					if p >= m.End || uint32(mem[p])|32 != 112 {
 						return
 					}
 					p++
 					if p < m.End {
-						c = uint32(m.Mem[p])
+						c = uint32(mem[p])
 						if c == '+' || c == '-' {
 							p++
 						}
 					}
-					if p >= m.End || !m.LexIsDigit(uint32(m.Mem[p])) {
+					if p >= m.End || !m.LexIsDigit(uint32(mem[p])) {
 						return
 					}
 				}
@@ -1919,8 +1941,9 @@ func (m *Machine) LexScanHexNumber(requireExponent bool) {
 
 // LexEscapeEnd is $lexEscapeEnd.
 func (m *Machine) LexEscapeEnd(p uint32) uint32 {
+	mem := m.Mem
 	e := m.UTF8SpanEnd(p+2, m.End)
-	if e == p+2 && m.Mem[p+1] == '\r' && e < m.End && m.Mem[e] == '\n' {
+	if e == p+2 && mem[p+1] == '\r' && e < m.End && mem[e] == '\n' {
 		e++
 	}
 	return e
@@ -1997,8 +2020,9 @@ func (m *Machine) LexRawString(quote uint32, multiline bool, hl uint32) {
 // LexCEscapeEnd is $lexCEscapeEnd.
 func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	if p+1 < m.End {
-		c = uint32(m.Mem[p+1])
+		c = uint32(mem[p+1])
 	} else {
 		c = 0
 	}
@@ -2011,13 +2035,13 @@ func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 	case c == 'x':
 		e = m.ScanHexRun(e, 64)
 	default:
-		if c == 'N' && e < m.End && m.Mem[e] == '{' {
+		if c == 'N' && e < m.End && mem[e] == '{' {
 			e++
 			for {
 				if e >= m.End {
 					return m.UTF8SpanEnd(e, m.End)
 				}
-				c = uint32(m.Mem[e])
+				c = uint32(mem[e])
 				if c == '\n' || c == '\r' || c == '"' || c == '\'' || c == '\\' {
 					return m.UTF8SpanEnd(e, m.End)
 				}
@@ -2032,7 +2056,7 @@ func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 				if e >= m.End || e-p >= 4 {
 					return m.UTF8SpanEnd(e, m.End)
 				}
-				if uint32(m.Mem[e])-48 > 7 {
+				if uint32(mem[e])-48 > 7 {
 					return m.UTF8SpanEnd(e, m.End)
 				}
 				e++
@@ -2155,8 +2179,9 @@ func (m *Machine) LexBlockComment(skip, hl uint32) {
 
 // StreamSetFixed is $streamSetFixed.
 func (m *Machine) StreamSetFixed(delimiter, length, hl uint32) {
+	mem := m.Mem
 	if m.Streaming && length <= 32 && m.Ptr == m.EOF {
-		copy(m.Mem[13952:13952+length], m.Mem[delimiter:delimiter+length])
+		copy(mem[13952:13952+length], mem[delimiter:delimiter+length])
 		m.StreamMode = 20
 		m.StreamA = length
 		m.StreamB = 0
@@ -2183,7 +2208,8 @@ func (m *Machine) StreamSetNested(depth, open, closer, hl uint32) {
 
 // LexHeredocArgument is $lexHeredocArgument.
 func (m *Machine) LexHeredocArgument(p uint32) bool {
-	c := uint32(m.Mem[p])
+	mem := m.Mem
+	c := uint32(mem[p])
 	if c == '"' || c == '\'' {
 		return true
 	}
@@ -2191,7 +2217,7 @@ func (m *Machine) LexHeredocArgument(p uint32) bool {
 		if p >= m.End {
 			break
 		}
-		if !m.LexIsIdentContinue(uint32(m.Mem[p])) {
+		if !m.LexIsIdentContinue(uint32(mem[p])) {
 			break
 		}
 		p++
@@ -2200,7 +2226,7 @@ func (m *Machine) LexHeredocArgument(p uint32) bool {
 	if p >= m.End {
 		return true
 	}
-	c = uint32(m.Mem[p])
+	c = uint32(mem[p])
 	return c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#'
 }
 
@@ -2224,8 +2250,9 @@ func (m *Machine) LineDelimiterEnds(p, trim uint32) bool {
 
 // StreamSetLine is $streamSetLine.
 func (m *Machine) StreamSetLine(delimiter, length, trim, hl uint32) {
+	mem := m.Mem
 	if m.Streaming && length <= 32 && m.Ptr == m.EOF {
-		copy(m.Mem[13952:13952+length], m.Mem[delimiter:delimiter+length])
+		copy(mem[13952:13952+length], mem[delimiter:delimiter+length])
 		m.StreamMode = 22
 		m.StreamA = length
 		m.StreamB = trim
@@ -2284,6 +2311,7 @@ func (m *Machine) StreamResumeFixed() bool {
 func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 	var mask uint32
 	var w, w1, o0, o1, c0, c1 rt.V128
+	mem := m.Mem
 	o0 = rt.Splat8(open)
 	o1 = rt.Splat8(open >> 8)
 	c0 = rt.Splat8(closer)
@@ -2293,8 +2321,8 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 			if m.Ptr >= m.End {
 				break
 			}
-			w = rt.LdV(m.Mem[m.Ptr:])
-			w1 = rt.LdV(m.Mem[m.Ptr+1:])
+			w = rt.LdV(mem[m.Ptr:])
+			w1 = rt.LdV(mem[m.Ptr+1:])
 			mask = w.Eq8(o0).And(w1.Eq8(o1)).Or(w.Eq8(c0).And(w1.Eq8(c1))).Bitmask8()
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask))
@@ -2306,7 +2334,7 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 			m.Ptr = m.End
 			break
 		}
-		if uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:])) == open {
+		if uint32(binary.LittleEndian.Uint16(mem[m.Ptr:])) == open {
 			depth++
 			m.Ptr += 2
 			continue
@@ -2554,23 +2582,24 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
 
 // LexKeywordLookup is $lexKeywordLookup.
 func (m *Machine) LexKeywordLookup(start, end, base, bucketMask, slots uint32) uint32 {
+	mem := m.Mem
 	length := end - start
 	if length-2 > 29 {
 		return 0
 	}
-	h := uint32(binary.LittleEndian.Uint16(m.Mem[start:])) | uint32(m.Mem[end-1])<<16 | length<<24
+	h := uint32(binary.LittleEndian.Uint16(mem[start:])) | uint32(mem[end-1])<<16 | length<<24
 	h = (h ^ h>>16) * 0xe51fac89
 	h ^= h >> 24
-	entry := binary.LittleEndian.Uint32(m.Mem[base+bucketMask+1+uint32((uint64(bits.RotateLeft32(h+uint32(m.Mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3:]) & 0xffffff
+	entry := binary.LittleEndian.Uint32(mem[base+bucketMask+1+uint32((uint64(bits.RotateLeft32(h+uint32(mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3:]) & 0xffffff
 	if length != entry>>19 {
 		return 0
 	}
 	rec := 0x10000 + entry&16383
-	if uint32(bits.TrailingZeros32(rt.LdV(m.Mem[start:]).Ne8(rt.LdV(m.Mem[rec:])).Bitmask8())) < length {
+	if uint32(bits.TrailingZeros32(rt.LdV(mem[start:]).Ne8(rt.LdV(mem[rec:])).Bitmask8())) < length {
 		return 0
 	}
 	if length > 16 {
-		if rt.LdV(m.Mem[end-16:]).Xor(rt.LdV(m.Mem[rec+(length-16):])).AnyTrue() {
+		if rt.LdV(mem[end-16:]).Xor(rt.LdV(mem[rec+(length-16):])).AnyTrue() {
 			return 0
 		}
 	}
@@ -2590,6 +2619,7 @@ func (m *Machine) LexKeywordValue(start, end, base, bucketMask, slots uint32) ui
 func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
 	var i uint32
 	var w rt.V128
+	mem := m.Mem
 	n := rhs - lhs
 	if n > 31 {
 		return 0
@@ -2598,8 +2628,8 @@ func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
 		if i >= n {
 			break
 		}
-		w = rt.LdV(m.Mem[lhs+i:])
-		rt.StV(m.Mem[dst+i:], w.Or(w.Sub8(rt.Splat8(65)).LeU8(rt.Splat8(25)).And(rt.Splat8(32))))
+		w = rt.LdV(mem[lhs+i:])
+		rt.StV(mem[dst+i:], w.Or(w.Sub8(rt.Splat8(65)).LeU8(rt.Splat8(25)).And(rt.Splat8(32))))
 		i += 16
 	}
 	return n
@@ -2769,21 +2799,22 @@ func (m *Machine) CSSIdentStart(c uint32) bool {
 // CSSScanIdent is $cssScanIdent.
 func (m *Machine) CSSScanIdent() {
 	var e uint32
+	mem := m.Mem
 	for {
 		m.ScanIdentRun(45)
 		if m.Ptr+1 >= m.End {
 			break
 		}
-		if m.Mem[m.Ptr] != '\\' {
+		if mem[m.Ptr] != '\\' {
 			break
 		}
-		if uint32(m.Mem[m.Ptr+1])-10 <= 3 {
+		if uint32(mem[m.Ptr+1])-10 <= 3 {
 			break
 		}
 		e = m.ScanHexRun(m.Ptr+1, 6)
 		if e == m.Ptr+1 {
 			e = m.UTF8SpanEnd(m.Ptr+2, m.End)
-		} else if e < m.End && (m.Mem[e] == ' ' || m.Mem[e] == '\t') {
+		} else if e < m.End && (mem[e] == ' ' || mem[e] == '\t') {
 			e++
 		}
 		m.Ptr = e
@@ -2793,11 +2824,12 @@ func (m *Machine) CSSScanIdent() {
 // CSSScanNumber is $cssScanNumber.
 func (m *Machine) CSSScanNumber() {
 	var c, prev uint32
+	mem := m.Mem
 	for {
 		if m.Ptr >= m.End {
 			break
 		}
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		if c-48 > 9 {
 			if c != '.' {
 				if c|32 != 101 {
@@ -2811,7 +2843,7 @@ func (m *Machine) CSSScanNumber() {
 		m.Ptr++
 	}
 	if m.Ptr < m.End {
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		if c == '%' {
 			m.Ptr++
 		} else if m.CSSIdentStart(c) {
@@ -2864,8 +2896,9 @@ func (m *Machine) CSSString(q uint32, skip bool) bool {
 
 // CSSIsQueryOp is $cssIsQueryOp.
 func (m *Machine) CSSIsQueryOp(lhs, rhs uint32) bool {
+	mem := m.Mem
 	length := rhs - lhs
-	w := binary.LittleEndian.Uint32(m.Mem[lhs:])
+	w := binary.LittleEndian.Uint32(mem[lhs:])
 	if length == 2 {
 		w &= 65535
 		return w == 29295 || (m.CSSDialect >= 2 && (w == 26217 || w == 28265 || w == 28532))
@@ -2878,7 +2911,7 @@ func (m *Machine) CSSIsQueryOp(lhs, rhs uint32) bool {
 		return w == 0x796c6e6f || (m.CSSDialect >= 2 && w == 0x6d6f7266)
 	}
 	if length == 7 && m.CSSDialect >= 2 {
-		return binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6867756f726874
+		return binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x6867756f726874
 	}
 	return false
 }
@@ -2887,16 +2920,17 @@ func (m *Machine) CSSIsQueryOp(lhs, rhs uint32) bool {
 func (m *Machine) CSSDecide(depth uint32) bool {
 	var c, q, mask, rem, colon, interp uint32
 	var w rt.V128
+	mem := m.Mem
 	p := m.Ptr
 	stop := m.End
 	if depth != 0 {
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if m.CSSIdentStart(c) || c == '-' {
 			q = m.Ptr
 			m.ScanIdentRun(45)
 			p = m.Ptr
 			m.Ptr = q
-			if p+1 < stop && uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 8250 {
+			if p+1 < stop && uint32(binary.LittleEndian.Uint16(mem[p:])) == 8250 {
 				return false
 			}
 			p = m.Ptr
@@ -2908,7 +2942,7 @@ scan:
 			break
 		}
 		for {
-			w = rt.LdV(m.Mem[p:])
+			w = rt.LdV(mem[p:])
 			mask = w.Eq8(rt.Splat8(10)).Or(w.Eq8(rt.Splat8(13))).Or(w.Eq8(rt.Splat8(123)).Or(w.Eq8(rt.Splat8(125))).Or(w.Eq8(rt.Splat8(59)).Or(w.Eq8(rt.Splat8(47)))).Or(w.Eq8(rt.Splat8(34)).Or(w.Eq8(rt.Splat8(39))).Or(w.Eq8(rt.Splat8(58))))).Bitmask8()
 			rem = stop - p
 			if rem < 16 {
@@ -2923,13 +2957,13 @@ scan:
 			}
 			p += 16
 		}
-		c = uint32(m.Mem[p])
-		if uint32(m.Mem[c+1424])&4 != 0 {
+		c = uint32(mem[p])
+		if uint32(mem[c+1424])&4 != 0 {
 			stop = p
 			break
 		}
 		if c == '{' {
-			if p > m.Ptr && ((m.Mem[p-1] == '#' && m.CSSDialect >= 2) || (m.Mem[p-1] == '@' && m.CSSDialect == 1)) {
+			if p > m.Ptr && ((mem[p-1] == '#' && m.CSSDialect >= 2) || (mem[p-1] == '@' && m.CSSDialect == 1)) {
 				interp++
 				p++
 				continue
@@ -2947,7 +2981,7 @@ scan:
 		if c == ':' {
 			if colon == 0 {
 				if p+1 < stop {
-					c = uint32(m.Mem[p+1])
+					c = uint32(mem[p+1])
 				} else {
 					c = 32
 				}
@@ -2962,25 +2996,25 @@ scan:
 		}
 		if c == '/' {
 			switch {
-			case p+1 < m.End && m.Mem[p+1] == '*':
+			case p+1 < m.End && mem[p+1] == '*':
 				p += 2
 				for {
 					p = m.ScanFindSpecial(p, stop, 42, 0, 1)
 					if p >= stop {
 						break
 					}
-					c = uint32(m.Mem[p])
-					if uint32(m.Mem[c+1424])&4 != 0 {
+					c = uint32(mem[p])
+					if uint32(mem[c+1424])&4 != 0 {
 						stop = p
 						break scan
 					}
-					if p+1 < stop && m.Mem[p+1] == '/' {
+					if p+1 < stop && mem[p+1] == '/' {
 						p += 2
 						break
 					}
 					p++
 				}
-			case m.CSSDialect != 0 && p+1 < stop && m.Mem[p+1] == '/':
+			case m.CSSDialect != 0 && p+1 < stop && mem[p+1] == '/':
 				p = m.ScanFindSpecial(p, stop, 10, 0, 1)
 			default:
 				p++
@@ -2994,7 +3028,7 @@ scan:
 			if p >= stop {
 				break
 			}
-			c = uint32(m.Mem[p])
+			c = uint32(mem[p])
 			if c == q {
 				p++
 				break
@@ -3003,7 +3037,7 @@ scan:
 				break
 			}
 			c = m.TemplateByte(p + 1)
-			if uint32(m.Mem[c+1424])&4 != 0 {
+			if uint32(mem[c+1424])&4 != 0 {
 				stop = p + 1
 				break scan
 			}
@@ -3016,6 +3050,7 @@ scan:
 // CSSDecideAtEnd is $cssDecideAtEnd.
 func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
 	var c uint32
+	mem := m.Mem
 	if colon == 0 {
 		return true
 	}
@@ -3030,7 +3065,7 @@ func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
 		if p >= stop {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if !(m.CSSIdentStart(c) || c == '-' || c-48 <= 9) {
 			break
 		}
@@ -3040,7 +3075,7 @@ func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
 		if p >= stop {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if c == '\n' || c == '\r' {
 			break
 		}
@@ -3049,7 +3084,7 @@ func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
 		}
 		p++
 	}
-	if m.Mem[p] != ':' {
+	if mem[p] != ':' {
 		return true
 	}
 	return m.ScanFindSpecial(p, stop, 44, 0, 0) < m.ScanFindSpecial(p, stop, 40, 0, 0)
@@ -4631,6 +4666,7 @@ func (m *Machine) RawTextKind(lhs, rhs uint32) uint32 {
 // IsRawTextClose is $isRawTextClose.
 func (m *Machine) IsRawTextClose(p, kind uint32) bool {
 	var n uint32
+	mem := m.Mem
 	if kind == 1 {
 		n = 7
 	} else {
@@ -4646,13 +4682,13 @@ func (m *Machine) IsRawTextClose(p, kind uint32) bool {
 	} else {
 		choice = 0x656c7974732f
 	}
-	if (binary.LittleEndian.Uint64(m.Mem[p+1:])|0x2020202020202000)&(uint64(1)<<(uint64(n<<3)&63)-1) != choice {
+	if (binary.LittleEndian.Uint64(mem[p+1:])|0x2020202020202000)&(uint64(1)<<(uint64(n<<3)&63)-1) != choice {
 		return false
 	}
 	if tp >= m.End {
 		return true
 	}
-	t := uint32(m.Mem[tp])
+	t := uint32(mem[tp])
 	return t == 62 || t == 47 || t == 32 || t-9 <= 4
 }
 
@@ -4730,12 +4766,13 @@ func (m *Machine) HTMLDecl(lhs uint32, pi bool, hl uint32) {
 // HTMLNameEnd is $htmlNameEnd.
 func (m *Machine) HTMLNameEnd(q uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	for {
 		if q >= m.End {
 			break
 		}
-		c = uint32(m.Mem[q])
-		if m.Mem[c+1680]&1 != 0 {
+		c = uint32(mem[q])
+		if mem[c+1680]&1 != 0 {
 			break
 		}
 		q++
@@ -4746,12 +4783,13 @@ func (m *Machine) HTMLNameEnd(q uint32) uint32 {
 // HTMLValueEnd is $htmlValueEnd.
 func (m *Machine) HTMLValueEnd(q uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	for {
 		if q >= m.End {
 			break
 		}
-		c = uint32(m.Mem[q])
-		if uint32(m.Mem[c+1680])&2 != 0 {
+		c = uint32(mem[q])
+		if uint32(mem[c+1680])&2 != 0 {
 			break
 		}
 		q++
@@ -4783,12 +4821,13 @@ func (m *Machine) HTMLLangName(kind, lhs, rhs uint32) uint32 {
 
 // HTMLLangValue is $htmlLangValue.
 func (m *Machine) HTMLLangValue(kind, lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	if kind&64 == 0 {
 		return kind
 	}
 	kind &= 63
-	w := binary.LittleEndian.Uint32(m.Mem[lhs:]) | 0x20202020
-	if rhs-lhs == 6 && w == 0x6c797473 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+4:]))|8224 == 29557 {
+	w := binary.LittleEndian.Uint32(mem[lhs:]) | 0x20202020
+	if rhs-lhs == 6 && w == 0x6c797473 && uint32(binary.LittleEndian.Uint16(mem[lhs+4:]))|8224 == 29557 {
 		return 42
 	}
 	if rhs-lhs != 4 {
@@ -5095,8 +5134,9 @@ func (m *Machine) BraceHTMLRange(from, to uint32, astro bool) {
 // BraceRawKind is $braceRawKind.
 func (m *Machine) BraceRawKind(p uint32) uint32 {
 	var kind uint32
+	mem := m.Mem
 	q := p + 1
-	w := binary.LittleEndian.Uint64(m.Mem[q:]) | 0x202020202020
+	w := binary.LittleEndian.Uint64(mem[q:]) | 0x202020202020
 	if q+6 <= m.End && w&0xffffffffffff == 0x747069726373 {
 		kind = 1
 	} else if q+5 <= m.End && w&0xffffffffff == 0x656c797473 {
@@ -5108,7 +5148,7 @@ func (m *Machine) BraceRawKind(p uint32) uint32 {
 		} else {
 			q += 5
 		}
-		if q < m.End && !(m.LexIsSpace(uint32(m.Mem[q])) || m.Mem[q] == '>' || m.Mem[q] == '/') {
+		if q < m.End && !(m.LexIsSpace(uint32(mem[q])) || mem[q] == '>' || mem[q] == '/') {
 			return 0
 		}
 	}
@@ -5117,18 +5157,19 @@ func (m *Machine) BraceRawKind(p uint32) uint32 {
 
 // BraceNextCut is $braceNextCut.
 func (m *Machine) BraceNextCut(p uint32) uint32 {
+	mem := m.Mem
 	for {
 		p = m.LexFindEither(p, 123, 60)
 		if p >= m.End {
 			break
 		}
-		if m.Mem[p] == '{' {
+		if mem[p] == '{' {
 			break
 		}
 		if m.BraceRawKind(p) != 0 {
 			break
 		}
-		if p+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:]) == 0x2d2d213c {
+		if p+4 <= m.End && binary.LittleEndian.Uint32(mem[p:]) == 0x2d2d213c {
 			break
 		}
 		p++
@@ -5731,6 +5772,7 @@ func (m *Machine) TernaryCount() uint32 {
 
 // TernarySet is $ternarySet.
 func (m *Machine) TernarySet(n uint32) {
+	mem := m.Mem
 	if n > 127 {
 		n = 127
 	}
@@ -5742,7 +5784,7 @@ func (m *Machine) TernarySet(n uint32) {
 		return
 	}
 	at := 37631 + m.BrkSp
-	m.Mem[at] = byte(uint32(m.Mem[at])&1 | n<<1)
+	mem[at] = byte(uint32(mem[at])&1 | n<<1)
 }
 
 // TsxByte is $tsxByte.
@@ -5763,14 +5805,15 @@ func (m *Machine) UTF8Bits(c uint32) uint32 {
 
 // IsKeyword is $isKeyword.
 func (m *Machine) IsKeyword(start, end uint32) uint32 {
+	mem := m.Mem
 	length := end - start
 	if length-2 > 8 {
 		return LexInvalid
 	}
-	h := uint32(binary.LittleEndian.Uint16(m.Mem[start:])) | uint32(m.Mem[end-1])<<16 | length<<24
+	h := uint32(binary.LittleEndian.Uint16(mem[start:])) | uint32(mem[end-1])<<16 | length<<24
 	h = (h ^ h>>16) * 0xe51fac89
 	h ^= h >> 24
-	entry := uint32(binary.LittleEndian.Uint16(m.Mem[27296+(((h>>4)&63+uint32(m.Mem[27296+h&15]))&63)<<1+16:]))
+	entry := uint32(binary.LittleEndian.Uint16(mem[27296+(((h>>4)&63+uint32(mem[27296+h&15]))&63)<<1+16:]))
 	if entry == 0 {
 		return LexInvalid
 	}
@@ -5779,18 +5822,18 @@ func (m *Machine) IsKeyword(start, end uint32) uint32 {
 	}
 	p := 27439 + entry&511
 	if length <= 8 {
-		if (binary.LittleEndian.Uint64(m.Mem[start:])^binary.LittleEndian.Uint64(m.Mem[p+1:]))<<(uint64((8-length)<<3)&63) != 0 {
+		if (binary.LittleEndian.Uint64(mem[start:])^binary.LittleEndian.Uint64(mem[p+1:]))<<(uint64((8-length)<<3)&63) != 0 {
 			return LexInvalid
 		}
 	} else {
-		if binary.LittleEndian.Uint64(m.Mem[start:]) != binary.LittleEndian.Uint64(m.Mem[p+1:]) {
+		if binary.LittleEndian.Uint64(mem[start:]) != binary.LittleEndian.Uint64(mem[p+1:]) {
 			return LexInvalid
 		}
-		if (uint32(binary.LittleEndian.Uint16(m.Mem[start+8:]))^uint32(binary.LittleEndian.Uint16(m.Mem[p+9:])))<<(((12-length)<<3)&31) != 0 {
+		if (uint32(binary.LittleEndian.Uint16(mem[start+8:]))^uint32(binary.LittleEndian.Uint16(mem[p+9:])))<<(((12-length)<<3)&31) != 0 {
 			return LexInvalid
 		}
 	}
-	return uint32(m.Mem[p])
+	return uint32(mem[p])
 }
 
 // ScanIdentTail is $scanIdentTail.
@@ -5834,12 +5877,13 @@ func (m *Machine) ScanIdentTail() {
 // ScanNumber is $scanNumber.
 func (m *Machine) ScanNumber(seenDot uint32) uint32 {
 	var c, prevC uint32
-	hex := m.Mem[m.LHS] == '0' && m.TsxByte(m.LHS+1)|32 == 120
+	mem := m.Mem
+	hex := mem[m.LHS] == '0' && m.TsxByte(m.LHS+1)|32 == 120
 	for {
 		if m.Ptr >= m.End {
 			break
 		}
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		if c-48 > 9 {
 			if (c|32)-97 > 25 {
 				if c != '_' {
@@ -5895,12 +5939,13 @@ func (m *Machine) ScanString(quote uint32) uint32 {
 // ScanTemplateBody is $scanTemplateBody.
 func (m *Machine) ScanTemplateBody() uint32 {
 	var c uint32
+	mem := m.Mem
 	for {
 		m.Ptr = m.ScanFind3(m.Ptr, 96, 36, 92)
 		if m.Ptr >= m.End {
 			break
 		}
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		if c == '`' {
 			m.Ptr++
 			return LexBacktick
@@ -5910,7 +5955,7 @@ func (m *Machine) ScanTemplateBody() uint32 {
 				m.Ptr += 2
 				continue
 			}
-			binary.LittleEndian.PutUint32(m.Mem[38944+m.JsTemplateLexSp<<2:], m.BraceDepth)
+			binary.LittleEndian.PutUint32(mem[38944+m.JsTemplateLexSp<<2:], m.BraceDepth)
 			m.JsTemplateLexSp++
 			m.Ptr += 2
 			return LexDollarBrace
@@ -5931,12 +5976,13 @@ func (m *Machine) ScanTemplateBody() uint32 {
 func (m *Machine) ScanRegexp() uint32 {
 	var c uint32
 	var inClass bool
+	mem := m.Mem
 	m.Ptr++
 	for {
 		if m.Ptr >= m.End {
 			return LexInvalid
 		}
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		if c == '\n' || c == '\r' {
 			return LexInvalid
 		}
@@ -5960,7 +6006,7 @@ func (m *Machine) ScanRegexp() uint32 {
 		if m.Ptr >= m.End {
 			break
 		}
-		if (uint32(m.Mem[m.Ptr])|32)-97 > 25 {
+		if (uint32(mem[m.Ptr])|32)-97 > 25 {
 			break
 		}
 		m.Ptr++
@@ -7030,9 +7076,10 @@ func (m *Machine) HlJsStream(reset uint32) {
 
 // JsxPush is $jsxPush.
 func (m *Machine) JsxPush(mode, target uint32) {
+	mem := m.Mem
 	if m.JsxSp < 512 {
-		binary.LittleEndian.PutUint32(m.Mem[40992+m.JsxSp<<3:], mode)
-		binary.LittleEndian.PutUint32(m.Mem[40992+m.JsxSp<<3+4:], target)
+		binary.LittleEndian.PutUint32(mem[40992+m.JsxSp<<3:], mode)
+		binary.LittleEndian.PutUint32(mem[40992+m.JsxSp<<3+4:], target)
 	}
 	m.JsxSp++
 }
@@ -7138,10 +7185,11 @@ func (m *Machine) JsxSpaceEndAt(p uint32) uint32 {
 
 // JsxValidate is $jsxValidate.
 func (m *Machine) JsxValidate(p uint32) bool {
+	mem := m.Mem
 	if p >= m.End {
 		return false
 	}
-	c := uint32(m.Mem[p])
+	c := uint32(mem[p])
 	if c == '>' {
 		return true
 	}
@@ -7154,7 +7202,7 @@ func (m *Machine) JsxValidate(p uint32) bool {
 	name := p
 	p = m.JsxNameEndAt(p + 1)
 	if m.EcmaHasTypeScript() {
-		if p-name == 5 && binary.LittleEndian.Uint32(m.Mem[name:]) == 0x736e6f63 && m.Mem[name+4] == 't' {
+		if p-name == 5 && binary.LittleEndian.Uint32(mem[name:]) == 0x736e6f63 && mem[name+4] == 't' {
 			c = m.JsxSpaceEndAt(p)
 			if c > p && m.JsxNameStart(m.TsxByte(c)) {
 				p = m.JsxNameEndAt(c)
@@ -7168,7 +7216,7 @@ func (m *Machine) JsxValidate(p uint32) bool {
 		if c == '<' {
 			return true
 		}
-		if p+7 <= m.End && binary.LittleEndian.Uint64(m.Mem[p:])&0xffffffffffffff == 0x73646e65747865 {
+		if p+7 <= m.End && binary.LittleEndian.Uint64(mem[p:])&0xffffffffffffff == 0x73646e65747865 {
 			if m.JsxNameCont(m.TsxByte(p+7)) == 0 {
 				c = m.TsxByte(m.JsxSpaceEndAt(p + 7))
 				if !(c == '=' || c == '>' || c == '/') {
@@ -7182,7 +7230,7 @@ func (m *Machine) JsxValidate(p uint32) bool {
 	if p >= m.End {
 		return true
 	}
-	c = uint32(m.Mem[p])
+	c = uint32(mem[p])
 	return c == '>' || c == '/' || c == '{' || m.JsxNameStart(c) || c == '"' || c == '\''
 }
 
@@ -7572,15 +7620,16 @@ func (m *Machine) IsIdentish(t uint32) bool {
 
 // IsBuiltinConst is $isBuiltinConst.
 func (m *Machine) IsBuiltinConst(lhs, rhs uint32) bool {
+	mem := m.Mem
 	length := rhs - lhs
 	if length == 9 {
-		return binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x656e696665646e75 && m.Mem[lhs+8] == 'd'
+		return binary.LittleEndian.Uint64(mem[lhs:]) == 0x656e696665646e75 && mem[lhs+8] == 'd'
 	}
 	if length == 3 {
-		return binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x4e614e
+		return binary.LittleEndian.Uint32(mem[lhs:])&0xffffff == 0x4e614e
 	}
 	if length == 8 {
-		return binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7974696e69666e49
+		return binary.LittleEndian.Uint64(mem[lhs:]) == 0x7974696e69666e49
 	}
 	return false
 }
@@ -7608,10 +7657,11 @@ func (m *Machine) IsPredefinedType(lhs, rhs uint32) bool {
 
 // IsConstructorWord is $isConstructorWord.
 func (m *Machine) IsConstructorWord(lhs, rhs uint32) bool {
+	mem := m.Mem
 	if rhs-lhs != 11 {
 		return false
 	}
-	return binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x63757274736e6f63 && binary.LittleEndian.Uint32(m.Mem[lhs+7:]) == 0x726f7463
+	return binary.LittleEndian.Uint64(mem[lhs:]) == 0x63757274736e6f63 && binary.LittleEndian.Uint32(mem[lhs+7:]) == 0x726f7463
 }
 
 // TsBlanksBefore is $tsBlanksBefore.
@@ -7927,12 +7977,13 @@ func (m *Machine) CtxIdentHl(prev, next, lhs, rhs uint32) uint32 {
 // IdentHl is $identHl.
 func (m *Machine) IdentHl(prev, t, next, lhs, rhs uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	if t != LexIdentifier {
 		c = m.CtxwordHl(prev, t, next)
 		if c != 4294967295 {
 			return c
 		}
-	} else if uint32(m.Mem[next+38656])&64 != 0 {
+	} else if uint32(mem[next+38656])&64 != 0 {
 		if !(m.NlBefore != 0 || prev == LexDot || prev == LexQuestionMarkDot) {
 			c = m.CtxIdentHl(prev, next, lhs, rhs)
 			if c != 4294967295 {
@@ -7942,7 +7993,7 @@ func (m *Machine) IdentHl(prev, t, next, lhs, rhs uint32) uint32 {
 	}
 	if prev == LexDot || prev == LexQuestionMarkDot {
 		if next == LexLParen {
-			if uint32(m.Mem[lhs])-65 <= 25 {
+			if uint32(mem[lhs])-65 <= 25 {
 				if m.TsNewMemberBefore(lhs) {
 					return TokenTypeClass
 				}
@@ -7975,7 +8026,7 @@ func (m *Machine) IdentHl(prev, t, next, lhs, rhs uint32) uint32 {
 		return TokenVariableParameter
 	}
 	if m.SigActive() {
-		if m.SigObscure|m.SigAngle == 0 && uint32(m.Mem[prev+38656])&16 != 0 {
+		if m.SigObscure|m.SigAngle == 0 && uint32(mem[prev+38656])&16 != 0 {
 			return TokenVariableParameter
 		}
 		if m.SigObscure == 1 && m.SigPattern != 0 && next != LexColon && (prev == LexLBrace || prev == LexLBracket || prev == LexComma) {
@@ -8004,7 +8055,7 @@ func (m *Machine) IdentHl(prev, t, next, lhs, rhs uint32) uint32 {
 			if prev == LexIdentifier {
 				c = m.TsBlanksBefore(lhs)
 				if c-m.SrcBase >= 6 {
-					if binary.LittleEndian.Uint64(m.Mem[c-6:])&0xffffffffffff == 0x657571696e75 && !m.JsxNameStart(m.TsByteBefore(c-6)) {
+					if binary.LittleEndian.Uint64(mem[c-6:])&0xffffffffffff == 0x657571696e75 && !m.JsxNameStart(m.TsByteBefore(c-6)) {
 						return TokenTypeBuiltin
 					}
 				}
@@ -8039,7 +8090,7 @@ func (m *Machine) IdentHl(prev, t, next, lhs, rhs uint32) uint32 {
 		}
 		return TokenConstant
 	}
-	c = uint32(m.Mem[lhs])
+	c = uint32(mem[lhs])
 	if c-65 <= 25 {
 		return TokenType
 	}
@@ -8105,10 +8156,11 @@ func (m *Machine) HlTsStream(reset uint32) {
 
 // TsrxWord is $tsrxWord.
 func (m *Machine) TsrxWord(p, length uint32) uint64 {
+	mem := m.Mem
 	if length >= 8 {
-		return binary.LittleEndian.Uint64(m.Mem[p:])
+		return binary.LittleEndian.Uint64(mem[p:])
 	}
-	return binary.LittleEndian.Uint64(m.Mem[p:]) & (uint64(1)<<(uint64(length<<3)&63) - 1)
+	return binary.LittleEndian.Uint64(mem[p:]) & (uint64(1)<<(uint64(length<<3)&63) - 1)
 }
 
 // TsrxIdentByte is $tsrxIdentByte.
@@ -8203,6 +8255,7 @@ func (m *Machine) TsrxRawKind(lhs, rhs uint32) uint32 {
 // TsrxRawClose is $tsrxRawClose.
 func (m *Machine) TsrxRawClose(p, kind uint32) bool {
 	var n uint32
+	mem := m.Mem
 	if kind == 1 {
 		n = 8
 	} else {
@@ -8211,7 +8264,7 @@ func (m *Machine) TsrxRawClose(p, kind uint32) bool {
 	if p+n > m.End {
 		return false
 	}
-	if uint32(binary.LittleEndian.Uint16(m.Mem[p:])) != 12092 {
+	if uint32(binary.LittleEndian.Uint16(mem[p:])) != 12092 {
 		return false
 	}
 	var choice uint64
@@ -8226,7 +8279,7 @@ func (m *Machine) TsrxRawClose(p, kind uint32) bool {
 	if p+n >= m.End {
 		return true
 	}
-	c := uint32(m.Mem[p+n])
+	c := uint32(mem[p+n])
 	return c == '>' || c == '/' || c == ' ' || c-9 <= 4
 }
 
@@ -8777,23 +8830,24 @@ func (m *Machine) HlTsxExpression(closeLen uint32, open bool, region, tag uint32
 
 // YamlWordHl is $yamlWordHl.
 func (m *Machine) YamlWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := rhs - lhs
 	if n-1 > 4 {
 		return TokenString
 	}
 	if n == 1 {
-		if m.Mem[lhs] == '~' {
+		if mem[lhs] == '~' {
 			return TokenConstantBuiltin
 		}
 		return TokenString
 	}
 	if n == 5 {
-		if (binary.LittleEndian.Uint64(m.Mem[lhs:])|0x2020202020)&0xffffffffff == 0x65736c6166 {
+		if (binary.LittleEndian.Uint64(mem[lhs:])|0x2020202020)&0xffffffffff == 0x65736c6166 {
 			return TokenBoolean
 		}
 		return TokenString
 	}
-	w := binary.LittleEndian.Uint32(m.Mem[lhs:]) | 0x20202020
+	w := binary.LittleEndian.Uint32(mem[lhs:]) | 0x20202020
 	if n == 4 {
 		if w == 0x65757274 {
 			return TokenBoolean
@@ -8819,11 +8873,12 @@ func (m *Machine) YamlWordHl(lhs, rhs uint32) uint32 {
 
 // YamlSkipHorizontal is $yamlSkipHorizontal.
 func (m *Machine) YamlSkipHorizontal(p uint32) uint32 {
+	mem := m.Mem
 	for {
 		if p >= m.End {
 			break
 		}
-		if !(m.Mem[p] == ' ' || m.Mem[p] == '\t') {
+		if !(mem[p] == ' ' || mem[p] == '\t') {
 			break
 		}
 		p++
@@ -8833,11 +8888,12 @@ func (m *Machine) YamlSkipHorizontal(p uint32) uint32 {
 
 // YamlAfterLine is $yamlAfterLine.
 func (m *Machine) YamlAfterLine(p uint32) uint32 {
+	mem := m.Mem
 	if p < m.End {
-		if m.Mem[p] == '\r' {
+		if mem[p] == '\r' {
 			p++
 		}
-		if p < m.End && m.Mem[p] == '\n' {
+		if p < m.End && mem[p] == '\n' {
 			p++
 		}
 	}
@@ -8846,11 +8902,12 @@ func (m *Machine) YamlAfterLine(p uint32) uint32 {
 
 // YamlLineIndent is $yamlLineIndent.
 func (m *Machine) YamlLineIndent(p uint32) uint32 {
+	mem := m.Mem
 	for {
 		if p <= m.SrcBase {
 			break
 		}
-		if m.Mem[p-1] == '\n' || m.Mem[p-1] == '\r' {
+		if mem[p-1] == '\n' || mem[p-1] == '\r' {
 			break
 		}
 		p--
@@ -8930,17 +8987,18 @@ func (m *Machine) YamlStreamResume() bool {
 
 // YamlColonEnds is $yamlColonEnds.
 func (m *Machine) YamlColonEnds(p, flow uint32) bool {
+	mem := m.Mem
 	if p >= m.End {
 		return false
 	}
-	if m.Mem[p] != ':' {
+	if mem[p] != ':' {
 		return false
 	}
 	p++
 	if p >= m.End {
 		return true
 	}
-	c := uint32(m.Mem[p])
+	c := uint32(mem[p])
 	if m.LexIsSpace(c) {
 		return true
 	}
@@ -8951,12 +9009,13 @@ func (m *Machine) YamlColonEnds(p, flow uint32) bool {
 func (m *Machine) YamlScanPlain(flow uint32) {
 	var c, mask, rem, cond uint32
 	var v, w rt.V128
+	mem := m.Mem
 	start := m.Ptr
 	for {
 		if m.Ptr >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem[m.Ptr:])
+		w = rt.LdV(mem[m.Ptr:])
 		v = w.Eq8(rt.Splat8(10)).Or(w.Eq8(rt.Splat8(13))).Or(w.Eq8(rt.Splat8(58)).Or(w.Eq8(rt.Splat8(35))))
 		if flow != 0 {
 			v = v.Or(w.Eq8(rt.Splat8(44)).Or(w.Eq8(rt.Splat8(91))).Or(w.Eq8(rt.Splat8(93)).Or(w.Eq8(rt.Splat8(123))).Or(w.Eq8(rt.Splat8(125)))))
@@ -8968,11 +9027,11 @@ func (m *Machine) YamlScanPlain(flow uint32) {
 		}
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
-			c = uint32(m.Mem[m.Ptr])
+			c = uint32(mem[m.Ptr])
 			if c == ':' {
 				cond = rt.B2u(!m.YamlColonEnds(m.Ptr, flow))
 			} else {
-				cond = rt.B2u(c == '#' && !(m.Ptr > start && (m.Mem[m.Ptr-1] == ' ' || m.Mem[m.Ptr-1] == '\t')))
+				cond = rt.B2u(c == '#' && !(m.Ptr > start && (mem[m.Ptr-1] == ' ' || mem[m.Ptr-1] == '\t')))
 			}
 			if cond != 0 {
 				m.Ptr++
@@ -8990,7 +9049,7 @@ func (m *Machine) YamlScanPlain(flow uint32) {
 		if m.Ptr <= start {
 			break
 		}
-		c = uint32(m.Mem[m.Ptr-1])
+		c = uint32(mem[m.Ptr-1])
 		if c != ' ' && c != '\t' {
 			break
 		}
@@ -9195,8 +9254,9 @@ func (m *Machine) AstroLineEnd(p uint32) uint32 {
 
 // AstroAfterLine is $astroAfterLine.
 func (m *Machine) AstroAfterLine(p uint32) uint32 {
+	mem := m.Mem
 	if p < m.End {
-		if m.Mem[p] == '\r' && p+1 < m.End && m.Mem[p+1] == '\n' {
+		if mem[p] == '\r' && p+1 < m.End && mem[p+1] == '\n' {
 			return p + 2
 		}
 		return p + 1
@@ -9306,6 +9366,7 @@ func (m *Machine) MarkdownFenceReg() uint32 {
 
 // MarkdownFenceSet is $markdownFenceSet.
 func (m *Machine) MarkdownFenceSet(fence, length, lang uint32) {
+	mem := m.Mem
 	if m.MarkdownDepth == 0 {
 		m.MarkdownStreamFence = fence
 		m.MarkdownStreamFenceLen = length
@@ -9313,9 +9374,9 @@ func (m *Machine) MarkdownFenceSet(fence, length, lang uint32) {
 		return
 	}
 	slot := m.MarkdownFenceSlot(m.MarkdownDepth)
-	binary.LittleEndian.PutUint32(m.Mem[slot:], fence)
-	binary.LittleEndian.PutUint32(m.Mem[slot+4:], length)
-	binary.LittleEndian.PutUint32(m.Mem[slot+8:], lang)
+	binary.LittleEndian.PutUint32(mem[slot:], fence)
+	binary.LittleEndian.PutUint32(mem[slot+4:], length)
+	binary.LittleEndian.PutUint32(mem[slot+8:], lang)
 }
 
 // MarkdownFenceClearDeeper is $markdownFenceClearDeeper.
@@ -9581,8 +9642,9 @@ func (m *Machine) MarkdownTickRunEnd(p, stop uint32) uint32 {
 
 // MarkdownAfterLine is $markdownAfterLine.
 func (m *Machine) MarkdownAfterLine(p uint32) uint32 {
+	mem := m.Mem
 	if p < m.End {
-		if m.Mem[p] == '\r' && p+1 < m.End && m.Mem[p+1] == '\n' {
+		if mem[p] == '\r' && p+1 < m.End && mem[p+1] == '\n' {
 			return p + 2
 		}
 		return p + 1
@@ -9592,7 +9654,8 @@ func (m *Machine) MarkdownAfterLine(p uint32) uint32 {
 
 // MarkdownListMarkerEnd is $markdownListMarkerEnd.
 func (m *Machine) MarkdownListMarkerEnd(p uint32) uint32 {
-	c := uint32(m.Mem[p])
+	mem := m.Mem
+	c := uint32(mem[p])
 	if c == '-' || c == '+' || c == '*' {
 		return p + 1
 	}
@@ -9601,12 +9664,12 @@ func (m *Machine) MarkdownListMarkerEnd(p uint32) uint32 {
 		if q >= m.End {
 			break
 		}
-		if !m.LexIsDigit(uint32(m.Mem[q])) {
+		if !m.LexIsDigit(uint32(mem[q])) {
 			break
 		}
 		q++
 	}
-	if q > p && q < m.End && (m.Mem[q] == '.' || m.Mem[q] == ')') {
+	if q > p && q < m.End && (mem[q] == '.' || mem[q] == ')') {
 		return q + 1
 	}
 	return p
@@ -9634,6 +9697,7 @@ func (m *Machine) MarkdownSkipIndent(p, stop uint32) uint32 {
 // MarkdownFenceClose is $markdownFenceClose.
 func (m *Machine) MarkdownFenceClose(p, fence, length, quotes, indent uint32) uint32 {
 	var c, lineEnd, n, q uint32
+	mem := m.Mem
 	m.MarkdownFenceEnded = false
 lines:
 	for {
@@ -9648,12 +9712,12 @@ lines:
 				break
 			}
 			q = m.MarkdownSkipIndent(q, lineEnd)
-			if q >= lineEnd || m.Mem[q] != '>' {
+			if q >= lineEnd || mem[q] != '>' {
 				m.MarkdownFenceEnded = true
 				return p
 			}
 			q++
-			if q < lineEnd && m.Mem[q] == ' ' {
+			if q < lineEnd && mem[q] == ' ' {
 				q++
 			}
 			n--
@@ -9667,8 +9731,8 @@ lines:
 				p = m.MarkdownAfterLine(lineEnd)
 				continue lines
 			}
-			c = uint32(m.Mem[q])
-			if uint32(m.Mem[c+1936])&16 == 0 {
+			c = uint32(mem[q])
+			if uint32(mem[c+1936])&16 == 0 {
 				m.MarkdownFenceEnded = true
 				return p
 			}
@@ -9685,7 +9749,7 @@ lines:
 			if q >= lineEnd {
 				break
 			}
-			if uint32(m.Mem[q]) != fence {
+			if uint32(mem[q]) != fence {
 				break
 			}
 			q++
@@ -9695,7 +9759,7 @@ lines:
 				if q >= lineEnd {
 					break
 				}
-				c = uint32(m.Mem[q])
+				c = uint32(mem[q])
 				if c != ' ' && c != '\t' {
 					break
 				}
@@ -9766,11 +9830,12 @@ func (m *Machine) MarkdownStreamResume() bool {
 func (m *Machine) MarkdownPlainEnd(p uint32) uint32 {
 	var hits, w rt.V128
 	var mask uint32
+	mem := m.Mem
 	for {
 		if m.End-p < 16 {
 			break
 		}
-		w = rt.LdV(m.Mem[p:])
+		w = rt.LdV(mem[p:])
 		hits = w.Eq8(rt.Splat8(10)).Or(w.Eq8(rt.Splat8(13)))
 		hits = hits.Or(w.Eq8(rt.Splat8(60)).Or(w.Eq8(rt.Splat8(91))))
 		hits = hits.Or(w.Eq8(rt.Splat8(96)).Or(w.Eq8(rt.Splat8(92))))
@@ -9786,8 +9851,8 @@ func (m *Machine) MarkdownPlainEnd(p uint32) uint32 {
 		if p >= m.End {
 			break
 		}
-		mask = uint32(m.Mem[p])
-		if uint32(m.Mem[mask+1936])&32 != 0 {
+		mask = uint32(mem[p])
+		if uint32(mem[mask+1936])&32 != 0 {
 			break
 		}
 		p++
@@ -9798,22 +9863,23 @@ func (m *Machine) MarkdownPlainEnd(p uint32) uint32 {
 // MarkdownHTMLEnd is $markdownHtmlEnd.
 func (m *Machine) MarkdownHTMLEnd(lhs, lineEnd uint32) uint32 {
 	var q, kind uint32
+	mem := m.Mem
 	p := lhs + 1
 	if p >= m.End {
 		return p
 	}
-	c := uint32(m.Mem[p])
+	c := uint32(mem[p])
 	if !(c == '/' || c == '!' || c == '?' || m.LexIsIdentStart(c) || c == ':') {
 		return p
 	}
-	if lhs+4 <= m.End && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x2d2d213c {
+	if lhs+4 <= m.End && binary.LittleEndian.Uint32(mem[lhs:]) == 0x2d2d213c {
 		p = lhs + 4
 		for {
 			p = m.LexFindByte(p, 45)
 			if p >= m.End {
 				break
 			}
-			if p+3 <= m.End && binary.LittleEndian.Uint32(m.Mem[p:])&0xffffff == 0x3e2d2d {
+			if p+3 <= m.End && binary.LittleEndian.Uint32(mem[p:])&0xffffff == 0x3e2d2d {
 				return p + 3
 			}
 			p++
@@ -9827,7 +9893,7 @@ func (m *Machine) MarkdownHTMLEnd(lhs, lineEnd uint32) uint32 {
 		if p >= lineEnd {
 			return 0
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		p++
 		if c == '>' {
 			break
@@ -9840,7 +9906,7 @@ func (m *Machine) MarkdownHTMLEnd(lhs, lineEnd uint32) uint32 {
 			p++
 		}
 	}
-	if m.LexIsIdentStart(uint32(m.Mem[lhs+1])) {
+	if m.LexIsIdentStart(uint32(mem[lhs+1])) {
 		kind = m.RawTextKind(lhs+1, m.HTMLNameEnd(lhs+1))
 		if kind != 0 {
 			q = p
@@ -9867,12 +9933,13 @@ func (m *Machine) MarkdownHTMLEnd(lhs, lineEnd uint32) uint32 {
 // MarkdownAutolinkEnd is $markdownAutolinkEnd.
 func (m *Machine) MarkdownAutolinkEnd(lhs, lineEnd uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	p := lhs + 1
 	for {
 		if p >= lineEnd {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if !((c|32)-97 <= 25 || c-43 <= 14 || c == '_' || c >= 128) {
 			break
 		}
@@ -9881,14 +9948,14 @@ func (m *Machine) MarkdownAutolinkEnd(lhs, lineEnd uint32) uint32 {
 	if p >= lineEnd {
 		return 0
 	}
-	c = uint32(m.Mem[p])
-	if c == ':' && p-lhs-3 <= 30 && (uint32(m.Mem[lhs+1])|32)-97 <= 25 {
+	c = uint32(mem[p])
+	if c == ':' && p-lhs-3 <= 30 && (uint32(mem[lhs+1])|32)-97 <= 25 {
 		for {
 			p++
 			if p >= lineEnd {
 				break
 			}
-			c = uint32(m.Mem[p])
+			c = uint32(mem[p])
 			if c == '>' {
 				return p + 1
 			}
@@ -9907,11 +9974,11 @@ func (m *Machine) MarkdownAutolinkEnd(lhs, lineEnd uint32) uint32 {
 		if p >= lineEnd {
 			break
 		}
-		if !(m.MarkdownIsAlnum(uint32(m.Mem[p])) || m.Mem[p] == '.' || m.Mem[p] == '-') {
+		if !(m.MarkdownIsAlnum(uint32(mem[p])) || mem[p] == '.' || mem[p] == '-') {
 			break
 		}
 	}
-	if p > c+1 && p < lineEnd && m.Mem[p] == '>' {
+	if p > c+1 && p < lineEnd && mem[p] == '>' {
 		return p + 1
 	}
 	return 0
@@ -9985,9 +10052,10 @@ func (m *Machine) MarkdownFindEither(p, stop, c uint32) uint32 {
 // MarkdownEmphasisEnd is $markdownEmphasisEnd.
 func (m *Machine) MarkdownEmphasisEnd(lhs, c, count, lineEnd uint32) uint32 {
 	var q, markdownTickRunEnd uint32
+	mem := m.Mem
 	p := lhs + count
 	if c == '_' {
-		if (lhs > m.SrcBase && m.MarkdownIsAlnum(uint32(m.Mem[lhs-1]))) || p >= lineEnd || m.LexIsSpace(uint32(m.Mem[p])) {
+		if (lhs > m.SrcBase && m.MarkdownIsAlnum(uint32(mem[lhs-1]))) || p >= lineEnd || m.LexIsSpace(uint32(mem[p])) {
 			return 0
 		}
 		if lhs < m.MarkdownUnderNoClose && count == m.MarkdownUnderNoCloseCount {
@@ -10003,7 +10071,7 @@ func (m *Machine) MarkdownEmphasisEnd(lhs, c, count, lineEnd uint32) uint32 {
 			}
 			return 0
 		}
-		if m.Mem[p] == '`' {
+		if mem[p] == '`' {
 			q = m.MarkdownCodeSpanEnd(p, lineEnd)
 			if q != 0 {
 				markdownTickRunEnd = q
@@ -10015,13 +10083,13 @@ func (m *Machine) MarkdownEmphasisEnd(lhs, c, count, lineEnd uint32) uint32 {
 		}
 		q = p + 1
 		if count == 2 {
-			if q < lineEnd && uint32(m.Mem[q]) == c {
+			if q < lineEnd && uint32(mem[q]) == c {
 				q = p + 2
 			} else {
 				q = 0
 			}
 		}
-		if q != 0 && (c != '_' || q >= lineEnd || m.Mem[q] >= 128 || !m.MarkdownIsAlnum(uint32(m.Mem[q]))) {
+		if q != 0 && (c != '_' || q >= lineEnd || mem[q] >= 128 || !m.MarkdownIsAlnum(uint32(mem[q]))) {
 			return q
 		}
 		p++
@@ -11104,8 +11172,9 @@ func (m *Machine) JavaWordHl(lhs, rhs uint32) uint32 {
 
 // ApexWordHl is $apexWordHl.
 func (m *Machine) ApexWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := m.LexLowerCopy(lhs, rhs, 1360)
-	if n == 5 && binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x72656877 && m.Mem[1364] == 'e' {
+	if n == 5 && binary.LittleEndian.Uint32(mem[1360:]) == 0x72656877 && mem[1364] == 'e' {
 		return 2065
 	}
 	return m.LexKeywordValue(1360, 1360+n, 35648, 31, 96)
@@ -11518,13 +11587,14 @@ func (m *Machine) IniIsBoolean(lhs, rhs uint32) bool {
 // IniIsNumber is $iniIsNumber.
 func (m *Machine) IniIsNumber(lhs, rhs uint32) bool {
 	var dot, digit bool
-	c := uint32(m.Mem[lhs])
-	lhs += uint32(m.Mem[c+2448]) & 1
+	mem := m.Mem
+	c := uint32(mem[lhs])
+	lhs += uint32(mem[c+2448]) & 1
 	for {
 		if lhs >= rhs {
 			break
 		}
-		c = uint32(m.Mem[lhs])
+		c = uint32(mem[lhs])
 		lhs++
 		if m.LexIsDigit(c) {
 			digit = true
@@ -11548,26 +11618,27 @@ func (m *Machine) IniIsNumber(lhs, rhs uint32) bool {
 // IniFind is $iniFind.
 func (m *Machine) IniFind(p, stops uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	for {
 		if p >= m.End {
 			break
 		}
-		c = uint32(m.Mem[p])
-		if uint32(m.Mem[c+1424])&4 != 0 {
+		c = uint32(mem[p])
+		if uint32(mem[c+1424])&4 != 0 {
 			break
 		}
 		if stops == 1 {
-			if uint32(m.Mem[c+2448])&2 != 0 {
+			if uint32(mem[c+2448])&2 != 0 {
 				break
 			}
 		}
 		if stops == 2 {
-			if uint32(m.Mem[c+1936])&16 != 0 {
+			if uint32(mem[c+1936])&16 != 0 {
 				break
 			}
 		}
 		if stops == 3 {
-			if uint32(m.Mem[c+2448])&4 != 0 {
+			if uint32(mem[c+2448])&4 != 0 {
 				break
 			}
 		}
@@ -11579,12 +11650,13 @@ func (m *Machine) IniFind(p, stops uint32) uint32 {
 // IniTrim is $iniTrim.
 func (m *Machine) IniTrim(lhs, p uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	for {
 		if p <= lhs {
 			break
 		}
-		c = uint32(m.Mem[p-1])
-		if uint32(m.Mem[c+1936])&16 == 0 {
+		c = uint32(mem[p-1])
+		if uint32(mem[c+1936])&16 == 0 {
 			break
 		}
 		p--
@@ -12293,13 +12365,14 @@ func (m *Machine) RstIsAlnum(c uint32) bool {
 // RstCloseEnd is $rstCloseEnd.
 func (m *Machine) RstCloseEnd(p, stop, c, n uint32, tight bool) uint32 {
 	var q uint32
+	mem := m.Mem
 	for {
 		p = m.ScanFindSpecial(p, stop, c, 0, 0)
 		if p >= stop {
 			return 0
 		}
 		q = p + n
-		if q <= stop && (n == 1 || uint32(m.Mem[p+1]) == c) && !m.LexIsSpace(uint32(m.Mem[p-1])) && (!tight || q >= stop || !m.RstIsAlnum(uint32(m.Mem[q]))) {
+		if q <= stop && (n == 1 || uint32(mem[p+1]) == c) && !m.LexIsSpace(uint32(mem[p-1])) && (!tight || q >= stop || !m.RstIsAlnum(uint32(mem[q]))) {
 			return q
 		}
 		p++
@@ -12323,7 +12396,8 @@ func (m *Machine) RstTrimEnd(p, stop uint32) uint32 {
 // RstIsRule is $rstIsRule.
 func (m *Machine) RstIsRule(p, stop uint32) uint32 {
 	var gaps bool
-	c := uint32(m.Mem[p])
+	mem := m.Mem
+	c := uint32(mem[p])
 	if stop-p < 3 || c-33 > 93 || m.RstIsAlnum(c) {
 		return 0
 	}
@@ -12332,8 +12406,8 @@ func (m *Machine) RstIsRule(p, stop uint32) uint32 {
 		if q >= stop {
 			break
 		}
-		if uint32(m.Mem[q]) != c {
-			if !m.LexIsSpace(uint32(m.Mem[q])) || (c != '=' && c != '-') {
+		if uint32(mem[q]) != c {
+			if !m.LexIsSpace(uint32(mem[q])) || (c != '=' && c != '-') {
 				break
 			}
 			gaps = true
@@ -13199,20 +13273,21 @@ next:
 // AsmIsRegister is $asmIsRegister.
 func (m *Machine) AsmIsRegister(lhs, rhs uint32) bool {
 	var w uint32
+	mem := m.Mem
 	n := rhs - lhs
-	c := uint32(m.Mem[lhs]) | 32
-	if n > 1 && (c == 'r' || c == 'x' || c == 'w') && m.LexIsDigit(uint32(m.Mem[lhs+1])) {
+	c := uint32(mem[lhs]) | 32
+	if n > 1 && (c == 'r' || c == 'x' || c == 'w') && m.LexIsDigit(uint32(mem[lhs+1])) {
 		return true
 	}
 	if n-2 <= 1 && (c == 'a' || c == 't' || c == 's') {
-		if m.LexIsDigit(uint32(m.Mem[lhs+1])) {
-			if n == 2 || m.LexIsDigit(uint32(m.Mem[lhs+2])) {
+		if m.LexIsDigit(uint32(mem[lhs+1])) {
+			if n == 2 || m.LexIsDigit(uint32(mem[lhs+2])) {
 				return true
 			}
 		}
 	}
-	w = binary.LittleEndian.Uint32(m.Mem[lhs:]) | 0x20202020
-	if n-4 <= 1 && w&0xffff00 == 0x6d6d00 && c-120 <= 2 && m.LexIsDigit(uint32(m.Mem[lhs+3])) {
+	w = binary.LittleEndian.Uint32(mem[lhs:]) | 0x20202020
+	if n-4 <= 1 && w&0xffff00 == 0x6d6d00 && c-120 <= 2 && m.LexIsDigit(uint32(mem[lhs+3])) {
 		return true
 	}
 	if n > 3 {
@@ -13785,11 +13860,12 @@ func (m *Machine) BashDouble() {
 // BashRangeEq is $bashRangeEq.
 func (m *Machine) BashRangeEq(a, b, n uint32) bool {
 	var i uint32
+	mem := m.Mem
 	for {
 		if i >= n {
 			break
 		}
-		if uint32(m.Mem[a+i]) != uint32(m.Mem[b+i]) {
+		if uint32(mem[a+i]) != uint32(mem[b+i]) {
 			return false
 		}
 		i++
@@ -13848,13 +13924,14 @@ func (m *Machine) BashIsOp(c uint32) bool {
 
 // BashIsArrayOpen is $bashIsArrayOpen.
 func (m *Machine) BashIsArrayOpen(p uint32) bool {
+	mem := m.Mem
 	if m.BashArith != 0 || p < m.SrcBase+2 {
 		return false
 	}
-	if m.Mem[p-1] != '=' {
+	if mem[p-1] != '=' {
 		return false
 	}
-	c := uint32(m.Mem[p-2])
+	c := uint32(mem[p-2])
 	return m.LexIsIdentContinue(c) || c == '+' || c == ']'
 }
 
@@ -14247,7 +14324,8 @@ func (m *Machine) BatchByte(p uint32) uint32 {
 func (m *Machine) BatchVariableEnd(lhs uint32, variables uint64) uint32 {
 	var c, variableEnd uint32
 	var forKw bool
-	mark := uint32(m.Mem[lhs])
+	mem := m.Mem
+	mark := uint32(mem[lhs])
 	p := lhs + 1
 	if mark == 37 {
 		c = m.BatchByte(p)
@@ -14291,7 +14369,7 @@ func (m *Machine) BatchVariableEnd(lhs uint32, variables uint64) uint32 {
 						variableEnd = p
 					}
 					c |= 32
-					if uint32(m.Mem[c+2704])&64 == 0 {
+					if uint32(mem[c+2704])&64 == 0 {
 						break
 					}
 				}
@@ -14308,7 +14386,7 @@ func (m *Machine) BatchVariableEnd(lhs uint32, variables uint64) uint32 {
 		if p >= m.End {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if c == '\n' || c == '\r' {
 			break
 		}
@@ -15032,23 +15110,24 @@ func (m *Machine) HlBicep() {
 
 // PhpIsOpen is $phpIsOpen.
 func (m *Machine) PhpIsOpen(p uint32) bool {
+	mem := m.Mem
 	if p+3 > m.End {
 		return false
 	}
-	if uint32(binary.LittleEndian.Uint16(m.Mem[p:])) != 16188 {
+	if uint32(binary.LittleEndian.Uint16(mem[p:])) != 16188 {
 		return false
 	}
-	c := uint32(m.Mem[p+2])
+	c := uint32(mem[p+2])
 	if c == '=' {
 		return true
 	}
 	if p+5 > m.End {
 		return false
 	}
-	if (binary.LittleEndian.Uint32(m.Mem[p+2:])|0x202020)&0xffffff != 0x706870 {
+	if (binary.LittleEndian.Uint32(mem[p+2:])|0x202020)&0xffffff != 0x706870 {
 		return false
 	}
-	return p+5 == m.End || m.LexIsSpace(uint32(m.Mem[p+5]))
+	return p+5 == m.End || m.LexIsSpace(uint32(mem[p+5]))
 }
 
 // PhpFindOpen is $phpFindOpen.
@@ -15101,15 +15180,16 @@ func (m *Machine) PhpLineComment(skip uint32) {
 // PhpUpperName is $phpUpperName.
 func (m *Machine) PhpUpperName(lhs, rhs uint32) uint32 {
 	var plain uint32
+	mem := m.Mem
 	if m.PhpHack {
 		plain = TokenType
 	} else {
 		plain = TokenVariable
 	}
-	if rhs+1 < m.End && uint32(binary.LittleEndian.Uint16(m.Mem[rhs:])) == 14906 {
+	if rhs+1 < m.End && uint32(binary.LittleEndian.Uint16(mem[rhs:])) == 14906 {
 		return TokenType
 	}
-	if uint32(m.Mem[lhs+1])-97 <= 25 {
+	if uint32(mem[lhs+1])-97 <= 25 {
 		return plain
 	}
 	if m.LexIsConstCase(lhs, rhs) {
@@ -15122,13 +15202,14 @@ func (m *Machine) PhpUpperName(lhs, rhs uint32) uint32 {
 func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 	var w uint64
 	var v rt.V128
+	mem := m.Mem
 	n := rhs - lhs
 	if n-2 > 10 {
 		return TokenVariable
 	}
 	switch n {
 	case 2:
-		w = binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020
+		w = binary.LittleEndian.Uint64(mem[lhs:]) | 0x2020202020202020
 		w &= 65535
 		if w == 26217 || w == 28516 {
 			return TokenKeywordControl
@@ -15138,7 +15219,7 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 		}
 		return TokenVariable
 	case 3:
-		w = binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020
+		w = binary.LittleEndian.Uint64(mem[lhs:]) | 0x2020202020202020
 		w &= 0xffffff
 		if w == 0x77656e || w == 0x657375 || w == 0x726176 {
 			return TokenKeyword
@@ -15151,7 +15232,7 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 		}
 		return TokenVariable
 	case 4:
-		w = binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020
+		w = binary.LittleEndian.Uint64(mem[lhs:]) | 0x2020202020202020
 		w &= 0xffffffff
 		if w == 0x65757274 {
 			return TokenBoolean
@@ -15170,8 +15251,8 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 		}
 		return TokenVariable
 	}
-	v = rt.LdV(m.Mem[lhs:])
-	rt.StV(m.Mem[1360:], v.Or(v.Sub8(rt.Splat8(65)).LeU8(rt.Splat8(25)).And(rt.Splat8(32))))
+	v = rt.LdV(mem[lhs:])
+	rt.StV(mem[1360:], v.Or(v.Sub8(rt.Splat8(65)).LeU8(rt.Splat8(25)).And(rt.Splat8(32))))
 	hl := m.LexKeywordValue(1360, 1360+n, 24704, 15, 51)
 	if int32(hl) >= 0 {
 		return hl
@@ -15181,8 +15262,9 @@ func (m *Machine) PhpWordHl(lhs, rhs uint32) uint32 {
 
 // PhpAfterLine is $phpAfterLine.
 func (m *Machine) PhpAfterLine(p uint32) uint32 {
+	mem := m.Mem
 	if p < m.End {
-		if m.Mem[p] == '\r' && p+1 < m.End && m.Mem[p+1] == '\n' {
+		if mem[p] == '\r' && p+1 < m.End && mem[p+1] == '\n' {
 			return p + 2
 		}
 		return p + 1
@@ -15197,11 +15279,12 @@ func (m *Machine) PhpLineEndAt(p uint32) uint32 {
 
 // PhpBlanksAt is $phpBlanksAt.
 func (m *Machine) PhpBlanksAt(p uint32) uint32 {
+	mem := m.Mem
 	for {
 		if p >= m.End {
 			break
 		}
-		if !(m.Mem[p] == ' ' || m.Mem[p] == '\t') {
+		if !(mem[p] == ' ' || mem[p] == '\t') {
 			break
 		}
 		p++
@@ -15212,6 +15295,7 @@ func (m *Machine) PhpBlanksAt(p uint32) uint32 {
 // PhpBytesEq is $phpBytesEq.
 func (m *Machine) PhpBytesEq(a, b, n uint32) bool {
 	var mask uint64
+	mem := m.Mem
 	if a+n > m.End {
 		return false
 	}
@@ -15221,12 +15305,12 @@ func (m *Machine) PhpBytesEq(a, b, n uint32) bool {
 	for {
 		if n < 8 {
 			mask = uint64(0xffffffffffffffff) >> (uint64((8-n)<<3) & 63)
-			if binary.LittleEndian.Uint64(m.Mem[a:])&mask != binary.LittleEndian.Uint64(m.Mem[b:])&mask {
+			if binary.LittleEndian.Uint64(mem[a:])&mask != binary.LittleEndian.Uint64(mem[b:])&mask {
 				return false
 			}
 			break
 		}
-		if binary.LittleEndian.Uint64(m.Mem[a:]) != binary.LittleEndian.Uint64(m.Mem[b:]) {
+		if binary.LittleEndian.Uint64(mem[a:]) != binary.LittleEndian.Uint64(mem[b:]) {
 			return false
 		}
 		a += 8
@@ -15613,13 +15697,14 @@ func (m *Machine) PhpStreamResume() bool {
 
 // PhpLooksLikeMarkup is $phpLooksLikeMarkup.
 func (m *Machine) PhpLooksLikeMarkup(p uint32) bool {
+	mem := m.Mem
 	if p+1 >= m.End {
 		return false
 	}
-	if m.Mem[p] != '<' {
+	if mem[p] != '<' {
 		return false
 	}
-	c := uint32(m.Mem[p+1])
+	c := uint32(mem[p+1])
 	return m.LexIsIdentStart(c) || c == '!' || c == '/'
 }
 
@@ -16361,7 +16446,8 @@ next:
 
 // CWordHl is $cWordHl.
 func (m *Machine) CWordHl(lhs, rhs uint32) uint32 {
-	if rhs-lhs == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x65756e69746e6f63 {
+	mem := m.Mem
+	if rhs-lhs == 8 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x65756e69746e6f63 {
 		return TokenKeywordControl
 	}
 	g := m.LexKeywordValue(lhs, rhs, 14496, 15, 54)
@@ -16371,14 +16457,14 @@ func (m *Machine) CWordHl(lhs, rhs uint32) uint32 {
 	if m.LexIsConstCase(lhs, rhs) {
 		return TokenConstant
 	}
-	if rhs-lhs >= 3 && uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) == 29791 {
+	if rhs-lhs >= 3 && uint32(binary.LittleEndian.Uint16(mem[rhs-2:])) == 29791 {
 		return TokenType
 	}
 	p := m.LexSkipSpaceAt(rhs)
-	if p < m.End && m.Mem[p] == '(' {
+	if p < m.End && mem[p] == '(' {
 		return TokenFunction
 	}
-	if uint32(m.Mem[lhs])-65 <= 25 {
+	if uint32(mem[lhs])-65 <= 25 {
 		return TokenType
 	}
 	return TokenVariable
@@ -16812,33 +16898,34 @@ func (m *Machine) HlC3() {
 
 // CljWordHl is $cljWordHl.
 func (m *Machine) CljWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := rhs - lhs
 	v := m.LexKeywordValue(lhs, rhs, 15072, 15, 54)
 	if int32(v) >= 0 {
 		return v
 	}
 	if n == 6 {
-		if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x6c2d6669 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+4:])) == 29797 {
+		if binary.LittleEndian.Uint32(mem[lhs:]) == 0x6c2d6669 && uint32(binary.LittleEndian.Uint16(mem[lhs+4:])) == 29797 {
 			return TokenKeywordControl
 		}
 	}
 	if n == 7 {
 		v = 0xffffffff
-		if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x65636e6f666564 {
+		if binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x65636e6f666564 {
 			v = 531
 		}
-		if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6572616c636564 {
+		if binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x6572616c636564 {
 			v = 275
 		}
 		return v
 	}
 	if n == 8 {
-		if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x74656c2d6e656877 {
+		if binary.LittleEndian.Uint64(mem[lhs:]) == 0x74656c2d6e656877 {
 			return TokenKeywordControl
 		}
 	}
 	if n == 9 {
-		if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x726f636572666564 && m.Mem[lhs+8] == 'd' {
+		if binary.LittleEndian.Uint64(mem[lhs:]) == 0x726f636572666564 && mem[lhs+8] == 'd' {
 			return 787
 		}
 	}
@@ -17151,14 +17238,15 @@ func (m *Machine) CmakeCommandGroup(lhs, rhs uint32) uint32 {
 
 // CmakeIsCondition is $cmakeIsCondition.
 func (m *Machine) CmakeIsCondition(n uint32) bool {
+	mem := m.Mem
 	if n == 2 {
-		return uint32(binary.LittleEndian.Uint16(m.Mem[1360:])) == 26217
+		return uint32(binary.LittleEndian.Uint16(mem[1360:])) == 26217
 	}
 	if n == 5 {
-		return binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x6c696877 && m.Mem[1364] == 'e'
+		return binary.LittleEndian.Uint32(mem[1360:]) == 0x6c696877 && mem[1364] == 'e'
 	}
 	if n == 6 {
-		return binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x65736c65 && uint32(binary.LittleEndian.Uint16(m.Mem[1364:])) == 26217
+		return binary.LittleEndian.Uint32(mem[1360:]) == 0x65736c65 && uint32(binary.LittleEndian.Uint16(mem[1364:])) == 26217
 	}
 	return false
 }
@@ -17501,12 +17589,13 @@ func (m *Machine) HlCmake() {
 
 // CobolWordHl is $cobolWordHl.
 func (m *Machine) CobolWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := m.LexLowerCopy(lhs, rhs, 1360)
 	v := m.LexKeywordValue(1360, 1360+n, 34560, 63, 172)
 	if int32(v) >= 0 {
 		return v
 	}
-	w := binary.LittleEndian.Uint64(m.Mem[1360:])
+	w := binary.LittleEndian.Uint64(mem[1360:])
 	if n > 4 && uint32(w) == 0x2d646e65 {
 		v = m.LexKeywordValue(1364, 1360+n, 34560, 63, 172) & 255
 		if v == TokenKeyword || v == TokenKeywordControl {
@@ -17514,7 +17603,7 @@ func (m *Machine) CobolWordHl(lhs, rhs uint32) uint32 {
 		}
 		return 0xffffffff
 	}
-	if (n == 4 && uint32(w) == 0x6e616874) || (n == 9 && w == 0x6e696e7275746572 && m.Mem[1368] == 'g') {
+	if (n == 4 && uint32(w) == 0x6e616874) || (n == 9 && w == 0x6e696e7275746572 && mem[1368] == 'g') {
 		return TokenKeyword
 	}
 	if n == 7 && w&0xffffffffffffff == 0x64657865646e69 {
@@ -18096,18 +18185,19 @@ func (m *Machine) CoffeeArrowAt(p uint32) bool {
 func (m *Machine) CoffeeRegex() bool {
 	var c uint32
 	var class bool
+	mem := m.Mem
 	for {
 		m.Ptr++
 		c = m.TemplateByte(m.Ptr)
 		if m.Ptr >= m.End {
 			break
 		}
-		if uint32(m.Mem[c+1424])&4 != 0 {
+		if uint32(mem[c+1424])&4 != 0 {
 			break
 		}
 		if c == '\\' {
 			c = m.TemplateByte(m.Ptr + 1)
-			if m.Mem[c+1424]&4 != 0 || m.Ptr+1 >= m.End {
+			if mem[c+1424]&4 != 0 || m.Ptr+1 >= m.End {
 				continue
 			}
 			m.Ptr++
@@ -18577,8 +18667,9 @@ func (m *Machine) HlCoffee() {
 
 // CoqWordKind is $coqWordKind.
 func (m *Machine) CoqWordKind(lhs, rhs uint32) uint32 {
-	w := binary.LittleEndian.Uint64(m.Mem[lhs:])
-	if rhs-lhs == 9 && m.Mem[lhs+8] == 'n' && (w == 0x6f69737265766e69 || w == 0x6f697463656a6e69 || w == 0x6f69746975746e69) {
+	mem := m.Mem
+	w := binary.LittleEndian.Uint64(mem[lhs:])
+	if rhs-lhs == 9 && mem[lhs+8] == 'n' && (w == 0x6f69737265766e69 || w == 0x6f697463656a6e69 || w == 0x6f69746975746e69) {
 		return TokenKeywordControl
 	}
 	if rhs-lhs == 6 && w&0xffffffffffff == 0x747265766572 {
@@ -18957,15 +19048,16 @@ func (m *Machine) CppString(lhs, kind uint32) uint32 {
 // CppDirectiveScan is $cppDirectiveScan.
 func (m *Machine) CppDirectiveScan(lhs uint32) bool {
 	var joined uint32
+	mem := m.Mem
 	for {
 		m.ScanToLineEnd()
 		if m.Ptr >= m.End {
 			return m.Ptr == joined
 		}
-		if m.Ptr == lhs || m.Mem[m.Ptr-1] != '\\' {
+		if m.Ptr == lhs || mem[m.Ptr-1] != '\\' {
 			break
 		}
-		if m.Mem[m.Ptr] == '\r' {
+		if mem[m.Ptr] == '\r' {
 			m.Ptr++
 		}
 		if m.CppByte(m.Ptr) == '\n' {
@@ -18978,11 +19070,12 @@ func (m *Machine) CppDirectiveScan(lhs uint32) bool {
 
 // CppWordHl is $cppWordHl.
 func (m *Machine) CppWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	if rhs-lhs == 8 {
-		if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x65756e69746e6f63 {
+		if binary.LittleEndian.Uint64(mem[lhs:]) == 0x65756e69746e6f63 {
 			return TokenKeywordControl
 		}
-		if binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x745f323372616863 {
+		if binary.LittleEndian.Uint64(mem[lhs:]) == 0x745f323372616863 {
 			return TokenTypeBuiltin
 		}
 	}
@@ -19318,6 +19411,7 @@ func (m *Machine) CsWordHl(lhs, rhs uint32) uint32 {
 // CsContextual is $csContextual.
 func (m *Machine) CsContextual(kind, p, c, query uint32, head bool) uint32 {
 	var w uint32
+	mem := m.Mem
 	if kind&1024 != 0 {
 		if query != 0 {
 			return kind
@@ -19337,12 +19431,12 @@ func (m *Machine) CsContextual(kind, p, c, query uint32, head bool) uint32 {
 		return kind
 	}
 	if !m.LexIsIdentContinue(m.CsByte(p + 2)) {
-		w = uint32(binary.LittleEndian.Uint16(m.Mem[p:]))
+		w = uint32(binary.LittleEndian.Uint16(mem[p:]))
 		if w == 28265 || w == 29545 || w == 29537 {
 			return 0xffffffff
 		}
 	}
-	if binary.LittleEndian.Uint32(m.Mem[p:]) == 0x68746977 && !m.LexIsIdentContinue(m.CsByte(p+4)) {
+	if binary.LittleEndian.Uint32(mem[p:]) == 0x68746977 && !m.LexIsIdentContinue(m.CsByte(p+4)) {
 		return 0xffffffff
 	}
 	return kind
@@ -21980,13 +22074,14 @@ func (m *Machine) HlDotenv() {
 // ExWordHl is $exWordHl.
 func (m *Machine) ExWordHl(lhs, rhs uint32) uint32 {
 	var n uint32
+	mem := m.Mem
 	g := m.LexKeywordLookup(lhs, rhs, 16864, 15, 46)
 	if g == 0 {
 		n = rhs - lhs
-		if n >= 5 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) == 24415 {
+		if n >= 5 && uint32(binary.LittleEndian.Uint16(mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(mem[rhs-2:])) == 24415 {
 			return TokenVariableSpecial
 		}
-		if n == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x65766965636572 {
+		if n == 7 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x65766965636572 {
 			return TokenKeywordControl
 		}
 		return 0xffffffff
@@ -22719,13 +22814,14 @@ func (m *Machine) RubyByte(p uint32) uint32 {
 // RubyWordHl is $rubyWordHl.
 func (m *Machine) RubyWordHl(lhs, rhs uint32) uint32 {
 	var n uint32
+	mem := m.Mem
 	g := m.LexKeywordLookup(lhs, rhs, 25856, 15, 59)
 	if g == 0 {
 		n = rhs - lhs
-		if n >= 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x5f72747461 {
+		if n >= 6 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x5f72747461 {
 			return TokenFunction
 		}
-		if n >= 5 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) == 24415 {
+		if n >= 5 && uint32(binary.LittleEndian.Uint16(mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(mem[rhs-2:])) == 24415 {
 			return TokenVariableSpecial
 		}
 		return 0xffffffff
@@ -22852,11 +22948,12 @@ func (m *Machine) RubyLiteralBody(closer, open, depth, flags, nested, seg uint32
 // RubyRangeEq is $rubyRangeEq.
 func (m *Machine) RubyRangeEq(a, b, n uint32) bool {
 	var i uint32
+	mem := m.Mem
 	for {
 		if i >= n {
 			break
 		}
-		if uint32(m.Mem[a+i]) != uint32(m.Mem[b+i]) {
+		if uint32(mem[a+i]) != uint32(mem[b+i]) {
 			return false
 		}
 		i++
@@ -24356,10 +24453,11 @@ func (m *Machine) HlFish() {
 
 // FortranWordHl is $fortranWordHl.
 func (m *Machine) FortranWordHl(lhs, rhs uint32) uint32 {
-	if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
+	mem := m.Mem
+	if rhs-lhs == 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x6572656877 {
 		return TokenKeywordControl
 	}
-	if rhs-lhs == 7 && (binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x65726975716e69 || binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x656c6966646e65) {
+	if rhs-lhs == 7 && (binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x65726975716e69 || binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x656c6966646e65) {
 		return TokenFunction
 	}
 	return m.LexKeywordValue(lhs, rhs, 17344, 63, 138)
@@ -24682,14 +24780,15 @@ func (m *Machine) MlWordHl(lhs, rhs uint32) uint32 {
 
 // MlIsCharLiteral is $mlIsCharLiteral.
 func (m *Machine) MlIsCharLiteral(p uint32) bool {
+	mem := m.Mem
 	if p+1 >= m.End {
 		return false
 	}
-	if m.Mem[p+1] == '\\' {
+	if mem[p+1] == '\\' {
 		return true
 	}
 	e := m.UTF8SpanEnd(p+2, m.End)
-	return e < m.End && m.Mem[e] == '\''
+	return e < m.End && mem[e] == '\''
 }
 
 // MlIsSymbol is $mlIsSymbol.
@@ -25062,11 +25161,12 @@ func (m *Machine) MlIsArgStart(c uint32) bool {
 
 // MlIDEnd is $mlIdEnd.
 func (m *Machine) MlIDEnd(p uint32) uint32 {
+	mem := m.Mem
 	for {
 		if p >= m.End {
 			break
 		}
-		if !(uint32(m.Mem[p])-97 <= 25 || m.Mem[p] == '_') {
+		if !(uint32(mem[p])-97 <= 25 || mem[p] == '_') {
 			break
 		}
 		p++
@@ -25110,6 +25210,7 @@ func (m *Machine) MlIsArgAt(p uint32) bool {
 // MlQuotedBody is $mlQuotedBody.
 func (m *Machine) MlQuotedBody(n uint32) {
 	var i uint32
+	mem := m.Mem
 	for {
 		m.Ptr = m.LexFindByte(m.Ptr, 124)
 		if m.Ptr >= m.End {
@@ -25121,7 +25222,7 @@ func (m *Machine) MlQuotedBody(n uint32) {
 				if i >= n {
 					break
 				}
-				if uint32(m.Mem[m.Ptr+i]) != uint32(m.Mem[13952+i]) {
+				if uint32(mem[m.Ptr+i]) != uint32(mem[13952+i]) {
 					break
 				}
 				i++
@@ -25236,11 +25337,12 @@ func (m *Machine) FsStringBody(kind, nested, seg uint32) uint32 {
 
 // FsIDEnd is $fsIdEnd.
 func (m *Machine) FsIDEnd(p uint32) uint32 {
+	mem := m.Mem
 	for {
 		if p >= m.End {
 			break
 		}
-		if !(m.LexIsIdentContinue(uint32(m.Mem[p])) || m.Mem[p] == '\'') {
+		if !(m.LexIsIdentContinue(uint32(mem[p])) || mem[p] == '\'') {
 			break
 		}
 		p++
@@ -25808,9 +25910,10 @@ func (m *Machine) PyStreamResume() bool {
 
 // PyWordHl is $pyWordHl.
 func (m *Machine) PyWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	hl := m.LexKeywordValue(lhs, rhs, 25472, 31, 78)
 	if hl == 0xffffffff {
-		if (rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6573696172) || (rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 29537) {
+		if (rhs-lhs == 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x6573696172) || (rhs-lhs == 2 && uint32(binary.LittleEndian.Uint16(mem[lhs:])) == 29537) {
 			return TokenKeywordControl
 		}
 		return TokenNone
@@ -25820,16 +25923,17 @@ func (m *Machine) PyWordHl(lhs, rhs uint32) uint32 {
 
 // PySoftKeyword is $pySoftKeyword.
 func (m *Machine) PySoftKeyword(lhs, rhs uint32) bool {
+	mem := m.Mem
 	n := rhs - lhs
-	if !((n == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x686374616d) || (n == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65736163)) {
+	if !((n == 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x686374616d) || (n == 4 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x65736163)) {
 		return false
 	}
 	rhs = m.LexSkipSpaceAt(rhs)
 	if rhs >= m.End {
 		return false
 	}
-	c := uint32(m.Mem[rhs])
-	return c >= 128 || (c|32)-97 <= 25 || c == '_' || m.LexIsDigit(c) || m.Mem[c+3728]&64 != 0
+	c := uint32(mem[rhs])
+	return c >= 128 || (c|32)-97 <= 25 || c == '_' || m.LexIsDigit(c) || mem[c+3728]&64 != 0
 }
 
 // PyIsOp is $pyIsOp.
@@ -26115,14 +26219,15 @@ func (m *Machine) HlPython() {
 
 // GdTypeHl is $gdTypeHl.
 func (m *Machine) GdTypeHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	length := rhs - lhs
-	if length == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x726f74636556 && m.Mem[lhs+7] == 'i' {
+	if length == 8 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffff == 0x726f74636556 && mem[lhs+7] == 'i' {
 		rhs--
 	}
-	if length == 11 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x726f66736e617254 && binary.LittleEndian.Uint32(m.Mem[lhs+7:]) == 0x44336d72 {
+	if length == 11 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x726f66736e617254 && binary.LittleEndian.Uint32(mem[lhs+7:]) == 0x44336d72 {
 		return TokenTypeBuiltin
 	}
-	if length >= 15 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x64656b636150 && binary.LittleEndian.Uint64(m.Mem[rhs-5:])&0xffffffffff == 0x7961727241 {
+	if length >= 15 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffff == 0x64656b636150 && binary.LittleEndian.Uint64(mem[rhs-5:])&0xffffffffff == 0x7961727241 {
 		return m.LexKeywordValue(lhs+6, rhs-5, 18400, 3, 10)
 	}
 	return m.LexKeywordValue(lhs, rhs, 18240, 7, 27)
@@ -26498,44 +26603,45 @@ func (m *Machine) HlGdresource() {
 func (m *Machine) GlslWordHl(lhs, rhs uint32) uint32 {
 	var w uint32
 	var x uint64
+	mem := m.Mem
 	g := m.LexKeywordValue(lhs, rhs, 19744, 31, 81)
 	if g != 0xffffffff {
 		return g
 	}
 	length := rhs - lhs
 	if length >= 7 {
-		w = binary.LittleEndian.Uint32(m.Mem[rhs-4:])
-		if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x746e69) || (length == 8 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x746e6975) || (length == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x74616f6c66)) {
+		w = binary.LittleEndian.Uint32(mem[rhs-4:])
+		if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && binary.LittleEndian.Uint32(mem[lhs:])&0xffffff == 0x746e69) || (length == 8 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x746e6975) || (length == 9 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x74616f6c66)) {
 			return TokenTypeBuiltin
 		}
 	}
-	if length == 15 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x74616e696d726574 && binary.LittleEndian.Uint64(m.Mem[lhs+7:]) == 0x5458457961526574 {
+	if length == 15 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x74616e696d726574 && binary.LittleEndian.Uint64(mem[lhs+7:]) == 0x5458457961526574 {
 		return TokenKeywordControl
 	}
-	last := uint32(m.Mem[rhs-1])
+	last := uint32(mem[rhs-1])
 	if last-50 <= 2 {
 		if length == 4 {
-			w = binary.LittleEndian.Uint32(m.Mem[lhs:]) & 0xffffff
+			w = binary.LittleEndian.Uint32(mem[lhs:]) & 0xffffff
 			if w == 0x636576 || w == 0x74616d {
 				return TokenTypeBuiltin
 			}
 		}
 		if length == 5 {
-			w = binary.LittleEndian.Uint32(m.Mem[lhs:])
+			w = binary.LittleEndian.Uint32(mem[lhs:])
 			if w == 0x63657662 || w == 0x63657669 || w == 0x63657675 || w == 0x63657664 || w == 0x74616d64 {
 				return TokenTypeBuiltin
 			}
 		}
-		if length == 6 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x74616d && uint32(m.Mem[lhs+3])-50 <= 2 && m.Mem[lhs+4] == 'x' {
+		if length == 6 && binary.LittleEndian.Uint32(mem[lhs:])&0xffffff == 0x74616d && uint32(mem[lhs+3])-50 <= 2 && mem[lhs+4] == 'x' {
 			return TokenTypeBuiltin
 		}
-		if length == 7 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x74616d64 && uint32(m.Mem[lhs+4])-50 <= 2 && m.Mem[lhs+5] == 'x' {
+		if length == 7 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x74616d64 && uint32(mem[lhs+4])-50 <= 2 && mem[lhs+5] == 'x' {
 			return TokenTypeBuiltin
 		}
 	}
-	w = rt.B2u(m.Mem[lhs] == 'i' || m.Mem[lhs] == 'u')
-	x = binary.LittleEndian.Uint64(m.Mem[lhs+w:]) & 0xffffffffffffff
-	if (length-w >= 7 && (x == 0x72656c706d6173 || (w == 0 && x == 0x74616d706f6f63))) || (length >= 8 && x == 0x65727574786574) || (((length >= 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6567616d69) || (length >= 6 && x&0xffffffffff == 0x6567616d69)) && w&1 != 0) {
+	w = rt.B2u(mem[lhs] == 'i' || mem[lhs] == 'u')
+	x = binary.LittleEndian.Uint64(mem[lhs+w:]) & 0xffffffffffffff
+	if (length-w >= 7 && (x == 0x72656c706d6173 || (w == 0 && x == 0x74616d706f6f63))) || (length >= 8 && x == 0x65727574786574) || (((length >= 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x6567616d69) || (length >= 6 && x&0xffffffffff == 0x6567616d69)) && w&1 != 0) {
 		return TokenTypeBuiltin
 	}
 	return TokenNone
@@ -28684,12 +28790,13 @@ func (m *Machine) HamlRuby(stop uint32) {
 // HamlMatch is $hamlMatch.
 func (m *Machine) HamlMatch(depth, open, stop uint32) uint32 {
 	var b, c uint32
+	mem := m.Mem
 	closer := open + 1 + rt.B2u(open != '(')
 	for {
 		if m.Ptr >= stop {
 			break
 		}
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		m.Ptr++
 		if c == open {
 			depth++
@@ -28705,7 +28812,7 @@ func (m *Machine) HamlMatch(depth, open, stop uint32) uint32 {
 				if m.Ptr >= stop {
 					break
 				}
-				b = uint32(m.Mem[m.Ptr])
+				b = uint32(mem[m.Ptr])
 				m.Ptr++
 				if b == c {
 					break
@@ -29670,10 +29777,11 @@ func (m *Machine) HlHandlebars() {
 
 // HsIsCharLiteral is $hsIsCharLiteral.
 func (m *Machine) HsIsCharLiteral(p uint32) bool {
+	mem := m.Mem
 	if p+1 >= m.End {
 		return false
 	}
-	c := uint32(m.Mem[p+1])
+	c := uint32(mem[p+1])
 	if c == '\\' {
 		return true
 	}
@@ -29681,7 +29789,7 @@ func (m *Machine) HsIsCharLiteral(p uint32) bool {
 		return false
 	}
 	e := m.UTF8SpanEnd(p+2, m.End)
-	return e < m.End && m.Mem[e] == '\''
+	return e < m.End && mem[e] == '\''
 }
 
 // HsIsSymbol is $hsIsSymbol.
@@ -30266,24 +30374,25 @@ func (m *Machine) HlHaxe() {
 
 // HlslTypeHl is $hlslTypeHl.
 func (m *Machine) HlslTypeHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	length := rhs - lhs
 	if length < 4 {
 		return TokenNone
 	}
-	if length >= 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x72656c706d6173 {
+	if length >= 7 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x72656c706d6173 {
 		return TokenTypeBuiltin
 	}
-	w := binary.LittleEndian.Uint32(m.Mem[rhs-4:])
-	if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x746e69) || (length == 8 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x746e6975)) {
+	w := binary.LittleEndian.Uint32(mem[rhs-4:])
+	if (w == 0x745f3631 || w == 0x745f3233 || w == 0x745f3436) && ((length == 7 && binary.LittleEndian.Uint32(mem[lhs:])&0xffffff == 0x746e69) || (length == 8 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x746e6975)) {
 		return TokenTypeBuiltin
 	}
-	if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x316e696d {
+	if binary.LittleEndian.Uint32(mem[lhs:]) == 0x316e696d {
 		return TokenTypeBuiltin
 	}
 	stem := rhs
-	if uint32(m.Mem[rhs-1])-49 <= 3 {
+	if uint32(mem[rhs-1])-49 <= 3 {
 		stem = rhs - 1
-		if m.Mem[rhs-2] == 'x' && uint32(m.Mem[rhs-3])-49 <= 3 {
+		if mem[rhs-2] == 'x' && uint32(mem[rhs-3])-49 <= 3 {
 			stem = rhs - 3
 		}
 	}
@@ -30834,21 +30943,22 @@ func (m *Machine) HlJSONImpl(dialect uint32) {
 
 // JSONWordHl is $jsonWordHl.
 func (m *Machine) JSONWordHl(lhs, rhs, json5 uint32) uint32 {
+	mem := m.Mem
 	length := rhs - lhs
 	if length == 4 {
-		if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65757274 {
+		if binary.LittleEndian.Uint32(mem[lhs:]) == 0x65757274 {
 			return TokenBoolean
 		}
-		if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x6c6c756e {
+		if binary.LittleEndian.Uint32(mem[lhs:]) == 0x6c6c756e {
 			return TokenConstantBuiltin
 		}
 	}
-	if length == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x736c6166 {
-		if m.Mem[lhs+4] == 'e' {
+	if length == 5 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x736c6166 {
+		if mem[lhs+4] == 'e' {
 			return TokenBoolean
 		}
 	}
-	if ((length == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7974696e69666e49) || (length == 3 && binary.LittleEndian.Uint32(m.Mem[lhs:])&0xffffff == 0x4e614e)) && json5&1 != 0 {
+	if ((length == 8 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x7974696e69666e49) || (length == 3 && binary.LittleEndian.Uint32(mem[lhs:])&0xffffff == 0x4e614e)) && json5&1 != 0 {
 		return TokenConstantBuiltin
 	}
 	return TokenNone
@@ -30905,11 +31015,12 @@ func (m *Machine) JSONString(hl, quote, json5, seg uint32) uint32 {
 
 // JSON5Number is $json5Number.
 func (m *Machine) JSON5Number() uint32 {
-	c := uint32(m.Mem[m.Ptr])
+	mem := m.Mem
+	c := uint32(mem[m.Ptr])
 	if c == '+' || c == '-' {
 		m.Ptr++
 		if m.Ptr < m.End {
-			c = uint32(m.Mem[m.Ptr])
+			c = uint32(mem[m.Ptr])
 		} else {
 			c = 0
 		}
@@ -30919,7 +31030,7 @@ func (m *Machine) JSON5Number() uint32 {
 		m.ScanIdentRun(36)
 		return m.JSONWordHl(lhs, m.Ptr, 1)
 	}
-	if c == '0' && m.Ptr+1 < m.End && uint32(m.Mem[m.Ptr+1])|32 == 120 {
+	if c == '0' && m.Ptr+1 < m.End && uint32(mem[m.Ptr+1])|32 == 120 {
 		m.Ptr = m.ScanHexRun(m.Ptr+2, m.End-m.Ptr)
 		return TokenNumber
 	}
@@ -31283,12 +31394,13 @@ func (m *Machine) HlHTTP() {
 // JsonnetBlock is $jsonnetBlock.
 func (m *Machine) JsonnetBlock() bool {
 	var p uint32
+	mem := m.Mem
 	first := m.LexLineByteBefore(m.Ptr) == 0
 	open := true
 	for {
 		if first {
 			p = m.LexSkipSpaceAt(m.Ptr)
-			if p+3 <= m.End && uint32(binary.LittleEndian.Uint16(m.Mem[p:])) == 31868 && m.Mem[p+2] == '|' {
+			if p+3 <= m.End && uint32(binary.LittleEndian.Uint16(mem[p:])) == 31868 && mem[p+2] == '|' {
 				m.Ptr = p + 3
 				open = false
 				break
@@ -31298,7 +31410,7 @@ func (m *Machine) JsonnetBlock() bool {
 		if m.Ptr >= m.End {
 			break
 		}
-		p = uint32(m.Mem[m.Ptr])
+		p = uint32(mem[m.Ptr])
 		m.Ptr++
 		if p == 13 && m.TemplateByte(m.Ptr) == '\n' {
 			m.Ptr++
@@ -31528,11 +31640,12 @@ func (m *Machine) JlByte(p uint32) uint32 {
 
 // JlWordHl is $jlWordHl.
 func (m *Machine) JlWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	v := m.LexKeywordValue(lhs, rhs, 21312, 15, 47)
 	if int32(v) >= 0 {
 		return v
 	}
-	if rhs-lhs == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x72656877 && m.Mem[lhs+4] == 'e' {
+	if rhs-lhs == 5 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x72656877 && mem[lhs+4] == 'e' {
 		return TokenKeywordOperator
 	}
 	return 0xffffffff
@@ -32968,7 +33081,8 @@ func (m *Machine) KdlRawHashes(p uint32) uint32 {
 
 // KdlLiteral is $kdlLiteral.
 func (m *Machine) KdlLiteral(lhs, rhs uint32) uint32 {
-	w := binary.LittleEndian.Uint32(m.Mem[lhs:])
+	mem := m.Mem
+	w := binary.LittleEndian.Uint32(mem[lhs:])
 	if rhs-lhs == 4 {
 		if w == 0x65757274 {
 			return TokenBoolean
@@ -32977,7 +33091,7 @@ func (m *Machine) KdlLiteral(lhs, rhs uint32) uint32 {
 			return TokenConstantBuiltin
 		}
 	}
-	if rhs-lhs == 5 && w == 0x736c6166 && m.Mem[lhs+4] == 'e' {
+	if rhs-lhs == 5 && w == 0x736c6166 && mem[lhs+4] == 'e' {
 		return TokenBoolean
 	}
 	return TokenNone
@@ -33548,13 +33662,14 @@ func (m *Machine) KotlinModifies(rhs uint32) bool {
 
 // KotlinWordHl is $kotlinWordHl.
 func (m *Machine) KotlinWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	hl := m.LexKeywordValue(lhs, rhs, 21504, 15, 72)
 	if hl == 0xffffffff {
 		if rhs-lhs == 5 {
-			if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x74726f6853 {
+			if binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x74726f6853 {
 				return TokenTypeBuiltin
 			}
-			if binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
+			if binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x6572656877 {
 				return TokenKeyword
 			}
 		}
@@ -33931,12 +34046,13 @@ func (m *Machine) HlKotlin() {
 // LatexEnvNameEnd is $latexEnvNameEnd.
 func (m *Machine) LatexEnvNameEnd(p uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	for {
 		if p >= m.End {
 			break
 		}
-		c = uint32(m.Mem[p])
-		if uint32(m.Mem[c+4240])&16 != 0 {
+		c = uint32(mem[p])
+		if uint32(mem[c+4240])&16 != 0 {
 			break
 		}
 		p++
@@ -34409,13 +34525,14 @@ func (m *Machine) LeanIsRest(c uint32) bool {
 
 // LeanWordKind is $leanWordKind.
 func (m *Machine) LeanWordKind(lhs, rhs uint32) uint32 {
-	if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
+	mem := m.Mem
+	if rhs-lhs == 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x6572656877 {
 		return TokenKeywordDeclaration
 	}
-	if rhs-lhs == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6564756c657270 {
+	if rhs-lhs == 7 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x6564756c657270 {
 		return TokenKeyword
 	}
-	if rhs-lhs == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x747265766572 {
+	if rhs-lhs == 6 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffff == 0x747265766572 {
 		return TokenKeywordControl
 	}
 	return m.LexKeywordValue(lhs, rhs, 28704, 31, 158)
@@ -34703,9 +34820,10 @@ func (m *Machine) LispByte(p uint32) uint32 {
 
 // LispWordHl is $lispWordHl.
 func (m *Machine) LispWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := rhs - lhs
 	if n == 1 {
-		if m.Mem[lhs] == 't' {
+		if mem[lhs] == 't' {
 			return TokenConstantBuiltin
 		}
 		return 0xffffffff
@@ -34713,14 +34831,14 @@ func (m *Machine) LispWordHl(lhs, rhs uint32) uint32 {
 	g := m.LexKeywordValue(lhs, rhs, 22048, 31, 86)
 	if int32(g) < 0 {
 		if n == 4 {
-			if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x2a74656c {
+			if binary.LittleEndian.Uint32(mem[lhs:]) == 0x2a74656c {
 				return 2065
 			}
-			if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x21746573 {
+			if binary.LittleEndian.Uint32(mem[lhs:]) == 0x21746573 {
 				return TokenKeyword
 			}
 		}
-		if n == 7 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff == 0x6572616c636564 {
+		if n == 7 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x6572616c636564 {
 			return TokenKeyword
 		}
 		return 0xffffffff
@@ -34755,10 +34873,11 @@ func (m *Machine) LispIsExponent(c uint32) uint32 {
 func (m *Machine) LispIsNumber(lhs, rhs uint32) bool {
 	var digits bool
 	var prev uint32
-	c := uint32(m.Mem[lhs])
+	mem := m.Mem
+	c := uint32(mem[lhs])
 	if c == '+' || c == '-' {
 		lhs++
-		c = uint32(m.Mem[lhs])
+		c = uint32(mem[lhs])
 	}
 	if !(c-48 <= 9 || c == '.') {
 		return false
@@ -34767,7 +34886,7 @@ func (m *Machine) LispIsNumber(lhs, rhs uint32) bool {
 		if lhs >= rhs {
 			break
 		}
-		c = uint32(m.Mem[lhs])
+		c = uint32(mem[lhs])
 		if m.LexIsDigit(c) {
 			digits = true
 		} else if !(c == '.' || c == '/' || m.LispIsExponent(c) != 0 || ((c == '+' || c == '-') && m.LispIsExponent(prev)&1 != 0)) {
@@ -35124,11 +35243,12 @@ func (m *Machine) HlLisp() {
 
 // LlvmWordHl is $llvmWordHl.
 func (m *Machine) LlvmWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := rhs - lhs
-	if n == 6 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff == 0x69756f747066 {
+	if n == 6 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffff == 0x69756f747066 {
 		return TokenKeyword
 	}
-	if n == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x7372756365726f6e && m.Mem[lhs+8] == 'e' {
+	if n == 9 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x7372756365726f6e && mem[lhs+8] == 'e' {
 		return TokenAttribute
 	}
 	return m.LexKeywordValue(lhs, rhs, 54800, 63, 198)
@@ -35136,12 +35256,13 @@ func (m *Machine) LlvmWordHl(lhs, rhs uint32) uint32 {
 
 // LlvmName is $llvmName.
 func (m *Machine) LlvmName() {
+	mem := m.Mem
 	for {
 		m.ScanIdentRun(46)
 		if m.Ptr >= m.End {
 			break
 		}
-		if m.Mem[m.Ptr] != '-' && m.Mem[m.Ptr] != '$' {
+		if mem[m.Ptr] != '-' && mem[m.Ptr] != '$' {
 			break
 		}
 		m.Ptr++
@@ -36195,7 +36316,8 @@ func (m *Machine) HlLuau() {
 
 // MakeIsEndef is $makeIsEndef.
 func (m *Machine) MakeIsEndef(lhs, rhs uint32) bool {
-	return rhs-lhs == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x65646e65 && m.Mem[lhs+4] == 'f'
+	mem := m.Mem
+	return rhs-lhs == 5 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x65646e65 && mem[lhs+4] == 'f'
 }
 
 // MakeIsWordEnd is $makeIsWordEnd.
@@ -36206,15 +36328,16 @@ func (m *Machine) MakeIsWordEnd(c uint32) bool {
 // MakeScanWord is $makeScanWord.
 func (m *Machine) MakeScanWord() {
 	var c uint32
+	mem := m.Mem
 	for {
 		if m.Ptr >= m.End {
 			break
 		}
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		if m.MakeIsWordEnd(c) {
 			break
 		}
-		if m.Mem[c+4496]&2 != 0 && m.TemplateByte(m.Ptr+1) == '=' {
+		if mem[c+4496]&2 != 0 && m.TemplateByte(m.Ptr+1) == '=' {
 			break
 		}
 		m.Ptr++
@@ -36224,13 +36347,14 @@ func (m *Machine) MakeScanWord() {
 // MakeTargetVar is $makeTargetVar.
 func (m *Machine) MakeTargetVar(p uint32) bool {
 	var c uint32
+	mem := m.Mem
 	p = m.LexSkipSpaceAt(p)
 	q := p
 	for {
 		if q >= m.End {
 			break
 		}
-		c = uint32(m.Mem[q])
+		c = uint32(mem[q])
 		if !(m.LexIsIdentContinue(c) || c == '-' || c == '.') {
 			break
 		}
@@ -36241,7 +36365,7 @@ func (m *Machine) MakeTargetVar(p uint32) bool {
 	}
 	q = m.LexSkipSpaceAt(q)
 	c = m.TemplateByte(q)
-	if uint32(m.Mem[c+4496])&2 != 0 {
+	if uint32(mem[c+4496])&2 != 0 {
 		q++
 	}
 	if c == ':' {
@@ -37258,12 +37382,13 @@ func (m *Machine) MdxJsxEnd(lhs uint32) uint32 {
 // MdxFenceEnd is $mdxFenceEnd.
 func (m *Machine) MdxFenceEnd(p uint32) uint32 {
 	var fence, q, quotes, listStart, indent uint32
+	mem := m.Mem
 prefix:
 	for {
 		if p >= m.End {
 			break
 		}
-		fence = uint32(m.Mem[p])
+		fence = uint32(mem[p])
 		q = p
 		switch {
 		case fence == 62:
@@ -37276,7 +37401,7 @@ prefix:
 			if q == p {
 				break prefix
 			}
-			if q >= m.End || !m.LexIsSpace(uint32(m.Mem[q])) {
+			if q >= m.End || !m.LexIsSpace(uint32(mem[q])) {
 				break prefix
 			}
 			if listStart == 0 {
@@ -37296,7 +37421,7 @@ prefix:
 		if q >= m.End {
 			break
 		}
-		if uint32(m.Mem[q]) != fence {
+		if uint32(mem[q]) != fence {
 			break
 		}
 		q++
@@ -37322,14 +37447,15 @@ prefix:
 
 // MdxEsmStart is $mdxEsmStart.
 func (m *Machine) MdxEsmStart(p uint32) bool {
+	mem := m.Mem
 	if p+7 > m.End {
 		return false
 	}
-	word := binary.LittleEndian.Uint32(m.Mem[p:])
-	if !((word == 0x6f706d69 && uint32(binary.LittleEndian.Uint16(m.Mem[p+4:])) == 29810) || (word == 0x6f707865 && uint32(binary.LittleEndian.Uint16(m.Mem[p+4:])) == 29810)) {
+	word := binary.LittleEndian.Uint32(mem[p:])
+	if !((word == 0x6f706d69 && uint32(binary.LittleEndian.Uint16(mem[p+4:])) == 29810) || (word == 0x6f707865 && uint32(binary.LittleEndian.Uint16(mem[p+4:])) == 29810)) {
 		return false
 	}
-	c := uint32(m.Mem[p+6])
+	c := uint32(mem[p+6])
 	return c == ' ' || c == '\t' || c == '{' || c == '*'
 }
 
@@ -37616,12 +37742,13 @@ func (m *Machine) MmdString(seg uint32) bool {
 func (m *Machine) MmdArrowEnd(p uint32, wide bool) uint32 {
 	var c, last uint32
 	var shaft bool
+	mem := m.Mem
 	q := p
 	for {
 		c = m.TemplateByte(q)
-		if m.Mem[c+4752]&1 != 0 {
+		if mem[c+4752]&1 != 0 {
 			shaft = shaft || c|2 != 62
-		} else if !(wide && m.Mem[c+4752]&2 != 0) {
+		} else if !(wide && mem[c+4752]&2 != 0) {
 			break
 		}
 		last = c
@@ -38423,11 +38550,12 @@ func (m *Machine) HlMoonbit() {
 func (m *Machine) NginxIsSize(lhs, rhs uint32) bool {
 	var c, units uint32
 	var dot bool
+	mem := m.Mem
 	for {
 		if lhs >= rhs {
 			return true
 		}
-		c = uint32(m.Mem[lhs])
+		c = uint32(mem[lhs])
 		lhs++
 		if m.LexIsDigit(c) {
 			units = 0
@@ -38438,7 +38566,7 @@ func (m *Machine) NginxIsSize(lhs, rhs uint32) bool {
 				break
 			}
 			dot = true
-			if lhs < rhs && m.LexIsDigit(uint32(m.Mem[lhs])) {
+			if lhs < rhs && m.LexIsDigit(uint32(mem[lhs])) {
 				continue
 			}
 			break
@@ -39578,15 +39706,16 @@ func (m *Machine) ObjcByte(p uint32) uint32 {
 
 // ObjcWordHl is $objcWordHl.
 func (m *Machine) ObjcWordHl(lhs, rhs uint32, at bool, propAttrs uint32) uint32 {
+	mem := m.Mem
 	n := m.LexKeywordValue(lhs, rhs, 23328, 31, 76)
 	g := n >> 8
 	if at {
 		n = rhs - lhs
 		if g == 1 {
-			if (n == 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6361667265746e69) || (n == 14 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6e656d656c706d69) || (n == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x6c6f636f746f7270) || (n == 5 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x73616c63) {
+			if (n == 9 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x6361667265746e69) || (n == 14 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x6e656d656c706d69) || (n == 8 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x6c6f636f746f7270) || (n == 5 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x73616c63) {
 				return 273
 			}
-			if n == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x79747265706f7270 {
+			if n == 8 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x79747265706f7270 {
 				return 529
 			}
 		}
@@ -39875,14 +40004,15 @@ func (m *Machine) OdinByte(p uint32) uint32 {
 // OdinEndianType is $odinEndianType.
 func (m *Machine) OdinEndianType(lhs, rhs uint32) bool {
 	var width uint32
+	mem := m.Mem
 	if rhs-lhs < 5 {
 		return false
 	}
-	c := uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:]))
+	c := uint32(binary.LittleEndian.Uint16(mem[rhs-2:]))
 	if !(c == 25964 || c == 25954) {
 		return false
 	}
-	c = uint32(m.Mem[lhs])
+	c = uint32(mem[lhs])
 	if !(c == 'i' || c == 'u' || c == 'f') {
 		return false
 	}
@@ -39891,7 +40021,7 @@ func (m *Machine) OdinEndianType(lhs, rhs uint32) bool {
 		if p >= rhs-2 {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if !(c-48 <= 9) {
 			return false
 		}
@@ -39907,7 +40037,7 @@ func (m *Machine) OdinEndianType(lhs, rhs uint32) bool {
 	if width == 64 {
 		return true
 	}
-	return width == 128 && m.Mem[lhs] != 'f'
+	return width == 128 && mem[lhs] != 'f'
 }
 
 // OdinDeclKind is $odinDeclKind.
@@ -40506,12 +40636,13 @@ func (m *Machine) HlOpenscad() {
 
 // PasWordHl is $pasWordHl.
 func (m *Machine) PasWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := m.LexLowerCopy(lhs, rhs, 1360)
 	v := m.LexKeywordValue(1360, 1360+n, 23872, 63, 153)
 	if int32(v) >= 0 {
 		return v
 	}
-	if n == 6 && binary.LittleEndian.Uint32(m.Mem[1360:]) == 0x75736572 && uint32(binary.LittleEndian.Uint16(m.Mem[1364:])) == 29804 {
+	if n == 6 && binary.LittleEndian.Uint32(mem[1360:]) == 0x75736572 && uint32(binary.LittleEndian.Uint16(mem[1364:])) == 29804 {
 		return TokenVariableSpecial
 	}
 	return 0xffffffff
@@ -40519,11 +40650,12 @@ func (m *Machine) PasWordHl(lhs, rhs uint32) uint32 {
 
 // PasIsTypeName is $pasIsTypeName.
 func (m *Machine) PasIsTypeName(lhs, rhs uint32) bool {
+	mem := m.Mem
 	if rhs-lhs < 2 {
 		return false
 	}
-	c := uint32(m.Mem[lhs])
-	return m.Mem[c+5008]&16 != 0 && uint32(m.Mem[lhs+1])-65 <= 25
+	c := uint32(mem[lhs])
+	return mem[c+5008]&16 != 0 && uint32(mem[lhs+1])-65 <= 25
 }
 
 // PasBraced is $pasBraced.
@@ -40876,16 +41008,17 @@ func (m *Machine) PerlByte(p uint32) uint32 {
 // PerlWordHl is $perlWordHl.
 func (m *Machine) PerlWordHl(lhs, rhs uint32) uint32 {
 	var n uint32
+	mem := m.Mem
 	g := m.LexKeywordLookup(lhs, rhs, 24448, 31, 73)
 	if g == 0 {
 		n = rhs - lhs
-		if n == 1 && m.Mem[lhs] == 'x' {
+		if n == 1 && mem[lhs] == 'x' {
 			return TokenKeywordOperator
 		}
-		if n == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6665646e75 {
+		if n == 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x6665646e75 {
 			return TokenFunction
 		}
-		if n >= 5 && uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(m.Mem[rhs-2:])) == 24415 {
+		if n >= 5 && uint32(binary.LittleEndian.Uint16(mem[lhs:])) == 24415 && uint32(binary.LittleEndian.Uint16(mem[rhs-2:])) == 24415 {
 			return TokenVariableSpecial
 		}
 		return 0xffffffff
@@ -41052,11 +41185,12 @@ func (m *Machine) PerlQuoteBody(closer, open, depth, flags, seg uint32) uint32 {
 // PerlRangeEq is $perlRangeEq.
 func (m *Machine) PerlRangeEq(a, b, n uint32) bool {
 	var i uint32
+	mem := m.Mem
 	for {
 		if i >= n {
 			break
 		}
-		if uint32(m.Mem[a+i]) != uint32(m.Mem[b+i]) {
+		if uint32(mem[a+i]) != uint32(mem[b+i]) {
 			return false
 		}
 		i++
@@ -41843,14 +41977,15 @@ func (m *Machine) SQLDollarString() bool {
 // SQLTableBefore is $sqlTableBefore.
 func (m *Machine) SQLTableBefore(lhs uint32) bool {
 	var w uint32
+	mem := m.Mem
 	p := lhs
-	if p > m.SrcBase && m.Mem[p-1] == '.' {
+	if p > m.SrcBase && mem[p-1] == '.' {
 		p--
 		for {
 			if p <= m.SrcBase {
 				break
 			}
-			if !m.LexIsIdentContinue(uint32(m.Mem[p-1])) {
+			if !m.LexIsIdentContinue(uint32(mem[p-1])) {
 				break
 			}
 			p--
@@ -41860,7 +41995,7 @@ func (m *Machine) SQLTableBefore(lhs uint32) bool {
 		if p <= m.SrcBase {
 			break
 		}
-		w = uint32(m.Mem[p-1])
+		w = uint32(mem[p-1])
 		if w != 32 && w != 9 {
 			break
 		}
@@ -41871,13 +42006,13 @@ func (m *Machine) SQLTableBefore(lhs uint32) bool {
 		if p <= m.SrcBase {
 			break
 		}
-		if !m.LexIsIdentContinue(uint32(m.Mem[p-1])) {
+		if !m.LexIsIdentContinue(uint32(mem[p-1])) {
 			break
 		}
 		p--
 	}
 	w -= p
-	return (w == 4 && binary.LittleEndian.Uint32(m.Mem[p:])|0x20202020 == 0x6f746e69) || (w == 5 && (binary.LittleEndian.Uint64(m.Mem[p:])|0x2020202020)&0xffffffffff == 0x656c626174)
+	return (w == 4 && binary.LittleEndian.Uint32(mem[p:])|0x20202020 == 0x6f746e69) || (w == 5 && (binary.LittleEndian.Uint64(mem[p:])|0x2020202020)&0xffffffffff == 0x656c626174)
 }
 
 // HlSQLImpl is $hlSqlImpl.
@@ -42131,19 +42266,20 @@ func (m *Machine) PoInMask(c, base uint32, mask uint64) bool {
 func (m *Machine) PoPlaceholderEnd(p, stop uint32) uint32 {
 	var c uint32
 	var other bool
+	mem := m.Mem
 	q := p + 1
-	if m.Mem[p] == '{' {
+	if mem[p] == '{' {
 		for {
 			if q >= stop {
 				break
 			}
-			c = uint32(m.Mem[q])
+			c = uint32(mem[q])
 			if !(m.LexIsIdentContinue(c) || c == '.') {
 				break
 			}
 			q++
 		}
-		if q < stop && m.Mem[q] == '}' {
+		if q < stop && mem[q] == '}' {
 			return q + 1
 		}
 		return p
@@ -42151,13 +42287,13 @@ func (m *Machine) PoPlaceholderEnd(p, stop uint32) uint32 {
 	if q >= stop {
 		return p
 	}
-	c = uint32(m.Mem[q])
+	c = uint32(mem[q])
 	if c == '%' {
 		return q + 1
 	}
 	if c == '(' {
 		q = m.ScanFindSpecial(q, stop, 41, 0, 1)
-		if q >= stop || m.Mem[q] != ')' {
+		if q >= stop || mem[q] != ')' {
 			return p
 		}
 		q++
@@ -42168,7 +42304,7 @@ func (m *Machine) PoPlaceholderEnd(p, stop uint32) uint32 {
 		if q >= stop {
 			break
 		}
-		c = uint32(m.Mem[q])
+		c = uint32(mem[q])
 		if !m.PoInMask(c, 32, 0x3ff6c98) {
 			break
 		}
@@ -42181,7 +42317,7 @@ func (m *Machine) PoPlaceholderEnd(p, stop uint32) uint32 {
 		if q >= stop {
 			break
 		}
-		c = uint32(m.Mem[q])
+		c = uint32(mem[q])
 		if m.PoInMask(c, 64, 0x129c2fa010000e2) {
 			return q + 1
 		}
@@ -43625,16 +43761,17 @@ func (m *Machine) PugJs(stop uint32) {
 // PugValueEnd is $pugValueEnd.
 func (m *Machine) PugValueEnd(p, stop uint32) uint32 {
 	var c, depth, q uint32
+	mem := m.Mem
 	for {
 		if p >= stop {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if c == '"' || c == '\'' || c == '`' {
 			for {
 				p++
 				if p < stop {
-					q = uint32(m.Mem[p])
+					q = uint32(mem[p])
 					if q == '\\' {
 						p++
 					}
@@ -43647,10 +43784,10 @@ func (m *Machine) PugValueEnd(p, stop uint32) uint32 {
 			p++
 			continue
 		}
-		if uint32(m.Mem[c+1680])&4 != 0 {
+		if uint32(mem[c+1680])&4 != 0 {
 			depth++
 		}
-		if uint32(m.Mem[c+1680])&8 != 0 {
+		if uint32(mem[c+1680])&8 != 0 {
 			if depth == 0 {
 				break
 			}
@@ -43666,9 +43803,9 @@ func (m *Machine) PugValueEnd(p, stop uint32) uint32 {
 				if q >= stop {
 					break
 				}
-				if uint32(m.Mem[c+2192])&32 == 0 {
-					c = uint32(m.Mem[p-1])
-					if uint32(m.Mem[c+2192])&32 == 0 {
+				if uint32(mem[c+2192])&32 == 0 {
+					c = uint32(mem[p-1])
+					if uint32(mem[c+2192])&32 == 0 {
 						break
 					}
 				}
@@ -44365,18 +44502,19 @@ func (m *Machine) PuppetHeredoc(hd uint32) bool {
 // PuppetAfterArrow is $puppetAfterArrow.
 func (m *Machine) PuppetAfterArrow(p uint32) bool {
 	var c uint32
+	mem := m.Mem
 	for {
 		if p < m.SrcBase+2 {
 			break
 		}
-		c = uint32(m.Mem[p-1])
+		c = uint32(mem[p-1])
 		if c != ' ' && c != '\t' {
 			break
 		}
 		p--
 	}
-	c = uint32(m.Mem[p-2])
-	return p >= m.SrcBase+2 && m.Mem[p-1] == '>' && (c == '=' || c == '+')
+	c = uint32(mem[p-2])
+	return p >= m.SrcBase+2 && mem[p-1] == '>' && (c == '=' || c == '+')
 }
 
 // HlPuppet is $hlPuppet.
@@ -44659,24 +44797,25 @@ next:
 // QmlValueEnd is $qmlValueEnd.
 func (m *Machine) QmlValueEnd(p uint32) uint32 {
 	var c, b, depth uint32
+	mem := m.Mem
 scan:
 	for {
 		if p >= m.End {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		p++
-		if uint32(m.Mem[c+5264])&4 == 0 {
+		if uint32(mem[c+5264])&4 == 0 {
 			continue
 		}
-		if uint32(m.Mem[c+1424])&4 != 0 {
+		if uint32(mem[c+1424])&4 != 0 {
 			break
 		}
-		if uint32(m.Mem[c+1680])&4 != 0 {
+		if uint32(mem[c+1680])&4 != 0 {
 			depth++
 			continue
 		}
-		if uint32(m.Mem[c+1680])&8 != 0 {
+		if uint32(mem[c+1680])&8 != 0 {
 			if depth == 0 {
 				break
 			}
@@ -44699,7 +44838,7 @@ scan:
 		for {
 			p = m.ScanFindSpecial(p, m.End, c, 1, 1)
 			b = m.TemplateByte(p)
-			if b == 0 || m.Mem[b+1424]&4 != 0 {
+			if b == 0 || mem[b+1424]&4 != 0 {
 				break scan
 			}
 			p++
@@ -44707,7 +44846,7 @@ scan:
 				continue scan
 			}
 			b = m.TemplateByte(p)
-			if b == 0 || m.Mem[b+1424]&4 != 0 {
+			if b == 0 || mem[b+1424]&4 != 0 {
 				break scan
 			}
 			p++
@@ -45374,11 +45513,12 @@ func (m *Machine) RazorPop(stack uint64) uint64 {
 // RazorExprEnd is $razorExprEnd.
 func (m *Machine) RazorExprEnd(p uint32, header bool) uint32 {
 	var c, c2, depth uint32
+	mem := m.Mem
 	for {
 		if p >= m.End {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if c == '\n' || c == '\r' {
 			break
 		}
@@ -45392,7 +45532,7 @@ func (m *Machine) RazorExprEnd(p uint32, header bool) uint32 {
 				if m.TemplateByte(p) == '\\' {
 					p++
 					c2 = m.TemplateByte(p)
-					if uint32(m.Mem[c2+1424])&4 == 0 {
+					if uint32(mem[c2+1424])&4 == 0 {
 						p++
 					}
 					continue
@@ -45404,10 +45544,10 @@ func (m *Machine) RazorExprEnd(p uint32, header bool) uint32 {
 			}
 			continue
 		}
-		if uint32(m.Mem[c+3216])&32 != 0 {
+		if uint32(mem[c+3216])&32 != 0 {
 			depth++
 		}
-		if uint32(m.Mem[c+1936])&64 != 0 {
+		if uint32(mem[c+1936])&64 != 0 {
 			if depth != 0 {
 				depth--
 			}
@@ -46610,12 +46750,13 @@ func (m *Machine) HlRosmsg() {
 
 // SasWordHl is $sasWordHl.
 func (m *Machine) SasWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := m.LexLowerCopy(lhs, rhs, 1360)
 	v := m.LexKeywordValue(1360, 1360+n, 52112, 31, 110)
 	if int32(v) >= 0 {
 		return v
 	}
-	w := binary.LittleEndian.Uint64(m.Mem[1360:])
+	w := binary.LittleEndian.Uint64(mem[1360:])
 	if (n == 5 && w&0xffffffffff == 0x656c696877) || (n == 6 && w&0xffffffffffff == 0x6e7275746572) {
 		return TokenKeywordControl
 	}
@@ -46624,7 +46765,7 @@ func (m *Machine) SasWordHl(lhs, rhs uint32) uint32 {
 		if mode == 0 {
 			break
 		}
-		if !m.LexIsDigit(uint32(m.Mem[1359+mode])) {
+		if !m.LexIsDigit(uint32(mem[1359+mode])) {
 			break
 		}
 		mode--
@@ -47328,14 +47469,15 @@ func (m *Machine) HlScala() {
 // ShaderlabWordHl is $shaderlabWordHl.
 func (m *Machine) ShaderlabWordHl(lhs, rhs uint32) uint32 {
 	var p uint32
+	mem := m.Mem
 	n := m.LexLowerCopy(lhs, rhs, 1360)
 	p = 1360
 	if n == 8 {
-		if binary.LittleEndian.Uint64(m.Mem[p:]) == 0x6b6361626c696166 {
+		if binary.LittleEndian.Uint64(mem[p:]) == 0x6b6361626c696166 {
 			return TokenKeyword
 		}
 	}
-	if n > 8 && binary.LittleEndian.Uint64(m.Mem[p:]) == 0x73756e696d656e6f {
+	if n > 8 && binary.LittleEndian.Uint64(mem[p:]) == 0x73756e696d656e6f {
 		p += 8
 		n -= 8
 	}
@@ -47344,24 +47486,25 @@ func (m *Machine) ShaderlabWordHl(lhs, rhs uint32) uint32 {
 
 // ShaderlabOpener is $shaderlabOpener.
 func (m *Machine) ShaderlabOpener(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := rhs - lhs
 	if n != 9 && n != 11 {
 		return 0
 	}
-	tail := binary.LittleEndian.Uint64(m.Mem[rhs-7:]) & 0xffffffffffffff
+	tail := binary.LittleEndian.Uint64(mem[rhs-7:]) & 0xffffffffffffff
 	if tail != 0x4d4152474f5250 && tail != 0x4544554c434e49 {
 		return 0
 	}
 	if n == 9 {
-		if uint32(binary.LittleEndian.Uint16(m.Mem[lhs:])) == 18243 {
+		if uint32(binary.LittleEndian.Uint16(mem[lhs:])) == 18243 {
 			return 38
 		}
 		return 0
 	}
-	if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x4c534c48 {
+	if binary.LittleEndian.Uint32(mem[lhs:]) == 0x4c534c48 {
 		return 38
 	}
-	if binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x4c534c47 {
+	if binary.LittleEndian.Uint32(mem[lhs:]) == 0x4c534c47 {
 		return 39
 	}
 	return 0
@@ -47371,12 +47514,13 @@ func (m *Machine) ShaderlabOpener(lhs, rhs uint32) uint32 {
 func (m *Machine) ShaderlabBodyEnd(p uint32) uint32 {
 	var n uint32
 	var w uint64
+	mem := m.Mem
 	for {
 		p = m.LexFindByte(p, 69)
 		if p >= m.End {
 			break
 		}
-		w = binary.LittleEndian.Uint64(m.Mem[p:]) & 0xffffffffffffff
+		w = binary.LittleEndian.Uint64(mem[p:]) & 0xffffffffffffff
 		switch {
 		case w&0xffffffffff == 0x4743444e45:
 			n = 5
@@ -47386,7 +47530,7 @@ func (m *Machine) ShaderlabBodyEnd(p uint32) uint32 {
 			n = 0
 		}
 		if n != 0 && p+n <= m.End {
-			if !(m.LexIsIdentContinue(m.TemplateByte(p+n)) || (p > m.SrcBase && m.LexIsIdentContinue(uint32(m.Mem[p-1])))) {
+			if !(m.LexIsIdentContinue(m.TemplateByte(p+n)) || (p > m.SrcBase && m.LexIsIdentContinue(uint32(mem[p-1])))) {
 				return p
 			}
 		}
@@ -47803,10 +47947,11 @@ func (m *Machine) StataWordHl(lhs, rhs uint32) uint32 {
 // StataTwoBreaks is $stataTwoBreaks.
 func (m *Machine) StataTwoBreaks(p, stop uint32) bool {
 	var c uint32
+	mem := m.Mem
 	for {
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		p++
-		if uint32(m.Mem[c+1424])&4 != 0 {
+		if uint32(mem[c+1424])&4 != 0 {
 			break
 		}
 	}
@@ -47818,11 +47963,12 @@ func (m *Machine) StataTwoBreaks(p, stop uint32) bool {
 
 // StataIsFactorOp is $stataIsFactorOp.
 func (m *Machine) StataIsFactorOp(lhs, rhs uint32) bool {
+	mem := m.Mem
 	if rhs-lhs > 3 {
 		return false
 	}
-	c := uint32(m.Mem[lhs]) | 32
-	if uint32(m.Mem[c+5264])&64 == 0 {
+	c := uint32(mem[lhs]) | 32
+	if uint32(mem[c+5264])&64 == 0 {
 		return false
 	}
 	for {
@@ -47830,7 +47976,7 @@ func (m *Machine) StataIsFactorOp(lhs, rhs uint32) bool {
 		if lhs >= rhs {
 			break
 		}
-		c = uint32(m.Mem[lhs])
+		c = uint32(mem[lhs])
 		if m.LexIsDigit(c) || c == 'b' || c == 'n' {
 			continue
 		}
@@ -48273,10 +48419,11 @@ func (m *Machine) SwiftWordFollows(p uint32) bool {
 
 // SwiftCallAhead is $swiftCallAhead.
 func (m *Machine) SwiftCallAhead(lhs, rhs, p, member, cond uint32) bool {
+	mem := m.Mem
 	c := m.TemplateByte(p)
 	n := rhs - lhs
 	if c == '?' || c == '!' {
-		return member == 0 && m.TemplateByte(p+1) == '(' && n == 4 && binary.LittleEndian.Uint32(m.Mem[lhs:]) == 0x74696e69
+		return member == 0 && m.TemplateByte(p+1) == '(' && n == 4 && binary.LittleEndian.Uint32(mem[lhs:]) == 0x74696e69
 	}
 	if c != '{' || cond != 0 {
 		return false
@@ -48284,18 +48431,18 @@ func (m *Machine) SwiftCallAhead(lhs, rhs, p, member, cond uint32) bool {
 	if member != 0 {
 		return true
 	}
-	if uint32(m.Mem[lhs])-65 <= 25 {
+	if uint32(mem[lhs])-65 <= 25 {
 		return false
 	}
 	if n == 3 {
-		c = binary.LittleEndian.Uint32(m.Mem[lhs:]) & 0xffffff
+		c = binary.LittleEndian.Uint32(mem[lhs:]) & 0xffffff
 		return !(c == 7628135 || c == 7628147)
 	}
 	if n == 6 {
-		return binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffff != 0x746553646964
+		return binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffff != 0x746553646964
 	}
 	if n == 7 {
-		return binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffffffff != 0x7465536c6c6977
+		return binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff != 0x7465536c6c6977
 	}
 	return true
 }
@@ -49349,17 +49496,19 @@ func (m *Machine) TomlScanDigits(p, base uint32) uint32 {
 
 // TomlIsValueEnd is $tomlIsValueEnd.
 func (m *Machine) TomlIsValueEnd(p uint32) uint32 {
+	mem := m.Mem
 	if p >= m.End {
 		return 1
 	}
-	c := uint32(m.Mem[p])
-	return uint32(m.Mem[c+5264]) >> 7
+	c := uint32(mem[p])
+	return uint32(mem[c+5264]) >> 7
 }
 
 // TomlTwoDigitValue is $tomlTwoDigitValue.
 func (m *Machine) TomlTwoDigitValue(p uint32) uint32 {
-	hi := uint32(m.Mem[p]) - 48
-	lo := uint32(m.Mem[p+1]) - 48
+	mem := m.Mem
+	hi := uint32(mem[p]) - 48
+	lo := uint32(mem[p+1]) - 48
 	if p+2 <= m.End && hi <= 9 && lo <= 9 {
 		return hi*10 + lo
 	}
@@ -49385,11 +49534,12 @@ func (m *Machine) TomlHourMinute(p uint32) uint32 {
 // TomlTrimEnd is $tomlTrimEnd.
 func (m *Machine) TomlTrimEnd(q uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	for {
 		if q >= m.End {
 			break
 		}
-		c = uint32(m.Mem[q])
+		c = uint32(mem[q])
 		if c == '\t' || c == '\n' || c == ' ' {
 			q++
 			continue
@@ -49400,7 +49550,7 @@ func (m *Machine) TomlTrimEnd(q uint32) uint32 {
 		if q+1 >= m.End {
 			break
 		}
-		if m.Mem[q+1] != '\n' {
+		if mem[q+1] != '\n' {
 			break
 		}
 		q += 2
@@ -50508,17 +50658,18 @@ func (m *Machine) HlTypst() {
 
 // VerilogWord is $verilogWord.
 func (m *Machine) VerilogWord(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	n := rhs - lhs
-	if n == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x74756f6e69 {
+	if n == 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x74756f6e69 {
 		return TokenKeywordDeclaration
 	}
-	if n == 11 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x72656e6567646e65 && binary.LittleEndian.Uint64(m.Mem[rhs-8:]) == 0x65746172656e6567 {
+	if n == 11 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x72656e6567646e65 && binary.LittleEndian.Uint64(mem[rhs-8:]) == 0x65746172656e6567 {
 		return TokenKeywordDeclaration
 	}
-	if n == 10 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x696f707265766f63 && binary.LittleEndian.Uint64(m.Mem[rhs-8:]) == 0x746e696f70726576 {
+	if n == 10 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x696f707265766f63 && binary.LittleEndian.Uint64(mem[rhs-8:]) == 0x746e696f70726576 {
 		return TokenKeywordDeclaration
 	}
-	if n == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x797469726f697270 {
+	if n == 8 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x797469726f697270 {
 		return TokenKeywordControl
 	}
 	return m.LexKeywordValue(lhs, rhs, 31264, 63, 139)
@@ -51562,29 +51713,30 @@ func (m *Machine) VueStreamResumeTag() bool {
 
 // WatWordHl is $watWordHl.
 func (m *Machine) WatWordHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	p := lhs
-	c := uint32(m.Mem[p])
+	c := uint32(mem[p])
 	if c == '+' || c == '-' {
 		p++
 	}
-	if p < rhs && m.LexIsDigit(uint32(m.Mem[p])) {
+	if p < rhs && m.LexIsDigit(uint32(mem[p])) {
 		return TokenNumber
 	}
-	c = binary.LittleEndian.Uint32(m.Mem[p:]) & 0xffffff
+	c = binary.LittleEndian.Uint32(mem[p:]) & 0xffffff
 	if rhs-p == 3 && (c == 6712937 || c == 7233902) {
 		return TokenNumber
 	}
-	if rhs-p > 6 && binary.LittleEndian.Uint64(m.Mem[p:])&0xffffffffffff == 0x78303a6e616e {
+	if rhs-p > 6 && binary.LittleEndian.Uint64(mem[p:])&0xffffffffffff == 0x78303a6e616e {
 		p += 6
 		for {
-			if !m.LexIsHex(uint32(m.Mem[p])) {
+			if !m.LexIsHex(uint32(mem[p])) {
 				break
 			}
 			p++
 			if p == rhs {
 				return TokenNumber
 			}
-			if m.Mem[p] == '_' {
+			if mem[p] == '_' {
 				p++
 			}
 			if p >= rhs {
@@ -51607,7 +51759,7 @@ func (m *Machine) WatWordHl(lhs, rhs uint32) uint32 {
 		if p >= rhs {
 			break
 		}
-		c = uint32(m.Mem[p])
+		c = uint32(mem[p])
 		if c == '.' {
 			return TokenFunction
 		}
@@ -51751,26 +51903,27 @@ func (m *Machine) WgslByte(p uint32) uint32 {
 
 // WgslTypeHl is $wgslTypeHl.
 func (m *Machine) WgslTypeHl(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	length := rhs - lhs
 	if length < 4 {
 		return TokenNone
 	}
-	if length >= 9 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x5f65727574786574 {
+	if length >= 9 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x5f65727574786574 {
 		return TokenTypeBuiltin
 	}
-	w := binary.LittleEndian.Uint32(m.Mem[lhs:]) & 0xffffff
-	c := uint32(m.Mem[rhs-1])
+	w := binary.LittleEndian.Uint32(mem[lhs:]) & 0xffffff
+	c := uint32(mem[rhs-1])
 	if c == 'f' || c == 'h' || (w == 0x636576 && (c == 'i' || c == 'u')) {
 		rhs--
 		length--
 	}
-	if uint32(m.Mem[rhs-1])-50 > 2 {
+	if uint32(mem[rhs-1])-50 > 2 {
 		return TokenNone
 	}
 	if length == 4 && w == 0x636576 {
 		return TokenTypeBuiltin
 	}
-	if length == 6 && w == 0x74616d && uint32(m.Mem[lhs+3])-50 <= 2 && m.Mem[lhs+4] == 'x' {
+	if length == 6 && w == 0x74616d && uint32(mem[lhs+3])-50 <= 2 && mem[lhs+4] == 'x' {
 		return TokenTypeBuiltin
 	}
 	return TokenNone
@@ -51992,17 +52145,18 @@ func (m *Machine) WlDigits() {
 // WlIsDefinition is $wlIsDefinition.
 func (m *Machine) WlIsDefinition(p uint32) bool {
 	var c, depth uint32
+	mem := m.Mem
 	for {
 		for {
 			if p >= m.End {
 				return false
 			}
-			c = uint32(m.Mem[p])
+			c = uint32(mem[p])
 			p++
-			if uint32(m.Mem[c+1424])&4 != 0 {
+			if uint32(mem[c+1424])&4 != 0 {
 				return false
 			}
-			if c == ';' && m.Mem[p-2] != '/' {
+			if c == ';' && mem[p-2] != '/' {
 				return false
 			}
 			if c == '[' {
@@ -52327,19 +52481,20 @@ func (m *Machine) ZigIsDigitForBase(c, base uint32) bool {
 
 // ZigScanDigits is $zigScanDigits.
 func (m *Machine) ZigScanDigits(p, base uint32) uint32 {
+	mem := m.Mem
 	start := p
 	for {
 		if p >= m.End {
 			break
 		}
-		if m.ZigIsDigitForBase(uint32(m.Mem[p]), base) {
+		if m.ZigIsDigitForBase(uint32(mem[p]), base) {
 			p++
 			continue
 		}
-		if p == start || m.Mem[p] != '_' {
+		if p == start || mem[p] != '_' {
 			break
 		}
-		if p+1 >= m.End || !m.ZigIsDigitForBase(uint32(m.Mem[p+1]), base) {
+		if p+1 >= m.End || !m.ZigIsDigitForBase(uint32(mem[p+1]), base) {
 			break
 		}
 		p++
@@ -52396,30 +52551,31 @@ func (m *Machine) ZigString(quote, hl uint32) {
 // ZigWordHl is $zigWordHl.
 func (m *Machine) ZigWordHl(lhs, rhs uint32) uint32 {
 	var p, width uint32
+	mem := m.Mem
 	g := m.LexKeywordValue(lhs, rhs, 28128, 31, 74)
 	if int32(g) < 0 {
 		if rhs-lhs == 1 {
-			if m.Mem[lhs] == 'c' || m.Mem[lhs] == '_' {
+			if mem[lhs] == 'c' || mem[lhs] == '_' {
 				return TokenVariableSpecial
 			}
 			return 0xffffffff
 		}
-		if rhs-lhs == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x656d6974706d6f63 {
+		if rhs-lhs == 8 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x656d6974706d6f63 {
 			return TokenKeyword
 		}
-		if m.Mem[lhs] == 'i' || m.Mem[lhs] == 'u' {
+		if mem[lhs] == 'i' || mem[lhs] == 'u' {
 			p = lhs + 1
 			for {
 				if p >= rhs {
 					break
 				}
-				if !m.LexIsDigit(uint32(m.Mem[p])) {
+				if !m.LexIsDigit(uint32(mem[p])) {
 					return 0xffffffff
 				}
 				if width > 6553 {
 					return 0xffffffff
 				}
-				width = width*10 + (uint32(m.Mem[p]) - 48)
+				width = width*10 + (uint32(mem[p]) - 48)
 				if width > 65535 {
 					return 0xffffffff
 				}
@@ -52897,13 +53053,14 @@ func (m *Machine) HighlightLang(lang uint32) {
 func (m *Machine) LanguageByName(lhs, rhs uint32) uint32 {
 	var i, rem uint32
 	var mask uint64
+	mem := m.Mem
 	length := rhs - lhs
 	if length-1 > 17 {
 		return 0
 	}
-	record := 62464 + uint32(binary.LittleEndian.Uint16(m.Mem[length<<1+62464:]))
-	stop := 62464 + uint32(binary.LittleEndian.Uint16(m.Mem[length<<1+62466:]))
-	word := binary.LittleEndian.Uint64(m.Mem[lhs:]) | 0x2020202020202020
+	record := 62464 + uint32(binary.LittleEndian.Uint16(mem[length<<1+62464:]))
+	stop := 62464 + uint32(binary.LittleEndian.Uint16(mem[length<<1+62466:]))
+	word := binary.LittleEndian.Uint64(mem[lhs:]) | 0x2020202020202020
 	if length >= 8 {
 		mask = 0xffffffffffffffff
 	} else {
@@ -52914,7 +53071,7 @@ alias:
 		if record >= stop {
 			break
 		}
-		if (word^binary.LittleEndian.Uint64(m.Mem[record+1:]))&mask == 0 {
+		if (word^binary.LittleEndian.Uint64(mem[record+1:]))&mask == 0 {
 			i = 8
 			for {
 				if i >= length {
@@ -52925,13 +53082,13 @@ alias:
 				if rem >= 8 {
 					choice = 0xffffffffffffffff
 				}
-				if ((binary.LittleEndian.Uint64(m.Mem[lhs+i:])|0x2020202020202020)^binary.LittleEndian.Uint64(m.Mem[record+i+1:]))&choice != 0 {
+				if ((binary.LittleEndian.Uint64(mem[lhs+i:])|0x2020202020202020)^binary.LittleEndian.Uint64(mem[record+i+1:]))&choice != 0 {
 					record += length + 1
 					continue alias
 				}
 				i += 8
 			}
-			return uint32(m.Mem[record])
+			return uint32(mem[record])
 		}
 		record += length + 1
 	}
@@ -53124,23 +53281,25 @@ func (m *Machine) LvAlloc(length uint32) uint32 {
 
 // LvFree is $lvFree.
 func (m *Machine) LvFree(body uint32) {
+	mem := m.Mem
 	if body == 0 {
 		return
 	}
 	hdr := body - 8
-	total := binary.LittleEndian.Uint32(m.Mem[hdr:]) & 0xfffffffe
+	total := binary.LittleEndian.Uint32(mem[hdr:]) & 0xfffffffe
 	idx := m.LvClassOf(total)
-	binary.LittleEndian.PutUint32(m.Mem[hdr:], total|1)
-	binary.LittleEndian.PutUint32(m.Mem[hdr+4:], binary.LittleEndian.Uint32(m.Mem[0x17e90+idx<<2:]))
-	binary.LittleEndian.PutUint32(m.Mem[0x17e90+idx<<2:], hdr)
+	binary.LittleEndian.PutUint32(mem[hdr:], total|1)
+	binary.LittleEndian.PutUint32(mem[hdr+4:], binary.LittleEndian.Uint32(mem[0x17e90+idx<<2:]))
+	binary.LittleEndian.PutUint32(mem[0x17e90+idx<<2:], hdr)
 	m.LvHeapLive -= total
 	m.LvHeapFreed += total
 }
 
 // LvShrink is $lvShrink.
 func (m *Machine) LvShrink(body, length uint32) {
+	mem := m.Mem
 	hdr := body - 8
-	total := binary.LittleEndian.Uint32(m.Mem[hdr:]) & 0xfffffffe
+	total := binary.LittleEndian.Uint32(mem[hdr:]) & 0xfffffffe
 	keep := m.LvRoundSize(length + 8)
 	rest := total - keep
 	if rest < 16 {
@@ -53149,8 +53308,8 @@ func (m *Machine) LvShrink(body, length uint32) {
 	if m.LvRoundSize(rest) != rest {
 		return
 	}
-	binary.LittleEndian.PutUint32(m.Mem[hdr:], keep)
-	binary.LittleEndian.PutUint32(m.Mem[hdr+keep:], rest)
+	binary.LittleEndian.PutUint32(mem[hdr:], keep)
+	binary.LittleEndian.PutUint32(mem[hdr+keep:], rest)
 	m.LvFree(hdr + keep + 8)
 }
 
@@ -53169,6 +53328,7 @@ func (m *Machine) LvHeapInit() {
 // LvHash is $lvHash.
 func (m *Machine) LvHash(ptr, length uint32) uint64 {
 	var h uint64
+	mem := m.Mem
 	h = 0xcbf29ce484222325
 	p := ptr
 	stop := ptr + length&0xfffffff8
@@ -53176,12 +53336,12 @@ func (m *Machine) LvHash(ptr, length uint32) uint64 {
 		if p >= stop {
 			break
 		}
-		h = (h ^ binary.LittleEndian.Uint64(m.Mem[p:])) * 0x100000001b3
+		h = (h ^ binary.LittleEndian.Uint64(mem[p:])) * 0x100000001b3
 		p += 8
 	}
 	k := length & 7
 	if k != 0 {
-		h = (h ^ binary.LittleEndian.Uint64(m.Mem[p:])&(uint64(0xffffffffffffffff)>>(uint64((8-k)<<3)&63))) * 0x100000001b3
+		h = (h ^ binary.LittleEndian.Uint64(mem[p:])&(uint64(0xffffffffffffffff)>>(uint64((8-k)<<3)&63))) * 0x100000001b3
 	}
 	h = (h ^ h>>33) * 0xff51afd7ed558ccd
 	h = (h ^ h>>33) * 0xc4ceb9fe1a85ec53
@@ -53191,11 +53351,12 @@ func (m *Machine) LvHash(ptr, length uint32) uint64 {
 // LvBytesEq is $lvBytesEq.
 func (m *Machine) LvBytesEq(a, b, length uint32) bool {
 	var different rt.V128
+	mem := m.Mem
 	if length == 0 {
 		return true
 	}
 	for {
-		different = rt.LdV(m.Mem[a:]).Ne8(rt.LdV(m.Mem[b:]))
+		different = rt.LdV(mem[a:]).Ne8(rt.LdV(mem[b:]))
 		if different.AnyTrue() {
 			return uint32(bits.TrailingZeros32(different.Bitmask8())) >= length
 		}
@@ -53315,27 +53476,28 @@ func (m *Machine) LvIntern(ptr, length uint32) uint32 {
 
 // LvRelease is $lvRelease.
 func (m *Machine) LvRelease(id uint32) {
+	mem := m.Mem
 	if id == 0 || id == 0xffffffff {
 		return
 	}
 	slotAddr := m.LvIDTab + id<<2
-	node := binary.LittleEndian.Uint32(m.Mem[slotAddr:])
-	binary.LittleEndian.PutUint32(m.Mem[node+4:], binary.LittleEndian.Uint32(m.Mem[node+4:])-1)
-	if binary.LittleEndian.Uint32(m.Mem[node+4:]) != 0 {
+	node := binary.LittleEndian.Uint32(mem[slotAddr:])
+	binary.LittleEndian.PutUint32(mem[node+4:], binary.LittleEndian.Uint32(mem[node+4:])-1)
+	if binary.LittleEndian.Uint32(mem[node+4:]) != 0 {
 		return
 	}
-	prev := m.LvBuckets + (binary.LittleEndian.Uint32(m.Mem[node+12:])&m.LvBucketMask)<<2
+	prev := m.LvBuckets + (binary.LittleEndian.Uint32(mem[node+12:])&m.LvBucketMask)<<2
 	for {
-		if binary.LittleEndian.Uint32(m.Mem[prev:]) == node {
-			binary.LittleEndian.PutUint32(m.Mem[prev:], binary.LittleEndian.Uint32(m.Mem[node:]))
+		if binary.LittleEndian.Uint32(mem[prev:]) == node {
+			binary.LittleEndian.PutUint32(mem[prev:], binary.LittleEndian.Uint32(mem[node:]))
 			break
 		}
-		prev = binary.LittleEndian.Uint32(m.Mem[prev:])
+		prev = binary.LittleEndian.Uint32(mem[prev:])
 	}
 	m.LvStateCount--
-	m.LvStateBytes -= binary.LittleEndian.Uint32(m.Mem[node+8:])
+	m.LvStateBytes -= binary.LittleEndian.Uint32(mem[node+8:])
 	m.LvFree(node)
-	binary.LittleEndian.PutUint32(m.Mem[slotAddr:], m.LvIDFree<<1|1)
+	binary.LittleEndian.PutUint32(mem[slotAddr:], m.LvIDFree<<1|1)
 	m.LvIDFree = id
 }
 
@@ -53358,6 +53520,7 @@ func (m *Machine) LvFenceStack(reg uint32) uint32 {
 // LvStackBase is $lvStackBase.
 func (m *Machine) LvStackBase() uint32 {
 	var p, stack uint32
+	mem := m.Mem
 	if m.LvIsJSON(m.LvLang) {
 		return 36608
 	}
@@ -53377,10 +53540,10 @@ func (m *Machine) LvStackBase() uint32 {
 			if p >= 45200 {
 				break
 			}
-			if binary.LittleEndian.Uint32(m.Mem[p:]) == 0 {
+			if binary.LittleEndian.Uint32(mem[p:]) == 0 {
 				break
 			}
-			stack = m.LvFenceStack(binary.LittleEndian.Uint32(m.Mem[p+8:]))
+			stack = m.LvFenceStack(binary.LittleEndian.Uint32(mem[p+8:]))
 			if stack != 0 {
 				return stack
 			}
@@ -53406,6 +53569,7 @@ func (m *Machine) LvStackPrefix(base uint32) uint32 {
 
 // LvCaptureBlob is $lvCaptureBlob.
 func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
+	mem := m.Mem
 	stackBase := m.LvStackBase()
 	stackLen := m.LvStackPrefix(stackBase)
 	brkLen := m.BrkSp
@@ -53416,74 +53580,74 @@ func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
 	if jsxLen > 4096 {
 		jsxLen = 4096
 	}
-	binary.LittleEndian.PutUint32(m.Mem[dst:], stackLen)
-	binary.LittleEndian.PutUint32(m.Mem[dst+4:], brkLen)
-	binary.LittleEndian.PutUint32(m.Mem[dst+8:], jsxLen)
-	binary.LittleEndian.PutUint32(m.Mem[dst+12:], m.StreamMode)
-	binary.LittleEndian.PutUint32(m.Mem[dst+16:], m.StreamA)
-	binary.LittleEndian.PutUint32(m.Mem[dst+20:], m.StreamB)
-	binary.LittleEndian.PutUint32(m.Mem[dst+24:], m.StreamC)
-	binary.LittleEndian.PutUint32(m.Mem[dst+28:], m.StreamHl)
-	binary.LittleEndian.PutUint32(m.Mem[dst+32:], m.StreamRegionKind)
-	binary.LittleEndian.PutUint32(m.Mem[dst+36:], m.StreamRegionStarted)
-	binary.LittleEndian.PutUint32(m.Mem[dst+40:], m.RecCarryHl)
-	binary.LittleEndian.PutUint32(m.Mem[dst+44:], m.MarkdownDepth)
-	binary.LittleEndian.PutUint32(m.Mem[dst+48:], m.MarkdownStreamFence)
-	binary.LittleEndian.PutUint32(m.Mem[dst+52:], m.MarkdownStreamFenceLen)
-	binary.LittleEndian.PutUint32(m.Mem[dst+56:], m.MarkdownStreamLang)
-	binary.LittleEndian.PutUint32(m.Mem[dst+60:], m.PhpStreamingCode)
-	binary.LittleEndian.PutUint32(m.Mem[dst+64:], m.PhpStreamDecl)
-	binary.LittleEndian.PutUint32(m.Mem[dst+68:], m.PhpStreamMember)
-	binary.LittleEndian.PutUint32(m.Mem[dst+72:], m.BashArith)
-	binary.LittleEndian.PutUint32(m.Mem[dst+76:], m.Lto)
-	binary.LittleEndian.PutUint32(m.Mem[dst+80:], m.PrevLto)
-	binary.LittleEndian.PutUint32(m.Mem[dst+84:], m.PrevTok)
-	binary.LittleEndian.PutUint32(m.Mem[dst+88:], m.NlBefore)
-	binary.LittleEndian.PutUint32(m.Mem[dst+92:], m.BraceDepth)
-	binary.LittleEndian.PutUint32(m.Mem[dst+96:], m.RxCloser)
-	binary.LittleEndian.PutUint32(m.Mem[dst+100:], m.JsTemplateLexSp)
-	binary.LittleEndian.PutUint32(m.Mem[dst+104:], m.BrkSp)
-	binary.LittleEndian.PutUint32(m.Mem[dst+108:], m.JsxSp)
-	binary.LittleEndian.PutUint32(m.Mem[dst+112:], m.TsxStreamMode)
-	binary.LittleEndian.PutUint32(m.Mem[dst+116:], m.TsxStreamNl)
-	binary.LittleEndian.PutUint32(m.Mem[dst+120:], m.TsxStreamExpressionClose)
-	binary.LittleEndian.PutUint32(m.Mem[dst+124:], m.TsxStreamExpressionClosed)
-	binary.LittleEndian.PutUint32(m.Mem[dst+128:], m.TsxStreamExpressionDepth)
-	binary.LittleEndian.PutUint32(m.Mem[dst+132:], m.SigParens)
-	binary.LittleEndian.PutUint32(m.Mem[dst+136:], m.SigMask)
-	binary.LittleEndian.PutUint32(m.Mem[dst+140:], m.SigObscure)
-	binary.LittleEndian.PutUint32(m.Mem[dst+144:], m.SigPattern)
-	binary.LittleEndian.PutUint32(m.Mem[dst+148:], m.SigAngle)
-	binary.LittleEndian.PutUint32(m.Mem[dst+152:], m.SigFnPend)
-	binary.LittleEndian.PutUint32(m.Mem[dst+156:], m.SigFnAngle)
-	binary.LittleEndian.PutUint32(m.Mem[dst+160:], m.JsTemplateMarker)
-	binary.LittleEndian.PutUint32(m.Mem[dst+164:], m.JsTemplateState)
-	binary.LittleEndian.PutUint32(m.Mem[dst+168:], m.JsTemplateEmitSp)
+	binary.LittleEndian.PutUint32(mem[dst:], stackLen)
+	binary.LittleEndian.PutUint32(mem[dst+4:], brkLen)
+	binary.LittleEndian.PutUint32(mem[dst+8:], jsxLen)
+	binary.LittleEndian.PutUint32(mem[dst+12:], m.StreamMode)
+	binary.LittleEndian.PutUint32(mem[dst+16:], m.StreamA)
+	binary.LittleEndian.PutUint32(mem[dst+20:], m.StreamB)
+	binary.LittleEndian.PutUint32(mem[dst+24:], m.StreamC)
+	binary.LittleEndian.PutUint32(mem[dst+28:], m.StreamHl)
+	binary.LittleEndian.PutUint32(mem[dst+32:], m.StreamRegionKind)
+	binary.LittleEndian.PutUint32(mem[dst+36:], m.StreamRegionStarted)
+	binary.LittleEndian.PutUint32(mem[dst+40:], m.RecCarryHl)
+	binary.LittleEndian.PutUint32(mem[dst+44:], m.MarkdownDepth)
+	binary.LittleEndian.PutUint32(mem[dst+48:], m.MarkdownStreamFence)
+	binary.LittleEndian.PutUint32(mem[dst+52:], m.MarkdownStreamFenceLen)
+	binary.LittleEndian.PutUint32(mem[dst+56:], m.MarkdownStreamLang)
+	binary.LittleEndian.PutUint32(mem[dst+60:], m.PhpStreamingCode)
+	binary.LittleEndian.PutUint32(mem[dst+64:], m.PhpStreamDecl)
+	binary.LittleEndian.PutUint32(mem[dst+68:], m.PhpStreamMember)
+	binary.LittleEndian.PutUint32(mem[dst+72:], m.BashArith)
+	binary.LittleEndian.PutUint32(mem[dst+76:], m.Lto)
+	binary.LittleEndian.PutUint32(mem[dst+80:], m.PrevLto)
+	binary.LittleEndian.PutUint32(mem[dst+84:], m.PrevTok)
+	binary.LittleEndian.PutUint32(mem[dst+88:], m.NlBefore)
+	binary.LittleEndian.PutUint32(mem[dst+92:], m.BraceDepth)
+	binary.LittleEndian.PutUint32(mem[dst+96:], m.RxCloser)
+	binary.LittleEndian.PutUint32(mem[dst+100:], m.JsTemplateLexSp)
+	binary.LittleEndian.PutUint32(mem[dst+104:], m.BrkSp)
+	binary.LittleEndian.PutUint32(mem[dst+108:], m.JsxSp)
+	binary.LittleEndian.PutUint32(mem[dst+112:], m.TsxStreamMode)
+	binary.LittleEndian.PutUint32(mem[dst+116:], m.TsxStreamNl)
+	binary.LittleEndian.PutUint32(mem[dst+120:], m.TsxStreamExpressionClose)
+	binary.LittleEndian.PutUint32(mem[dst+124:], m.TsxStreamExpressionClosed)
+	binary.LittleEndian.PutUint32(mem[dst+128:], m.TsxStreamExpressionDepth)
+	binary.LittleEndian.PutUint32(mem[dst+132:], m.SigParens)
+	binary.LittleEndian.PutUint32(mem[dst+136:], m.SigMask)
+	binary.LittleEndian.PutUint32(mem[dst+140:], m.SigObscure)
+	binary.LittleEndian.PutUint32(mem[dst+144:], m.SigPattern)
+	binary.LittleEndian.PutUint32(mem[dst+148:], m.SigAngle)
+	binary.LittleEndian.PutUint32(mem[dst+152:], m.SigFnPend)
+	binary.LittleEndian.PutUint32(mem[dst+156:], m.SigFnAngle)
+	binary.LittleEndian.PutUint32(mem[dst+160:], m.JsTemplateMarker)
+	binary.LittleEndian.PutUint32(mem[dst+164:], m.JsTemplateState)
+	binary.LittleEndian.PutUint32(mem[dst+168:], m.JsTemplateEmitSp)
 	dst2 := dst + 172
-	copy(m.Mem[dst2:dst2+32], m.Mem[13952:13984])
+	copy(mem[dst2:dst2+32], mem[13952:13984])
 	dst3 := dst + 204
-	copy(m.Mem[dst3:dst3+96], m.Mem[45104:45200])
-	binary.LittleEndian.PutUint32(m.Mem[dst+300:], m.EcmaImport)
-	binary.LittleEndian.PutUint32(m.Mem[dst+304:], m.TernaryTop)
+	copy(mem[dst3:dst3+96], mem[45104:45200])
+	binary.LittleEndian.PutUint32(mem[dst+300:], m.EcmaImport)
+	binary.LittleEndian.PutUint32(mem[dst+304:], m.TernaryTop)
 	p := dst + 308
-	copy(m.Mem[p:p+stackLen], m.Mem[stackBase:stackBase+stackLen])
+	copy(mem[p:p+stackLen], mem[stackBase:stackBase+stackLen])
 	p += stackLen
 	if stackBase != 38944 {
-		copy(m.Mem[p:p+m.JsTemplateLexSp<<2], m.Mem[38944:38944+m.JsTemplateLexSp<<2])
+		copy(mem[p:p+m.JsTemplateLexSp<<2], mem[38944:38944+m.JsTemplateLexSp<<2])
 		p += m.JsTemplateLexSp << 2
 	}
-	copy(m.Mem[p:p+m.JsTemplateEmitSp<<2], m.Mem[39968:39968+m.JsTemplateEmitSp<<2])
+	copy(mem[p:p+m.JsTemplateEmitSp<<2], mem[39968:39968+m.JsTemplateEmitSp<<2])
 	p += m.JsTemplateEmitSp << 2
-	copy(m.Mem[p:p+brkLen], m.Mem[37632:37632+brkLen])
+	copy(mem[p:p+brkLen], mem[37632:37632+brkLen])
 	p += brkLen
-	copy(m.Mem[p:p+jsxLen], m.Mem[40992:40992+jsxLen])
+	copy(mem[p:p+jsxLen], mem[40992:40992+jsxLen])
 	p += jsxLen
 	lo := m.StreamStateLo
 	for {
 		if lo >= m.StreamStateHi {
 			break
 		}
-		if rt.LdV(m.Mem[46224+lo:]).AnyTrue() {
+		if rt.LdV(mem[46224+lo:]).AnyTrue() {
 			break
 		}
 		lo += 16
@@ -53492,30 +53656,31 @@ func (m *Machine) LvCaptureBlob(dst uint32) uint32 {
 		if lo >= m.StreamStateHi {
 			break
 		}
-		if m.Mem[46224+lo] != 0 {
+		if mem[46224+lo] != 0 {
 			break
 		}
 		lo++
 	}
 	if lo >= m.StreamStateHi {
-		binary.LittleEndian.PutUint16(m.Mem[p:], uint16(0))
+		binary.LittleEndian.PutUint16(mem[p:], uint16(0))
 		return p + 2 - dst
 	}
-	binary.LittleEndian.PutUint16(m.Mem[p:], uint16(lo))
+	binary.LittleEndian.PutUint16(mem[p:], uint16(lo))
 	dst4 := p + 2
 	src := 46224 + lo
-	copy(m.Mem[dst4:dst4+(m.StreamStateHi-lo)], m.Mem[src:src+(m.StreamStateHi-lo)])
+	copy(mem[dst4:dst4+(m.StreamStateHi-lo)], mem[src:src+(m.StreamStateHi-lo)])
 	return p + 2 + (m.StreamStateHi - lo) - dst
 }
 
 // LvTrimBlob is $lvTrimBlob.
 func (m *Machine) LvTrimBlob(base, length uint32) uint32 {
+	mem := m.Mem
 	p := base + length
 	for {
 		if p-base < 16 {
 			break
 		}
-		if rt.LdV(m.Mem[p-16:]).AnyTrue() {
+		if rt.LdV(mem[p-16:]).AnyTrue() {
 			break
 		}
 		p -= 16
@@ -53524,7 +53689,7 @@ func (m *Machine) LvTrimBlob(base, length uint32) uint32 {
 		if p <= base {
 			break
 		}
-		if m.Mem[p-1] != 0 {
+		if mem[p-1] != 0 {
 			break
 		}
 		p--
@@ -53535,77 +53700,78 @@ func (m *Machine) LvTrimBlob(base, length uint32) uint32 {
 // LvRestoreBlob is $lvRestoreBlob.
 func (m *Machine) LvRestoreBlob(src, length uint32) {
 	var dst uint32
-	stackLen := binary.LittleEndian.Uint32(m.Mem[src:])
-	brkLen := binary.LittleEndian.Uint32(m.Mem[src+4:])
-	jsxLen := binary.LittleEndian.Uint32(m.Mem[src+8:])
-	m.StreamMode = binary.LittleEndian.Uint32(m.Mem[src+12:])
-	m.StreamA = binary.LittleEndian.Uint32(m.Mem[src+16:])
-	m.StreamB = binary.LittleEndian.Uint32(m.Mem[src+20:])
-	m.StreamC = binary.LittleEndian.Uint32(m.Mem[src+24:])
-	m.StreamHl = binary.LittleEndian.Uint32(m.Mem[src+28:])
-	m.StreamRegionKind = binary.LittleEndian.Uint32(m.Mem[src+32:])
-	m.StreamRegionStarted = binary.LittleEndian.Uint32(m.Mem[src+36:])
-	m.RecCarryHl = binary.LittleEndian.Uint32(m.Mem[src+40:])
-	m.MarkdownDepth = binary.LittleEndian.Uint32(m.Mem[src+44:])
-	m.MarkdownStreamFence = binary.LittleEndian.Uint32(m.Mem[src+48:])
-	m.MarkdownStreamFenceLen = binary.LittleEndian.Uint32(m.Mem[src+52:])
-	m.MarkdownStreamLang = binary.LittleEndian.Uint32(m.Mem[src+56:])
-	m.PhpStreamingCode = binary.LittleEndian.Uint32(m.Mem[src+60:])
-	m.PhpStreamDecl = binary.LittleEndian.Uint32(m.Mem[src+64:])
-	m.PhpStreamMember = binary.LittleEndian.Uint32(m.Mem[src+68:])
-	m.BashArith = binary.LittleEndian.Uint32(m.Mem[src+72:])
-	m.Lto = binary.LittleEndian.Uint32(m.Mem[src+76:])
-	m.PrevLto = binary.LittleEndian.Uint32(m.Mem[src+80:])
-	m.PrevTok = binary.LittleEndian.Uint32(m.Mem[src+84:])
-	m.NlBefore = binary.LittleEndian.Uint32(m.Mem[src+88:])
-	m.BraceDepth = binary.LittleEndian.Uint32(m.Mem[src+92:])
-	m.RxCloser = binary.LittleEndian.Uint32(m.Mem[src+96:])
-	m.JsTemplateLexSp = binary.LittleEndian.Uint32(m.Mem[src+100:])
-	m.BrkSp = binary.LittleEndian.Uint32(m.Mem[src+104:])
-	m.JsxSp = binary.LittleEndian.Uint32(m.Mem[src+108:])
-	m.TsxStreamMode = binary.LittleEndian.Uint32(m.Mem[src+112:])
-	m.TsxStreamNl = binary.LittleEndian.Uint32(m.Mem[src+116:])
-	m.TsxStreamExpressionClose = binary.LittleEndian.Uint32(m.Mem[src+120:])
-	m.TsxStreamExpressionClosed = binary.LittleEndian.Uint32(m.Mem[src+124:])
-	m.TsxStreamExpressionDepth = binary.LittleEndian.Uint32(m.Mem[src+128:])
-	m.SigParens = binary.LittleEndian.Uint32(m.Mem[src+132:])
-	m.SigMask = binary.LittleEndian.Uint32(m.Mem[src+136:])
-	m.SigObscure = binary.LittleEndian.Uint32(m.Mem[src+140:])
-	m.SigPattern = binary.LittleEndian.Uint32(m.Mem[src+144:])
-	m.SigAngle = binary.LittleEndian.Uint32(m.Mem[src+148:])
-	m.SigFnPend = binary.LittleEndian.Uint32(m.Mem[src+152:])
-	m.SigFnAngle = binary.LittleEndian.Uint32(m.Mem[src+156:])
-	m.JsTemplateMarker = binary.LittleEndian.Uint32(m.Mem[src+160:])
-	m.JsTemplateState = binary.LittleEndian.Uint32(m.Mem[src+164:])
-	m.JsTemplateEmitSp = binary.LittleEndian.Uint32(m.Mem[src+168:])
+	mem := m.Mem
+	stackLen := binary.LittleEndian.Uint32(mem[src:])
+	brkLen := binary.LittleEndian.Uint32(mem[src+4:])
+	jsxLen := binary.LittleEndian.Uint32(mem[src+8:])
+	m.StreamMode = binary.LittleEndian.Uint32(mem[src+12:])
+	m.StreamA = binary.LittleEndian.Uint32(mem[src+16:])
+	m.StreamB = binary.LittleEndian.Uint32(mem[src+20:])
+	m.StreamC = binary.LittleEndian.Uint32(mem[src+24:])
+	m.StreamHl = binary.LittleEndian.Uint32(mem[src+28:])
+	m.StreamRegionKind = binary.LittleEndian.Uint32(mem[src+32:])
+	m.StreamRegionStarted = binary.LittleEndian.Uint32(mem[src+36:])
+	m.RecCarryHl = binary.LittleEndian.Uint32(mem[src+40:])
+	m.MarkdownDepth = binary.LittleEndian.Uint32(mem[src+44:])
+	m.MarkdownStreamFence = binary.LittleEndian.Uint32(mem[src+48:])
+	m.MarkdownStreamFenceLen = binary.LittleEndian.Uint32(mem[src+52:])
+	m.MarkdownStreamLang = binary.LittleEndian.Uint32(mem[src+56:])
+	m.PhpStreamingCode = binary.LittleEndian.Uint32(mem[src+60:])
+	m.PhpStreamDecl = binary.LittleEndian.Uint32(mem[src+64:])
+	m.PhpStreamMember = binary.LittleEndian.Uint32(mem[src+68:])
+	m.BashArith = binary.LittleEndian.Uint32(mem[src+72:])
+	m.Lto = binary.LittleEndian.Uint32(mem[src+76:])
+	m.PrevLto = binary.LittleEndian.Uint32(mem[src+80:])
+	m.PrevTok = binary.LittleEndian.Uint32(mem[src+84:])
+	m.NlBefore = binary.LittleEndian.Uint32(mem[src+88:])
+	m.BraceDepth = binary.LittleEndian.Uint32(mem[src+92:])
+	m.RxCloser = binary.LittleEndian.Uint32(mem[src+96:])
+	m.JsTemplateLexSp = binary.LittleEndian.Uint32(mem[src+100:])
+	m.BrkSp = binary.LittleEndian.Uint32(mem[src+104:])
+	m.JsxSp = binary.LittleEndian.Uint32(mem[src+108:])
+	m.TsxStreamMode = binary.LittleEndian.Uint32(mem[src+112:])
+	m.TsxStreamNl = binary.LittleEndian.Uint32(mem[src+116:])
+	m.TsxStreamExpressionClose = binary.LittleEndian.Uint32(mem[src+120:])
+	m.TsxStreamExpressionClosed = binary.LittleEndian.Uint32(mem[src+124:])
+	m.TsxStreamExpressionDepth = binary.LittleEndian.Uint32(mem[src+128:])
+	m.SigParens = binary.LittleEndian.Uint32(mem[src+132:])
+	m.SigMask = binary.LittleEndian.Uint32(mem[src+136:])
+	m.SigObscure = binary.LittleEndian.Uint32(mem[src+140:])
+	m.SigPattern = binary.LittleEndian.Uint32(mem[src+144:])
+	m.SigAngle = binary.LittleEndian.Uint32(mem[src+148:])
+	m.SigFnPend = binary.LittleEndian.Uint32(mem[src+152:])
+	m.SigFnAngle = binary.LittleEndian.Uint32(mem[src+156:])
+	m.JsTemplateMarker = binary.LittleEndian.Uint32(mem[src+160:])
+	m.JsTemplateState = binary.LittleEndian.Uint32(mem[src+164:])
+	m.JsTemplateEmitSp = binary.LittleEndian.Uint32(mem[src+168:])
 	m.LiveStackBytes = stackLen
 	src2 := src + 172
-	copy(m.Mem[13952:13984], m.Mem[src2:src2+32])
+	copy(mem[13952:13984], mem[src2:src2+32])
 	src3 := src + 204
-	copy(m.Mem[45104:45200], m.Mem[src3:src3+96])
-	m.EcmaImport = binary.LittleEndian.Uint32(m.Mem[src+300:])
-	m.TernaryTop = binary.LittleEndian.Uint32(m.Mem[src+304:])
+	copy(mem[45104:45200], mem[src3:src3+96])
+	m.EcmaImport = binary.LittleEndian.Uint32(mem[src+300:])
+	m.TernaryTop = binary.LittleEndian.Uint32(mem[src+304:])
 	p := src + 308
 	stackBase := m.LvStackBase()
-	copy(m.Mem[stackBase:stackBase+stackLen], m.Mem[p:p+stackLen])
+	copy(mem[stackBase:stackBase+stackLen], mem[p:p+stackLen])
 	p += stackLen
 	if stackBase != 38944 {
-		copy(m.Mem[38944:38944+m.JsTemplateLexSp<<2], m.Mem[p:p+m.JsTemplateLexSp<<2])
+		copy(mem[38944:38944+m.JsTemplateLexSp<<2], mem[p:p+m.JsTemplateLexSp<<2])
 		p += m.JsTemplateLexSp << 2
 	}
-	copy(m.Mem[39968:39968+m.JsTemplateEmitSp<<2], m.Mem[p:p+m.JsTemplateEmitSp<<2])
+	copy(mem[39968:39968+m.JsTemplateEmitSp<<2], mem[p:p+m.JsTemplateEmitSp<<2])
 	p += m.JsTemplateEmitSp << 2
-	copy(m.Mem[37632:37632+brkLen], m.Mem[p:p+brkLen])
+	copy(mem[37632:37632+brkLen], mem[p:p+brkLen])
 	p += brkLen
-	copy(m.Mem[40992:40992+jsxLen], m.Mem[p:p+jsxLen])
+	copy(mem[40992:40992+jsxLen], mem[p:p+jsxLen])
 	p += jsxLen
 	m.StreamClearCheckpoints()
-	lo := uint32(binary.LittleEndian.Uint16(m.Mem[p:]))
+	lo := uint32(binary.LittleEndian.Uint16(mem[p:]))
 	p += 2
 	length = src + length - p
 	if int32(length) > 0 {
 		dst = 46224 + lo
-		copy(m.Mem[dst:dst+length], m.Mem[p:p+length])
+		copy(mem[dst:dst+length], mem[p:p+length])
 		m.StreamStateLo = lo
 		m.StreamStateHi = lo + length
 	}
@@ -53632,6 +53798,7 @@ func (m *Machine) LvSlot(i uint32) uint32 {
 // LvMoveGap is $lvMoveGap.
 func (m *Machine) LvMoveGap(to uint32) {
 	var dst, src, dst2, src2 uint32
+	mem := m.Mem
 	if to == m.LvGapAt {
 		return
 	}
@@ -53639,11 +53806,11 @@ func (m *Machine) LvMoveGap(to uint32) {
 	if to < m.LvGapAt {
 		dst = m.LvLineTab + (to+gapLen)<<5
 		src = m.LvLineTab + to<<5
-		copy(m.Mem[dst:dst+(m.LvGapAt-to)<<5], m.Mem[src:src+(m.LvGapAt-to)<<5])
+		copy(mem[dst:dst+(m.LvGapAt-to)<<5], mem[src:src+(m.LvGapAt-to)<<5])
 	} else {
 		dst2 = m.LvLineTab + m.LvGapAt<<5
 		src2 = m.LvLineTab + (m.LvGapAt+gapLen)<<5
-		copy(m.Mem[dst2:dst2+(to-m.LvGapAt)<<5], m.Mem[src2:src2+(to-m.LvGapAt)<<5])
+		copy(mem[dst2:dst2+(to-m.LvGapAt)<<5], mem[src2:src2+(to-m.LvGapAt)<<5])
 	}
 	m.LvGapAt = to
 }
@@ -53670,9 +53837,10 @@ func (m *Machine) LvEnsureLines(extra uint32) {
 
 // LvFreeLineRes is $lvFreeLineRes.
 func (m *Machine) LvFreeLineRes(slot uint32) {
-	m.LvFreeLineText(binary.LittleEndian.Uint32(m.Mem[slot:]), binary.LittleEndian.Uint32(m.Mem[slot+4:]), binary.LittleEndian.Uint32(m.Mem[slot+24:]))
-	m.LvFree(binary.LittleEndian.Uint32(m.Mem[slot+12:]))
-	m.LvRelease(binary.LittleEndian.Uint32(m.Mem[slot+20:]))
+	mem := m.Mem
+	m.LvFreeLineText(binary.LittleEndian.Uint32(mem[slot:]), binary.LittleEndian.Uint32(mem[slot+4:]), binary.LittleEndian.Uint32(mem[slot+24:]))
+	m.LvFree(binary.LittleEndian.Uint32(mem[slot+12:]))
+	m.LvRelease(binary.LittleEndian.Uint32(mem[slot+20:]))
 }
 
 // LvFreeLineText is $lvFreeLineText.
@@ -53903,12 +54071,13 @@ func (m *Machine) LvRunLine(i, reset, work uint32) uint32 {
 func (m *Machine) LvUTF16Len(p, length uint32) uint32 {
 	var b, n uint32
 	var w rt.V128
+	mem := m.Mem
 	stop := p + length
 	for {
 		if stop-p < 16 {
 			break
 		}
-		w = rt.LdV(m.Mem[p:])
+		w = rt.LdV(mem[p:])
 		n += 16 - uint32(bits.OnesCount32(w.And(rt.Splat8(192)).Eq8(rt.Splat8(128)).Bitmask8()))
 		n += uint32(bits.OnesCount32(w.GeU8(rt.Splat8(240)).Bitmask8()))
 		p += 16
@@ -53917,7 +54086,7 @@ func (m *Machine) LvUTF16Len(p, length uint32) uint32 {
 		if p >= stop {
 			break
 		}
-		b = uint32(m.Mem[p])
+		b = uint32(mem[p])
 		if b&192 != 128 {
 			n++
 		}
@@ -54047,14 +54216,16 @@ func (m *Machine) LvCharToByte(text, length, target uint32) uint32 {
 
 // LvReadAstral is $lvReadAstral.
 func (m *Machine) LvReadAstral(p uint32) uint32 {
-	return (uint32(m.Mem[p])&7)<<18 | (uint32(m.Mem[p+1])&63)<<12 | (uint32(m.Mem[p+2])&63)<<6 | uint32(m.Mem[p+3])&63
+	mem := m.Mem
+	return (uint32(mem[p])&7)<<18 | (uint32(mem[p+1])&63)<<12 | (uint32(mem[p+2])&63)<<6 | uint32(mem[p+3])&63
 }
 
 // LvWriteSurrogate is $lvWriteSurrogate.
 func (m *Machine) LvWriteSurrogate(dst, s uint32) {
-	m.Mem[dst] = byte(224 | s>>12)
-	m.Mem[dst+1] = byte(128 | (s>>6)&63)
-	m.Mem[dst+2] = byte(128 | s&63)
+	mem := m.Mem
+	mem[dst] = byte(224 | s>>12)
+	mem[dst+1] = byte(128 | (s>>6)&63)
+	mem[dst+2] = byte(128 | s&63)
 }
 
 // LvEmitSpliceLine is $lvEmitSpliceLine.
@@ -54262,56 +54433,59 @@ func (m *Machine) LvSpliceEdit(sLine, sChar, eLine, eChar, textPtr, textLen uint
 // LvAddChange is $lvAddChange.
 func (m *Machine) LvAddChange(os, oe, ns, ne uint32) bool {
 	var last uint32
-	count := binary.LittleEndian.Uint32(m.Mem[81920:])
+	mem := m.Mem
+	count := binary.LittleEndian.Uint32(mem[81920:])
 	if count != 0 {
 		last = 0x14004 + (count-1)<<4
-		if os <= binary.LittleEndian.Uint32(m.Mem[last+4:]) {
-			if oe > binary.LittleEndian.Uint32(m.Mem[last+4:]) {
-				binary.LittleEndian.PutUint32(m.Mem[last+4:], oe)
+		if os <= binary.LittleEndian.Uint32(mem[last+4:]) {
+			if oe > binary.LittleEndian.Uint32(mem[last+4:]) {
+				binary.LittleEndian.PutUint32(mem[last+4:], oe)
 			}
-			if ne > binary.LittleEndian.Uint32(m.Mem[last+12:]) {
-				binary.LittleEndian.PutUint32(m.Mem[last+12:], ne)
+			if ne > binary.LittleEndian.Uint32(mem[last+12:]) {
+				binary.LittleEndian.PutUint32(mem[last+12:], ne)
 			}
 			return false
 		}
 		if count >= 1000 {
-			binary.LittleEndian.PutUint32(m.Mem[last+4:], oe)
-			binary.LittleEndian.PutUint32(m.Mem[last+12:], ne)
+			binary.LittleEndian.PutUint32(mem[last+4:], oe)
+			binary.LittleEndian.PutUint32(mem[last+12:], ne)
 			return false
 		}
 	}
 	last = 0x14004 + count<<4
-	binary.LittleEndian.PutUint32(m.Mem[last:], os)
-	binary.LittleEndian.PutUint32(m.Mem[last+4:], oe)
-	binary.LittleEndian.PutUint32(m.Mem[last+8:], ns)
-	binary.LittleEndian.PutUint32(m.Mem[last+12:], ne)
-	binary.LittleEndian.PutUint32(m.Mem[81920:], count+1)
+	binary.LittleEndian.PutUint32(mem[last:], os)
+	binary.LittleEndian.PutUint32(mem[last+4:], oe)
+	binary.LittleEndian.PutUint32(mem[last+8:], ns)
+	binary.LittleEndian.PutUint32(mem[last+12:], ne)
+	binary.LittleEndian.PutUint32(mem[81920:], count+1)
 	return true
 }
 
 // LvAbsorbChange is $lvAbsorbChange.
 func (m *Machine) LvAbsorbChange(idx uint32) {
 	var dst, src uint32
-	count := binary.LittleEndian.Uint32(m.Mem[81920:])
+	mem := m.Mem
+	count := binary.LittleEndian.Uint32(mem[81920:])
 	e := 0x14004 + idx<<4
-	binary.LittleEndian.PutUint32(m.Mem[e+4:], binary.LittleEndian.Uint32(m.Mem[e+20:]))
-	binary.LittleEndian.PutUint32(m.Mem[e+12:], binary.LittleEndian.Uint32(m.Mem[e+28:]))
+	binary.LittleEndian.PutUint32(mem[e+4:], binary.LittleEndian.Uint32(mem[e+20:]))
+	binary.LittleEndian.PutUint32(mem[e+12:], binary.LittleEndian.Uint32(mem[e+28:]))
 	if count > idx+2 {
 		dst = e + 16
 		src = e + 32
-		copy(m.Mem[dst:dst+(count-(idx+2))<<4], m.Mem[src:src+(count-(idx+2))<<4])
+		copy(mem[dst:dst+(count-(idx+2))<<4], mem[src:src+(count-(idx+2))<<4])
 	}
-	binary.LittleEndian.PutUint32(m.Mem[81920:], count-1)
+	binary.LittleEndian.PutUint32(mem[81920:], count-1)
 }
 
 // LvCloseRange is $lvCloseRange.
 func (m *Machine) LvCloseRange(through uint32) {
+	mem := m.Mem
 	if through <= m.LvDirtyTo {
 		return
 	}
 	e := 0x14004 + m.LvChangeIdx<<4
-	binary.LittleEndian.PutUint32(m.Mem[e+4:], binary.LittleEndian.Uint32(m.Mem[e+4:])+(through-m.LvDirtyTo))
-	binary.LittleEndian.PutUint32(m.Mem[e+12:], through)
+	binary.LittleEndian.PutUint32(mem[e+4:], binary.LittleEndian.Uint32(mem[e+4:])+(through-m.LvDirtyTo))
+	binary.LittleEndian.PutUint32(mem[e+12:], through)
 }
 
 // LvFinish is $lvFinish.
@@ -54335,15 +54509,16 @@ func (m *Machine) LvNewAddr(body uint32) uint32 {
 // LvCompact is $lvCompact.
 func (m *Machine) LvCompact() {
 	var hdr, size, to, i, slot, flags, node, next, v uint32
+	mem := m.Mem
 	hdr = 0x18110
 	to = 0x18110
 	for {
 		if hdr >= m.LvHeapEnd {
 			break
 		}
-		size = binary.LittleEndian.Uint32(m.Mem[hdr:]) & 0xfffffffe
-		if binary.LittleEndian.Uint32(m.Mem[hdr:])&1 == 0 {
-			binary.LittleEndian.PutUint32(m.Mem[hdr+4:], to)
+		size = binary.LittleEndian.Uint32(mem[hdr:]) & 0xfffffffe
+		if binary.LittleEndian.Uint32(mem[hdr:])&1 == 0 {
+			binary.LittleEndian.PutUint32(mem[hdr+4:], to)
 			to += size
 		}
 		hdr += size
@@ -54364,13 +54539,13 @@ func (m *Machine) LvCompact() {
 			}
 		}
 		slot = m.LvLineTab + i<<5
-		flags = binary.LittleEndian.Uint32(m.Mem[slot+24:])
+		flags = binary.LittleEndian.Uint32(mem[slot+24:])
 		if flags&8 != 0 {
-			binary.LittleEndian.PutUint32(m.Mem[slot:], newInitial+(binary.LittleEndian.Uint32(m.Mem[slot:])-m.LvInitialBlock))
+			binary.LittleEndian.PutUint32(mem[slot:], newInitial+(binary.LittleEndian.Uint32(mem[slot:])-m.LvInitialBlock))
 		} else {
-			binary.LittleEndian.PutUint32(m.Mem[slot:], m.LvNewAddr(binary.LittleEndian.Uint32(m.Mem[slot:])))
+			binary.LittleEndian.PutUint32(mem[slot:], m.LvNewAddr(binary.LittleEndian.Uint32(mem[slot:])))
 		}
-		binary.LittleEndian.PutUint32(m.Mem[slot+12:], m.LvNewAddr(binary.LittleEndian.Uint32(m.Mem[slot+12:])))
+		binary.LittleEndian.PutUint32(mem[slot+12:], m.LvNewAddr(binary.LittleEndian.Uint32(mem[slot+12:])))
 		i++
 	}
 	i = 1
@@ -54379,9 +54554,9 @@ func (m *Machine) LvCompact() {
 			break
 		}
 		slot = m.LvIDTab + i<<2
-		v = binary.LittleEndian.Uint32(m.Mem[slot:])
+		v = binary.LittleEndian.Uint32(mem[slot:])
 		if v != 0 && v&1 == 0 {
-			binary.LittleEndian.PutUint32(m.Mem[slot:], m.LvNewAddr(v))
+			binary.LittleEndian.PutUint32(mem[slot:], m.LvNewAddr(v))
 		}
 		i++
 	}
@@ -54391,14 +54566,14 @@ func (m *Machine) LvCompact() {
 			break
 		}
 		slot = m.LvBuckets + i<<2
-		node = binary.LittleEndian.Uint32(m.Mem[slot:])
-		binary.LittleEndian.PutUint32(m.Mem[slot:], m.LvNewAddr(node))
+		node = binary.LittleEndian.Uint32(mem[slot:])
+		binary.LittleEndian.PutUint32(mem[slot:], m.LvNewAddr(node))
 		for {
 			if node == 0 {
 				break
 			}
-			next = binary.LittleEndian.Uint32(m.Mem[node:])
-			binary.LittleEndian.PutUint32(m.Mem[node:], m.LvNewAddr(next))
+			next = binary.LittleEndian.Uint32(mem[node:])
+			binary.LittleEndian.PutUint32(mem[node:], m.LvNewAddr(next))
 			node = next
 		}
 		i++
@@ -54415,36 +54590,37 @@ func (m *Machine) LvCompact() {
 		if hdr >= m.LvHeapEnd {
 			break
 		}
-		size = binary.LittleEndian.Uint32(m.Mem[hdr:]) & 0xfffffffe
-		if binary.LittleEndian.Uint32(m.Mem[hdr:])&1 == 0 {
-			to = binary.LittleEndian.Uint32(m.Mem[hdr+4:])
+		size = binary.LittleEndian.Uint32(mem[hdr:]) & 0xfffffffe
+		if binary.LittleEndian.Uint32(mem[hdr:])&1 == 0 {
+			to = binary.LittleEndian.Uint32(mem[hdr+4:])
 			if to != hdr {
-				copy(m.Mem[to:to+size], m.Mem[hdr:hdr+size])
+				copy(mem[to:to+size], mem[hdr:hdr+size])
 			}
-			binary.LittleEndian.PutUint32(m.Mem[to+4:], 0)
+			binary.LittleEndian.PutUint32(mem[to+4:], 0)
 		}
 		hdr += size
 	}
 	m.LvHeapEnd = newEnd
-	clear(m.Mem[0x17e90:98064])
+	clear(mem[0x17e90:98064])
 	m.LvHeapFreed = 0
 }
 
 // LvAddPend is $lvAddPend.
 func (m *Machine) LvAddPend(a, b, shift, ranges, rangeCount uint32) uint32 {
 	var slot uint32
+	mem := m.Mem
 	if a >= b {
 		return rangeCount
 	}
 	if m.LvAddChange(a, b, a+shift, b+shift) {
 		slot = ranges + rangeCount<<3
-		binary.LittleEndian.PutUint32(m.Mem[slot:], a+shift)
-		binary.LittleEndian.PutUint32(m.Mem[slot+4:], b+shift)
+		binary.LittleEndian.PutUint32(mem[slot:], a+shift)
+		binary.LittleEndian.PutUint32(mem[slot+4:], b+shift)
 		return rangeCount + 1
 	}
 	slot = ranges + (rangeCount-1)<<3
-	if b+shift > binary.LittleEndian.Uint32(m.Mem[slot+4:]) {
-		binary.LittleEndian.PutUint32(m.Mem[slot+4:], b+shift)
+	if b+shift > binary.LittleEndian.Uint32(mem[slot+4:]) {
+		binary.LittleEndian.PutUint32(mem[slot+4:], b+shift)
 	}
 	return rangeCount
 }
@@ -54737,8 +54913,9 @@ func (m *Machine) Highlight() {
 
 // StreamResetGlobals is $streamResetGlobals.
 func (m *Machine) StreamResetGlobals() {
+	mem := m.Mem
 	m.EcmaImport = 0
-	clear(m.Mem[13952:13984])
+	clear(mem[13952:13984])
 	m.StreamClearCheckpoints()
 	m.StreamMode = 0
 	m.StreamA = 0
@@ -54750,7 +54927,7 @@ func (m *Machine) StreamResetGlobals() {
 	m.MarkdownStreamFence = 0
 	m.MarkdownStreamFenceLen = 0
 	m.MarkdownStreamLang = 0
-	clear(m.Mem[45104:45200])
+	clear(mem[45104:45200])
 	m.PhpStreamingCode = 0
 	m.PhpStreamDecl = 0
 	m.PhpStreamMember = 0

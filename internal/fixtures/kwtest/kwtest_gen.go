@@ -160,13 +160,14 @@ func (m *Machine) ScanToLineEnd() {
 func (m *Machine) ScanBlockCommentEnd() {
 	var mask uint32
 	var stars rt.V128
+	mem := m.Mem
 	for {
 		if m.Ptr >= m.End {
 			break
 		}
-		stars = rt.LdV(m.Mem[m.Ptr:]).Eq8(rt.Splat8(42))
+		stars = rt.LdV(mem[m.Ptr:]).Eq8(rt.Splat8(42))
 		if stars.AnyTrue() {
-			mask = stars.And(rt.LdV(m.Mem[m.Ptr+1:]).Eq8(rt.Splat8(47))).Bitmask8()
+			mask = stars.And(rt.LdV(mem[m.Ptr+1:]).Eq8(rt.Splat8(47))).Bitmask8()
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask)) + 2
 				break
@@ -224,10 +225,11 @@ func (m *Machine) ScanFindSpecial(p, stop, q uint32, esc, nl bool) uint32 {
 func (m *Machine) ScanWhitespace() {
 	var mask uint32
 	var w rt.V128
+	mem := m.Mem
 	if m.Ptr >= m.End {
 		return
 	}
-	c := uint32(m.Mem[m.Ptr])
+	c := uint32(mem[m.Ptr])
 	if !(c == ' ' || c-9 <= 4) {
 		return
 	}
@@ -235,7 +237,7 @@ func (m *Machine) ScanWhitespace() {
 	if m.Ptr >= m.End {
 		return
 	}
-	c = uint32(m.Mem[m.Ptr])
+	c = uint32(mem[m.Ptr])
 	if !(c == ' ' || c-9 <= 4) {
 		return
 	}
@@ -243,7 +245,7 @@ func (m *Machine) ScanWhitespace() {
 		if m.Ptr >= m.End {
 			break
 		}
-		w = rt.LdV(m.Mem[m.Ptr:])
+		w = rt.LdV(mem[m.Ptr:])
 		mask = w.Eq8(rt.Splat8(32)).Or(w.Sub8(rt.Splat8(9)).LeU8(rt.Splat8(4))).Bitmask8() ^ 65535
 		if mask != 0 {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
@@ -355,8 +357,9 @@ func (m *Machine) StreamClearCheckpoints() {
 
 // HexByte is $hexByte.
 func (m *Machine) HexByte(b uint32) {
-	m.Mem[m.Out] = m.Mem[8592+b>>4]
-	m.Mem[m.Out+1] = m.Mem[8592+b&15]
+	mem := m.Mem
+	mem[m.Out] = mem[8592+b>>4]
+	mem[m.Out+1] = mem[8592+b&15]
 	m.Out += 2
 }
 
@@ -380,32 +383,34 @@ func (m *Machine) EmitColor(rec uint32) {
 
 // EmitCSSVariable is $emitCssVariable.
 func (m *Machine) EmitCSSVariable(hl, prefixLength uint32) {
-	copy(m.Mem[m.Out:m.Out+4], m.Mem[8706:8710])
+	mem := m.Mem
+	copy(mem[m.Out:m.Out+4], mem[8706:8710])
 	m.Out += 4
-	src := binary.LittleEndian.Uint32(m.Mem[14:])
-	copy(m.Mem[m.Out:m.Out+prefixLength], m.Mem[src:src+prefixLength])
+	src := binary.LittleEndian.Uint32(mem[14:])
+	copy(mem[m.Out:m.Out+prefixLength], mem[src:src+prefixLength])
 	m.Out += prefixLength
 	entry := 448 + hl*3
-	n := uint32(m.Mem[entry+2])
-	src2 := uint32(binary.LittleEndian.Uint16(m.Mem[entry:]))
-	copy(m.Mem[m.Out:m.Out+n], m.Mem[src2:src2+n])
+	n := uint32(mem[entry+2])
+	src2 := uint32(binary.LittleEndian.Uint16(mem[entry:]))
+	copy(mem[m.Out:m.Out+n], mem[src2:src2+n])
 	m.Out += n
-	m.Mem[m.Out] = ')'
+	mem[m.Out] = ')'
 	m.Out++
 }
 
 // EmitFont is $emitFont.
 func (m *Machine) EmitFont(style uint32) {
+	mem := m.Mem
 	if style&16 != 0 {
-		copy(m.Mem[m.Out:m.Out+18], m.Mem[8675:8693])
+		copy(mem[m.Out:m.Out+18], mem[8675:8693])
 		m.Out += 18
 	}
 	w := style & 15
 	if w != 0 {
-		copy(m.Mem[m.Out:m.Out+13], m.Mem[8693:8706])
+		copy(mem[m.Out:m.Out+13], mem[8693:8706])
 		m.Out += 13
-		m.Mem[m.Out] = byte(48 + w)
-		binary.LittleEndian.PutUint16(m.Mem[m.Out+1:], uint16(12336))
+		mem[m.Out] = byte(48 + w)
+		binary.LittleEndian.PutUint16(mem[m.Out+1:], uint16(12336))
 		m.Out += 3
 	}
 }
@@ -437,59 +442,61 @@ func (m *Machine) CloseSpan() {
 // EmitSpanOpen is $emitSpanOpen.
 func (m *Machine) EmitSpanOpen(hl uint32) {
 	var save, rec, prefixLength, src, src2, src3 uint32
+	mem := m.Mem
 	slot := 8744 + hl*66
-	length := uint32(m.Mem[slot])
+	length := uint32(mem[slot])
 	if length == 0 {
 		save = m.Out
 		m.Out = slot + 1
-		copy(m.Mem[m.Out:m.Out+19], m.Mem[8639:8658])
+		copy(mem[m.Out:m.Out+19], mem[8639:8658])
 		m.Out += 19
 		if m.CSSVariables {
 			m.EmitCSSVariable(hl, 0)
 		} else {
 			rec = m.ThemeRec(hl)
-			if binary.LittleEndian.Uint32(m.Mem[rec:]) != 0 {
+			if binary.LittleEndian.Uint32(mem[rec:]) != 0 {
 				m.EmitColor(rec)
 			} else {
-				binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x74697265686e69)
+				binary.LittleEndian.PutUint64(mem[m.Out:], 0x74697265686e69)
 				m.Out += 7
 			}
-			m.EmitFont(uint32(m.Mem[rec+4]))
+			m.EmitFont(uint32(mem[rec+4]))
 		}
-		binary.LittleEndian.PutUint16(m.Mem[m.Out:], uint16(15906))
+		binary.LittleEndian.PutUint16(mem[m.Out:], uint16(15906))
 		m.Out += 2
 		length = m.Out - (slot + 1)
-		m.Mem[slot] = byte(length)
+		mem[slot] = byte(length)
 		m.Out = save
 	}
 	if m.CSSVariables {
-		prefixLength = binary.LittleEndian.Uint32(m.Mem[18:])
+		prefixLength = binary.LittleEndian.Uint32(mem[18:])
 		src = slot + 1
-		copy(m.Mem[m.Out:m.Out+23], m.Mem[src:src+23])
+		copy(mem[m.Out:m.Out+23], mem[src:src+23])
 		m.Out += 23
-		src2 = binary.LittleEndian.Uint32(m.Mem[14:])
-		copy(m.Mem[m.Out:m.Out+prefixLength], m.Mem[src2:src2+prefixLength])
+		src2 = binary.LittleEndian.Uint32(mem[14:])
+		copy(mem[m.Out:m.Out+prefixLength], mem[src2:src2+prefixLength])
 		m.Out += prefixLength
 		src3 = slot + 24
-		copy(m.Mem[m.Out:m.Out+(length-23)], m.Mem[src3:src3+(length-23)])
+		copy(mem[m.Out:m.Out+(length-23)], mem[src3:src3+(length-23)])
 		m.Out += length - 23
 		return
 	}
-	rt.StV(m.Mem[m.Out:], rt.LdV(m.Mem[slot+1:]))
-	rt.StV(m.Mem[m.Out+16:], rt.LdV(m.Mem[slot+17:]))
-	rt.StV(m.Mem[m.Out+32:], rt.LdV(m.Mem[slot+33:]))
-	rt.StV(m.Mem[m.Out+48:], rt.LdV(m.Mem[slot+49:]))
+	rt.StV(mem[m.Out:], rt.LdV(mem[slot+1:]))
+	rt.StV(mem[m.Out+16:], rt.LdV(mem[slot+17:]))
+	rt.StV(mem[m.Out+32:], rt.LdV(mem[slot+33:]))
+	rt.StV(mem[m.Out+48:], rt.LdV(mem[slot+49:]))
 	m.Out += length
 }
 
 // SetSpan is $setSpan.
 func (m *Machine) SetSpan(hl uint32) {
 	var val uint64
+	mem := m.Mem
 	m.SpanHl = hl
 	if m.ThemeBlob != 0 {
 		if m.HTMLOpeners != 0 {
 			if m.SpanVal != 0 {
-				binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
+				binary.LittleEndian.PutUint64(mem[m.Out:], 0x3e6e6170732f3c)
 				m.Out += 7
 			}
 			m.SpanVal = uint64(hl)
@@ -504,13 +511,13 @@ func (m *Machine) SetSpan(hl uint32) {
 	if m.CSSVariables {
 		val = uint64(hl)
 	} else {
-		val = binary.LittleEndian.Uint64(m.Mem[m.ThemeRec(hl):]) & 0xffffffffff
+		val = binary.LittleEndian.Uint64(mem[m.ThemeRec(hl):]) & 0xffffffffff
 	}
 	if val == m.SpanVal {
 		return
 	}
 	if m.SpanVal != 0 {
-		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
+		binary.LittleEndian.PutUint64(mem[m.Out:], 0x3e6e6170732f3c)
 		m.Out += 7
 	}
 	m.SpanVal = val
@@ -518,15 +525,15 @@ func (m *Machine) SetSpan(hl uint32) {
 		return
 	}
 	slot := 8744 + hl*66
-	length := uint32(m.Mem[slot])
+	length := uint32(mem[slot])
 	if length == 0 || m.CSSVariables {
 		m.EmitSpanOpen(hl)
 		return
 	}
-	rt.StV(m.Mem[m.Out:], rt.LdV(m.Mem[slot+1:]))
-	rt.StV(m.Mem[m.Out+16:], rt.LdV(m.Mem[slot+17:]))
-	rt.StV(m.Mem[m.Out+32:], rt.LdV(m.Mem[slot+33:]))
-	rt.StV(m.Mem[m.Out+48:], rt.LdV(m.Mem[slot+49:]))
+	rt.StV(mem[m.Out:], rt.LdV(mem[slot+1:]))
+	rt.StV(mem[m.Out+16:], rt.LdV(mem[slot+17:]))
+	rt.StV(mem[m.Out+32:], rt.LdV(mem[slot+33:]))
+	rt.StV(mem[m.Out+48:], rt.LdV(mem[slot+49:]))
 	m.Out += length
 }
 
@@ -620,8 +627,9 @@ func (m *Machine) RecStreamBegin(reset bool) {
 
 // RecStreamEnd is $recStreamEnd.
 func (m *Machine) RecStreamEnd() {
-	if m.Out > binary.LittleEndian.Uint32(m.Mem[6:]) {
-		m.RecCarryHl = binary.LittleEndian.Uint32(m.Mem[m.Out-4:])
+	mem := m.Mem
+	if m.Out > binary.LittleEndian.Uint32(mem[6:]) {
+		m.RecCarryHl = binary.LittleEndian.Uint32(mem[m.Out-4:])
 	}
 }
 
@@ -815,113 +823,119 @@ func (m *Machine) MultiSlot(i uint32) uint32 {
 
 // MultiName is $multiName.
 func (m *Machine) MultiName(i uint32) {
+	mem := m.Mem
 	slot := m.MultiSlot(i)
-	n := binary.LittleEndian.Uint32(m.Mem[slot+4:])
-	src := m.MultiBlob + binary.LittleEndian.Uint32(m.Mem[slot:])
-	copy(m.Mem[m.Out:m.Out+n], m.Mem[src:src+n])
+	n := binary.LittleEndian.Uint32(mem[slot+4:])
+	src := m.MultiBlob + binary.LittleEndian.Uint32(mem[slot:])
+	copy(mem[m.Out:m.Out+n], mem[src:src+n])
 	m.Out += n
 }
 
 // MultiColorDecl is $multiColorDecl.
 func (m *Machine) MultiColorDecl(i, rec uint32) {
-	v := binary.LittleEndian.Uint32(m.Mem[rec:])
+	mem := m.Mem
+	v := binary.LittleEndian.Uint32(mem[rec:])
 	if v == 0 {
 		return
 	}
-	if binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) != 0 {
-		copy(m.Mem[m.Out:m.Out+6], m.Mem[8652:8658])
+	if binary.LittleEndian.Uint32(mem[m.MultiSlot(i)+8:]) != 0 {
+		copy(mem[m.Out:m.Out+6], mem[8652:8658])
 		m.Out += 6
 	} else {
 		m.MultiName(i)
-		m.Mem[m.Out] = ':'
+		mem[m.Out] = ':'
 		m.Out++
 	}
 	m.EmitRgba(v)
-	m.Mem[m.Out] = ';'
+	mem[m.Out] = ';'
 	m.Out++
 }
 
 // MultiFontDecls is $multiFontDecls.
 func (m *Machine) MultiFontDecls(i, style uint32, named bool) {
+	mem := m.Mem
 	if style&16 != 0 {
 		if named {
 			m.MultiName(i)
-			m.Mem[m.Out] = '-'
+			mem[m.Out] = '-'
 			m.Out++
 		}
-		copy(m.Mem[m.Out:m.Out+17], m.Mem[8676:8693])
-		m.Mem[m.Out+17] = ';'
+		copy(mem[m.Out:m.Out+17], mem[8676:8693])
+		mem[m.Out+17] = ';'
 		m.Out += 18
 	}
 	w := style & 15
 	if w != 0 {
 		if named {
 			m.MultiName(i)
-			m.Mem[m.Out] = '-'
+			mem[m.Out] = '-'
 			m.Out++
 		}
-		copy(m.Mem[m.Out:m.Out+12], m.Mem[8694:8706])
-		m.Mem[m.Out+12] = byte(48 + w)
-		binary.LittleEndian.PutUint16(m.Mem[m.Out+13:], uint16(12336))
-		m.Mem[m.Out+15] = ';'
+		copy(mem[m.Out:m.Out+12], mem[8694:8706])
+		mem[m.Out+12] = byte(48 + w)
+		binary.LittleEndian.PutUint16(mem[m.Out+13:], uint16(12336))
+		mem[m.Out+15] = ';'
 		m.Out += 16
 	}
 }
 
 // EmitLightDarkSide is $emitLightDarkSide.
 func (m *Machine) EmitLightDarkSide(v uint32, kw bool) {
+	mem := m.Mem
 	if v != 0 {
 		m.EmitRgba(v)
 		return
 	}
 	if kw {
-		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x726170736e617274)
-		binary.LittleEndian.PutUint32(m.Mem[m.Out+8:], 0x746e65)
+		binary.LittleEndian.PutUint64(mem[m.Out:], 0x726170736e617274)
+		binary.LittleEndian.PutUint32(mem[m.Out+8:], 0x746e65)
 		m.Out += 11
 	} else {
-		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x63746e6572727563)
-		binary.LittleEndian.PutUint32(m.Mem[m.Out+8:], 0x726f6c6f)
+		binary.LittleEndian.PutUint64(mem[m.Out:], 0x63746e6572727563)
+		binary.LittleEndian.PutUint32(mem[m.Out+8:], 0x726f6c6f)
 		m.Out += 12
 	}
 }
 
 // EmitLightDark is $emitLightDark.
 func (m *Machine) EmitLightDark(a, b uint32, kw bool) {
+	mem := m.Mem
 	if a == b {
 		m.EmitRgba(a)
 		return
 	}
-	copy(m.Mem[m.Out:m.Out+11], m.Mem[8731:8742])
+	copy(mem[m.Out:m.Out+11], mem[8731:8742])
 	m.Out += 11
 	m.EmitLightDarkSide(a, kw)
-	binary.LittleEndian.PutUint16(m.Mem[m.Out:], uint16(8236))
+	binary.LittleEndian.PutUint16(mem[m.Out:], uint16(8236))
 	m.Out += 2
 	m.EmitLightDarkSide(b, kw)
-	m.Mem[m.Out] = ')'
+	mem[m.Out] = ')'
 	m.Out++
 }
 
 // MultiLightDarkDecls is $multiLightDarkDecls.
 func (m *Machine) MultiLightDarkDecls(hl uint32) {
+	mem := m.Mem
 	recA := m.MultiRec(0, hl)
 	recB := m.MultiRec(1, hl)
-	a := binary.LittleEndian.Uint32(m.Mem[recA:])
-	b := binary.LittleEndian.Uint32(m.Mem[recB:])
+	a := binary.LittleEndian.Uint32(mem[recA:])
+	b := binary.LittleEndian.Uint32(mem[recB:])
 	if a|b != 0 {
 		if a == 0 {
-			a = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(0, TokenForeground):])
+			a = binary.LittleEndian.Uint32(mem[m.MultiRec(0, TokenForeground):])
 		}
 		if b == 0 {
-			b = binary.LittleEndian.Uint32(m.Mem[m.MultiRec(1, TokenForeground):])
+			b = binary.LittleEndian.Uint32(mem[m.MultiRec(1, TokenForeground):])
 		}
-		copy(m.Mem[m.Out:m.Out+6], m.Mem[8652:8658])
+		copy(mem[m.Out:m.Out+6], mem[8652:8658])
 		m.Out += 6
 		m.EmitLightDark(a, b, false)
-		m.Mem[m.Out] = ';'
+		mem[m.Out] = ';'
 		m.Out++
 	}
-	sa := uint32(m.Mem[recA+4])
-	sb := uint32(m.Mem[recB+4])
+	sa := uint32(mem[recA+4])
+	sb := uint32(mem[recB+4])
 	common := sa & sb & 16
 	if sa&15 == sb&15 {
 		common |= sa & 15
@@ -934,22 +948,23 @@ func (m *Machine) MultiLightDarkDecls(hl uint32) {
 // MultiSpanOpen is $multiSpanOpen.
 func (m *Machine) MultiSpanOpen(hl uint32) {
 	var save uint32
-	length := uint32(binary.LittleEndian.Uint16(m.Mem[8752+hl<<1:]))
+	mem := m.Mem
+	length := uint32(binary.LittleEndian.Uint16(mem[8752+hl<<1:]))
 	if length != 0 {
-		m.CopyWide(9048+uint32(binary.LittleEndian.Uint16(m.Mem[8898+hl<<1:])), length)
+		m.CopyWide(9048+uint32(binary.LittleEndian.Uint16(mem[8898+hl<<1:])), length)
 		return
 	}
-	at := 9048 + binary.LittleEndian.Uint32(m.Mem[8748:])
-	if binary.LittleEndian.Uint32(m.Mem[8748:])+m.SpanReserve <= 4520 {
+	at := 9048 + binary.LittleEndian.Uint32(mem[8748:])
+	if binary.LittleEndian.Uint32(mem[8748:])+m.SpanReserve <= 4520 {
 		save = m.Out
 		m.Out = at
 	}
 	m.MultiRenderOpen(hl)
 	if save != 0 {
 		length = m.Out - at
-		binary.LittleEndian.PutUint16(m.Mem[8752+hl<<1:], uint16(length))
-		binary.LittleEndian.PutUint16(m.Mem[8898+hl<<1:], uint16(at-9048))
-		binary.LittleEndian.PutUint32(m.Mem[8748:], binary.LittleEndian.Uint32(m.Mem[8748:])+length)
+		binary.LittleEndian.PutUint16(mem[8752+hl<<1:], uint16(length))
+		binary.LittleEndian.PutUint16(mem[8898+hl<<1:], uint16(at-9048))
+		binary.LittleEndian.PutUint32(mem[8748:], binary.LittleEndian.Uint32(mem[8748:])+length)
 		m.Out = save
 		m.CopyWide(at, length)
 	}
@@ -958,8 +973,9 @@ func (m *Machine) MultiSpanOpen(hl uint32) {
 // CopyWide is $copyWide.
 func (m *Machine) CopyWide(src, length uint32) {
 	var i uint32
+	mem := m.Mem
 	for {
-		rt.StV(m.Mem[m.Out+i:], rt.LdV(m.Mem[src+i:]))
+		rt.StV(mem[m.Out+i:], rt.LdV(mem[src+i:]))
 		i += 16
 		if i >= length {
 			break
@@ -971,22 +987,23 @@ func (m *Machine) CopyWide(src, length uint32) {
 // MultiRenderOpen is $multiRenderOpen.
 func (m *Machine) MultiRenderOpen(hl uint32) {
 	var i, rec uint32
-	copy(m.Mem[m.Out:m.Out+13], m.Mem[8639:8652])
+	mem := m.Mem
+	copy(mem[m.Out:m.Out+13], mem[8639:8652])
 	m.Out += 13
-	if m.Mem[m.MultiBlob+1] != 0 {
+	if mem[m.MultiBlob+1] != 0 {
 		m.MultiLightDarkDecls(hl)
 	} else {
 		for {
 			rec = m.MultiRec(i, hl)
 			m.MultiColorDecl(i, rec)
-			m.MultiFontDecls(i, uint32(m.Mem[rec+4]), binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) == 0)
+			m.MultiFontDecls(i, uint32(mem[rec+4]), binary.LittleEndian.Uint32(mem[m.MultiSlot(i)+8:]) == 0)
 			i++
 			if i >= m.MultiSlots {
 				break
 			}
 		}
 	}
-	binary.LittleEndian.PutUint16(m.Mem[m.Out-1:], uint16(15906))
+	binary.LittleEndian.PutUint16(mem[m.Out-1:], uint16(15906))
 	m.Out++
 }
 
@@ -994,13 +1011,14 @@ func (m *Machine) MultiRenderOpen(hl uint32) {
 func (m *Machine) MultiSetSpan(hl uint32) {
 	var i uint32
 	var rec, anyRec uint64
+	mem := m.Mem
 	open := uint32(m.SpanVal)
 	same := true
 	for {
-		rec = binary.LittleEndian.Uint64(m.Mem[m.MultiRec(i, hl):]) & 0xffffffffff
+		rec = binary.LittleEndian.Uint64(mem[m.MultiRec(i, hl):]) & 0xffffffffff
 		anyRec |= rec
 		if open != 0 {
-			same = same && rec == binary.LittleEndian.Uint64(m.Mem[m.MultiRec(i, open):])&0xffffffffff
+			same = same && rec == binary.LittleEndian.Uint64(mem[m.MultiRec(i, open):])&0xffffffffff
 		}
 		i++
 		if i >= m.MultiSlots {
@@ -1011,7 +1029,7 @@ func (m *Machine) MultiSetSpan(hl uint32) {
 		if same && anyRec != 0 {
 			return
 		}
-		binary.LittleEndian.PutUint64(m.Mem[m.Out:], 0x3e6e6170732f3c)
+		binary.LittleEndian.PutUint64(mem[m.Out:], 0x3e6e6170732f3c)
 		m.Out += 7
 	}
 	if anyRec == 0 {
@@ -1025,20 +1043,21 @@ func (m *Machine) MultiSetSpan(hl uint32) {
 // MultiRootDecls is $multiRootDecls.
 func (m *Machine) MultiRootDecls(bg bool) {
 	var i, rec uint32
+	mem := m.Mem
 	for {
 		if bg {
 			rec = m.MultiRec(i, TokenBackground)
-			if binary.LittleEndian.Uint32(m.Mem[rec:]) != 0 {
-				if binary.LittleEndian.Uint32(m.Mem[m.MultiSlot(i)+8:]) != 0 {
-					copy(m.Mem[m.Out:m.Out+17], m.Mem[8658:8675])
+			if binary.LittleEndian.Uint32(mem[rec:]) != 0 {
+				if binary.LittleEndian.Uint32(mem[m.MultiSlot(i)+8:]) != 0 {
+					copy(mem[m.Out:m.Out+17], mem[8658:8675])
 					m.Out += 17
 				} else {
 					m.MultiName(i)
-					binary.LittleEndian.PutUint32(m.Mem[m.Out:], 0x3a67622d)
+					binary.LittleEndian.PutUint32(mem[m.Out:], 0x3a67622d)
 					m.Out += 4
 				}
 				m.EmitColor(rec)
-				m.Mem[m.Out] = ';'
+				mem[m.Out] = ';'
 				m.Out++
 			}
 		} else {
@@ -1203,10 +1222,11 @@ func (m *Machine) HlBegin() {
 
 // CopyHTMLOpener is $copyHtmlOpener.
 func (m *Machine) CopyHTMLOpener(hl uint32) {
+	mem := m.Mem
 	slot := m.HTMLOpeners + 4 + hl<<3
-	length := binary.LittleEndian.Uint32(m.Mem[slot+4:])
-	src := m.HTMLOpeners + binary.LittleEndian.Uint32(m.Mem[slot:])
-	copy(m.Mem[m.Out:m.Out+length], m.Mem[src:src+length])
+	length := binary.LittleEndian.Uint32(mem[slot+4:])
+	src := m.HTMLOpeners + binary.LittleEndian.Uint32(mem[slot:])
+	copy(mem[m.Out:m.Out+length], mem[src:src+length])
 	m.Out += length
 }
 
@@ -1341,11 +1361,12 @@ func (m *Machine) LexScanNumber() {
 // LexScanNumberBody is $lexScanNumberBody.
 func (m *Machine) LexScanNumberBody(hex bool) {
 	var c, next, prev uint32
+	mem := m.Mem
 	for {
 		if m.Ptr >= m.End {
 			break
 		}
-		c = uint32(m.Mem[m.Ptr])
+		c = uint32(mem[m.Ptr])
 		if m.LexIsIdentContinue(c) {
 			prev = c
 			m.Ptr++
@@ -1353,7 +1374,7 @@ func (m *Machine) LexScanNumberBody(hex bool) {
 		}
 		if c == '.' {
 			if m.Ptr+1 < m.End {
-				next = uint32(m.Mem[m.Ptr+1])
+				next = uint32(mem[m.Ptr+1])
 			} else {
 				next = 0
 			}
@@ -1376,39 +1397,40 @@ func (m *Machine) LexScanNumberBody(hex bool) {
 // LexScanHexNumber is $lexScanHexNumber.
 func (m *Machine) LexScanHexNumber(requireExponent bool) {
 	var next, p, c uint32
+	mem := m.Mem
 	lhs := m.Ptr
 	m.LexScanNumber()
-	if lhs+1 < m.End && m.Mem[lhs] == '0' && uint32(m.Mem[lhs+1])|32 == 120 {
+	if lhs+1 < m.End && mem[lhs] == '0' && uint32(mem[lhs+1])|32 == 120 {
 		if m.Ptr < m.End {
 			if m.Ptr+1 < m.End {
-				next = uint32(m.Mem[m.Ptr+1])
+				next = uint32(mem[m.Ptr+1])
 			} else {
 				next = 0
 			}
-			if m.Mem[m.Ptr] == '.' && (m.LexIsHex(next) || next|32 == 112) {
+			if mem[m.Ptr] == '.' && (m.LexIsHex(next) || next|32 == 112) {
 				if requireExponent || next|32 == 112 {
 					p = m.Ptr + 1
 					for {
 						if p >= m.End {
 							break
 						}
-						c = uint32(m.Mem[p])
+						c = uint32(mem[p])
 						if !(m.LexIsHex(c) || c == '_') {
 							break
 						}
 						p++
 					}
-					if p >= m.End || uint32(m.Mem[p])|32 != 112 {
+					if p >= m.End || uint32(mem[p])|32 != 112 {
 						return
 					}
 					p++
 					if p < m.End {
-						c = uint32(m.Mem[p])
+						c = uint32(mem[p])
 						if c == '+' || c == '-' {
 							p++
 						}
 					}
-					if p >= m.End || !m.LexIsDigit(uint32(m.Mem[p])) {
+					if p >= m.End || !m.LexIsDigit(uint32(mem[p])) {
 						return
 					}
 				}
@@ -1421,8 +1443,9 @@ func (m *Machine) LexScanHexNumber(requireExponent bool) {
 
 // LexEscapeEnd is $lexEscapeEnd.
 func (m *Machine) LexEscapeEnd(p uint32) uint32 {
+	mem := m.Mem
 	e := m.UTF8SpanEnd(p+2, m.End)
-	if e == p+2 && m.Mem[p+1] == '\r' && e < m.End && m.Mem[e] == '\n' {
+	if e == p+2 && mem[p+1] == '\r' && e < m.End && mem[e] == '\n' {
 		e++
 	}
 	return e
@@ -1499,8 +1522,9 @@ func (m *Machine) LexRawString(quote, multiline, hl bool) {
 // LexCEscapeEnd is $lexCEscapeEnd.
 func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 	var c uint32
+	mem := m.Mem
 	if p+1 < m.End {
-		c = uint32(m.Mem[p+1])
+		c = uint32(mem[p+1])
 	} else {
 		c = 0
 	}
@@ -1513,13 +1537,13 @@ func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 	case c == 'x':
 		e = m.ScanHexRun(e, 64)
 	default:
-		if c == 'N' && e < m.End && m.Mem[e] == '{' {
+		if c == 'N' && e < m.End && mem[e] == '{' {
 			e++
 			for {
 				if e >= m.End {
 					return m.UTF8SpanEnd(e, m.End)
 				}
-				c = uint32(m.Mem[e])
+				c = uint32(mem[e])
 				if c == '\n' || c == '\r' || c == '"' || c == '\'' || c == '\\' {
 					return m.UTF8SpanEnd(e, m.End)
 				}
@@ -1534,7 +1558,7 @@ func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 				if e >= m.End || e-p >= 4 {
 					return m.UTF8SpanEnd(e, m.End)
 				}
-				if uint32(m.Mem[e])-48 > 7 {
+				if uint32(mem[e])-48 > 7 {
 					return m.UTF8SpanEnd(e, m.End)
 				}
 				e++
@@ -1657,8 +1681,9 @@ func (m *Machine) LexBlockComment(skip, hl bool) {
 
 // StreamSetFixed is $streamSetFixed.
 func (m *Machine) StreamSetFixed(delimiter uint32, length, hl bool) {
+	mem := m.Mem
 	if m.Streaming && rt.B2u(length) <= 32 && m.Ptr == m.EOF {
-		copy(m.Mem[13952:13952+rt.B2u(length)], m.Mem[delimiter:delimiter+rt.B2u(length)])
+		copy(mem[13952:13952+rt.B2u(length)], mem[delimiter:delimiter+rt.B2u(length)])
 		m.StreamMode = 20
 		m.StreamA = rt.B2u(length)
 		m.StreamB = 0
@@ -1685,7 +1710,8 @@ func (m *Machine) StreamSetNested(depth uint32, open, closer, hl bool) {
 
 // LexHeredocArgument is $lexHeredocArgument.
 func (m *Machine) LexHeredocArgument(p uint32) bool {
-	c := uint32(m.Mem[p])
+	mem := m.Mem
+	c := uint32(mem[p])
 	if c == '"' || c == '\'' {
 		return true
 	}
@@ -1693,7 +1719,7 @@ func (m *Machine) LexHeredocArgument(p uint32) bool {
 		if p >= m.End {
 			break
 		}
-		if !m.LexIsIdentContinue(uint32(m.Mem[p])) {
+		if !m.LexIsIdentContinue(uint32(mem[p])) {
 			break
 		}
 		p++
@@ -1702,7 +1728,7 @@ func (m *Machine) LexHeredocArgument(p uint32) bool {
 	if p >= m.End {
 		return true
 	}
-	c = uint32(m.Mem[p])
+	c = uint32(mem[p])
 	return c == '\n' || c == '\r' || c == ';' || c == ',' || c == ')' || c == '.' || c == '#'
 }
 
@@ -1726,8 +1752,9 @@ func (m *Machine) LineDelimiterEnds(p, trim uint32) bool {
 
 // StreamSetLine is $streamSetLine.
 func (m *Machine) StreamSetLine(delimiter, length, trim, hl bool) {
+	mem := m.Mem
 	if m.Streaming && rt.B2u(length) <= 32 && m.Ptr == m.EOF {
-		copy(m.Mem[13952:13952+rt.B2u(length)], m.Mem[rt.B2u(delimiter):rt.B2u(delimiter)+rt.B2u(length)])
+		copy(mem[13952:13952+rt.B2u(length)], mem[rt.B2u(delimiter):rt.B2u(delimiter)+rt.B2u(length)])
 		m.StreamMode = 22
 		m.StreamA = rt.B2u(length)
 		m.StreamB = rt.B2u(trim)
@@ -1786,6 +1813,7 @@ func (m *Machine) StreamResumeFixed() bool {
 func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 	var mask uint32
 	var w, w1, o0, o1, c0, c1 rt.V128
+	mem := m.Mem
 	o0 = rt.Splat8(open)
 	o1 = rt.Splat8(open >> 8)
 	c0 = rt.Splat8(closer)
@@ -1795,8 +1823,8 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 			if m.Ptr >= m.End {
 				break
 			}
-			w = rt.LdV(m.Mem[m.Ptr:])
-			w1 = rt.LdV(m.Mem[m.Ptr+1:])
+			w = rt.LdV(mem[m.Ptr:])
+			w1 = rt.LdV(mem[m.Ptr+1:])
 			mask = w.Eq8(o0).And(w1.Eq8(o1)).Or(w.Eq8(c0).And(w1.Eq8(c1))).Bitmask8()
 			if mask != 0 {
 				m.Ptr += uint32(bits.TrailingZeros32(mask))
@@ -1808,7 +1836,7 @@ func (m *Machine) LexNestedScan(depth, open, closer uint32) uint32 {
 			m.Ptr = m.End
 			break
 		}
-		if uint32(binary.LittleEndian.Uint16(m.Mem[m.Ptr:])) == open {
+		if uint32(binary.LittleEndian.Uint16(mem[m.Ptr:])) == open {
 			depth++
 			m.Ptr += 2
 			continue
@@ -2056,23 +2084,24 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs bool) bool {
 
 // LexKeywordLookup is $lexKeywordLookup.
 func (m *Machine) LexKeywordLookup(start, end, base, bucketMask, slots uint32) uint32 {
+	mem := m.Mem
 	length := end - start
 	if length-2 > 29 {
 		return 0
 	}
-	h := uint32(binary.LittleEndian.Uint16(m.Mem[start:])) | uint32(m.Mem[end-1])<<16 | length<<24
+	h := uint32(binary.LittleEndian.Uint16(mem[start:])) | uint32(mem[end-1])<<16 | length<<24
 	h = (h ^ h>>16) * 0xe51fac89
 	h ^= h >> 24
-	entry := binary.LittleEndian.Uint32(m.Mem[base+bucketMask+1+uint32((uint64(bits.RotateLeft32(h+uint32(m.Mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3:]) & 0xffffff
+	entry := binary.LittleEndian.Uint32(mem[base+bucketMask+1+uint32((uint64(bits.RotateLeft32(h+uint32(mem[base+h&bucketMask])*(h>>12|1), 16))*uint64(slots))>>32)*3:]) & 0xffffff
 	if length != entry>>19 {
 		return 0
 	}
 	rec := 0x10000 + entry&16383
-	if uint32(bits.TrailingZeros32(rt.LdV(m.Mem[start:]).Ne8(rt.LdV(m.Mem[rec:])).Bitmask8())) < length {
+	if uint32(bits.TrailingZeros32(rt.LdV(mem[start:]).Ne8(rt.LdV(mem[rec:])).Bitmask8())) < length {
 		return 0
 	}
 	if length > 16 {
-		if rt.LdV(m.Mem[end-16:]).Xor(rt.LdV(m.Mem[rec+(length-16):])).AnyTrue() {
+		if rt.LdV(mem[end-16:]).Xor(rt.LdV(mem[rec+(length-16):])).AnyTrue() {
 			return 0
 		}
 	}
@@ -2092,6 +2121,7 @@ func (m *Machine) LexKeywordValue(start, end, base, bucketMask, slots uint32) ui
 func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
 	var i uint32
 	var w rt.V128
+	mem := m.Mem
 	n := rhs - lhs
 	if n > 31 {
 		return 0
@@ -2100,8 +2130,8 @@ func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
 		if i >= n {
 			break
 		}
-		w = rt.LdV(m.Mem[lhs+i:])
-		rt.StV(m.Mem[dst+i:], w.Or(w.Sub8(rt.Splat8(65)).LeU8(rt.Splat8(25)).And(rt.Splat8(32))))
+		w = rt.LdV(mem[lhs+i:])
+		rt.StV(mem[dst+i:], w.Or(w.Sub8(rt.Splat8(65)).LeU8(rt.Splat8(25)).And(rt.Splat8(32))))
 		i += 16
 	}
 	return n

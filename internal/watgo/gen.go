@@ -84,6 +84,7 @@ type label struct {
 type fgen struct {
 	mod       *Module
 	pure      map[string]bool // Go names of functions without side effects
+	growers   map[string]bool // Go names of functions that can grow memory
 	boolFuncs map[string]bool // Go names of functions that return a bool
 	// boolParams holds, by function, the parameters taken to be bools;
 	// notBoolParam collects those a call passes another value
@@ -285,6 +286,7 @@ func generate(mod *Module, opts Options) (string, []byte) {
 	w("\t}\n\treturn 0, false\n}\n\nfunc arg(args []uint64, i int) uint64 {\n\tif i < len(args) {\n\t\treturn args[i]\n\t}\n\treturn 0\n}\n\n")
 
 	pure := pureFuncs(mod)
+	grow := growers(mod)
 	// a function the host cannot call whose every return is 0 or 1 returns
 	// a bool; finding one can show its callers return bools too
 	inTable := map[string]bool{}
@@ -327,7 +329,7 @@ func generate(mod *Module, opts Options) (string, []byte) {
 				continue
 			}
 			g := genBoolLocals(f, boolParams[f.GoName], func(boolLocals map[string]bool) *fgen {
-				return &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts, pure: pure, boolFuncs: boolFuncs, boolParams: boolParams, notBoolParam: notBoolParam, flags: flags, boolLocals: boolLocals, notBool: map[string]bool{}}
+				return &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts, pure: pure, growers: grow, boolFuncs: boolFuncs, boolParams: boolParams, notBoolParam: notBoolParam, flags: flags, boolLocals: boolLocals, notBool: map[string]bool{}}
 			})
 			funcs.WriteString(g.code)
 			if g.nonBool && boolFuncs[f.GoName] {
@@ -865,6 +867,12 @@ func (g *fgen) genFunc() string {
 	}
 	for _, u := range unused {
 		fmt.Fprintf(&sb, "\t_ = %s\n", u)
+	}
+	// memory moves only when it grows, so a function that cannot make it
+	// grow keeps it in a local
+	if strings.Count(body, "m.Mem") > 1 && !g.mayGrow(body) && !regexp.MustCompile(`\bmem\b`).MatchString(body) {
+		body = strings.ReplaceAll(body, "m.Mem", "mem")
+		sb.WriteString("\tmem := m.Mem\n")
 	}
 	sb.WriteString(body)
 	if result != "" && !endsTerminating(body) && !loopEnds {
@@ -1738,6 +1746,74 @@ func lowerFirst(s string) string {
 
 // topCallRe matches a statement that is one method call.
 var topCallRe = regexp.MustCompile(`^m\.(\w+)\(.*\)$`)
+
+// mayGrow reports whether a function body can grow memory: itself, or
+// through a call to a function that can.
+func (g *fgen) mayGrow(body string) bool {
+	if strings.Contains(body, "rt.Grow") {
+		return true
+	}
+	for _, m := range calleeRe.FindAllStringSubmatch(body, -1) {
+		if g.growers[m[1]] {
+			return true
+		}
+	}
+	return false
+}
+
+var calleeRe = regexp.MustCompile(`\bm\.(\w+)\(`)
+
+// growers returns the Go names of the functions that can grow memory:
+// those with memory.grow, imports, which the host implements, and their
+// callers. An indirect call can reach any function, so it counts as one.
+func growers(mod *Module) map[string]bool {
+	grows := map[*Func]bool{}
+	for _, f := range mod.Funcs {
+		if f.Import != nil {
+			grows[f] = true
+		}
+	}
+	var reaches func(n *wat.Sexpr) bool
+	reaches = func(n *wat.Sexpr) bool {
+		if !n.IsList {
+			return false
+		}
+		switch head := n.Head(); {
+		case head == "memory.grow", head == "call_indirect":
+			return true
+		case head == "call" && len(n.List) > 1:
+			if f := mod.FuncByRef[n.List[1].Atom]; f == nil || grows[f] {
+				return true
+			}
+		}
+		for _, c := range n.List[1:] {
+			if reaches(c) {
+				return true
+			}
+		}
+		return false
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, f := range mod.Funcs {
+			if grows[f] {
+				continue
+			}
+			for _, n := range f.Body {
+				if reaches(n) {
+					grows[f] = true
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	names := map[string]bool{}
+	for f := range grows {
+		names[f.GoName] = true
+	}
+	return names
+}
 
 // pureFuncs returns the Go names of the functions that neither write
 // memory or globals nor call a function that does. A trap is not counted

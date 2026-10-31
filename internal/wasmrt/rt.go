@@ -105,10 +105,14 @@ func (a V128) Not() V128 { return V128{^a.Lo, ^a.Hi} }
 // AnyTrue implements v128.any_true.
 func (a V128) AnyTrue() bool { return a.Lo|a.Hi != 0 }
 
+// fill turns the high bit of each byte of m, its only set bits, into 0xff
+// in that byte: 0x80 - 0x01 borrows from nothing.
+func fill(m uint64) uint64 { return (m - m>>7) | m }
+
 // zeroBytes sets 0xff in each byte of x that is zero.
 func zeroBytes(x uint64) uint64 {
 	t := ((x & low7) + low7) | x
-	return ((^t & high) >> 7) * 0xff
+	return fill(^t & high)
 }
 
 // Eq8 implements i8x16.eq.
@@ -132,8 +136,7 @@ func (a V128) Add8(b V128) V128 { return V128{add8(a.Lo, b.Lo), add8(a.Hi, b.Hi)
 // difference of the low seven bits does.
 func geMask(x, y uint64) uint64 {
 	d := (x | high) - (y &^ high)
-	m := ((x &^ y) | (^(x ^ y) & d)) & high
-	return (m >> 7) * 0xff
+	return fill(((x &^ y) | (^(x ^ y) & d)) & high)
 }
 
 // GeU8 implements i8x16.ge_u.
