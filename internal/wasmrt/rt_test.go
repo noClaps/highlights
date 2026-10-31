@@ -23,6 +23,14 @@ func TestVectorOpsMatchLaneDefinitions(t *testing.T) {
 		}
 		va, vb := Bytes16(a), Bytes16(b)
 		eq, sub, add := toBytes(Eq8(va, vb)), toBytes(Sub8(va, vb)), toBytes(Add8(va, vb))
+		le, ge, lt, gt := toBytes(LeU8(va, vb)), toBytes(GeU8(va, vb)), toBytes(LtU8(va, vb)), toBytes(GtU8(va, vb))
+		gts, lts := toBytes(GtS8(va, vb)), toBytes(LtS8(va, vb))
+		lane := func(ok bool) byte {
+			if ok {
+				return 0xff
+			}
+			return 0
+		}
 		var mask uint32
 		for i := range a {
 			want := byte(0)
@@ -34,6 +42,12 @@ func TestVectorOpsMatchLaneDefinitions(t *testing.T) {
 			}
 			if sub[i] != a[i]-b[i] || add[i] != a[i]+b[i] {
 				t.Fatalf("add/sub lane %d of %v %v", i, a, b)
+			}
+			if le[i] != lane(a[i] <= b[i]) || ge[i] != lane(a[i] >= b[i]) || lt[i] != lane(a[i] < b[i]) || gt[i] != lane(a[i] > b[i]) {
+				t.Fatalf("unsigned compare lane %d of %v %v", i, a, b)
+			}
+			if gts[i] != lane(int8(a[i]) > int8(b[i])) || lts[i] != lane(int8(a[i]) < int8(b[i])) {
+				t.Fatalf("signed compare lane %d of %v %v", i, a, b)
 			}
 			if a[i]&0x80 != 0 {
 				mask |= 1 << i

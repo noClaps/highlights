@@ -169,30 +169,27 @@ func Sub8(a, b V128) V128     { return V128{sub8(a.Lo, b.Lo), sub8(a.Hi, b.Hi)} 
 func add8(a, b uint64) uint64 { return ((a &^ high) + (b &^ high)) ^ ((a ^ b) & high) }
 func Add8(a, b V128) V128     { return V128{add8(a.Lo, b.Lo), add8(a.Hi, b.Hi)} }
 
-func lanes(f func(x, y byte) bool, a, b uint64) uint64 {
-	var out uint64
-	for i := 0; i < 64; i += 8 {
-		if f(byte(a>>i), byte(b>>i)) {
-			out |= 0xff << i
-		}
-	}
-	return out
+// geMask sets 0xff in each byte lane where x >= y, unsigned. For lanes
+// whose high bits differ, x's high bit decides; otherwise the borrow-free
+// difference of the low seven bits does.
+func geMask(x, y uint64) uint64 {
+	d := (x | high) - (y &^ high)
+	m := ((x &^ y) | (^(x ^ y) & d)) & high
+	return (m >> 7) * 0xff
 }
 
-func cmp8(a, b V128, f func(x, y byte) bool) V128 {
-	return V128{lanes(f, a.Lo, b.Lo), lanes(f, a.Hi, b.Hi)}
-}
+func GeU8(a, b V128) V128 { return V128{geMask(a.Lo, b.Lo), geMask(a.Hi, b.Hi)} }
+func LeU8(a, b V128) V128 { return GeU8(b, a) }
+func LtU8(a, b V128) V128 { return Not(GeU8(a, b)) }
+func GtU8(a, b V128) V128 { return Not(GeU8(b, a)) }
 
-func LeU8(a, b V128) V128 { return cmp8(a, b, func(x, y byte) bool { return x <= y }) }
-func GeU8(a, b V128) V128 { return cmp8(a, b, func(x, y byte) bool { return x >= y }) }
-func LtU8(a, b V128) V128 { return cmp8(a, b, func(x, y byte) bool { return x < y }) }
-func GtU8(a, b V128) V128 { return cmp8(a, b, func(x, y byte) bool { return x > y }) }
+// signed lanes compare as unsigned once their sign bits flip
 func GtS8(a, b V128) V128 {
-	return cmp8(a, b, func(x, y byte) bool { return int8(x) > int8(y) })
+	f := V128{high, high}
+	return GtU8(Xor(a, f), Xor(b, f))
 }
-func LtS8(a, b V128) V128 {
-	return cmp8(a, b, func(x, y byte) bool { return int8(x) < int8(y) })
-}
+
+func LtS8(a, b V128) V128 { return GtS8(b, a) }
 
 func minU(x, y byte) byte {
 	if x < y {
