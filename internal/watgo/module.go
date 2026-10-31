@@ -13,13 +13,16 @@
 //   - A block that only one branch leaves moves its continuation to that
 //     branch, and a loop that ends a block breaks out of it.
 //   - Conditions on constants keep only the arm they take.
+//   - Functions, locals and globals that only hold 0 or 1 are bools, and
+//     calls without side effects stay in the expressions that use them.
+//   - A byte load indexes memory, m.Mem[p]; bit counts use math/bits.
 //   - A loop that ends `if c { continue }` is written `if !c { break }`.
 //   - Expressions print with Go precedence; stores nobody reads disappear.
 //
 // The generator still writes a forward goto for a branch none of these
 // shapes covers, so a new lexer can use any WAT control flow. The
 // lexers in internal/engine/wat are written so that none remains, which
-// golden output and the engine's goto check hold them to.
+// the engine's style test holds them to.
 package watgo
 
 import (

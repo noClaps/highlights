@@ -60,7 +60,14 @@ describe them). Rather than run Wasm, the Go port translates the WAT to Go:
   names, loops become labeled `for` loops, byte switches become `switch`
   statements with rune literals, tail branches become `if`/`else` arms,
   constant conditions fold away, and expressions print with Go precedence.
-  The generated engine has no `goto`s; a test keeps it that way.
+  Functions, locals and globals that only hold 0 or 1 are `bool`s, bytes are
+  read as `m.Mem[p]`, calls without side effects stay in their expressions
+  rather than temporaries, and bit counts use `math/bits`.
+  `TestGeneratedCodeStyle` in `internal/engine` checks that the engine has no
+  `goto` and none of the WAT-shaped patterns the generator removes. The engine
+  is still a translation: the lexers' branchless arithmetic on conditions
+  (`n += rt.B2u(c != ' ')`), wide loads through `rt.Ld32` and the like, and
+  SIMD through `rt.V128` remain.
 - `internal/engine` is the generated engine (`go generate ./internal/engine`
   regenerates it and `tables_gen.go`).
 - The root package ports the TypeScript host, whose original is in
