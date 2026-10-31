@@ -83,8 +83,12 @@ type fgen struct {
 	pendingInline []*wat.Sexpr
 	inlineDepth   int
 	// ends holds, for each sequence being written, the branch that leaving
-	// its end amounts to
-	ends []*wat.Sexpr
+	// its end amounts to, and conts the code that runs after it, up to a
+	// jump, or nil when that is unknown
+	ends  []*wat.Sexpr
+	conts [][]*wat.Sexpr
+	// childCont is the continuation of the statement being written
+	childCont []*wat.Sexpr
 	consts        *enumConsts
 }
 
@@ -760,6 +764,7 @@ func (g *fgen) genSeq(nodes []*wat.Sexpr) {
 			return
 		}
 		g.noteInline(n, nodes[i+1:])
+		g.childCont = g.contOf(nodes[i+1:])
 		g.genInstr(n)
 	}
 }
@@ -788,7 +793,35 @@ func (g *fgen) noteInline(n *wat.Sexpr, rest []*wat.Sexpr) {
 	// sequence's end does
 	if n := len(g.ends); n > 0 && g.ends[n-1] != nil && g.structuredEnd(g.ends[n-1]) {
 		g.pendingInline = append(slices.Clone(rest), g.ends[n-1])
+		return
 	}
+	// otherwise the code that runs after this sequence, while small
+	if n := len(g.conts); n > 0 && g.conts[n-1] != nil {
+		cont := g.conts[n-1]
+		for _, c := range cont {
+			if size += nodeCount(c); size > inlineBudget {
+				return
+			}
+		}
+		g.pendingInline = append(slices.Clone(rest), cont...)
+	}
+}
+
+// contOf returns the code that runs after the statement before rest, up
+// to its first jump, given the continuation of the enclosing sequence.
+func (g *fgen) contOf(rest []*wat.Sexpr) []*wat.Sexpr {
+	for k, r := range rest {
+		if !inlinable(r) {
+			return nil
+		}
+		if isJump(r) {
+			return rest[:k+1]
+		}
+	}
+	if n := len(g.conts); n > 0 && g.conts[n-1] != nil {
+		return append(slices.Clone(rest), g.conts[n-1]...)
+	}
+	return nil
 }
 
 // structuredEnd reports whether writing a sequence end needs no goto.
@@ -800,11 +833,14 @@ func (g *fgen) structuredEnd(end *wat.Sexpr) bool {
 	return l.isFunc || l.isLoop || l.breakStmt != "" || l.breaks != nil || l.inline != nil
 }
 
-// withEnd writes a sequence whose end amounts to the branch end.
-func (g *fgen) withEnd(end *wat.Sexpr, write func()) {
+// withEnd writes a sequence whose end amounts to the branch end and is
+// followed by cont.
+func (g *fgen) withEnd(end *wat.Sexpr, cont []*wat.Sexpr, write func()) {
 	g.ends = append(g.ends, end)
+	g.conts = append(g.conts, cont)
 	write()
 	g.ends = g.ends[:len(g.ends)-1]
+	g.conts = g.conts[:len(g.conts)-1]
 }
 
 func brTo(label string) *wat.Sexpr { return list(atom("br"), atom(label)) }
@@ -1100,6 +1136,7 @@ func (g *fgen) newLabel(watName string, isLoop bool, result ValType) *label {
 // genBlock writes a block or loop. tail lists outer blocks that end where
 // this one does.
 func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
+	cont := g.childCont
 	name, result, body := g.blockHeader(n.List[1:])
 	g.spill()
 	if isLoop {
@@ -1130,9 +1167,9 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
 	base := len(g.stack)
 	g.labels = append(g.labels, l)
 	if result == "" {
-		g.withEnd(brTo(name), func() { g.genSeqTail(body, append(slices.Clone(tail), l)) })
+		g.withEnd(brTo(name), cont, func() { g.genSeqTail(body, append(slices.Clone(tail), l)) })
 	} else {
-		g.withEnd(nil, func() { g.genSeq(body) })
+		g.withEnd(nil, nil, func() { g.genSeq(body) })
 	}
 	g.labels = g.labels[:len(g.labels)-1]
 	fallthroughReachable := !g.unreachable
@@ -1161,6 +1198,7 @@ var byteSwitchRe = regexp.MustCompile(`^\$byteSwitch\d+_default$`)
 // byte-switch into as a Go switch on the byte. It reports false for a
 // block of another shape.
 func (g *fgen) genByteSwitch(name string, body []*wat.Sexpr) bool {
+	cont := g.childCont
 	prefix := strings.TrimSuffix(name, "default")
 	// peel the case blocks: each holds the next one, then its own body and
 	// a branch to the default label
@@ -1222,7 +1260,7 @@ func (g *fgen) genByteSwitch(name string, body []*wat.Sexpr) bool {
 		}
 		g.line("case %s:", strings.Join(keys, ", "))
 		g.depth++
-		g.withEnd(brTo(name), func() { g.genSeqTail(bodies[k], []*label{l}) })
+		g.withEnd(brTo(name), cont, func() { g.genSeqTail(bodies[k], []*label{l}) })
 		g.stack = g.stack[:base]
 		g.unreachable = false
 		g.depth--
@@ -1268,6 +1306,7 @@ func byteLiteral(b int) string {
 // continues it, and reaching the end of the body breaks out. block is the
 // block that ends with the loop, if any.
 func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, block *label) {
+	cont := g.childCont
 	l := g.newLabel(name, true, result)
 	if block != nil {
 		block.breaks = l
@@ -1285,7 +1324,10 @@ func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, block *la
 	if block != nil {
 		exit = brTo(block.watName)
 	}
-	g.withEnd(exit, func() { g.genSeq(body) })
+	if result != "" {
+		cont = nil
+	}
+	g.withEnd(exit, cont, func() { g.genSeq(body) })
 	g.labels = g.labels[:len(g.labels)-1]
 	fallthroughReachable := !g.unreachable
 	// a continue at the end of the loop body is how a Go loop body ends
@@ -1348,7 +1390,12 @@ func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
 			cond = append(cond, part)
 		}
 	}
-	g.withEnd(nil, func() { g.genSeq(cond) })
+	cont := g.childCont
+	parentCont := []*wat.Sexpr(nil)
+	if n := len(g.conts); n > 0 {
+		parentCont = g.conts[n-1]
+	}
+	g.withEnd(nil, nil, func() { g.genSeq(cond) })
 	if g.unreachable {
 		return false
 	}
@@ -1375,7 +1422,9 @@ func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
 				elseBody = append(slices.Clone(elseSeq), rest...)
 			}
 			armTail := append(slices.Clone(tail), l)
-			g.ifElse(c, thenBody, elseBody, armTail, base)
+			// the arms now hold rest, so after them comes what follows the
+			// whole sequence
+			g.ifElse(c, thenBody, elseBody, armTail, base, parentCont)
 			if l.used {
 				g.line("%s:", l.goName)
 			}
@@ -1393,7 +1442,10 @@ func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
 	g.line("if %s {", trimParens(g.asBool(c)))
 	g.depth++
 	reachable := false
-	g.withEnd(brTo(name), func() { g.genSeqTail(thenSeq, armTail) })
+	if result != "" {
+		cont = nil
+	}
+	g.withEnd(brTo(name), cont, func() { g.genSeqTail(thenSeq, armTail) })
 	if !g.unreachable {
 		reachable = true
 		if result != "" {
@@ -1407,7 +1459,7 @@ func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
 	if len(elseSeq) > 0 {
 		g.line("} else {")
 		g.depth++
-		g.withEnd(brTo(name), func() { g.genSeqTail(elseSeq, armTail) })
+		g.withEnd(brTo(name), cont, func() { g.genSeqTail(elseSeq, armTail) })
 		if !g.unreachable {
 			reachable = true
 			if result != "" {
@@ -1437,7 +1489,7 @@ func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
 
 // ifElse writes `if c { then } else { else }`, negating c when only the
 // else arm has statements.
-func (g *fgen) ifElse(c value, thenBody, elseBody []*wat.Sexpr, tail []*label, base int) {
+func (g *fgen) ifElse(c value, thenBody, elseBody []*wat.Sexpr, tail []*label, base int, cont []*wat.Sexpr) {
 	if len(thenBody) == 0 && len(elseBody) == 0 {
 		return
 	}
@@ -1449,14 +1501,14 @@ func (g *fgen) ifElse(c value, thenBody, elseBody []*wat.Sexpr, tail []*label, b
 	}
 	g.depth++
 	end := brTo(tail[len(tail)-1].watName)
-	g.withEnd(end, func() { g.genSeqTail(thenBody, tail) })
+	g.withEnd(end, cont, func() { g.genSeqTail(thenBody, tail) })
 	g.stack = g.stack[:base]
 	g.unreachable = false
 	g.depth--
 	if len(elseBody) > 0 {
 		g.line("} else {")
 		g.depth++
-		g.withEnd(end, func() { g.genSeqTail(elseBody, tail) })
+		g.withEnd(end, cont, func() { g.genSeqTail(elseBody, tail) })
 		g.stack = g.stack[:base]
 		g.unreachable = false
 		g.depth--
@@ -1492,6 +1544,7 @@ func (g *fgen) genSeqTail(nodes []*wat.Sexpr, tail []*label) {
 		}
 		rest := nodes[i+1:]
 		g.noteInline(n, rest)
+		g.childCont = g.contOf(rest)
 		if len(tail) > 0 && n.IsList {
 			switch n.Head() {
 			case "br":

@@ -646,6 +646,7 @@ func (m *Machine) RecLinesPost() {
 	rt.St32(m.Mem, 6, m.Out)
 	m.EnsureCap(oldEnd - rec + 16)
 	lastHl = 0xffffffff
+records:
 	for {
 		if rec >= oldEnd {
 			return
@@ -658,13 +659,40 @@ func (m *Machine) RecLinesPost() {
 			p = m.SrcBase + lastEnd + delta
 			rhs = m.SrcBase + e
 			next = m.SrcBase + next
-		bytes:
 			for {
 				if p >= rhs {
-					break bytes
+					next -= m.SrcBase
+					delta = p - m.SrcBase - char
+					e -= delta
+					if e > lastEnd {
+						if hl == lastHl {
+							rt.St32(m.Mem, int(m.Out-8), e)
+						} else {
+							rt.St32(m.Mem, int(m.Out), e)
+							rt.St32(m.Mem, int(m.Out)+4, hl)
+							m.Out += 8
+							lastHl = hl
+						}
+						lastEnd = e
+					}
+					continue records
 				}
 				if rhs <= next {
-					break bytes
+					next -= m.SrcBase
+					delta = p - m.SrcBase - char
+					e -= delta
+					if e > lastEnd {
+						if hl == lastHl {
+							rt.St32(m.Mem, int(m.Out-8), e)
+						} else {
+							rt.St32(m.Mem, int(m.Out), e)
+							rt.St32(m.Mem, int(m.Out)+4, hl)
+							m.Out += 8
+							lastHl = hl
+						}
+						lastEnd = e
+					}
+					continue records
 				}
 				char += next - p
 				p = next
@@ -727,8 +755,6 @@ func (m *Machine) RecLinesPost() {
 				}
 				next = m.RecFindSpecial(p)
 			}
-			next -= m.SrcBase
-			delta = p - m.SrcBase - char
 		}
 		e -= delta
 		if e > lastEnd {
@@ -1387,8 +1413,8 @@ l:
 
 // LexScanHexNumber is $lexScanHexNumber.
 func (m *Machine) LexScanHexNumber(requireExponent uint32) {
-	var lhs, next, p, c, t1, t2, t4 uint32
-	var t0, t3 bool
+	var lhs, next, p, c, t1, t3, t4, t6 uint32
+	var t0, t2, t5 bool
 	lhs = m.Ptr
 	m.LexScanNumber()
 	if lhs+1 < m.End && rt.Ld8(m.Mem, int(lhs)) == '0' && rt.Ld8(m.Mem, int(lhs)+1)|32 == 120 {
@@ -1399,32 +1425,50 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 			if rt.B2u(t0)&(t1|rt.B2u(next|32 == 112)) != 0 {
 				if requireExponent|rt.B2u(next|32 == 112) != 0 {
 					p = m.Ptr + 1
-				fraction:
 					for {
 						if p >= m.End {
-							break fraction
+							if p >= m.End || rt.Ld8(m.Mem, int(p))|32 != 112 {
+								return
+							}
+							p++
+							if p < m.End {
+								c = rt.Ld8(m.Mem, int(p))
+								if c == '+' || c == '-' {
+									p++
+								}
+							}
+							t2 = p >= m.End
+							t3 = m.LexIsDigit(rt.Ld8(m.Mem, int(p)))
+							if t2 || t3 == 0 {
+								return
+							}
+							m.Ptr++
+							m.LexScanNumberBody(1)
+							return
 						}
 						c = rt.Ld8(m.Mem, int(p))
-						t2 = m.LexIsHex(c)
-						if rt.Clz32(t2|rt.B2u(c == '_'))>>5 != 0 {
-							break fraction
+						t4 = m.LexIsHex(c)
+						if rt.Clz32(t4|rt.B2u(c == '_'))>>5 != 0 {
+							if p >= m.End || rt.Ld8(m.Mem, int(p))|32 != 112 {
+								return
+							}
+							p++
+							if p < m.End {
+								c = rt.Ld8(m.Mem, int(p))
+								if c == '+' || c == '-' {
+									p++
+								}
+							}
+							t5 = p >= m.End
+							t6 = m.LexIsDigit(rt.Ld8(m.Mem, int(p)))
+							if t5 || t6 == 0 {
+								return
+							}
+							m.Ptr++
+							m.LexScanNumberBody(1)
+							return
 						}
 						p++
-					}
-					if p >= m.End || rt.Ld8(m.Mem, int(p))|32 != 112 {
-						return
-					}
-					p++
-					if p < m.End {
-						c = rt.Ld8(m.Mem, int(p))
-						if c == '+' || c == '-' {
-							p++
-						}
-					}
-					t3 = p >= m.End
-					t4 = m.LexIsDigit(rt.Ld8(m.Mem, int(p)))
-					if t3 || t4 == 0 {
-						return
 					}
 				}
 				m.Ptr++
