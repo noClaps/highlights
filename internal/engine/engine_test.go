@@ -22,7 +22,8 @@ var styleRules = []struct {
 	{regexp.MustCompile(`!!`), "a double negation cancels"},
 	{regexp.MustCompile(`(?m)^\t_ = `), "an unread variable is not declared"},
 	{regexp.MustCompile(`bits\.LeadingZeros32\([^()]*\)\)\s*>>\s*5`), "x == 0 is not a bit trick"},
-	{regexp.MustCompile(`\(m\.Mem, int\(`), "memory addresses are uint32"},
+	{regexp.MustCompile(`rt\.B2u\((?:[^()]|\([^()]*\))*\)(&1)? (!=|==) [01]\b`), "a condition tests as a bool, not as a number"},
+	{regexp.MustCompile(`\brt\.(Ld|St)\d|\brt\.Rot[lr]|\brt\.(Clz|Ctz|Popcnt)`), "encoding/binary and math/bits have these"},
 	{regexp.MustCompile(`(?m)^\s*if [^\n]*\{\n\s*continue \w+\n\s*\}\n\s*break\n`), "a do-while loop ends with if !c { break }"},
 }
 

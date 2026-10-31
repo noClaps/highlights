@@ -3180,7 +3180,16 @@ func (g *fgen) apply(head string, imms []string) {
 }
 
 func (g *fgen) binary(op binOp, a, b value) value {
-	// identities: x|0, x^0, x+0, x-0, and shifts by 0
+	// identities: x|0, x^0, x+0, x-0, and shifts by 0; a condition or-ed
+	// with false stays a condition
+	if (op.goOp == "|" || op.goOp == "^") && !op.isCmp {
+		if b.isConst && b.c == 0 && a.isBool {
+			return a
+		}
+		if a.isConst && a.c == 0 && b.isBool {
+			return b
+		}
+	}
 	if b.isConst && b.c == 0 && !op.isCmp {
 		switch op.goOp {
 		case "|", "^", "+", "-", "<<", ">>", ">>s", "rt.Rotl32", "rt.Rotr32", "rt.Rotl64", "rt.Rotr64":

@@ -1200,7 +1200,7 @@ func (m *Machine) RecLinesPost() {
 							step = rhs - p
 						}
 						b = uint32(1)<<(step&31) - 1
-						char = char + (uint32(bits.OnesCount32(b&w.GtS8(rt.Splat8(0xffffffbf)).Bitmask8())) + uint32(bits.OnesCount32(b&w.GeU8(rt.Splat8(240)).Bitmask8())))
+						char += uint32(bits.OnesCount32(b&w.GtS8(rt.Splat8(0xffffffbf)).Bitmask8())) + uint32(bits.OnesCount32(b&w.GeU8(rt.Splat8(240)).Bitmask8()))
 						p += step
 						if step != 16 {
 							break
@@ -3167,7 +3167,7 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 		}
 		gap = m.Ptr
 		m.ScanWhitespace()
-		if rt.B2u(m.CSSDialect == 3) != 0 {
+		if m.CSSDialect == 3 {
 			if m.ScanFindSpecial(gap, m.Ptr, 10, 0, 1) < m.Ptr {
 				decide = 1
 			}
@@ -3200,7 +3200,7 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 			attr = 0
 			namespace = 0
 			fnPrelude = 0
-			sassDepth = m.Ptr > m.SrcBase && (m.Mem[m.Ptr-1] == ' ' || m.Mem[m.Ptr-1] == '\t') && rt.B2u(m.CSSDialect == 3)&1 != 0
+			sassDepth = m.CSSDialect == 3 && m.Ptr > m.SrcBase && (m.Mem[m.Ptr-1] == ' ' || m.Mem[m.Ptr-1] == '\t')
 			if m.CSSDialect == 3 && (c == '=' || c == '+') && m.CSSIdentStart(c2) {
 				m.Ptr++
 				m.EmitTok(TokenKeyword, lhs, m.Ptr)
@@ -3761,7 +3761,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 				continue
 			}
 		}
-		if c2 == '{' && rt.B2u(c == '#')&1 != 0 {
+		if c2 == '{' && c == '#' {
 			m.Ptr += 2
 			m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
 			if interp == 0 {
@@ -3771,7 +3771,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 			mode = 3
 			continue
 		}
-		if rt.B2u(c == '$' && m.CSSIdentStart(c2)) != 0 {
+		if c == '$' && m.CSSIdentStart(c2) {
 			if c2 == '@' {
 				m.Ptr += 2
 			} else {
@@ -52244,8 +52244,8 @@ func (m *Machine) LvUTF16Len(p, length uint32) uint32 {
 			break
 		}
 		w = rt.LdV(m.Mem[p:])
-		n = n + (16 - uint32(bits.OnesCount32(w.And(rt.Splat8(192)).Eq8(rt.Splat8(128)).Bitmask8())))
-		n = n + uint32(bits.OnesCount32(w.GeU8(rt.Splat8(240)).Bitmask8()))
+		n += 16 - uint32(bits.OnesCount32(w.And(rt.Splat8(192)).Eq8(rt.Splat8(128)).Bitmask8()))
+		n += uint32(bits.OnesCount32(w.GeU8(rt.Splat8(240)).Bitmask8()))
 		p += 16
 	}
 	for {

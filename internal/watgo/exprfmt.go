@@ -153,12 +153,17 @@ func (p *exprParser) unary() (*expr, error) {
 	}
 	if p.pos < len(p.s) && p.s[p.pos] == '(' {
 		p.pos++
-		call := &expr{fn: m, args: []*expr{}}
-		p.space()
-		if p.pos < len(p.s) && p.s[p.pos] == ')' {
-			p.pos++
-			return call, nil
-		}
+		return p.callArgs(&expr{fn: m, args: []*expr{}})
+	}
+	return &expr{leaf: m}, nil
+}
+
+// callArgs parses a call's arguments after its opening parenthesis, then
+// any method calls chained after it, as in w.Eq8(x).Bitmask8(), as calls
+// whose callee is the receiver's text.
+func (p *exprParser) callArgs(call *expr) (*expr, error) {
+	p.space()
+	if p.pos >= len(p.s) || p.s[p.pos] != ')' {
 		for {
 			a, err := p.binary(1)
 			if err != nil {
@@ -169,19 +174,24 @@ func (p *exprParser) unary() (*expr, error) {
 			if p.pos >= len(p.s) {
 				return nil, errUnparsed
 			}
-			if p.s[p.pos] == ',' {
-				p.pos++
-				continue
-			}
 			if p.s[p.pos] == ')' {
-				p.pos++
-				return call, nil
+				break
 			}
-			return nil, errUnparsed
+			if p.s[p.pos] != ',' {
+				return nil, errUnparsed
+			}
+			p.pos++
 		}
 	}
-	return &expr{leaf: m}, nil
+	p.pos++
+	if m := methodRe.FindString(p.s[p.pos:]); m != "" {
+		p.pos += len(m)
+		return p.callArgs(&expr{fn: call.print() + m[:len(m)-1], args: []*expr{}})
+	}
+	return call, nil
 }
+
+var methodRe = regexp.MustCompile(`^\.[A-Za-z_]\w*\(`)
 
 // print writes an expression with the parentheses precedence needs. Mixed
 // && and || keep theirs, for clarity.

@@ -702,7 +702,7 @@ func (m *Machine) RecLinesPost() {
 							step = rhs - p
 						}
 						b = uint32(1)<<(step&31) - 1
-						char = char + (uint32(bits.OnesCount32(b&w.GtS8(rt.Splat8(0xffffffbf)).Bitmask8())) + uint32(bits.OnesCount32(b&w.GeU8(rt.Splat8(240)).Bitmask8())))
+						char += uint32(bits.OnesCount32(b&w.GtS8(rt.Splat8(0xffffffbf)).Bitmask8())) + uint32(bits.OnesCount32(b&w.GeU8(rt.Splat8(240)).Bitmask8()))
 						p += step
 						if step != 16 {
 							break

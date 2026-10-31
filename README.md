@@ -60,20 +60,31 @@ describe them). Rather than run Wasm, the Go port translates the WAT to Go:
   names, loops become labeled `for` loops, byte switches become `switch`
   statements with rune literals, tail branches become `if`/`else` arms,
   constant conditions fold away, and expressions print with Go precedence.
-  Functions, locals and globals that only hold 0 or 1 are `bool`s, bytes are
-  read as `m.Mem[p]`, selects become `if`/`else` assignments, else-if chains
-  become `switch`es, variables are declared with `:=` where they are first
-  assigned, temporaries are named after the call or parameter they belong
-  to, and bit counts use `math/bits`.
+  Functions, parameters, locals and globals that only hold 0 or 1 are
+  `bool`s, memory is read through `m.Mem[p]` and `encoding/binary`, selects
+  become `if`/`else` assignments, else-if chains become `switch`es,
+  variables are declared with `:=` where they are first assigned,
+  temporaries are named after the call or parameter they belong to, vector
+  operations are methods of `rt.V128`, and bit counts and rotations use
+  `math/bits`.
 
-  The engine is held to the linters hand-written code would be:
-  `tools/lint.sh` runs gofmt, `go vet`, staticcheck, revive and gocritic over
-  the module, then again over a copy of the engine without its generated-code
-  header, since linters skip generated files. `TestGeneratedCodeStyle` in
-  `internal/engine` adds checks the linters lack, such as no `goto`. The
-  engine is still a translation: branchless arithmetic on conditions
-  (`n |= rt.B2u(c != ' ')`), wide loads through `rt.Ld32` and the like, and
-  SIMD through `rt.V128` remain.
+  What "idiomatic" means here, and how it is checked:
+
+  1. It passes the linters hand-written Go would: `tools/lint.sh` runs
+     gofmt, `go vet`, staticcheck, revive and gocritic over the module, then
+     again over a copy of the engine without its generated-code header,
+     since linters skip generated files and staticcheck holds back its style
+     checks on them.
+  2. Control flow is structured: no `goto` (`TestGeneratedCodeStyle`).
+  3. Conditions are Go bools, not 0/1 arithmetic: no `rt.B2u(c) != 0` and
+     the like (`TestGeneratedCodeStyle`). `rt.B2u` remains only where a
+     condition is used as a number, as in `n += 1 + rt.B2u(c)` or flags
+     packed into a word, since Go has no bool-to-int conversion.
+  4. The standard library is used where it has the operation:
+     `encoding/binary` for wide loads and stores, `math/bits` for bit counts
+     and rotations (`TestGeneratedCodeStyle`). `internal/wasmrt` keeps what
+     the standard library lacks: the bounds-checked `memory.copy` and
+     `memory.fill`, memory growth, and the 16-byte vector type `V128`.
 - `internal/engine` is the generated engine (`go generate ./internal/engine`
   regenerates it and `tables_gen.go`).
 - The root package ports the TypeScript host, whose original is in
