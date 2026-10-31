@@ -17,6 +17,9 @@ type Options struct {
 	Package string
 	// MemFile is the embedded initial memory image file name.
 	MemFile string
+	// Enums are the module's enums. Constants that the expanded text names
+	// (see wat.Options.EnumNames) become Go constants.
+	Enums map[string]*wat.Enum
 }
 
 // Generate returns Go source for the module and its initial memory image.
@@ -32,6 +35,7 @@ type value struct {
 	isConst bool
 	c       uint64
 	stable  bool // unaffected by later side effects
+	named   bool // expr is the name of a constant
 	// call is set for a call's result temporary: the statement that
 	// assigned it
 	call string
@@ -77,6 +81,7 @@ type fgen struct {
 	// pendingInline is the inlinable code after the block being generated
 	pendingInline []*wat.Sexpr
 	inlineDepth   int
+	consts        *enumConsts
 }
 
 func generate(mod *Module, opts Options) (string, []byte) {
@@ -230,14 +235,81 @@ func generate(mod *Module, opts Options) (string, []byte) {
 	}
 	w("\t}\n\treturn 0, false\n}\n\nfunc arg(args []uint64, i int) uint64 {\n\tif i < len(args) {\n\t\treturn args[i]\n\t}\n\treturn 0\n}\n\n")
 
+	consts := newEnumConsts(opts.Enums, mod)
 	for _, f := range mod.Funcs {
 		if f.Import != nil {
 			continue
 		}
-		g := &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}}
+		g := &fgen{mod: mod, fn: f, localName: map[string]string{}, localType: map[string]ValType{}, consts: consts}
 		sb.WriteString(g.genFunc())
 	}
+	sb.WriteString(consts.declarations())
 	return sb.String(), mem
+}
+
+// enumConsts names the enum members the generated code uses.
+type enumConsts struct {
+	enums map[string]*wat.Enum
+	names map[string]string // "$Token.string" -> "TokenString"
+	taken map[string]bool
+	used  map[string]bool // enums with a used member
+}
+
+func newEnumConsts(enums map[string]*wat.Enum, mod *Module) *enumConsts {
+	c := &enumConsts{enums: enums, names: map[string]string{}, taken: map[string]bool{}, used: map[string]bool{}}
+	for _, n := range []string{"New", "Pages", "Funcs", "Imports", "Machine"} {
+		c.taken[n] = true
+	}
+	for _, g := range mod.Globals {
+		c.taken[g.GoName] = true
+	}
+	// every member gets its name up front, so names do not depend on use
+	for _, enum := range sortedKeys(enums) {
+		for _, member := range enums[enum].Names {
+			name := pascal(enum[1:]) + pascal(member)
+			for c.taken[name] {
+				name += "_"
+			}
+			c.taken[name] = true
+			c.names[enum+"."+member] = name
+		}
+	}
+	return c
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// name returns the Go constant for "$Enum.member", or "".
+func (c *enumConsts) name(ref string) string {
+	name, ok := c.names[ref]
+	if ok {
+		enum, _, _ := strings.Cut(ref, ".")
+		c.used[enum] = true
+	}
+	return name
+}
+
+// declarations writes one const block per enum that the code uses.
+func (c *enumConsts) declarations() string {
+	var sb strings.Builder
+	for _, enum := range sortedKeys(c.enums) {
+		if !c.used[enum] {
+			continue
+		}
+		fmt.Fprintf(&sb, "// Members of %s.\nconst (\n", enum)
+		for _, member := range c.enums[enum].Names {
+			fmt.Fprintf(&sb, "\t%s = %d\n", c.names[enum+"."+member], c.enums[enum].Index[member])
+		}
+		sb.WriteString(")\n\n")
+	}
+	return sb.String()
 }
 
 func importField(f *Func) string { return pascal(f.Import.Field) }
@@ -1617,7 +1689,13 @@ func (g *fgen) apply(head string, imms []string) {
 	}
 	switch head {
 	case "i32.const", "i64.const":
-		g.push(constValue(ValType(head[:3]), parseInt(imms[0])))
+		v := constValue(ValType(head[:3]), parseInt(imms[0]))
+		if len(imms) > 1 {
+			if name := g.consts.name(imms[1]); name != "" {
+				v.expr, v.named = name, true
+			}
+		}
+		g.push(v)
 	case "v128.const":
 		g.push(value{expr: v128Const(imms), typ: V128, stable: true})
 	case "local.get":
@@ -1881,16 +1959,26 @@ func (g *fgen) binary(op binOp, a, b value) value {
 	av, bv := g.asValue(a), g.asValue(b)
 	if op.isCmp && op.typ == I32 {
 		// a byte compared with a printable constant reads as a rune literal
-		if b.isConst && isByteExpr(a.expr) {
+		if b.isConst && !b.named && isByteExpr(a.expr) {
 			bv = byteLiteral(int(b.c))
-		} else if a.isConst && isByteExpr(b.expr) {
+		} else if a.isConst && !a.named && isByteExpr(b.expr) {
 			av = byteLiteral(int(a.c))
 		}
 	}
 	if op.isCmp {
 		if op.signed {
 			st := signedType(op.typ)
-			return value{expr: fmt.Sprintf("(%s(%s) %s %s(%s))", st, av, op.goOp, st, bv), typ: I32, isBool: true, stable: stable}
+			side := func(v value, s string) string {
+				if v.isConst && !v.named {
+					// an untyped signed constant
+					if op.typ == I32 {
+						return strconv.FormatInt(int64(int32(uint32(v.c))), 10)
+					}
+					return strconv.FormatInt(int64(v.c), 10)
+				}
+				return st + "(" + s + ")"
+			}
+			return value{expr: fmt.Sprintf("(%s %s %s)", side(a, av), op.goOp, side(b, bv)), typ: I32, isBool: true, stable: stable}
 		}
 		return value{expr: fmt.Sprintf("(%s %s %s)", av, op.goOp, bv), typ: I32, isBool: true, stable: stable}
 	}

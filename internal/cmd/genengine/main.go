@@ -30,7 +30,7 @@ func main() {
 }
 
 func run(src, out, pkg, tables, tablesPkg string) error {
-	transformed, err := wat.TransformFile(src)
+	transformed, err := wat.TransformFileWith(src, wat.Options{EnumNames: true})
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func run(src, out, pkg, tables, tablesPkg string) error {
 	if err != nil {
 		return err
 	}
-	code, mem, err := watgo.Generate(mod, watgo.Options{Package: pkg, MemFile: pkg + "_mem.bin"})
+	code, mem, err := watgo.Generate(mod, watgo.Options{Package: pkg, MemFile: pkg + "_mem.bin", Enums: transformed.Enums})
 	if err != nil {
 		return err
 	}

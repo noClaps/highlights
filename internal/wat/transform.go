@@ -43,13 +43,26 @@ type LanguageName struct {
 	ID   int
 }
 
+// Options adjust the expanded text. The zero value matches
+// scripts/build.ts exactly.
+type Options struct {
+	// EnumNames writes each enum.get as `i32.const N $Enum.member`, keeping
+	// the name for the Go generator. The result is not standard WAT.
+	EnumNames bool
+}
+
 // TransformFile reads and transforms a WAT file.
 func TransformFile(path string) (*Transformed, error) {
+	return TransformFileWith(path, Options{})
+}
+
+// TransformFileWith reads and transforms a WAT file with options.
+func TransformFileWith(path string, opts Options) (*Transformed, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return Transform(path, string(content))
+	return TransformWith(path, string(content), opts)
 }
 
 // Transform expands WAT source:
@@ -62,7 +75,12 @@ func TransformFile(path string) (*Transformed, error) {
 //   - convert string operands for `i32.const` and `i64.const` to integers
 //
 // path names the module for relative imports and error messages.
-func Transform(path, content string) (result *Transformed, err error) {
+func Transform(path, content string) (*Transformed, error) {
+	return TransformWith(path, content, Options{})
+}
+
+// TransformWith is Transform with options.
+func TransformWith(path, content string, opts Options) (result *Transformed, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if e, ok := r.(error); ok {
@@ -72,7 +90,7 @@ func Transform(path, content string) (result *Transformed, err error) {
 			panic(r)
 		}
 	}()
-	return transform(path, content), nil
+	return transform(path, content, opts), nil
 }
 
 var (
@@ -139,7 +157,7 @@ func prependToModule(code, text string) string {
 	return "(module\n" + text + code[m[2]:m[3]] + code[m[1]:]
 }
 
-func transform(path, content string) *Transformed {
+func transform(path, content string, opts Options) *Transformed {
 	enums := map[string]*Enum{}
 	var languages []LanguageName
 	languageIndex := map[string]int{}
@@ -1050,6 +1068,9 @@ func transform(path, content string) *Transformed {
 		i, ok := enums[m[2]].Get(m[3])
 		if !ok {
 			fail("Enum '%s.%s' is undefined in %s", m[2], m[3], path)
+		}
+		if opts.EnumNames {
+			return m[1] + "i32.const " + strconv.Itoa(i) + " " + m[2] + "." + m[3]
 		}
 		return m[1] + "i32.const " + strconv.Itoa(i)
 	})

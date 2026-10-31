@@ -592,7 +592,7 @@ func (m *Machine) RecStreamBegin(reset uint32) {
 		m.RecCarryHl = 0xffffffff
 		return
 	}
-	if int32(m.RecCarryHl) >= int32(0) {
+	if int32(m.RecCarryHl) >= 0 {
 		m.EnsureCap(16)
 		rt.St32(m.Mem, int(m.Out), 0)
 		rt.St32(m.Mem, int(m.Out)+4, m.RecCarryHl)
@@ -763,7 +763,7 @@ func (m *Machine) EmitGap(lhs uint32, rhs uint32) {
 		if m.Out > rt.Ld32(m.Mem, 6) {
 			rt.St32(m.Mem, int(m.Out-8), rhs-m.SrcBase)
 		} else {
-			m.RecTok(0, rhs)
+			m.RecTok(TokenNone, rhs)
 		}
 		return
 	}
@@ -895,11 +895,11 @@ func (m *Machine) MultiLightDarkDecls(hl uint32) {
 	b = rt.Ld32(m.Mem, int(recB))
 	if a|b != 0 {
 		if a == 0 {
-			t2 = m.MultiRec(0, 72)
+			t2 = m.MultiRec(0, TokenForeground)
 			a = rt.Ld32(m.Mem, int(t2))
 		}
 		if b == 0 {
-			t3 = m.MultiRec(1, 72)
+			t3 = m.MultiRec(1, TokenForeground)
 			b = rt.Ld32(m.Mem, int(t3))
 		}
 		rt.Copy(m.Mem, m.Out, 8652, 6)
@@ -1029,7 +1029,7 @@ func (m *Machine) MultiRootDecls(bg uint32) {
 slots:
 	for {
 		if bg != 0 {
-			rec = m.MultiRec(i, 71)
+			rec = m.MultiRec(i, TokenBackground)
 			if rt.Ld32(m.Mem, int(rec)) != 0 {
 				t1 = m.MultiSlot(i)
 				if rt.Ld32(m.Mem, int(t1)+8) != 0 {
@@ -1046,7 +1046,7 @@ slots:
 			}
 		} else {
 			t2 = i
-			t3 = m.MultiRec(i, 72)
+			t3 = m.MultiRec(i, TokenForeground)
 			m.MultiColorDecl(t2, t3)
 		}
 		i++
@@ -1064,9 +1064,9 @@ func (m *Machine) MultiPrologue() {
 	rt.Copy(m.Mem, m.Out, 8608, 31)
 	m.Out += 31
 	if rt.Ld8(m.Mem, int(m.MultiBlob)+1) != 0 {
-		t0 = m.MultiRec(0, 71)
+		t0 = m.MultiRec(0, TokenBackground)
 		a = rt.Ld32(m.Mem, int(t0))
-		t1 = m.MultiRec(1, 71)
+		t1 = m.MultiRec(1, TokenBackground)
 		b = rt.Ld32(m.Mem, int(t1))
 		if a|b != 0 {
 			rt.Copy(m.Mem, m.Out, 8658, 17)
@@ -1075,9 +1075,9 @@ func (m *Machine) MultiPrologue() {
 			rt.St8(m.Mem, int(m.Out), 59)
 			m.Out++
 		}
-		t2 = m.MultiRec(0, 72)
+		t2 = m.MultiRec(0, TokenForeground)
 		a = rt.Ld32(m.Mem, int(t2))
-		t3 = m.MultiRec(1, 72)
+		t3 = m.MultiRec(1, TokenForeground)
 		b = rt.Ld32(m.Mem, int(t3))
 		if a|b != 0 {
 			rt.Copy(m.Mem, m.Out, 8652, 6)
@@ -1112,24 +1112,24 @@ func (m *Machine) Prologue() {
 	}
 	rt.Copy(m.Mem, m.Out, 8608, 31)
 	m.Out += 31
-	rec = m.ThemeRec(71)
+	rec = m.ThemeRec(TokenBackground)
 	if m.CssVariables|rt.Ld32(m.Mem, int(rec)) != 0 {
 		rt.Copy(m.Mem, m.Out, 8658, 17)
 		m.Out += 17
 		if m.CssVariables != 0 {
-			m.EmitCssVariable(71, rt.Ld32(m.Mem, 18))
+			m.EmitCssVariable(TokenBackground, rt.Ld32(m.Mem, 18))
 		} else {
 			m.EmitColor(rec)
 		}
 		rt.St8(m.Mem, int(m.Out), 59)
 		m.Out++
 	}
-	rec = m.ThemeRec(72)
+	rec = m.ThemeRec(TokenForeground)
 	if m.CssVariables|rt.Ld32(m.Mem, int(rec)) != 0 {
 		rt.St64(m.Mem, int(m.Out), 0x3a726f6c6f63)
 		m.Out += 6
 		if m.CssVariables != 0 {
-			m.EmitCssVariable(72, rt.Ld32(m.Mem, 18))
+			m.EmitCssVariable(TokenForeground, rt.Ld32(m.Mem, 18))
 			rt.St8(m.Mem, int(m.Out), 59)
 			m.Out++
 		} else {
@@ -1455,7 +1455,7 @@ func (m *Machine) LexStringBody(quote uint32, multiline uint32, hl uint32, seg u
 		}
 		m.EmitTok(hl, seg, m.Ptr)
 		e = m.LexEscapeEnd(m.Ptr)
-		m.EmitTok(45, m.Ptr, e)
+		m.EmitTok(TokenStringEscape, m.Ptr, e)
 		m.Ptr = e
 		if m.Ptr == m.End && m.Ptr > seg && (rt.Ld8(m.Mem, int(m.Ptr-1)) == '\n' || rt.Ld8(m.Mem, int(m.Ptr-1)) == '\r') {
 			status = 2
@@ -1578,7 +1578,7 @@ func (m *Machine) LexCStringBody(q uint32, hl uint32, seg uint32, suffix uint32)
 		}
 		m.EmitTok(hl, seg, m.Ptr)
 		e = m.LexCEscapeEnd(m.Ptr)
-		m.EmitTok(45, m.Ptr, e)
+		m.EmitTok(TokenStringEscape, m.Ptr, e)
 		m.Ptr = e
 		seg = e
 		if m.Ptr == m.End && (rt.Ld8(m.Mem, int(m.Ptr-1)) == '\n' || rt.Ld8(m.Mem, int(m.Ptr-1)) == '\r') {
@@ -1625,7 +1625,7 @@ func (m *Machine) LexCStringResume(q uint32) uint32 {
 	var t0, t1, t2 uint32
 	if q != 0 {
 		t1 = q
-		t2 = m.LexCStringBody(q, 44, m.Ptr, 0)
+		t2 = m.LexCStringBody(q, TokenString, m.Ptr, 0)
 		t0 = rt.Sel32(t2 == 2, t1, 0)
 	} else {
 		t0 = 0
@@ -2054,16 +2054,16 @@ space2:
 	p++
 	for {
 		if p >= rhs {
-			m.EmitTok(27, lhs, header)
-			m.EmitTok(44, header, p)
-			m.EmitTok(27, p, rhs)
+			m.EmitTok(TokenPreproc, lhs, header)
+			m.EmitTok(TokenString, header, p)
+			m.EmitTok(TokenPreproc, p, rhs)
 			return 1
 		}
 		if rt.Ld8(m.Mem, int(p)) == close_ {
 			p++
-			m.EmitTok(27, lhs, header)
-			m.EmitTok(44, header, p)
-			m.EmitTok(27, p, rhs)
+			m.EmitTok(TokenPreproc, lhs, header)
+			m.EmitTok(TokenString, header, p)
+			m.EmitTok(TokenPreproc, p, rhs)
 			return 1
 		}
 		p++
@@ -2231,9 +2231,9 @@ func (m *Machine) TemplateByte(p uint32) uint32 {
 // StringEscapeAt is $stringEscapeAt.
 func (m *Machine) StringEscapeAt(seg uint32) uint32 {
 	var e uint32
-	m.EmitTok(44, seg, m.Ptr)
+	m.EmitTok(TokenString, seg, m.Ptr)
 	e = m.LexEscapeEnd(m.Ptr)
-	m.EmitTok(45, m.Ptr, e)
+	m.EmitTok(TokenStringEscape, m.Ptr, e)
 	m.Ptr = e
 	return rt.B2u(m.Ptr == m.End && (rt.Ld8(m.Mem, int(m.Ptr-1)) == '\n' || rt.Ld8(m.Mem, int(m.Ptr-1)) == '\r'))
 }
@@ -2245,9 +2245,9 @@ func (m *Machine) StringDollarAt(seg uint32, dialect uint32, nested uint32) uint
 	at = m.Ptr
 	c2 = m.TemplateByte(m.Ptr + 1)
 	if c2 == '{' && nested == 0 {
-		m.EmitTok(44, seg, m.Ptr)
+		m.EmitTok(TokenString, seg, m.Ptr)
 		m.Ptr += 2
-		m.EmitTok(40, at, m.Ptr)
+		m.EmitTok(TokenPunctuationSpecial, at, m.Ptr)
 		return 0xffffffff
 	}
 	if c2 == '$' && dialect != 0 {
@@ -2255,14 +2255,14 @@ func (m *Machine) StringDollarAt(seg uint32, dialect uint32, nested uint32) uint
 			m.Ptr++
 			return seg
 		}
-		m.EmitTok(44, seg, m.Ptr)
+		m.EmitTok(TokenString, seg, m.Ptr)
 		m.Ptr += 2
-		m.EmitTok(45, at, m.Ptr)
+		m.EmitTok(TokenStringEscape, at, m.Ptr)
 		return m.Ptr
 	}
 	t1 = m.LexIsIdentStart(c2)
 	if t1&rt.B2u(c2 != '$') != 0 {
-		m.EmitTok(44, seg, m.Ptr)
+		m.EmitTok(TokenString, seg, m.Ptr)
 		m.Ptr++
 		for {
 			m.ScanIdentRun(95)
@@ -2272,7 +2272,7 @@ func (m *Machine) StringDollarAt(seg uint32, dialect uint32, nested uint32) uint
 			t5 = m.LexIsIdentStart(t4)
 			t6 = m.TemplateByte(m.Ptr + 1)
 			if rt.Clz32(rt.B2u(t2)&rt.B2u(t3 == 46)&t5&rt.B2u(t6 != 36))>>5 != 0 {
-				m.EmitTok(58, at, m.Ptr)
+				m.EmitTok(TokenVariable, at, m.Ptr)
 				return m.Ptr
 			}
 			m.Ptr++
@@ -2291,3 +2291,80 @@ func (m *Machine) Lookup(n uint32) uint32 {
 func (m *Machine) Lower(n uint32) uint32 {
 	return m.LexLowerCopy(0x14000, 0x14000+n, 1360)
 }
+
+// Members of $Token.
+const (
+	TokenNone                     = 0
+	TokenAttribute                = 1
+	TokenAttributeJsx             = 2
+	TokenBoolean                  = 3
+	TokenComment                  = 4
+	TokenCommentDoc               = 5
+	TokenConstant                 = 6
+	TokenConstantBuiltin          = 7
+	TokenConstructor              = 8
+	TokenDiffMinus                = 9
+	TokenDiffPlus                 = 10
+	TokenEmbedded                 = 11
+	TokenEmphasis                 = 12
+	TokenEmphasisStrong           = 13
+	TokenFunction                 = 14
+	TokenFunctionDefinition       = 15
+	TokenFunctionMethod           = 16
+	TokenKeyword                  = 17
+	TokenKeywordControl           = 18
+	TokenKeywordDeclaration       = 19
+	TokenKeywordImport            = 20
+	TokenKeywordOperator          = 21
+	TokenLabel                    = 22
+	TokenNamespace                = 23
+	TokenNumber                   = 24
+	TokenOperator                 = 25
+	TokenPredictive               = 26
+	TokenPreproc                  = 27
+	TokenPrimary                  = 28
+	TokenProperty                 = 29
+	TokenPropertyJsonKey          = 30
+	TokenPunctuation              = 31
+	TokenPunctuationBracket       = 32
+	TokenPunctuationBracketHtml   = 33
+	TokenPunctuationBracketJsx    = 34
+	TokenPunctuationDelimiter     = 35
+	TokenPunctuationDelimiterHtml = 36
+	TokenPunctuationDelimiterJsx  = 37
+	TokenPunctuationListMarker    = 38
+	TokenPunctuationMarkup        = 39
+	TokenPunctuationSpecial       = 40
+	TokenSelector                 = 41
+	TokenSelectorClass            = 42
+	TokenSelectorId               = 43
+	TokenString                   = 44
+	TokenStringEscape             = 45
+	TokenStringRegex              = 46
+	TokenStringSpecial            = 47
+	TokenStringSpecialSymbol      = 48
+	TokenTag                      = 49
+	TokenTagDoctype               = 50
+	TokenTagJsx                   = 51
+	TokenTextJsx                  = 52
+	TokenTextLiteral              = 53
+	TokenTitle                    = 54
+	TokenType                     = 55
+	TokenTypeBuiltin              = 56
+	TokenTypeClass                = 57
+	TokenVariable                 = 58
+	TokenVariableParameter        = 59
+	TokenVariableSpecial          = 60
+	TokenEnum                     = 61
+	TokenHint                     = 62
+	TokenKeywordJsdoc             = 63
+	TokenLinkText                 = 64
+	TokenLinkUri                  = 65
+	TokenSelectorPseudo           = 66
+	TokenTagComponentJsx          = 67
+	TokenTypeJsdoc                = 68
+	TokenVariableJsdoc            = 69
+	TokenVariant                  = 70
+	TokenBackground               = 71
+	TokenForeground               = 72
+)
