@@ -4,8 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -171,6 +170,7 @@ type themeSet struct {
 	blobs      map[string][]byte
 	noBlob     map[string]bool
 	openers    map[string][]byte
+	metas      map[string]themeMeta
 }
 
 // standardTypes maps each token slot to Shiki's ThemedToken.type.
@@ -251,13 +251,15 @@ func resolveOptionThemes(o *ThemeOptions) (*themeSet, error) {
 		key   string
 		theme ThemeSource
 	}
-	var entries []entry
+	// a stack buffer covers the usual light and dark pair
+	var buf [4]entry
+	entries := buf[:0]
 	for k, t := range o.Themes {
 		if t != nil {
 			entries = append(entries, entry{k, t})
 		}
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
+	slices.SortFunc(entries, func(a, b entry) int { return strings.Compare(a.key, b.key) })
 	if len(entries) == 0 {
 		return nil, newError(ErrInvalidTheme, "themes must not be empty")
 	}
@@ -265,51 +267,51 @@ func resolveOptionThemes(o *ThemeOptions) (*themeSet, error) {
 	if defaultColor == "" {
 		defaultColor = "light"
 	}
-	var roles []themeRole
+	role := func(int) themeRole { return roleVariable }
 	if !o.NoDefaultColor && defaultColor == "light-dark()" {
-		var light, dark *entry
+		light, dark := -1, -1
 		for i := range entries {
 			switch entries[i].key {
 			case "light":
-				light = &entries[i]
+				light = i
 			case "dark":
-				dark = &entries[i]
+				dark = i
 			}
 		}
-		if light == nil || dark == nil {
+		if light < 0 || dark < 0 {
 			return nil, newError(ErrInvalidTheme, "`themes` must contain `light` and `dark` when defaultColor is 'light-dark()'")
 		}
-		entries = []entry{*light, *dark}
-		roles = []themeRole{roleLightDark, roleLightDark}
-	} else {
-		if !o.NoDefaultColor {
-			at := -1
-			for i, e := range entries {
-				if e.key == defaultColor {
-					at = i
-				}
+		entries = []entry{entries[light], entries[dark]}
+		role = func(int) themeRole { return roleLightDark }
+	} else if !o.NoDefaultColor {
+		at := -1
+		for i, e := range entries {
+			if e.key == defaultColor {
+				at = i
 			}
-			if at < 0 {
-				return nil, newError(ErrInvalidTheme, "`themes` must contain the defaultColor key `"+defaultColor+"`")
-			}
-			first := entries[at]
-			entries = append(append([]entry{first}, entries[:at]...), entries[at+1:]...)
 		}
-		for i := range entries {
-			if !o.NoDefaultColor && i == 0 {
-				roles = append(roles, roleDefault)
-			} else {
-				roles = append(roles, roleVariable)
+		if at < 0 {
+			return nil, newError(ErrInvalidTheme, "`themes` must contain the defaultColor key `"+defaultColor+"`")
+		}
+		// move the default theme to the front, keeping the others sorted
+		first := entries[at]
+		copy(entries[1:at+1], entries[:at])
+		entries[0] = first
+		role = func(i int) themeRole {
+			if i == 0 {
+				return roleDefault
 			}
+			return roleVariable
 		}
 	}
-	themes := make([]resolvedTheme, len(entries))
+	var themesBuf [4]resolvedTheme
+	themes := themesBuf[:0]
 	for i, e := range entries {
 		p, err := PrepareTheme(e.theme, prefix)
 		if err != nil {
 			return nil, err
 		}
-		themes[i] = resolvedTheme{p, e.key, roles[i]}
+		themes = append(themes, resolvedTheme{p, e.key, role(i)})
 	}
 	return cachedSet(themes), nil
 }
@@ -322,24 +324,31 @@ func forgetPrepared(p *PreparedTheme) {
 	delete(preparedIDs, p)
 }
 
-// cachedSet reuses a theme set so its style caches stay available.
+// cachedSet reuses a theme set so its style caches stay available. It
+// copies themes only when it adds a set, so callers may pass a stack buffer.
 func cachedSet(themes []resolvedTheme) *themeSet {
 	setCacheMu.Lock()
 	defer setCacheMu.Unlock()
-	var key strings.Builder
+	var keyBuf [128]byte
+	key := keyBuf[:0]
 	for _, t := range themes {
-		fmt.Fprintf(&key, "%d/%d/%q;", preparedID(t.PreparedTheme), t.role, t.color)
+		key = strconv.AppendInt(key, int64(preparedID(t.PreparedTheme)), 10)
+		key = append(key, '/')
+		key = strconv.AppendInt(key, int64(t.role), 10)
+		key = append(key, '/')
+		key = strconv.AppendQuote(key, t.color)
+		key = append(key, ';')
 	}
-	k := key.String()
 	list := setCache[themes[0].PreparedTheme]
 	if list == nil {
 		list = &setList{sets: map[string]*themeSet{}}
 		setCache[themes[0].PreparedTheme] = list
 	}
-	if s := list.sets[k]; s != nil {
+	if s := list.sets[string(key)]; s != nil {
 		return s
 	}
-	s := &themeSet{themes: themes}
+	k := string(key)
+	s := &themeSet{themes: slices.Clone(themes)}
 	list.sets[k] = s
 	list.keys = append(list.keys, k)
 	if len(list.keys) > 128 {
@@ -383,22 +392,33 @@ func (set *themeSet) rangeToToken(content string, offset, hl int, prefix string)
 	return t
 }
 
-// htmlStyle builds the htmlStyle for token ID hl: plain styles for the
-// default theme and custom properties for the others, or light-dark().
+// htmlStyle returns the htmlStyle for token ID hl.
 func (set *themeSet) htmlStyle(hl int, prefix string) HTMLStyle {
+	return set.htmlStyleTable(prefix)[hl]
+}
+
+// htmlStyleTable returns the htmlStyle of every token ID. The table is
+// built once per prefix and never changes, so callers may keep it.
+func (set *themeSet) htmlStyleTable(prefix string) []HTMLStyle {
 	set.mu.Lock()
 	defer set.mu.Unlock()
+	if slots := set.htmlStyles[prefix]; slots != nil {
+		return slots
+	}
 	if set.htmlStyles == nil {
 		set.htmlStyles = map[string][]HTMLStyle{}
 	}
-	slots := set.htmlStyles[prefix]
-	if slots == nil {
-		slots = make([]HTMLStyle, len(TokenTypes))
-		set.htmlStyles[prefix] = slots
+	slots := make([]HTMLStyle, len(TokenTypes))
+	for hl := range slots {
+		slots[hl] = set.buildHTMLStyle(hl, prefix)
 	}
-	if slots[hl] != nil {
-		return slots[hl]
-	}
+	set.htmlStyles[prefix] = slots
+	return slots
+}
+
+// buildHTMLStyle builds the htmlStyle for token ID hl: plain styles for the
+// default theme and custom properties for the others, or light-dark().
+func (set *themeSet) buildHTMLStyle(hl int, prefix string) HTMLStyle {
 	var style HTMLStyle
 	if set.themes[0].role == roleLightDark {
 		style = lightDarkStyle(set.themes, hl, prefix)
@@ -428,7 +448,6 @@ func (set *themeSet) htmlStyle(hl int, prefix string) HTMLStyle {
 			}
 		}
 	}
-	slots[hl] = style
 	return style
 }
 
@@ -570,12 +589,28 @@ func (set *themeSet) multiThemeHTMLOpeners(prefix string) []byte {
 	return blob
 }
 
-// meta builds fg, bg, themeName, and rootStyle for a TokensResult.
+// meta returns fg, bg, themeName, and rootStyle for a TokensResult.
 func (set *themeSet) meta(prefix string) themeMeta {
 	themes := set.themes
 	if themes[0].role == roleSingle {
 		return themeMeta{fg: themes[0].Fg, bg: themes[0].Bg, themeName: themes[0].Name}
 	}
+	set.mu.Lock()
+	defer set.mu.Unlock()
+	if m, ok := set.metas[prefix]; ok {
+		return m
+	}
+	if set.metas == nil {
+		set.metas = map[string]themeMeta{}
+	}
+	m := set.multiMeta(prefix)
+	set.metas[prefix] = m
+	return m
+}
+
+// multiMeta builds the meta of a set of several themes.
+func (set *themeSet) multiMeta(prefix string) themeMeta {
+	themes := set.themes
 	names := make([]string, len(themes))
 	for i, t := range themes {
 		names[i] = t.Name
@@ -613,33 +648,58 @@ func (set *themeSet) meta(prefix string) themeMeta {
 	return m
 }
 
-// lineRecordsToTokens converts UTF-16 token records with 0xffffffff line
-// markers to tokens. code is the decoded input; offsets are UTF-16.
-func (set *themeSet) lineRecordsToTokens(code *utf16Text, recs []uint32, prefix string, maxLineLength, offsetBase int) [][]ThemedToken {
-	var lines [][]ThemedToken
+// tokenRecords views UTF-16 token records in engine memory: pairs of
+// little-endian uint32s (endUtf16, tokenID), with tokenID 0xffffffff
+// marking a line terminator.
+type tokenRecords []byte
+
+func (r tokenRecords) len() int { return len(r) / 8 }
+
+func (r tokenRecords) at(i int) (end int, hl uint32) {
+	return int(binary.LittleEndian.Uint32(r[i*8:])), binary.LittleEndian.Uint32(r[i*8+4:])
+}
+
+// lineRecordsToTokens converts token records to tokens. code is the
+// decoded input; offsets are UTF-16.
+func (set *themeSet) lineRecordsToTokens(code *utf16Text, recs tokenRecords, prefix string, maxLineLength, offsetBase int) [][]ThemedToken {
+	n := recs.len()
+	breaks := 0
+	for i := range n {
+		if _, hl := recs.at(i); hl == 0xffffffff {
+			breaks++
+		}
+	}
+	lines := make([][]ThemedToken, 0, breaks+1)
+	// every line's tokens share one array; a line's capacity ends at its
+	// length, so appending to it copies instead of overwriting the next
+	pool := make([]ThemedToken, 0, n-breaks)
+	var styles []HTMLStyle
 	first := set.themes[0]
 	single := first.role == roleSingle
 	start := 0
-	for rec := 0; ; rec += 2 {
+	for rec := 0; ; rec++ {
 		firstRec := rec
-		for rec < len(recs) && recs[rec+1] != 0xffffffff {
-			rec += 2
+		for rec < n {
+			if _, hl := recs.at(rec); hl == 0xffffffff {
+				break
+			}
+			rec++
 		}
 		end := start
 		if rec != firstRec {
-			end = int(recs[rec-2])
+			end, _ = recs.at(rec - 1)
 		}
 		var line []ThemedToken
 		if maxLineLength > 0 && end-start >= maxLineLength {
 			line = []ThemedToken{set.rangeToToken(code.slice(start, end), start+offsetBase, 0, prefix)}
 		} else {
-			line = make([]ThemedToken, 0, (rec-firstRec)/2)
-			for at := firstRec; at < rec; at += 2 {
-				end := int(recs[at])
+			line = pool[len(pool):]
+			for at := firstRec; at < rec; at++ {
+				end, id := recs.at(at)
 				if end <= start {
 					continue
 				}
-				hl := int(recs[at+1])
+				hl := int(id)
 				t := ThemedToken{Content: code.slice(start, end), Offset: start + offsetBase}
 				if single {
 					style := first.Styles[hl]
@@ -651,18 +711,23 @@ func (set *themeSet) lineRecordsToTokens(code *utf16Text, recs []uint32, prefix 
 						t.FontStyle |= FontBold
 					}
 				} else {
-					t.HTMLStyle = set.htmlStyle(hl, prefix)
+					if styles == nil {
+						styles = set.htmlStyleTable(prefix)
+					}
+					t.HTMLStyle = styles[hl]
 				}
 				t.Type = standardTypes[hl]
 				line = append(line, t)
 				start = end
 			}
+			pool = pool[:len(pool)+len(line)]
+			line = line[:len(line):len(line)]
 		}
 		lines = append(lines, line)
-		if rec == len(recs) {
+		if rec == n {
 			break
 		}
-		start = int(recs[rec])
+		start, _ = recs.at(rec)
 	}
 	return lines
 }

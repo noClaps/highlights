@@ -11,6 +11,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -1019,7 +1020,11 @@ func (r *replayer) hlCall(e *event) {
 			}
 		}
 		recs, err := h.tokenizeLineRecords(langID, length, reset)
-		r.check(e, u32s(recs), err)
+		words := make([]uint32, len(recs)/4)
+		for i := range words {
+			words[i] = binary.LittleEndian.Uint32(recs[i*4:])
+		}
+		r.check(e, u32s(words), err)
 	default:
 		r.t.Fatalf("unknown highlighter method %s", e.Name)
 	}

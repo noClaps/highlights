@@ -279,19 +279,14 @@ func (h *Highlighter) codeToHTML(s string, b []byte, isString bool, opts Options
 }
 
 // tokenizeLineRecords lexes inputLength bytes already written with
-// writeInput and returns UTF-16 token records: (endUtf16, tokenID) pairs,
-// with tokenID 0xffffffff marking a line terminator. A non-nil reset starts
-// or continues a stream. The slice aliases engine memory.
-func (h *Highlighter) tokenizeLineRecords(langID, inputLength int, reset *bool) ([]uint32, error) {
+// writeInput and returns its token records. A non-nil reset starts or
+// continues a stream. The records alias engine memory and are valid until
+// the next run.
+func (h *Highlighter) tokenizeLineRecords(langID, inputLength int, reset *bool) (tokenRecords, error) {
 	if err := h.run(langID, 3, inputLength, reset); err != nil {
 		return nil, err
 	}
-	out := h.output()
-	recs := make([]uint32, len(out)/4)
-	for i := range recs {
-		recs[i] = binary.LittleEndian.Uint32(out[i*4:])
-	}
-	return recs, nil
+	return tokenRecords(h.output()), nil
 }
 
 // CodeToTokens tokenizes code into Shiki-compatible themed tokens, one

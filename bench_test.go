@@ -84,3 +84,34 @@ func BenchmarkCodeToTokens(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkSmallInput measures per-call overhead on a short snippet with the
+// package-level functions, as when highlighting a page's code blocks.
+func BenchmarkSmallInput(b *testing.B) {
+	const code = "func main() {\n\tfmt.Println(\"hello\", 42)\n}\n"
+	single := benchOptions(b, "go")
+	multi := single
+	multi.Theme = nil
+	multi.Themes = map[string]ThemeSource{"light": single.Theme, "dark": single.Theme}
+	for _, c := range []struct {
+		name string
+		opts Options
+	}{{"theme", single}, {"themes", multi}} {
+		b.Run("html/"+c.name, func(b *testing.B) {
+			b.SetBytes(int64(len(code)))
+			for b.Loop() {
+				if _, err := CodeToHTML(code, c.opts); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+		b.Run("tokens/"+c.name, func(b *testing.B) {
+			b.SetBytes(int64(len(code)))
+			for b.Loop() {
+				if _, err := CodeToTokens(code, c.opts); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
