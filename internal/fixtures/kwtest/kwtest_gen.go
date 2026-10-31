@@ -408,12 +408,12 @@ func (m *Machine) EmitFont(style uint32) {
 
 // EnsureCap is $ensureCap.
 func (m *Machine) EnsureCap(n uint32) {
-	var t0 uint32
+	var oldPages uint32
 	if m.Out+n <= m.Cap {
 		return
 	}
-	t0 = rt.Grow(&m.Mem, (((((m.Out + n) + 0x1000f) - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 4))
-	if t0 == 0xffffffff {
+	oldPages = rt.Grow(&m.Mem, (((((m.Out + n) + 0x1000f) - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 4))
+	if oldPages == 0xffffffff {
 		panic(rt.Trap("unreachable"))
 	}
 	m.Cap = uint32(len(m.Mem)/rt.PageSize)*0x10000 - 16
@@ -477,7 +477,7 @@ func (m *Machine) EmitSpanOpen(hl uint32) {
 
 // SetSpan is $setSpan.
 func (m *Machine) SetSpan(hl uint32) {
-	var t0 uint64
+	var val uint64
 	m.SpanHl = hl
 	if m.ThemeBlob != 0 {
 		if m.HTMLOpeners != 0 {
@@ -495,11 +495,10 @@ func (m *Machine) SetSpan(hl uint32) {
 		return
 	}
 	if m.CSSVariables {
-		t0 = uint64(hl)
+		val = uint64(hl)
 	} else {
-		t0 = binary.LittleEndian.Uint64(m.Mem[m.ThemeRec(hl):]) & 0xffffffffff
+		val = binary.LittleEndian.Uint64(m.Mem[m.ThemeRec(hl):]) & 0xffffffffff
 	}
-	val := t0
 	if val == m.SpanVal {
 		return
 	}
@@ -1607,14 +1606,14 @@ func (m *Machine) LexLineByteBefore(p uint32) uint32 {
 
 // LexCStringResume is $lexCStringResume.
 func (m *Machine) LexCStringResume(q bool) uint32 {
-	var t0, lexCStringBody uint32
+	var result, lexCStringBody uint32
 	if q {
 		lexCStringBody = m.LexCStringBody(rt.B2u(q), TokenString, m.Ptr, false)
-		t0 = rt.B2u(lexCStringBody == 2 && q)
+		result = rt.B2u(lexCStringBody == 2 && q)
 	} else {
-		t0 = 0
+		result = 0
 	}
-	return t0
+	return result
 }
 
 // LexLineComment is $lexLineComment.

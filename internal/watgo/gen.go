@@ -1579,6 +1579,7 @@ func (g *fgen) nameTemps(body string, params []string, locals []Local) string {
 	for _, w := range identRe.FindAllString(body, -1) {
 		taken[w] = true
 	}
+	body = g.foldCopies(body, locals)
 	for i, t := range g.temps {
 		if !strings.Contains(body, t.Name) {
 			continue
@@ -1588,6 +1589,10 @@ func (g *fgen) nameTemps(body string, params []string, locals []Local) string {
 			name = lowerFirst(m[1])
 		} else if f, k := g.argOf(body, t.Name); f != nil && f.Params[k].Name != "" {
 			name = camel(f.Params[k].Name[1:])
+		} else if regexp.MustCompile(`(?m)^\t*` + t.Name + ` = rt\.Grow\(`).MatchString(body) {
+			name = "oldPages"
+		} else {
+			name = roleName(body, t.Name)
 		}
 		if name == "" || goReserved[name] || tempName.MatchString(name) {
 			continue
@@ -1603,6 +1608,93 @@ func (g *fgen) nameTemps(body string, params []string, locals []Local) string {
 		g.temps[i].Name = name
 	}
 	return body
+}
+
+// foldCopies gives a temporary whose only read copies it into a local the
+// local's name, when nothing else touches the local from the temporary's
+// first assignment to the copy, and drops the copy.
+func (g *fgen) foldCopies(body string, locals []Local) string {
+	typeOf := map[string]ValType{}
+	for _, l := range slices.Concat(locals, g.temps) {
+		typeOf[l.Name] = l.Type
+	}
+	var kept []Local
+	for _, t := range g.temps {
+		word := regexp.MustCompile(`\b` + t.Name + `\b`)
+		lines := strings.Split(body, "\n")
+		first, copyAt, target := -1, -1, ""
+		ok := true
+		for i, l := range lines {
+			tr := strings.TrimLeft(l, "\t")
+			if !word.MatchString(tr) {
+				continue
+			}
+			if strings.HasPrefix(tr, t.Name+" = ") && !word.MatchString(strings.TrimPrefix(tr, t.Name+" = ")) {
+				if first < 0 {
+					first = i
+				}
+				continue
+			}
+			if m := copyRe.FindStringSubmatch(tr); m != nil && m[2] == t.Name && copyAt < 0 {
+				copyAt, target = i, m[1]
+				continue
+			}
+			ok = false
+		}
+		if !ok || first < 0 || copyAt < first || typeOf[target] != t.Type {
+			kept = append(kept, t)
+			continue
+		}
+		touched := regexp.MustCompile(`\b` + target + `\b`)
+		for _, l := range lines[first:copyAt] {
+			if touched.MatchString(l) {
+				ok = false
+			}
+		}
+		if !ok {
+			kept = append(kept, t)
+			continue
+		}
+		for i := first; i < copyAt; i++ {
+			lines[i] = word.ReplaceAllString(lines[i], target)
+		}
+		body = strings.Join(append(lines[:copyAt], lines[copyAt+1:]...), "\n")
+	}
+	if len(kept) < len(g.temps) {
+		g.temps = kept
+		// a fold can leave another copy foldable
+		return g.foldCopies(body, locals)
+	}
+	return body
+}
+
+var copyRe = regexp.MustCompile(`^(\w+) = (t\d+)$`)
+
+// roleName names a temporary by how it is read: "result" when only
+// returned, "cond" when only tested by an if.
+func roleName(body, temp string) string {
+	word := regexp.MustCompile(`\b` + temp + `\b`)
+	role := ""
+	for _, l := range strings.Split(body, "\n") {
+		t := strings.TrimLeft(l, "\t")
+		if !word.MatchString(t) || strings.HasPrefix(t, temp+" = ") || strings.HasPrefix(t, temp+" := ") {
+			continue
+		}
+		r := ""
+		switch {
+		case t == "return "+temp:
+			r = "result"
+		case strings.HasPrefix(t, "if ") || strings.HasPrefix(t, "} else if "):
+			r = "cond"
+		default:
+			return ""
+		}
+		if role != "" && role != r {
+			return ""
+		}
+		role = r
+	}
+	return role
 }
 
 var identRe = regexp.MustCompile(`\b[A-Za-z_]\w*\b`)

@@ -906,12 +906,12 @@ func (m *Machine) EmitFont(style uint32) {
 
 // EnsureCap is $ensureCap.
 func (m *Machine) EnsureCap(n uint32) {
-	var t0 uint32
+	var oldPages uint32
 	if m.Out+n <= m.Cap {
 		return
 	}
-	t0 = rt.Grow(&m.Mem, (((((m.Out + n) + 0x1000f) - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 4))
-	if t0 == 0xffffffff {
+	oldPages = rt.Grow(&m.Mem, (((((m.Out + n) + 0x1000f) - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 4))
+	if oldPages == 0xffffffff {
 		panic(rt.Trap("unreachable"))
 	}
 	m.Cap = uint32(len(m.Mem)/rt.PageSize)*0x10000 - 16
@@ -975,7 +975,7 @@ func (m *Machine) EmitSpanOpen(hl uint32) {
 
 // SetSpan is $setSpan.
 func (m *Machine) SetSpan(hl uint32) {
-	var t0 uint64
+	var val uint64
 	m.SpanHl = hl
 	if m.ThemeBlob != 0 {
 		if m.HTMLOpeners != 0 {
@@ -993,11 +993,10 @@ func (m *Machine) SetSpan(hl uint32) {
 		return
 	}
 	if m.CSSVariables {
-		t0 = uint64(hl)
+		val = uint64(hl)
 	} else {
-		t0 = binary.LittleEndian.Uint64(m.Mem[m.ThemeRec(hl):]) & 0xffffffffff
+		val = binary.LittleEndian.Uint64(m.Mem[m.ThemeRec(hl):]) & 0xffffffffff
 	}
-	val := t0
 	if val == m.SpanVal {
 		return
 	}
@@ -2105,18 +2104,18 @@ func (m *Machine) LexLineByteBefore(p uint32) uint32 {
 
 // LexCStringResume is $lexCStringResume.
 func (m *Machine) LexCStringResume(q uint32) uint32 {
-	var t0, lexCStringBody uint32
+	var result, lexCStringBody uint32
 	if q != 0 {
 		lexCStringBody = m.LexCStringBody(q, TokenString, m.Ptr, false)
 		if lexCStringBody == 2 {
-			t0 = q
+			result = q
 		} else {
-			t0 = 0
+			result = 0
 		}
 	} else {
-		t0 = 0
+		result = 0
 	}
-	return t0
+	return result
 }
 
 // LexLineComment is $lexLineComment.
@@ -3120,7 +3119,7 @@ func (m *Machine) HlStylus() {
 
 // HlCSSImpl is $hlCssImpl.
 func (m *Machine) HlCSSImpl(state uint32) uint32 {
-	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, urlMask, urlRem, t1, t4 uint32
+	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, urlMask, urlRem, cond, result uint32
 	var sassDepth, cSSDecide, cSSString bool
 	var urlW rt.V128
 	liveRoot := m.LiveEntering
@@ -3275,12 +3274,12 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 				continue
 			}
 			if c == '&' {
-				t1 = 1
+				cond = 1
 			} else {
 				cSSDecide = m.CSSDecide(depth | rt.B2u(sassDepth))
-				t1 = rt.B2u(cSSDecide)
+				cond = rt.B2u(cSSDecide)
 			}
-			if t1 != 0 {
+			if cond != 0 {
 				mode = 0
 			} else {
 				mode = 2
@@ -3659,9 +3658,9 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 		m.EmitTok(TokenNone, lhs, m.Ptr)
 	}
 	if state != 0 {
-		t4 = 256 | mode | decide<<2 | attr<<3 | namespace<<5 | span<<6 | depth<<9
+		result = 256 | mode | decide<<2 | attr<<3 | namespace<<5 | span<<6 | depth<<9
 	} else {
-		t4 = 0
+		result = 0
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46224
@@ -3682,12 +3681,12 @@ func (m *Machine) HlCSSImpl(state uint32) uint32 {
 		}
 		m.StreamDepth = 0
 	}
-	return t4
+	return result
 }
 
 // HlStylusImpl is $hlStylusImpl.
 func (m *Machine) HlStylusImpl(state uint32) uint32 {
-	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, urlMask, urlRem, t2, t5 uint32
+	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, urlMask, urlRem, cond, result uint32
 	var sassDepth, cSSDecide, cSSString bool
 	var urlW rt.V128
 	liveRoot := m.LiveEntering
@@ -3830,12 +3829,12 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 				}
 			} else {
 				if c == '&' {
-					t2 = 1
+					cond = 1
 				} else {
 					cSSDecide = m.CSSDecide(depth | rt.B2u(sassDepth))
-					t2 = rt.B2u(cSSDecide)
+					cond = rt.B2u(cSSDecide)
 				}
-				if t2 != 0 {
+				if cond != 0 {
 					mode = 0
 				} else {
 					mode = 2
@@ -4213,9 +4212,9 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 		m.EmitTok(TokenNone, lhs, m.Ptr)
 	}
 	if state != 0 {
-		t5 = 256 | mode | decide<<2 | attr<<3 | namespace<<5 | span<<6 | depth<<9
+		result = 256 | mode | decide<<2 | attr<<3 | namespace<<5 | span<<6 | depth<<9
 	} else {
-		t5 = 0
+		result = 0
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46264
@@ -4236,7 +4235,7 @@ func (m *Machine) HlStylusImpl(state uint32) uint32 {
 		}
 		m.StreamDepth = 0
 	}
-	return t5
+	return result
 }
 
 // XMLNameStart is $xmlNameStart.
@@ -6634,7 +6633,7 @@ func (m *Machine) NextToken() uint32 {
 
 // TsxExpressionEnd is $tsxExpressionEnd.
 func (m *Machine) TsxExpressionEnd(from, _ uint32) uint32 {
-	var to, t, mode, t2, jsxValidate, jsxEmitName uint32
+	var to, t, mode, jsxValidate, jsxEmitName uint32
 	if from >= m.End {
 		return m.End
 	}
@@ -6691,11 +6690,10 @@ func (m *Machine) TsxExpressionEnd(from, _ uint32) uint32 {
 				} else {
 					jsxValidate = 0
 				}
-				t2 = jsxValidate
 			} else {
-				t2 = 0
+				jsxValidate = 0
 			}
-			if t2 != 0 {
+			if jsxValidate != 0 {
 				m.Ptr = m.RHS
 				jsxEmitName = m.JsxEmitName()
 				m.JsxPush(1, jsxEmitName)
@@ -8493,7 +8491,7 @@ func (m *Machine) EcmaReset() {
 
 // HlEcmaImpl is $hlEcmaImpl.
 func (m *Machine) HlEcmaImpl(reset uint32) {
-	var curT, curLHS, curRHS, nxtT, nxtLHS, nxtRHS, haveNext, done, mode, cut, metadataMarker, markerBefore, markerLHS, markerRHS, markerWord, markerLen, jsx, exprClose, t2, jsxCanStart, jsxEmitName, t6 uint32
+	var curT, curLHS, curRHS, nxtT, nxtLHS, nxtRHS, haveNext, done, mode, cut, metadataMarker, markerBefore, markerLHS, markerRHS, markerWord, markerLen, jsx, exprClose, cond, jsxCanStart, jsxEmitName, cond2 uint32
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
@@ -8586,11 +8584,11 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 			}
 		}
 		if mode != 0 {
-			t2 = rt.B2u(curT == LexRBrace && (mode == 3 || mode == 4))
+			cond = rt.B2u(curT == LexRBrace && (mode == 3 || mode == 4))
 		} else {
-			t2 = 0
+			cond = 0
 		}
-		if t2 != 0 {
+		if cond != 0 {
 			if int32(m.BraceDepth) <= int32(binary.LittleEndian.Uint32(m.Mem[m.JsxTopSlot()+4:])) {
 				m.EmitTok(TokenPunctuationBracket, curLHS, curRHS)
 				done = curRHS
@@ -8641,11 +8639,11 @@ func (m *Machine) HlEcmaImpl(reset uint32) {
 			}
 		}
 		if metadataMarker != 0 {
-			t6 = rt.B2u(curT == LexIdentifier && (nxtT == LexColon || nxtT == LexEOF || uint32(m.Mem[nxtT+38656])&8 != 0))
+			cond2 = rt.B2u(curT == LexIdentifier && (nxtT == LexColon || nxtT == LexEOF || uint32(m.Mem[nxtT+38656])&8 != 0))
 		} else {
-			t6 = 0
+			cond2 = 0
 		}
-		if t6 != 0 {
+		if cond2 != 0 {
 			m.EmitTok(TokenProperty, curLHS, curRHS)
 		} else {
 			m.EmitCur(curT, curLHS, curRHS, nxtT)
@@ -8942,7 +8940,7 @@ func (m *Machine) YamlColonEnds(p, flow uint32) bool {
 
 // YamlScanPlain is $yamlScanPlain.
 func (m *Machine) YamlScanPlain(flow uint32) {
-	var c, mask, rem, t0 uint32
+	var c, mask, rem, cond uint32
 	var v, w rt.V128
 	start := m.Ptr
 	for {
@@ -8963,11 +8961,11 @@ func (m *Machine) YamlScanPlain(flow uint32) {
 			m.Ptr += uint32(bits.TrailingZeros32(mask))
 			c = uint32(m.Mem[m.Ptr])
 			if c == ':' {
-				t0 = rt.B2u(!m.YamlColonEnds(m.Ptr, flow))
+				cond = rt.B2u(!m.YamlColonEnds(m.Ptr, flow))
 			} else {
-				t0 = rt.B2u(c == '#' && !(m.Ptr > start && (m.Mem[m.Ptr-1] == ' ' || m.Mem[m.Ptr-1] == '\t')))
+				cond = rt.B2u(c == '#' && !(m.Ptr > start && (m.Mem[m.Ptr-1] == ' ' || m.Mem[m.Ptr-1] == '\t')))
 			}
-			if t0 != 0 {
+			if cond != 0 {
 				m.Ptr++
 				continue
 			}
@@ -13853,7 +13851,7 @@ func (m *Machine) BashIsArrayOpen(p uint32) bool {
 
 // HlBash is $hlBash.
 func (m *Machine) HlBash() {
-	var streamRoot, c, c2, cmd, flow, arrayOpen, decl, gap, group, hdDelim, hdLen, hdStrip, hl, joined, lhs, p, quote, rhs, t0, bashIsPunctWordStart uint32
+	var streamRoot, c, c2, cmd, flow, arrayOpen, decl, gap, group, hdDelim, hdLen, hdStrip, hl, joined, lhs, p, quote, rhs, bashIsPunctWordStart uint32
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
@@ -14043,16 +14041,15 @@ func (m *Machine) HlBash() {
 					m.EmitTok(TokenNumber, lhs, m.Ptr)
 				} else {
 					if m.LexIsIdentStart(c) {
-						t0 = 1
+						bashIsPunctWordStart = 1
 					} else {
 						if c-45 <= 2 || c == '~' {
 							bashIsPunctWordStart = rt.B2u(m.BashIsPunctWordStart(c, c2))
 						} else {
 							bashIsPunctWordStart = rt.B2u(c == '\\')
 						}
-						t0 = bashIsPunctWordStart
 					}
-					if t0 != 0 {
+					if bashIsPunctWordStart != 0 {
 						if c == '~' || c == '\\' {
 							m.Ptr++
 						}
@@ -18122,7 +18119,7 @@ func (m *Machine) CoffeeRegex() bool {
 
 // CoffeeLiteral is $coffeeLiteral.
 func (m *Machine) CoffeeLiteral(lq, nested uint32) uint32 {
-	var c, e, hl, t0 uint32
+	var c, e, hl, result uint32
 	q := lq & 255
 	triple := lq >> 8
 	if q == '/' {
@@ -18180,10 +18177,10 @@ func (m *Machine) CoffeeLiteral(lq, nested uint32) uint32 {
 			m.LexScanIdent()
 		}
 		m.EmitTok(hl, seg, m.Ptr)
-		t0 = 1
+		result = 1
 		break
 	}
-	return t0
+	return result
 }
 
 // CoffeeJs is $coffeeJs.
@@ -18246,7 +18243,7 @@ func (m *Machine) CoffeeJs(triple uint32) bool {
 
 // HlCoffee is $hlCoffee.
 func (m *Machine) HlCoffee() {
-	var streamRoot, c, c2, gap, hl, lhs, p, v, lq, iq, depth, prev, member, decl, params, param, divide, coffeeLiteral uint32
+	var streamRoot, c, c2, gap, hl, lhs, p, v, lq, iq, depth, prev, member, decl, params, param, divide uint32
 	var coffeeJs, coffeeRegex bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
@@ -18304,11 +18301,10 @@ func (m *Machine) HlCoffee() {
 			}
 			if lq&255 == 96 {
 				coffeeJs = m.CoffeeJs(lq >> 8)
-				coffeeLiteral = rt.B2u(coffeeJs)
+				v = rt.B2u(coffeeJs)
 			} else {
-				coffeeLiteral = m.CoffeeLiteral(lq, iq)
+				v = m.CoffeeLiteral(lq, iq)
 			}
-			v = coffeeLiteral
 			if v == 0 {
 				break
 			}
@@ -22913,8 +22909,8 @@ func (m *Machine) RubyIsOp(c uint32) bool {
 
 // HlRuby is $hlRuby.
 func (m *Machine) HlRuby() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, operand, decl, member, lineHead, atHead, seg, interp, sActive, sClose, sOpen, sDepth, sFlags, iClose, iOpen, iDepth, iFlags, hdLen, hdDelim, hdStrip, data, t2, lexHeredocArgument, rubyWordHl, t5, t6, t7, rubyArgWord uint32
-	var t1 bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, kind, hl, status, operand, decl, member, lineHead, atHead, seg, interp, sActive, sClose, sOpen, sDepth, sFlags, iClose, iOpen, iDepth, iFlags, hdLen, hdDelim, hdStrip, data, cond2, lexHeredocArgument, rubyArgWord uint32
+	var cond bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
@@ -23095,14 +23091,14 @@ func (m *Machine) HlRuby() {
 				p++
 			}
 			kind = m.RubyByte(p)
-			t1 = kind == 34 || kind == 39 || kind-65 <= 25 || (m.LexIsIdentStart(kind) && hdStrip&1 != 0)
-			t2 = operand | hdStrip
+			cond = kind == 34 || kind == 39 || kind-65 <= 25 || (m.LexIsIdentStart(kind) && hdStrip&1 != 0)
+			cond2 = operand | hdStrip
 			if atHead == 0 && lhs > gap && uint32(m.Mem[gap-1])-48 > 9 {
 				lexHeredocArgument = rt.B2u(m.LexHeredocArgument(p))
 			} else {
 				lexHeredocArgument = 0
 			}
-			if t1 && (t2&1 != 0 || lexHeredocArgument&1 != 0) {
+			if cond && (cond2&1 != 0 || lexHeredocArgument&1 != 0) {
 				if kind == 34 || kind == 39 {
 					hdDelim = p + 1
 					m.Ptr = m.LexFindByte(hdDelim, kind)
@@ -23260,11 +23256,10 @@ func (m *Machine) HlRuby() {
 					continue
 				}
 				if decl == 0 && member&1 != 0 {
-					rubyWordHl = 0xffffffff
+					kind = 0xffffffff
 				} else {
-					rubyWordHl = m.RubyWordHl(lhs, rhs)
+					kind = m.RubyWordHl(lhs, rhs)
 				}
-				kind = rubyWordHl
 				switch {
 				case int32(kind) >= 0:
 					hl = kind & 255
@@ -23307,26 +23302,23 @@ func (m *Machine) HlRuby() {
 					operand = 2
 					c2 = m.RubyByte(p)
 					if c3 == '(' {
-						t5 = 1
+						rubyArgWord = 1
 					} else {
 						if p > rhs {
 							if c2 == '"' || c2 == '\'' || c2 == '@' || (c2 == ':' && m.LexIsIdentStart(m.RubyByte(p+1))) {
-								t7 = 1
+								rubyArgWord = 1
 							} else {
 								if m.LexIsIdentStart(c2) {
 									rubyArgWord = rt.B2u(m.RubyArgWord(p))
 								} else {
 									rubyArgWord = 0
 								}
-								t7 = rubyArgWord
 							}
-							t6 = t7
 						} else {
-							t6 = 0
+							rubyArgWord = 0
 						}
-						t5 = t6
 					}
-					if t5 != 0 {
+					if rubyArgWord != 0 {
 						hl = TokenFunction
 						operand = 1
 					}
@@ -24068,14 +24060,13 @@ func (m *Machine) FishVariable() bool {
 
 // FishStringBody is $fishStringBody.
 func (m *Machine) FishStringBody(q, seg uint32) uint32 {
-	var p, c, scanFind3 uint32
+	var p, c uint32
 	for {
 		if q == '"' {
-			scanFind3 = m.ScanFind3(m.Ptr, 34, 92, 36)
+			p = m.ScanFind3(m.Ptr, 34, 92, 36)
 		} else {
-			scanFind3 = m.LexFindEither(m.Ptr, 39, 92)
+			p = m.LexFindEither(m.Ptr, 39, 92)
 		}
-		p = scanFind3
 		m.Ptr = p
 		if p >= m.End {
 			break
@@ -24699,7 +24690,7 @@ func (m *Machine) MlIsSymbol(c uint32) bool {
 
 // HlOcaml is $hlOcaml.
 func (m *Machine) HlOcaml() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, q, kind, hl, expect, member, typeMode, n, afterValue, lastModule, t0, mlByte, mlIsCharLiteral, mlIsArgAt uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, q, kind, hl, expect, member, typeMode, n, afterValue, lastModule, cond, mlByte, mlIsCharLiteral, mlIsArgAt uint32
 	var t1 bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
@@ -24772,11 +24763,11 @@ func (m *Machine) HlOcaml() {
 			} else {
 				mlByte = 0
 			}
-			t0 = rt.B2u(t1) | mlByte
+			cond = rt.B2u(t1) | mlByte
 		} else {
-			t0 = 0
+			cond = 0
 		}
-		if t0 != 0 {
+		if cond != 0 {
 			q = m.Ptr + 1
 			m.MlQuoted(lhs, q, m.MlIDEnd(q))
 			member = 0
@@ -26130,7 +26121,7 @@ func (m *Machine) GdTypeHl(lhs, rhs uint32) uint32 {
 
 // HlGdscript is $hlGdscript.
 func (m *Machine) HlGdscript() {
-	var streamRoot, c, n, lhs, p, hl, group, decl, member, operand, quote, triple, status, t0 uint32
+	var streamRoot, c, n, lhs, p, hl, group, decl, member, operand, quote, triple, status, cond uint32
 	var raw bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
@@ -26219,11 +26210,11 @@ func (m *Machine) HlGdscript() {
 					continue
 				}
 				if c == '%' {
-					t0 = rt.B2u(operand == 0 && m.LexIsIdentStart(n))
+					cond = rt.B2u(operand == 0 && m.LexIsIdentStart(n))
 				} else {
-					t0 = rt.B2u(c == '$')
+					cond = rt.B2u(c == '$')
 				}
-				if t0 != 0 {
+				if cond != 0 {
 					m.Ptr++
 					m.LexScanIdent()
 					for {
@@ -30618,7 +30609,7 @@ func (m *Machine) HlJsonl() {
 
 // HlJSONImpl is $hlJsonImpl.
 func (m *Machine) HlJSONImpl(dialect uint32) {
-	var streamRoot, c, gap, lhs, depth, expectKey, json5, open, jSON5Number, t3, lexIsIdentStart, jSON5Number2 uint32
+	var streamRoot, c, gap, lhs, depth, expectKey, json5, open, jSON5Number, lexIsIdentStart, jSON5Number2 uint32
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
@@ -30758,16 +30749,15 @@ func (m *Machine) HlJSONImpl(dialect uint32) {
 			continue
 		}
 		if (c|32)-97 <= 25 {
-			t3 = 1
+			lexIsIdentStart = 1
 		} else {
 			if json5 != 0 {
 				lexIsIdentStart = rt.B2u(m.LexIsIdentStart(c) || (c == '\\' && m.TemplateByte(m.Ptr+1) == 'u'))
 			} else {
 				lexIsIdentStart = 0
 			}
-			t3 = lexIsIdentStart
 		}
-		if t3 != 0 {
+		if lexIsIdentStart != 0 {
 			if json5 != 0 {
 				for {
 					m.ScanIdentRun(36)
@@ -37437,7 +37427,7 @@ func (m *Machine) MdxTagStartContinues(p uint32) bool {
 
 // HlMdx is $hlMdx.
 func (m *Machine) HlMdx() {
-	var streamRoot, fenceAt, from, noClose, p, to, t4 uint32
+	var streamRoot, fenceAt, from, noClose, p, to, cond uint32
 	var inFence, mdxTagStartContinues bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
@@ -37558,11 +37548,11 @@ scan:
 			}
 			if m.Streaming && p+1 < m.End && m.LexIsIdentStart(uint32(m.Mem[p+1])) {
 				mdxTagStartContinues = m.MdxTagStartContinues(p)
-				t4 = rt.B2u(mdxTagStartContinues)
+				cond = rt.B2u(mdxTagStartContinues)
 			} else {
-				t4 = 0
+				cond = 0
 			}
-			if t4 != 0 {
+			if cond != 0 {
 				m.MdxMarkdownRange(from, p)
 				m.Ptr = m.End
 				m.StreamSetRegion(5)
@@ -37639,7 +37629,7 @@ func (m *Machine) MmdArrowEnd(p uint32, wide bool) uint32 {
 
 // HlMermaid is $hlMermaid.
 func (m *Machine) HlMermaid() {
-	var streamRoot, c, c2, gap, lhs, tok, p, q, v, kind, mid, style, attr, dir, quote, lexKeywordValue uint32
+	var streamRoot, c, c2, gap, lhs, tok, p, q, v, kind, mid, style, attr, dir, quote uint32
 	var first, mmdString, mmdString2 bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
@@ -37899,11 +37889,10 @@ func (m *Machine) HlMermaid() {
 						v = 0xffffffff
 						if style|attr == 0 {
 							if p-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x656c797473 {
-								lexKeywordValue = 529
+								v = 529
 							} else {
-								lexKeywordValue = m.LexKeywordValue(lhs, p, 57488, 15, 59)
+								v = m.LexKeywordValue(lhs, p, 57488, 15, 59)
 							}
-							v = lexKeywordValue
 						}
 						if int32(v) >= 0 {
 							m.EmitTok(v&255, lhs, p)
@@ -41109,8 +41098,8 @@ func (m *Machine) PerlIsOp(c uint32) bool {
 
 // HlPerl is $hlPerl.
 func (m *Machine) HlPerl() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, status, operand, decl, member, lineHead, atHead, seg, sActive, sClose, sOpen, sDepth, sFlags, sSecond, hdLen, hdDelim, hdStrip, data, t2, lexHeredocArgument, perlQuoteKind, perlWordHl uint32
-	var path, t1 bool
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, pc, kind, hl, status, operand, decl, member, lineHead, atHead, seg, sActive, sClose, sOpen, sDepth, sFlags, sSecond, hdLen, hdDelim, hdStrip, data, cond2, lexHeredocArgument uint32
+	var path, cond bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
 	if m.LiveSuspended {
@@ -41290,14 +41279,14 @@ func (m *Machine) HlPerl() {
 				p++
 			}
 			kind = m.PerlByte(p)
-			t1 = kind == 34 || kind == 39 || kind-65 <= 25
-			t2 = operand | hdStrip
+			cond = kind == 34 || kind == 39 || kind-65 <= 25
+			cond2 = operand | hdStrip
 			if atHead == 0 && lhs > gap && uint32(m.Mem[gap-1])-48 > 9 {
 				lexHeredocArgument = rt.B2u(m.LexHeredocArgument(p))
 			} else {
 				lexHeredocArgument = 0
 			}
-			if t1 && (t2&1 != 0 || lexHeredocArgument&1 != 0) {
+			if cond && (cond2&1 != 0 || lexHeredocArgument&1 != 0) {
 				if kind == 34 || kind == 39 {
 					hdDelim = p + 1
 					m.Ptr = m.LexFindByte(hdDelim, kind)
@@ -41376,11 +41365,10 @@ func (m *Machine) HlPerl() {
 				rhs = m.Ptr
 				p = m.LexSkipSpaceAt(rhs)
 				if member != 0 {
-					perlQuoteKind = 0
+					kind = 0
 				} else {
-					perlQuoteKind = m.PerlQuoteKind(lhs, rhs)
+					kind = m.PerlQuoteKind(lhs, rhs)
 				}
-				kind = perlQuoteKind
 				if kind != 0 {
 					sOpen = m.PerlByte(p)
 					if sOpen > 32 && sOpen < 128 && !(m.LexIsIdentContinue(sOpen) || sOpen == 44 || sOpen == 59 || sOpen == 61 || sOpen == 41 || (sOpen == 35 && p > rhs)) {
@@ -41412,11 +41400,10 @@ func (m *Machine) HlPerl() {
 					}
 				}
 				if member != 0 {
-					perlWordHl = 0xffffffff
+					kind = 0xffffffff
 				} else {
-					perlWordHl = m.PerlWordHl(lhs, rhs)
+					kind = m.PerlWordHl(lhs, rhs)
 				}
-				kind = perlWordHl
 				if int32(kind) >= 0 {
 					hl = kind & 255
 					decl = kind >> 8
@@ -44261,14 +44248,13 @@ func (m *Machine) PuppetInterp() bool {
 
 // PuppetStringBody is $puppetStringBody.
 func (m *Machine) PuppetStringBody(q, seg uint32) bool {
-	var p, c, scanFind3 uint32
+	var p, c uint32
 	for {
 		if q == '"' {
-			scanFind3 = m.ScanFind3(m.Ptr, 34, 92, 36)
+			p = m.ScanFind3(m.Ptr, 34, 92, 36)
 		} else {
-			scanFind3 = m.LexFindEither(m.Ptr, 39, 92)
+			p = m.LexFindEither(m.Ptr, 39, 92)
 		}
-		p = scanFind3
 		m.Ptr = p
 		if p >= m.End {
 			break
@@ -48307,7 +48293,7 @@ func (m *Machine) SwiftCallAhead(lhs, rhs, p, member, cond uint32) bool {
 
 // HlSwift is $hlSwift.
 func (m *Machine) HlSwift() {
-	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, expect, member, seg, interp, stringMode, rawOpen, cond, condParen, t4, swiftCallAhead, lhs2, rhs2, p2, member2, cond2 uint32
+	var streamRoot, c, c2, c3, gap, lhs, rhs, p, e, kind, hl, expect, member, seg, interp, stringMode, rawOpen, cond, condParen, swiftCallAhead, lhs2, rhs2, p2, member2, cond2 uint32
 	var openedInterp, stringEscapeAt bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
@@ -48517,7 +48503,7 @@ func (m *Machine) HlSwift() {
 				} else {
 					c2 = m.TemplateByte(p)
 					if c2 == '(' {
-						t4 = 1
+						swiftCallAhead = 1
 					} else {
 						if c2 == '{' || c2 == '?' || c2 == '!' {
 							lhs2 = lhs
@@ -48533,10 +48519,9 @@ func (m *Machine) HlSwift() {
 						} else {
 							swiftCallAhead = 0
 						}
-						t4 = swiftCallAhead
 					}
 					switch {
-					case t4 != 0:
+					case swiftCallAhead != 0:
 						if member != 0 {
 							hl = TokenFunctionMethod
 						} else {
@@ -49605,7 +49590,7 @@ func (m *Machine) TomlLiteralString(hl uint32) {
 
 // HlToml is $hlToml.
 func (m *Machine) HlToml() {
-	var streamRoot, base, c, depth, gap, header, hl, key, lhs, limit, n, p, q, r, s, year, t0 uint32
+	var streamRoot, base, c, depth, gap, header, hl, key, lhs, limit, n, p, q, r, s, year, cond uint32
 	var date, sawNewline, time bool
 	liveRoot := m.LiveEntering
 	m.LiveEntering = false
@@ -49787,11 +49772,11 @@ func (m *Machine) HlToml() {
 		time = true
 		q = lhs
 		if lhs+10 <= m.End {
-			t0 = rt.B2u(m.Mem[lhs+4] == '-' && m.Mem[lhs+7] == '-')
+			cond = rt.B2u(m.Mem[lhs+4] == '-' && m.Mem[lhs+7] == '-')
 		} else {
-			t0 = 0
+			cond = 0
 		}
-		if t0 != 0 {
+		if cond != 0 {
 			year = m.TomlTwoDigitValue(lhs)
 			r = m.TomlTwoDigitValue(lhs + 2)
 			n = m.TomlTwoDigitValue(lhs + 5)
@@ -52445,7 +52430,7 @@ func (m *Machine) ZigIsOp(c uint32) bool {
 
 // HlZig is $hlZig.
 func (m *Machine) HlZig() {
-	var streamRoot, base, c, expectFunc, expectLabel, expectType, expectVar, gap, hl, labelColon, lhs, p, parenDepth, payload, payloadReady, prevDot, q, word, wantBreakLabel, wantPayloadParen, t0 uint32
+	var streamRoot, base, c, expectFunc, expectLabel, expectType, expectVar, gap, hl, labelColon, lhs, p, parenDepth, payload, payloadReady, prevDot, q, word, wantBreakLabel, wantPayloadParen, cond uint32
 	var payloadParens uint64
 	var wide bool
 	liveRoot := m.LiveEntering
@@ -52688,11 +52673,11 @@ func (m *Machine) HlZig() {
 			}
 			if (expectVar == 0 || m.SigActive()) && q == ':' {
 				q = m.LexLineByteBefore(lhs)
-				t0 = rt.B2u(q != '.' && q != '[')
+				cond = rt.B2u(q != '.' && q != '[')
 			} else {
-				t0 = 0
+				cond = 0
 			}
-			if t0 != 0 {
+			if cond != 0 {
 				q = m.LexSkipSpaceAt(p + 1)
 				base = 0
 				word = 0
@@ -53027,11 +53012,11 @@ func (m *Machine) StreamResumeLang(lang uint32) bool {
 
 // LvGrowTo is $lvGrowTo.
 func (m *Machine) LvGrowTo(addr uint32) {
-	var t0 uint32
+	var oldPages uint32
 	need := addr + 16
 	if need > uint32(len(m.Mem)/rt.PageSize)*0x10000 {
-		t0 = rt.Grow(&m.Mem, (((need - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 1))
-		if t0 == 0xffffffff {
+		oldPages = rt.Grow(&m.Mem, (((need - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 1))
+		if oldPages == 0xffffffff {
 			panic(rt.Trap("unreachable"))
 		}
 	}
