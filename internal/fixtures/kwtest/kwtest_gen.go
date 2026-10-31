@@ -1200,11 +1200,11 @@ func (m *Machine) SigReset() {
 }
 
 // SigActive is $sigActive.
-func (m *Machine) SigActive() uint32 {
+func (m *Machine) SigActive() bool {
 	if rt.B2u(m.SigParens) >= 32 {
-		return 0
+		return false
 	}
-	return (m.SigMask >> (rt.B2u(m.SigParens) & 31)) & 1
+	return (m.SigMask>>(rt.B2u(m.SigParens)&31))&1 != 0
 }
 
 // SigMark is $sigMark.
@@ -1276,8 +1276,8 @@ func (m *Machine) LexIsDigit(c uint32) bool {
 }
 
 // LexIsHex is $lexIsHex.
-func (m *Machine) LexIsHex(c uint32) uint32 {
-	return uint32(m.Mem[c+1424]) & 1
+func (m *Machine) LexIsHex(c uint32) bool {
+	return m.Mem[c+1424]&1 != 0
 }
 
 // LexIsIdentStart is $lexIsIdentStart.
@@ -1291,8 +1291,8 @@ func (m *Machine) LexIsNameStart(c uint32) bool {
 }
 
 // LexIsIdentContinue is $lexIsIdentContinue.
-func (m *Machine) LexIsIdentContinue(c uint32) uint32 {
-	return (uint32(m.Mem[c+1424]) >> 1) & 1
+func (m *Machine) LexIsIdentContinue(c uint32) bool {
+	return m.Mem[c+1424]&2 != 0
 }
 
 // LexScanIdent is $lexScanIdent.
@@ -1313,7 +1313,7 @@ func (m *Machine) LexScanNumberBody(hex uint32) {
 			break
 		}
 		c = uint32(m.Mem[m.Ptr])
-		if m.LexIsIdentContinue(c) != 0 {
+		if m.LexIsIdentContinue(c) {
 			prev = c
 			m.Ptr++
 			continue
@@ -1352,7 +1352,7 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 			} else {
 				next = 0
 			}
-			if rt.B2u(m.Mem[m.Ptr] == '.')&(m.LexIsHex(next)|rt.B2u(next|32 == 112)) != 0 {
+			if m.Mem[m.Ptr] == '.' && (m.LexIsHex(next) || next|32 == 112) {
 				if requireExponent != 0 || next|32 == 112 {
 					p = m.Ptr + 1
 					for {
@@ -1360,7 +1360,7 @@ func (m *Machine) LexScanHexNumber(requireExponent uint32) {
 							break
 						}
 						c = uint32(m.Mem[p])
-						if !(m.LexIsHex(c) != 0 || c == '_') {
+						if !(m.LexIsHex(c) || c == '_') {
 							break
 						}
 						p++
@@ -1659,7 +1659,7 @@ func (m *Machine) LexHeredocArgument(p uint32) bool {
 		if p >= m.End {
 			break
 		}
-		if m.LexIsIdentContinue(uint32(m.Mem[p])) == 0 {
+		if !m.LexIsIdentContinue(uint32(m.Mem[p])) {
 			break
 		}
 		p++
@@ -1979,7 +1979,7 @@ func (m *Machine) LexEmitIncludeDirective(lhs, rhs uint32) bool {
 	if p > rhs {
 		return false
 	}
-	if rt.B2u(p < rhs)&m.LexIsIdentContinue(uint32(m.Mem[p])) != 0 {
+	if p < rhs && m.LexIsIdentContinue(uint32(m.Mem[p])) {
 		return false
 	}
 	for {

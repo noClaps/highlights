@@ -44,6 +44,11 @@ type value struct {
 	// cond, when set, is a Go condition that holds when the number is not
 	// zero, as a || b does for a | b
 	cond string
+	// flag is set for a number known to be 0 or 1, such as x>>k & 1
+	flag bool
+	// shrOf and shrBy are set for x >> k with a constant k
+	shrOf *value
+	shrBy uint64
 	// call is set for a call's result temporary: the statement that
 	// assigned it
 	call string
@@ -840,10 +845,13 @@ func (g *fgen) constOf(n *wat.Sexpr) (uint64, bool) {
 	return 0, false
 }
 
+// zeroOrOne reports a value known to be 0 or 1.
+func zeroOrOne(v value) bool { return v.isBool || v.flag || (v.isConst && v.c <= 1) }
+
 // returned renders a returned value: a condition when the function
 // returns a bool, a number otherwise.
 func (g *fgen) returned(v value) string {
-	if !v.isBool && !(v.isConst && v.c <= 1) {
+	if !zeroOrOne(v) {
 		g.nonBool = true
 	}
 	if g.boolFuncs[g.fn.GoName] {
@@ -1535,7 +1543,7 @@ func (g *fgen) spill() {
 			t = g.newTemp(v.typ)
 		}
 		g.line("%s = %s", t, trimParens(v.expr))
-		g.stack[i] = value{expr: t, typ: v.typ, isBool: v.isBool, stable: true}
+		g.stack[i] = value{expr: t, typ: v.typ, isBool: v.isBool, flag: v.flag, stable: true}
 	}
 }
 
@@ -2812,7 +2820,7 @@ func (g *fgen) apply(head string, imms []string) {
 		name, t := g.local(imms[0])
 		g.spill()
 		if g.boolLocals[name] {
-			if !v.isBool && !(v.isConst && v.c <= 1) {
+			if !zeroOrOne(v) {
 				g.notBool[name] = true
 			}
 			g.line("%s = %s", name, trimParens(g.asBool(v)))
@@ -3106,6 +3114,29 @@ func (g *fgen) binary(op binOp, a, b value) value {
 			return boolConst(k.c != 0)
 		}
 	}
+	// and/or of conditions and 0-or-1 numbers is a condition
+	if op.typ == I32 && (op.goOp == "&" || op.goOp == "|") && zeroOrOne(a) && zeroOrOne(b) && !(a.isConst || b.isConst) && (!a.isBool || !b.isBool) {
+		join := " && "
+		if op.goOp == "|" {
+			join = " || "
+		}
+		return value{expr: "(" + g.asBool(a) + join + g.asBool(b) + ")", typ: I32, isBool: true, stable: stable}
+	}
+	// x>>k & 1 is bit k of x, tested as x&(1<<k) != 0
+	if op.goOp == "&" && b.isConst && b.c == 1 && !a.isBool {
+		r := value{expr: "(" + g.asValue(a) + " & 1)", typ: op.typ, stable: stable, flag: true}
+		switch {
+		case a.shrOf != nil:
+			x := a.shrOf.expr
+			if a.shrOf.byteExpr != "" && a.shrBy < 8 {
+				x = a.shrOf.byteExpr
+			}
+			r.cond = fmt.Sprintf("(%s&%d != 0)", x, uint64(1)<<a.shrBy)
+		case a.byteExpr != "":
+			r.cond = "(" + a.byteExpr + "&1 != 0)"
+		}
+		return r
+	}
 	// boolean and/or of conditions stay boolean
 	if op.typ == I32 && (op.goOp == "&" || op.goOp == "|") && a.isBool && b.isBool {
 		join := " && "
@@ -3165,7 +3196,12 @@ func (g *fgen) binary(op binOp, a, b value) value {
 		if b.isConst {
 			count = strconv.FormatUint(b.c&(width-1), 10)
 		}
-		return value{expr: fmt.Sprintf("(%s %s %s)", av, op.goOp, count), typ: op.typ, stable: stable}
+		r := value{expr: fmt.Sprintf("(%s %s %s)", av, op.goOp, count), typ: op.typ, stable: stable}
+		if op.goOp == ">>" && b.isConst {
+			base := a
+			r.shrOf, r.shrBy = &base, b.c&(width-1)
+		}
+		return r
 	case ">>s":
 		count := "(" + bv + " & " + strconv.FormatUint(width-1, 10) + ")"
 		if b.isConst {
@@ -3176,7 +3212,9 @@ func (g *fgen) binary(op binOp, a, b value) value {
 	if strings.HasPrefix(op.goOp, "rt.") {
 		return value{expr: fmt.Sprintf("%s(%s, %s)", op.goOp, av, bv), typ: op.typ, stable: stable}
 	}
-	return value{expr: fmt.Sprintf("(%s %s %s)", av, op.goOp, bv), typ: op.typ, stable: stable}
+	// and, or and xor of 0-or-1 numbers are 0 or 1
+	flag := (op.goOp == "&" || op.goOp == "|" || op.goOp == "^") && zeroOrOne(a) && zeroOrOne(b)
+	return value{expr: fmt.Sprintf("(%s %s %s)", av, op.goOp, bv), typ: op.typ, stable: stable, flag: flag}
 }
 
 func (g *fgen) local(ref string) (string, ValType) {
