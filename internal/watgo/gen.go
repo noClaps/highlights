@@ -2160,8 +2160,14 @@ func (g *fgen) apply(head string, imms []string) {
 		for i := len(f.Params) - 1; i >= 0; i-- {
 			args[i] = trimParens(g.asValue(g.pop()))
 		}
-		g.spill()
 		call := fmt.Sprintf("m.%s(%s)", f.GoName, strings.Join(args, ", "))
+		if len(f.Results) > 0 && g.pure[f.GoName] {
+			// a call without side effects is an expression like a load:
+			// the next write spills it
+			g.push(value{expr: call, typ: f.Results[0]})
+			return
+		}
+		g.spill()
 		if len(f.Results) > 0 {
 			t := g.newTemp(f.Results[0])
 			g.line("%s = %s", t, call)
