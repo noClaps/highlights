@@ -3176,9 +3176,9 @@ func (m *Machine) HlStylus() {
 
 // HlCssImpl is $hlCssImpl.
 func (m *Machine) HlCssImpl(state uint32) uint32 {
-	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, sassDepth, urlMask, urlRem, liveRoot, t1, t4, t7, t11, t14, t16, t20, t24, t25, t26, t28, t31, t33 uint32
+	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, sassDepth, urlMask, urlRem, liveRoot, t1, t4, t6, t10, t13, t15, t19, t23, t24, t25, t27, t29, t31 uint32
 	var urlW rt.V128
-	var t2, t3, t9, t10, t12, t13, t15, t18, t19, t22, t23, t27, t30 bool
+	var t2, t3, t8, t9, t11, t12, t14, t17, t18, t21, t22, t26, t28 bool
 	liveRoot = m.LiveEntering
 	m.LiveEntering = 0
 	if m.LiveSuspended != 0 {
@@ -3325,23 +3325,12 @@ next:
 				m.EmitTok(TokenKeyword, lhs, m.Ptr)
 				continue next
 			} else {
-				if false {
-					p = m.StylusStart(c, depth|sassDepth)
-					if int32(p) >= 0 {
-						mode = p
-						if m.Ptr > lhs {
-							continue next
-						}
-						goto cssStatement
-					}
-				}
 				if c == '&' {
-					t7 = 1
+					t6 = 1
 				} else {
-					t7 = m.CssDecide(depth | sassDepth)
+					t6 = m.CssDecide(depth | sassDepth)
 				}
-				mode = rt.Sel32(t7 != 0, 0, 2)
-			cssStatement:
+				mode = rt.Sel32(t6 != 0, 0, 2)
 			}
 		}
 		if interp != 0 {
@@ -3373,37 +3362,27 @@ next:
 			mode = 3
 			continue next
 		}
-		t9 = c == '$'
-		t10 = m.CssDialect >= 2
-		t11 = m.CssIdentStart(c2)
-		t12 = c == '@'
-		t13 = m.CssDialect == 1
-		t14 = m.CssIdentStart(c2)
-		if rt.B2u(t9)&rt.B2u(t10)&t11|rt.B2u(t12)&rt.B2u(t13)&(t14|rt.B2u(c2 == '@')) != 0 {
+		t8 = c == '$'
+		t9 = m.CssDialect >= 2
+		t10 = m.CssIdentStart(c2)
+		t11 = c == '@'
+		t12 = m.CssDialect == 1
+		t13 = m.CssIdentStart(c2)
+		if rt.B2u(t8)&rt.B2u(t9)&t10|rt.B2u(t11)&rt.B2u(t12)&(t13|rt.B2u(c2 == '@')) != 0 {
 			m.Ptr += rt.Sel32(c2 == '@', 2, 1)
 			m.CssScanIdent()
 			m.EmitTok(TokenVariable, lhs, m.Ptr)
 			continue next
 		}
-		t15 = c == '%'
-		t16 = m.CssIdentStart(c2)
-		if rt.B2u(t15)&t16&rt.B2u(m.CssDialect >= 2 && mode <= 1) != 0 {
+		t14 = c == '%'
+		t15 = m.CssIdentStart(c2)
+		if rt.B2u(t14)&t15&rt.B2u(m.CssDialect >= 2 && mode <= 1) != 0 {
 			m.Ptr++
 			m.CssScanIdent()
 			m.EmitTok(TokenSelectorClass, lhs, m.Ptr)
 			continue next
 		}
 		if c == '{' {
-			if false {
-				if lhs > m.SrcBase && rt.Ld8(m.Mem, int(lhs-1)) == '-' {
-					m.Ptr++
-					m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
-					interpMode = mode
-					interp = 1
-					mode = 3
-					continue next
-				}
-			}
 			decide = 1
 			depth++
 			m.Ptr++
@@ -3434,10 +3413,10 @@ next:
 			continue next
 		}
 		if mode == 0 {
-			t18 = m.CssDialect != 0
-			t19 = c == '&'
-			t20 = m.CssIdentStart(c2)
-			if rt.B2u(t18)&rt.B2u(t19)&(t20|rt.B2u(c2 == '-')) != 0 {
+			t17 = m.CssDialect != 0
+			t18 = c == '&'
+			t19 = m.CssIdentStart(c2)
+			if rt.B2u(t17)&rt.B2u(t18)&(t19|rt.B2u(c2 == '-')) != 0 {
 				m.Ptr++
 				m.CssScanIdent()
 				m.EmitTok(TokenSelectorClass, lhs, m.Ptr)
@@ -3517,22 +3496,19 @@ next:
 			}
 		} else {
 			if mode == 2 {
-				t22 = m.CssDialect == 1
-				t23 = c == '.' || c == '#'
-				t24 = m.CssIdentStart(c2)
-				if rt.B2u(t22)&rt.B2u(t23)&t24 != 0 {
+				t21 = m.CssDialect == 1
+				t22 = c == '.' || c == '#'
+				t23 = m.CssIdentStart(c2)
+				if rt.B2u(t21)&rt.B2u(t22)&t23 != 0 {
 					m.Ptr++
 					m.CssScanIdent()
 					m.EmitTok(rt.Sel32(c == '.', TokenSelectorClass, TokenSelectorId), lhs, m.Ptr)
 					continue next
 				}
-				t25 = m.CssIdentStart(c)
-				if t25|rt.B2u(c == '-') != 0 {
+				t24 = m.CssIdentStart(c)
+				if t24|rt.B2u(c == '-') != 0 {
 					m.CssScanIdent()
 					m.EmitTok(rt.Sel32(c == '-' && c2 == '-', TokenVariable, TokenProperty), lhs, m.Ptr)
-					if false {
-						mode = 3
-					}
 					continue next
 				}
 				if c == ':' {
@@ -3542,25 +3518,18 @@ next:
 					continue next
 				}
 			}
-			t26 = m.CssIdentStart(c)
-			t27 = c == '-'
-			t28 = m.CssIdentStart(c2)
-			if t26|rt.B2u(t27)&(t28|rt.B2u(c2 == '-')) != 0 {
+			t25 = m.CssIdentStart(c)
+			t26 = c == '-'
+			t27 = m.CssIdentStart(c2)
+			if t25|rt.B2u(t26)&(t27|rt.B2u(c2 == '-')) != 0 {
 				m.CssScanIdent()
 				if c == '-' && c2 == '-' {
 					m.EmitTok(TokenVariable, lhs, m.Ptr)
 					continue next
 				}
-				if false {
-					p = m.LexKeywordValue(lhs, m.Ptr, 58224, 15, 50)
-					if p < 256 {
-						m.EmitTok(p, lhs, m.Ptr)
-						continue next
-					}
-				}
-				t30 = mode == 1
-				t31 = m.CssIsQueryOp(lhs, m.Ptr)
-				if rt.B2u(t30)&t31 != 0 {
+				t28 = mode == 1
+				t29 = m.CssIsQueryOp(lhs, m.Ptr)
+				if rt.B2u(t28)&t29 != 0 {
 					m.EmitTok(TokenKeywordOperator, lhs, m.Ptr)
 					continue next
 				}
@@ -3700,9 +3669,9 @@ next:
 		m.EmitTok(TokenNone, lhs, m.Ptr)
 	}
 	if state != 0 {
-		t33 = 256 | mode | decide<<2 | attr<<3 | namespace<<5 | span<<6 | depth<<9
+		t31 = 256 | mode | decide<<2 | attr<<3 | namespace<<5 | span<<6 | depth<<9
 	} else {
-		t33 = 0
+		t31 = 0
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46224
@@ -3723,14 +3692,14 @@ next:
 		}
 		m.StreamDepth = 0
 	}
-	return t33
+	return t31
 }
 
 // HlStylusImpl is $hlStylusImpl.
 func (m *Machine) HlStylusImpl(state uint32) uint32 {
-	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, sassDepth, urlMask, urlRem, liveRoot, t1, t3, t6, t9, t11, t13, t16, t19, t20, t21, t23, t26, t28 uint32
+	var streamRoot, span, c, c2, gap, lhs, mid, p, mode, decide, attr, namespace, depth, interp, interpMode, fnPrelude, sassDepth, urlMask, urlRem, liveRoot, t1, t3, t5, t8, t10, t12, t15, t18, t19, t20, t22, t25, t27 uint32
 	var urlW rt.V128
-	var t2, t8, t10, t12, t15, t18, t22, t25 bool
+	var t2, t7, t9, t11, t14, t17, t21, t24 bool
 	liveRoot = m.LiveEntering
 	m.LiveEntering = 0
 	if m.LiveSuspended != 0 {
@@ -3813,11 +3782,9 @@ next:
 		}
 		gap = m.Ptr
 		m.ScanWhitespace()
-		if true {
-			t1 = m.ScanFindSpecial(gap, m.Ptr, 10, 0, 1)
-			if t1 < m.Ptr {
-				decide = 1
-			}
+		t1 = m.ScanFindSpecial(gap, m.Ptr, 10, 0, 1)
+		if t1 < m.Ptr {
+			decide = 1
 		}
 		m.EmitGap(gap, m.Ptr)
 		if m.Ptr >= m.End {
@@ -3834,7 +3801,7 @@ next:
 			}
 			continue next
 		}
-		if true && c == '/' && c2 == '/' {
+		if c == '/' && c2 == '/' {
 			m.LexLineComment(2, TokenComment)
 			continue next
 		}
@@ -3857,41 +3824,29 @@ next:
 				mode = 1
 				m.Ptr++
 				m.CssScanIdent()
-				if false {
-					p = m.LexSkipSpaceAt(m.Ptr)
-					if (p < m.End && rt.Ld8(m.Mem, int(p)) == ':') || (m.Ptr+1 < m.End && rt.Ld16(m.Mem, int(m.Ptr)) == 10536) {
-						m.EmitTok(TokenVariable, lhs, m.Ptr)
-						mode = 2
-						continue next
-					}
-				}
 				namespace = rt.B2u(m.Ptr-lhs == 10 && rt.Ld64(m.Mem, int(lhs)+1)|0x2020202020202020 == 0x63617073656d616e && rt.Ld8(m.Mem, int(lhs)+9)|32 == 101)
-				if true {
-					mid = m.Ptr - lhs
-					fnPrelude = rt.B2u((mid == 8 && rt.Ld64(m.Mem, int(lhs)) == 0x6564756c636e6940) || (mid == 6 && rt.Ld64(m.Mem, int(lhs))&0xffffffffffff == 0x6e6978696d40) || (mid == 9 && rt.Ld64(m.Mem, int(lhs)+1) == 0x6e6f6974636e7566))
-					if mid == 7 && rt.Ld64(m.Mem, int(lhs))&0xffffffffffffff == 0x646e6574786540 {
-						mode = 0
-					}
+				mid = m.Ptr - lhs
+				fnPrelude = rt.B2u((mid == 8 && rt.Ld64(m.Mem, int(lhs)) == 0x6564756c636e6940) || (mid == 6 && rt.Ld64(m.Mem, int(lhs))&0xffffffffffff == 0x6e6978696d40) || (mid == 9 && rt.Ld64(m.Mem, int(lhs)+1) == 0x6e6f6974636e7566))
+				if mid == 7 && rt.Ld64(m.Mem, int(lhs))&0xffffffffffffff == 0x646e6574786540 {
+					mode = 0
 				}
 				m.EmitTok(TokenKeyword, lhs, m.Ptr)
 				continue next
 			} else {
-				if true {
-					p = m.StylusStart(c, depth|sassDepth)
-					if int32(p) >= 0 {
-						mode = p
-						if m.Ptr > lhs {
-							continue next
-						}
-						goto cssStatement
+				p = m.StylusStart(c, depth|sassDepth)
+				if int32(p) >= 0 {
+					mode = p
+					if m.Ptr > lhs {
+						continue next
 					}
+					goto cssStatement
 				}
 				if c == '&' {
-					t6 = 1
+					t5 = 1
 				} else {
-					t6 = m.CssDecide(depth | sassDepth)
+					t5 = m.CssDecide(depth | sassDepth)
 				}
-				mode = rt.Sel32(t6 != 0, 0, 2)
+				mode = rt.Sel32(t5 != 0, 0, 2)
 			cssStatement:
 			}
 		}
@@ -3914,7 +3869,7 @@ next:
 				continue next
 			}
 		}
-		if c2 == '{' && ((c == '#' && true) || (c == '@' && false)) {
+		if rt.B2u(c2 == '{')&rt.B2u(c == '#') != 0 {
 			m.Ptr += 2
 			m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
 			if interp == 0 {
@@ -3924,34 +3879,32 @@ next:
 			mode = 3
 			continue next
 		}
-		t8 = c == '$'
-		t9 = m.CssIdentStart(c2)
-		t10 = c == '@'
-		t11 = m.CssIdentStart(c2)
-		if rt.B2u(t8)&rt.B2u(true)&t9|rt.B2u(t10)&rt.B2u(false)&(t11|rt.B2u(c2 == '@')) != 0 {
+		t7 = c == '$'
+		t8 = m.CssIdentStart(c2)
+		t9 = c == '@'
+		t10 = m.CssIdentStart(c2)
+		if rt.B2u(t7)&rt.B2u(true)&t8|rt.B2u(t9)&rt.B2u(false)&(t10|rt.B2u(c2 == '@')) != 0 {
 			m.Ptr += rt.Sel32(c2 == '@', 2, 1)
 			m.CssScanIdent()
 			m.EmitTok(TokenVariable, lhs, m.Ptr)
 			continue next
 		}
-		t12 = c == '%'
-		t13 = m.CssIdentStart(c2)
-		if rt.B2u(t12)&t13&rt.B2u(true && mode <= 1) != 0 {
+		t11 = c == '%'
+		t12 = m.CssIdentStart(c2)
+		if rt.B2u(t11)&t12&rt.B2u(mode <= 1) != 0 {
 			m.Ptr++
 			m.CssScanIdent()
 			m.EmitTok(TokenSelectorClass, lhs, m.Ptr)
 			continue next
 		}
 		if c == '{' {
-			if true {
-				if lhs > m.SrcBase && rt.Ld8(m.Mem, int(lhs-1)) == '-' {
-					m.Ptr++
-					m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
-					interpMode = mode
-					interp = 1
-					mode = 3
-					continue next
-				}
+			if lhs > m.SrcBase && rt.Ld8(m.Mem, int(lhs-1)) == '-' {
+				m.Ptr++
+				m.EmitTok(TokenPunctuationSpecial, lhs, m.Ptr)
+				interpMode = mode
+				interp = 1
+				mode = 3
+				continue next
 			}
 			decide = 1
 			depth++
@@ -3983,9 +3936,9 @@ next:
 			continue next
 		}
 		if mode == 0 {
-			t15 = c == '&'
-			t16 = m.CssIdentStart(c2)
-			if rt.B2u(true)&rt.B2u(t15)&(t16|rt.B2u(c2 == '-')) != 0 {
+			t14 = c == '&'
+			t15 = m.CssIdentStart(c2)
+			if rt.B2u(true)&rt.B2u(t14)&(t15|rt.B2u(c2 == '-')) != 0 {
 				m.Ptr++
 				m.CssScanIdent()
 				m.EmitTok(TokenSelectorClass, lhs, m.Ptr)
@@ -3993,10 +3946,6 @@ next:
 			}
 			if m.CssIdentStart(c) != 0 {
 				m.CssScanIdent()
-				if false && m.Ptr-lhs == 4 && rt.Ld32(m.Mem, int(lhs)) == 0x6e656877 {
-					m.EmitTok(TokenKeywordOperator, lhs, m.Ptr)
-					continue next
-				}
 				m.EmitTok(rt.Sel32(attr == 0, rt.Sel32(m.Ptr < m.End && rt.Ld8(m.Mem, int(m.Ptr)) == '|', TokenNamespace, TokenTag), rt.Sel32(attr == 1, TokenAttribute, TokenString)), lhs, m.Ptr)
 				continue next
 			}
@@ -4065,21 +4014,19 @@ next:
 			}
 		} else {
 			if mode == 2 {
-				t18 = c == '.' || c == '#'
-				t19 = m.CssIdentStart(c2)
-				if rt.B2u(false)&rt.B2u(t18)&t19 != 0 {
+				t17 = c == '.' || c == '#'
+				t18 = m.CssIdentStart(c2)
+				if rt.B2u(false)&rt.B2u(t17)&t18 != 0 {
 					m.Ptr++
 					m.CssScanIdent()
 					m.EmitTok(rt.Sel32(c == '.', TokenSelectorClass, TokenSelectorId), lhs, m.Ptr)
 					continue next
 				}
-				t20 = m.CssIdentStart(c)
-				if t20|rt.B2u(c == '-') != 0 {
+				t19 = m.CssIdentStart(c)
+				if t19|rt.B2u(c == '-') != 0 {
 					m.CssScanIdent()
 					m.EmitTok(rt.Sel32(c == '-' && c2 == '-', TokenVariable, TokenProperty), lhs, m.Ptr)
-					if true {
-						mode = 3
-					}
+					mode = 3
 					continue next
 				}
 				if c == ':' {
@@ -4089,25 +4036,23 @@ next:
 					continue next
 				}
 			}
-			t21 = m.CssIdentStart(c)
-			t22 = c == '-'
-			t23 = m.CssIdentStart(c2)
-			if t21|rt.B2u(t22)&(t23|rt.B2u(c2 == '-')) != 0 {
+			t20 = m.CssIdentStart(c)
+			t21 = c == '-'
+			t22 = m.CssIdentStart(c2)
+			if t20|rt.B2u(t21)&(t22|rt.B2u(c2 == '-')) != 0 {
 				m.CssScanIdent()
 				if c == '-' && c2 == '-' {
 					m.EmitTok(TokenVariable, lhs, m.Ptr)
 					continue next
 				}
-				if true {
-					p = m.LexKeywordValue(lhs, m.Ptr, 58224, 15, 50)
-					if p < 256 {
-						m.EmitTok(p, lhs, m.Ptr)
-						continue next
-					}
+				p = m.LexKeywordValue(lhs, m.Ptr, 58224, 15, 50)
+				if p < 256 {
+					m.EmitTok(p, lhs, m.Ptr)
+					continue next
 				}
-				t25 = mode == 1
-				t26 = m.CssIsQueryOp(lhs, m.Ptr)
-				if rt.B2u(t25)&t26 != 0 {
+				t24 = mode == 1
+				t25 = m.CssIsQueryOp(lhs, m.Ptr)
+				if rt.B2u(t24)&t25 != 0 {
 					m.EmitTok(TokenKeywordOperator, lhs, m.Ptr)
 					continue next
 				}
@@ -4247,9 +4192,9 @@ next:
 		m.EmitTok(TokenNone, lhs, m.Ptr)
 	}
 	if state != 0 {
-		t28 = 256 | mode | decide<<2 | attr<<3 | namespace<<5 | span<<6 | depth<<9
+		t27 = 256 | mode | decide<<2 | attr<<3 | namespace<<5 | span<<6 | depth<<9
 	} else {
-		t28 = 0
+		t27 = 0
 	}
 	if streamRoot != 0 {
 		m.StreamWindow = 46264
@@ -4270,7 +4215,7 @@ next:
 		}
 		m.StreamDepth = 0
 	}
-	return t28
+	return t27
 }
 
 // XmlNameStart is $xmlNameStart.

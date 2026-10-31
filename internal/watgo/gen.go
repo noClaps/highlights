@@ -1488,6 +1488,24 @@ func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
 		return false
 	}
 	c := g.pop()
+	if c.isConst && result == "" {
+		// a constant condition leaves only the arm it takes, as a block
+		taken := thenSeq
+		if c.c == 0 {
+			taken = elseSeq
+		}
+		block := list(atom("block"))
+		if name != "" {
+			block.List = append(block.List, atom(name))
+		}
+		block.List = append(block.List, taken...)
+		var blockTail []*label
+		if len(rest) == 0 {
+			blockTail = tail
+		}
+		g.genBlock(block, false, blockTail)
+		return false
+	}
 	g.spill()
 	l := g.newLabel(name, false, result)
 	base := len(g.stack)
@@ -2191,6 +2209,21 @@ func (g *fgen) binary(op binOp, a, b value) value {
 		return constValue(op.typ, r)
 	}
 	stable := a.stable && b.stable
+	// a constant condition decides a boolean and/or, or drops out of it
+	if op.typ == I32 && (op.goOp == "&" || op.goOp == "|") && a.isConst != b.isConst {
+		x, k := a, b
+		if a.isConst {
+			x, k = b, a
+		}
+		if k.isBool && x.isBool {
+			absorbs := (k.c != 0) == (op.goOp == "|")
+			if !absorbs {
+				return x
+			}
+			// calls are already in temporaries, so x has no side effects
+			return boolConst(k.c != 0)
+		}
+	}
 	// boolean and/or of conditions stay boolean
 	if op.typ == I32 && (op.goOp == "&" || op.goOp == "|") && a.isBool && b.isBool {
 		join := " && "
