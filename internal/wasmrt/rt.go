@@ -33,30 +33,6 @@ func B2u64(b bool) uint64 {
 	return 0
 }
 
-// Sel32 implements select for i32: a when c holds, else b.
-func Sel32(c bool, a, b uint32) uint32 {
-	if c {
-		return a
-	}
-	return b
-}
-
-// Sel64 implements select for i64.
-func Sel64(c bool, a, b uint64) uint64 {
-	if c {
-		return a
-	}
-	return b
-}
-
-// SelV implements select for v128.
-func SelV(c bool, a, b V128) V128 {
-	if c {
-		return a
-	}
-	return b
-}
-
 // Copy implements memory.copy.
 func Copy(mem []byte, dst, src, n uint32) {
 	if uint64(src)+uint64(n) > uint64(len(mem)) || uint64(dst)+uint64(n) > uint64(len(mem)) {

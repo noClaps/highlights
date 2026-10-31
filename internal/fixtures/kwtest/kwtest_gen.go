@@ -187,9 +187,21 @@ func (m *Machine) ScanFindSpecial(p, stop, q uint32, esc, nl bool) uint32 {
 		return p
 	}
 	qv = rt.Splat8(q)
-	ev = rt.Splat8(rt.Sel32(esc, 92, q))
-	nv = rt.Splat8(rt.Sel32(nl, 10, q))
-	rv = rt.Splat8(rt.Sel32(nl, 13, q))
+	choice := q
+	if esc {
+		choice = 92
+	}
+	ev = rt.Splat8(choice)
+	choice2 := q
+	if nl {
+		choice2 = 10
+	}
+	nv = rt.Splat8(choice2)
+	choice3 := q
+	if nl {
+		choice3 = 13
+	}
+	rv = rt.Splat8(choice3)
 	for {
 		w = rt.LdV(m.Mem[p:])
 		mask = w.Eq8(qv).Or(w.Eq8(ev)).Or(w.Eq8(nv).Or(w.Eq8(rv))).Bitmask8()
@@ -287,7 +299,10 @@ func (m *Machine) ScanFind3(p uint32, a, b, c bool) uint32 {
 			break
 		}
 	}
-	return rt.Sel32(p < m.End, p, m.End)
+	if p < m.End {
+		return p
+	}
+	return m.End
 }
 
 // UTF8SpanEnd is $utf8SpanEnd.
@@ -620,7 +635,10 @@ func (m *Machine) RecFindSpecial(p uint32) uint32 {
 		}
 		p += 16
 	}
-	return rt.Sel32(p < m.EOF, p, m.EOF)
+	if p < m.EOF {
+		return p
+	}
+	return m.EOF
 }
 
 // RecLinesPost is $recLinesPost.
@@ -1133,7 +1151,13 @@ func (m *Machine) HlBegin() {
 	m.Cap = uint32(len(m.Mem)/rt.PageSize)*0x10000 - 16
 	m.SpanHl = 0xffffffff
 	m.SpanVal = 0
-	m.SpanReserve = 96 + rt.Sel32(m.CSSVariables, binary.LittleEndian.Uint32(m.Mem[18:]), 0)
+	var choice uint32
+	if m.CSSVariables {
+		choice = binary.LittleEndian.Uint32(m.Mem[18:])
+	} else {
+		choice = 0
+	}
+	m.SpanReserve = 96 + choice
 	if m.HTMLOpeners != 0 {
 		m.SpanReserve = binary.LittleEndian.Uint32(m.Mem[m.HTMLOpeners:])
 		m.EnsureCap(binary.LittleEndian.Uint32(m.Mem[m.HTMLOpeners+8:]))
@@ -1554,9 +1578,11 @@ func (m *Machine) LexCString(hl bool) uint32 {
 	lhs := m.Ptr
 	q := uint32(m.Mem[lhs])
 	m.Ptr = lhs + 1
-	t0 := q
 	lexCStringBody := m.LexCStringBody(q, rt.B2u(hl), lhs, false)
-	return rt.Sel32(lexCStringBody == 2, t0, 0)
+	if lexCStringBody == 2 {
+		return q
+	}
+	return 0
 }
 
 // LexLineByteBefore is $lexLineByteBefore.
@@ -1582,11 +1608,9 @@ func (m *Machine) LexLineByteBefore(p uint32) uint32 {
 // LexCStringResume is $lexCStringResume.
 func (m *Machine) LexCStringResume(q bool) uint32 {
 	var t0, lexCStringBody uint32
-	var t1 bool
 	if q {
-		t1 = q
 		lexCStringBody = m.LexCStringBody(rt.B2u(q), TokenString, m.Ptr, false)
-		t0 = rt.B2u(lexCStringBody == 2 && t1)
+		t0 = rt.B2u(lexCStringBody == 2 && q)
 	} else {
 		t0 = 0
 	}
@@ -2094,7 +2118,10 @@ func (m *Machine) LexFindEither(p uint32, a, b bool) uint32 {
 			break
 		}
 	}
-	return rt.Sel32(p < m.End, p, m.End)
+	if p < m.End {
+		return p
+	}
+	return m.End
 }
 
 // LexFindByte is $lexFindByte.
@@ -2114,7 +2141,10 @@ func (m *Machine) LexFindByte(p, a uint32) uint32 {
 			break
 		}
 	}
-	return rt.Sel32(p < m.End, p, m.End)
+	if p < m.End {
+		return p
+	}
+	return m.End
 }
 
 // LexIsTypeGlue is $lexIsTypeGlue.
@@ -2173,7 +2203,10 @@ func (m *Machine) LexIsConstCase(lhs uint32, rhs bool) bool {
 
 // TemplateByte is $templateByte.
 func (m *Machine) TemplateByte(p uint32) uint32 {
-	return rt.Sel32(p < m.End, uint32(m.Mem[p]), 0)
+	if p < m.End {
+		return uint32(m.Mem[p])
+	}
+	return 0
 }
 
 // StringEscapeAt is $stringEscapeAt.

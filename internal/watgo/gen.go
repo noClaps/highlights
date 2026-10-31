@@ -840,6 +840,8 @@ func (g *fgen) genFunc() string {
 		}
 	}
 	body = g.declareAtFirstUse(body, vars, types)
+	body = g.hoistSelects(body, types)
+	body = switchChains(body)
 	var order []string
 	byType := map[string][]string{}
 	var unused []string
@@ -1308,6 +1310,167 @@ func (g *fgen) declareAtFirstUse(body string, vars []Local, types map[string]str
 	return body
 }
 
+// hoistSelects takes each rt.Sel32 or rt.Sel64 out of the expression it
+// sits in, as Go has no conditional expression: return Sel(c, a, b)
+// becomes if c { return a }; return b, and a choice inside another
+// statement is assigned to a variable before it, named after the parameter
+// it is passed to. Expressions call nothing with side effects, so the
+// choice may be made before the rest of the statement.
+func (g *fgen) hoistSelects(body string, types map[string]string) string {
+	taken := map[string]bool{}
+	for _, w := range identRe.FindAllString(body, -1) {
+		taken[w] = true
+	}
+	lines := strings.Split(body, "\n")
+	for i := 0; i < len(lines); i++ {
+		l := lines[i]
+		t := strings.TrimLeft(l, "\t")
+		indent := l[:len(l)-len(t)]
+		at := selCallRe.FindStringIndex(t)
+		if at == nil || strings.HasPrefix(t, "case ") || strings.HasPrefix(t, "for ") {
+			continue
+		}
+		end := matchParen(t, at[1]-1)
+		if end < 0 {
+			continue
+		}
+		// a choice in an else-if condition is made before the chain, when it
+		// reads only locals, which the conditions before it cannot change
+		insertAt := i
+		if strings.HasPrefix(t, "} else if ") {
+			if strings.Contains(t[at[0]:end+1], "m.") {
+				continue
+			}
+			for insertAt--; insertAt >= 0 && !strings.HasPrefix(lines[insertAt], indent+"if "); insertAt-- {
+				if lines[insertAt] != "" && !strings.HasPrefix(lines[insertAt], indent+"\t") && !strings.HasPrefix(lines[insertAt], indent+"} else") {
+					insertAt = -1
+					break
+				}
+			}
+			if insertAt < 0 {
+				continue
+			}
+		}
+		sel, err := parseExpr(t[at[0] : end+1])
+		if err != nil || !isSelect(sel) {
+			continue
+		}
+		c, a, b := sel.args[0], sel.args[1], sel.args[2]
+		var out []string
+		if t == "return "+t[at[0]:end+1] {
+			out = []string{indent + "if " + c.print() + " {", indent + "\treturn " + a.print(), indent + "}", indent + "return " + b.print()}
+		} else {
+			typ := "uint32"
+			if sel.fn == "rt.Sel64" {
+				typ = "uint64"
+			}
+			name := g.choiceName(t, at[0], taken)
+			if bt := g.typeOf(b, types); bt == typ && !isSelect(b) {
+				out = []string{indent + name + " := " + b.print(), indent + "if " + c.print() + " {", indent + "\t" + name + " = " + a.print(), indent + "}"}
+			} else {
+				out = append([]string{indent + "var " + name + " " + typ}, strings.Split(indent+selectStmt(indent, name, "", sel)+"\n"+indent+"}", "\n")...)
+			}
+			if insertAt != i {
+				lines[i] = indent + t[:at[0]] + name + t[end+1:]
+				lines = append(lines[:insertAt], append(out, lines[insertAt:]...)...)
+				i = insertAt - 1 // the new lines may hold further choices
+				continue
+			}
+			out = append(out, indent+t[:at[0]]+name+t[end+1:])
+		}
+		lines = append(lines[:i], append(out, lines[i+1:]...)...)
+		i-- // the new lines may hold further choices
+	}
+	return strings.Join(lines, "\n")
+}
+
+var selCallRe = regexp.MustCompile(`\brt\.Sel(32|64)\(`)
+
+// matchParen returns the index of the parenthesis closing the one at open,
+// or -1.
+func matchParen(s string, open int) int {
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '\'':
+			// a rune literal may hold a parenthesis
+			if j := strings.IndexByte(s[i+1:], '\''); j >= 0 && s[i+1] != '\'' {
+				if s[i+1] == '\\' {
+					j = strings.IndexByte(s[i+3:], '\'') + 2
+				}
+				i += j + 1
+			}
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// choiceName names the variable holding a choice found at pos in a
+// statement: the parameter it is passed to, or "choice".
+func (g *fgen) choiceName(stmt string, pos int, taken map[string]bool) string {
+	name := "choice"
+	// find the call whose argument list the choice starts
+	depth := 0
+	for i := pos - 1; i >= 0; i-- {
+		switch stmt[i] {
+		case ')':
+			depth++
+		case '(':
+			if depth > 0 {
+				depth--
+				continue
+			}
+			if m := regexp.MustCompile(`m\.(\w+)$`).FindStringSubmatch(stmt[:i]); m != nil {
+				if f := g.mod.funcByGoName(m[1]); f != nil {
+					k := strings.Count(argsDepth0(stmt[i+1:pos]), ",")
+					if k < len(f.Params) && f.Params[k].Name != "" {
+						name = camel(f.Params[k].Name[1:])
+					}
+				}
+			}
+			i = 0
+		}
+	}
+	if alt, ok := localAlternatives[name]; ok {
+		name = alt
+	}
+	if goReserved[name] {
+		name += "Choice"
+	}
+	for base, n := name, 2; taken[name]; n++ {
+		name = fmt.Sprintf("%s%d", base, n)
+	}
+	taken[name] = true
+	return name
+}
+
+// argsDepth0 keeps the text of an argument list outside nested
+// parentheses, so its commas separate the arguments.
+func argsDepth0(s string) string {
+	var sb strings.Builder
+	depth := 0
+	for _, r := range s {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		default:
+			if depth == 0 {
+				sb.WriteRune(r)
+			}
+		}
+	}
+	return sb.String()
+}
+
 // typeOf infers the Go type of a generated expression, or "" for an
 // untyped constant or a type it cannot tell.
 func (g *fgen) typeOf(e *expr, types map[string]string) string {
@@ -1605,10 +1768,25 @@ func (g *fgen) asBool(v value) string {
 	return "(" + v.expr + " != 0)"
 }
 
+// readsState reports an operand that reads memory, globals or calls a
+// method, which a call, a store or a global write may change.
+func readsState(v value) bool { return strings.Contains(v.expr, "m.") }
+
+// mentions reports operands that read the local name.
+func mentions(name string) func(value) bool {
+	re := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`)
+	return func(v value) bool { return re.MatchString(v.expr) }
+}
+
 // spill evaluates pending operands into temporaries before a side effect.
-func (g *fgen) spill() {
+func (g *fgen) spill() { g.spillIf(func(value) bool { return true }) }
+
+// spillIf evaluates into temporaries the pending operands a write could
+// change: those that read machine state, for a call or a store, or those
+// that name a local, for an assignment to it.
+func (g *fgen) spillIf(changes func(value) bool) {
 	for i, v := range g.stack {
-		if v.stable || v.isConst {
+		if v.stable || v.isConst || !changes(v) {
 			continue
 		}
 		var t string
@@ -2863,7 +3041,7 @@ func (g *fgen) apply(head string, imms []string) {
 	if op, ok := stores[head]; ok {
 		v := g.pop()
 		addr := g.pop()
-		g.spill()
+		g.spillIf(readsState)
 		at := addrExpr(addr, memOffset(imms))
 		if head == "i32.store8" || head == "i64.store8" {
 			b := "byte(" + trimParens(g.asValue(v)) + ")"
@@ -2896,7 +3074,7 @@ func (g *fgen) apply(head string, imms []string) {
 	case "local.set", "local.tee":
 		v := g.pop()
 		name, t := g.local(imms[0])
-		g.spill()
+		g.spillIf(mentions(name))
 		if g.boolLocals[name] {
 			if !zeroOrOne(v) {
 				g.notBool[name] = true
@@ -2918,7 +3096,7 @@ func (g *fgen) apply(head string, imms []string) {
 	case "global.set":
 		v := g.pop()
 		gl := g.global(imms[0])
-		g.spill()
+		g.spillIf(readsState)
 		if g.flags[gl] {
 			g.line("m.%s = %s", gl.GoName, trimParens(g.asBool(v)))
 		} else {
@@ -2952,7 +3130,7 @@ func (g *fgen) apply(head string, imms []string) {
 			g.push(value{expr: call, typ: f.Results[0], isBool: isBool})
 			return
 		}
-		g.spill()
+		g.spillIf(readsState)
 		if len(f.Results) > 0 {
 			t := g.newTemp(f.Results[0])
 			if isBool {
@@ -3158,19 +3336,19 @@ func (g *fgen) apply(head string, imms []string) {
 		n := g.pop()
 		src := g.pop()
 		dst := g.pop()
-		g.spill()
+		g.spillIf(readsState)
 		g.line("rt.Copy(m.Mem, %s, %s, %s)", g.asValue(dst), g.asValue(src), g.asValue(n))
 	case "memory.fill":
 		n := g.pop()
 		v := g.pop()
 		dst := g.pop()
-		g.spill()
+		g.spillIf(readsState)
 		g.line("rt.Fill(m.Mem, %s, %s, %s)", g.asValue(dst), g.asValue(v), g.asValue(n))
 	case "memory.size":
 		g.push(value{expr: "uint32(len(m.Mem) / rt.PageSize)", typ: I32})
 	case "memory.grow":
 		n := g.pop()
-		g.spill()
+		g.spillIf(readsState)
 		t := g.newTemp(I32)
 		g.line("%s = rt.Grow(&m.Mem, %s)", t, g.asValue(n))
 		g.push(value{expr: t, typ: I32, stable: true})
