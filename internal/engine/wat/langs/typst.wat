@@ -80,6 +80,60 @@
     (call $emitTok (enum.get $Token.text.literal) (local.get $seg) (global.get $ptr))
     (local.get $n))
 
+  ;; a markup text run from $lhs, styled by the emphasis $flags; an
+  ;; `http://` or `https://` link ends it
+  (func $typstText (param $lhs i32) (param $flags i32)
+    (local $p i32)
+    (local $q i32)
+    (local $v i32)
+    (local.set $p (call $typstTextEnd (global.get $ptr)))
+    (local.set $q (local.get $p))
+    (if
+      (i32.and
+        (i32.ge_u (i32.sub (local.get $p) (local.get $lhs)) (i32.const 5))
+        (i32.and
+          (i32.eq (i32.load8_u (i32.sub (local.get $p) (i32.const 1))) (i32.const ":"))
+          (i32.eq (call $templateByte (i32.add (local.get $p) (i32.const 1))) (i32.const "/"))))
+      (then
+        (local.set $q (i32.sub (local.get $p) (i32.const 5)))
+        (if
+          (i32.and
+            (i32.gt_u (local.get $q) (local.get $lhs))
+            (i32.eq (i32.load8_u (i32.sub (local.get $p) (i32.const 2))) (i32.const "s")))
+          (then (local.set $q (i32.sub (local.get $q) (i32.const 1)))))
+        (if (i32.ne (i32.load (local.get $q)) (i32.const "http"))
+          (then (local.set $q (local.get $p))))))
+    (call $emitTok
+      (select
+        (enum.get $Token.title)
+        (select
+          (enum.get $Token.emphasis.strong)
+          (select (enum.get $Token.emphasis) (enum.get $Token.none) (i32.and (local.get $flags) (i32.const 2)))
+          (i32.and (local.get $flags) (i32.const 1)))
+        (i32.and (local.get $flags) (i32.const 4)))
+      (local.get $lhs)
+      (local.get $q))
+    (global.set $ptr (local.get $p))
+    (if (i32.lt_u (local.get $q) (local.get $p))
+      (then
+        (block $urlDone
+          (loop $url
+            (local.set $v (call $templateByte (global.get $ptr)))
+            (br_if $urlDone
+              (i32.or
+                (i32.le_u (local.get $v) (i32.const 32))
+                (i32.or (byteset.get "()<>[]{}" (local.get $v)) (i32.eq (local.get $v) (i32.const 34)))))
+            (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+            (br $url)))
+        ;; a sentence's closing punctuation is not part of the link
+        (loop $trim
+          (local.set $v (i32.load8_u (i32.sub (global.get $ptr) (i32.const 1))))
+          (if (byteset.get ".,:;" (local.get $v))
+            (then
+              (global.set $ptr (i32.sub (global.get $ptr) (i32.const 1)))
+              (br $trim))))
+        (call $emitTok (enum.get $Token.link_uri) (local.get $q) (global.get $ptr)))))
+
   ;; Typst switches between markup, code, and math. $stack holds the open
   ;; modes, three bits each, top in the low bits: 0 the document's markup,
   ;; 1 a `[...]` content block, 2 a `{...}` code block, 3 `(...)` in code,
@@ -333,54 +387,7 @@
                         (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))))
                     (local.set $tok (enum.get $Token.label))
                     (br $emit))))
-              ;; a text run; an `http://` or `https://` link ends it
-              (local.set $p (call $typstTextEnd (global.get $ptr)))
-              (local.set $q (local.get $p))
-              (if
-                (i32.and
-                  (i32.ge_u (i32.sub (local.get $p) (local.get $lhs)) (i32.const 5))
-                  (i32.and
-                    (i32.eq (i32.load8_u (i32.sub (local.get $p) (i32.const 1))) (i32.const ":"))
-                    (i32.eq (call $templateByte (i32.add (local.get $p) (i32.const 1))) (i32.const "/"))))
-                (then
-                  (local.set $q (i32.sub (local.get $p) (i32.const 5)))
-                  (if
-                    (i32.and
-                      (i32.gt_u (local.get $q) (local.get $lhs))
-                      (i32.eq (i32.load8_u (i32.sub (local.get $p) (i32.const 2))) (i32.const "s")))
-                    (then (local.set $q (i32.sub (local.get $q) (i32.const 1)))))
-                  (if (i32.ne (i32.load (local.get $q)) (i32.const "http"))
-                    (then (local.set $q (local.get $p))))))
-              (call $emitTok
-                (select
-                  (enum.get $Token.title)
-                  (select
-                    (enum.get $Token.emphasis.strong)
-                    (select (enum.get $Token.emphasis) (enum.get $Token.none) (i32.and (local.get $flags) (i32.const 2)))
-                    (i32.and (local.get $flags) (i32.const 1)))
-                  (i32.and (local.get $flags) (i32.const 4)))
-                (local.get $lhs)
-                (local.get $q))
-              (global.set $ptr (local.get $p))
-              (if (i32.lt_u (local.get $q) (local.get $p))
-                (then
-                  (block $urlDone
-                    (loop $url
-                      (local.set $v (call $templateByte (global.get $ptr)))
-                      (br_if $urlDone
-                        (i32.or
-                          (i32.le_u (local.get $v) (i32.const 32))
-                          (i32.or (byteset.get "()<>[]{}" (local.get $v)) (i32.eq (local.get $v) (i32.const 34)))))
-                      (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
-                      (br $url)))
-                  ;; a sentence's closing punctuation is not part of the link
-                  (loop $trim
-                    (local.set $v (i32.load8_u (i32.sub (global.get $ptr) (i32.const 1))))
-                    (if (byteset.get ".,:;" (local.get $v))
-                      (then
-                        (global.set $ptr (i32.sub (global.get $ptr) (i32.const 1)))
-                        (br $trim))))
-                  (call $emitTok (enum.get $Token.link_uri) (local.get $q) (global.get $ptr))))
+              (call $typstText (local.get $lhs) (local.get $flags))
               (br $next)))
 
           ;; ---- math ----

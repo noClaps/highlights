@@ -83,6 +83,25 @@
       (then (return (enum.get $Token.keyword.declaration))))
     (i32.const -1))
 
+  ;; the sequence area, columns 1-6 of a fixed-form line, holds digits and
+  ;; blanks: 0 when it does not, 1 when it is blank, 2 when it holds digits
+  (func $cobolSequenceArea (param $lhs i32) (result i32)
+    (local $p i32)
+    (local $c i32)
+    (local $n i32)
+    (local.set $p (local.get $lhs))
+    (local.set $n (i32.const 1))
+    (loop $column
+      (local.set $c (call $templateByte (local.get $p)))
+      (if (i32.ne (local.get $c) (i32.const 32))
+        (then
+          (if (i32.eqz (call $lexIsDigit (local.get $c)))
+            (then (return (i32.const 0))))
+          (local.set $n (i32.const 2))))
+      (local.set $p (i32.add (local.get $p) (i32.const 1)))
+      (br_if $column (i32.lt_u (local.get $p) (i32.add (local.get $lhs) (i32.const 6)))))
+    (local.get $n))
+
   ;; A line is fixed format when columns 1-6 hold digits or blanks and column 7
   ;; an indicator; then columns 1-6 and 73+ are comments. $col: 0 at a line
   ;; start, 1 before a first token in area A, 2 else. $area: the end of the
@@ -126,23 +145,17 @@
 
         (if (i32.eqz (local.get $col))
           (then
-            (local.set $p (local.get $lhs))
-            (local.set $n (i32.const 0))
+            (local.set $n (call $cobolSequenceArea (local.get $lhs)))
+            (local.set $p (i32.add (local.get $lhs) (i32.const 6)))
             (block $free
-              (loop $sequence
-                (local.set $c2 (call $templateByte (local.get $p)))
-                (br_if $free
-                  (i32.eqz (i32.or (i32.eq (local.get $c2) (i32.const 32)) (call $lexIsDigit (local.get $c2)))))
-                (local.set $n (i32.or (local.get $n) (i32.ne (local.get $c2) (i32.const 32))))
-                (local.set $p (i32.add (local.get $p) (i32.const 1)))
-                (br_if $sequence (i32.lt_u (local.get $p) (i32.add (local.get $lhs) (i32.const 6)))))
+              (br_if $free (i32.eqz (local.get $n)))
               (local.set $c2 (call $templateByte (local.get $p)))
               (br_if $free (i32.eqz (byteset.get " *-/Dd" (local.get $c2))))
               (br_if $free
                 (i32.and
                   (i32.eq (i32.or (local.get $c2) (i32.const 32)) (i32.const "d"))
                   (i32.ne (call $templateByte (i32.add (local.get $p) (i32.const 1))) (i32.const 32))))
-              (if (local.get $n)
+              (if (i32.eq (local.get $n) (i32.const 2))
                 (then (call $emitTok (enum.get $Token.comment) (local.get $lhs) (local.get $p)))
                 (else (call $emitGap (local.get $lhs) (local.get $p))))
               (global.set $ptr (local.get $p))

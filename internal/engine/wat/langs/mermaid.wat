@@ -370,90 +370,89 @@
               (br $emit)))
 
           (block $punct
-            (block $shape
-              (if (call $lexIsIdentContinue (local.get $c))
-                (then
-                  (call $scanIdentRun (i32.const "_"))
-                  ;; `-` joins words (`DELIVERY-ADDRESS`, `cherry-pick`) except
-                  ;; in sequence diagrams, where `A-xB` is a link
-                  (loop $words
-                    (if
-                      (i32.and
-                        (i32.ne (local.get $kind) (i32.const 3))
-                        (i32.and
-                          (i32.eq (call $templateByte (global.get $ptr)) (i32.const "-"))
-                          (call $lexIsIdentContinue
-                            (call $templateByte (i32.add (global.get $ptr) (i32.const 1))))))
-                      (then
-                        (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
-                        (call $scanIdentRun (i32.const "_"))
-                        (br $words))))
-                  (local.set $p (global.get $ptr))
-                  (local.set $c2 (call $templateByte (local.get $p)))
-                  (if (call $lexIsDigit (local.get $c))
-                    (then
-                      (call $emitTok (enum.get $Token.number) (local.get $lhs) (local.get $p))
-                      (br $next)))
-                  ;; values in style lists and `@{ ... }` are never keywords;
-                  ;; `style` shares the table hash of `state`
-                  (local.set $v (i32.const -1))
-                  (if (i32.eqz (i32.or (local.get $style) (local.get $attr)))
-                    (then
-                      (local.set $v
-                        (if (result i32)
-                          (i32.and
-                            (i32.eq (i32.sub (local.get $p) (local.get $lhs)) (i32.const 5))
-                            (i64.eq (i64.and (i64.load (local.get $lhs)) (i64.const 0xffffffffff)) (i64.const "style")))
-                          (then (i32.or (enum.get $Token.keyword) (i32.const 512)))
-                          (else (keyword-table.value $mermaidWords (local.get $lhs) (local.get $p)))))))
-                  (if (i32.ge_s (local.get $v) (i32.const 0))
-                    (then
-                      (call $emitTok (i32.and (local.get $v) (i32.const 255)) (local.get $lhs) (local.get $p))
-                      (if (i32.and (local.get $first) (i32.eq (i32.shr_u (local.get $v) (i32.const 8)) (i32.const 1)))
-                        (then
-                          (global.set $ptr (call $lexSkipSpaceAt (local.get $p)))
-                          (call $emitGap (local.get $p) (global.get $ptr))
-                          (local.set $p (global.get $ptr))
-                          (call $scanToLineEnd)
-                          (call $emitTok (enum.get $Token.string) (local.get $p) (global.get $ptr))))
-                      (local.set $style
-                        (i32.or (local.get $style) (i32.eq (i32.shr_u (local.get $v) (i32.const 8)) (i32.const 2))))
-                      (br $next)))
-                  ;; `TD`, `LR`, and other directions
+            (if (call $lexIsIdentContinue (local.get $c))
+              (then
+                (call $scanIdentRun (i32.const "_"))
+                ;; `-` joins words (`DELIVERY-ADDRESS`, `cherry-pick`) except
+                ;; in sequence diagrams, where `A-xB` is a link
+                (loop $words
                   (if
                     (i32.and
-                      (i32.eq (i32.sub (local.get $p) (local.get $lhs)) (i32.const 2))
+                      (i32.ne (local.get $kind) (i32.const 3))
+                      (i32.and
+                        (i32.eq (call $templateByte (global.get $ptr)) (i32.const "-"))
+                        (call $lexIsIdentContinue
+                          (call $templateByte (i32.add (global.get $ptr) (i32.const 1))))))
+                    (then
+                      (global.set $ptr (i32.add (global.get $ptr) (i32.const 1)))
+                      (call $scanIdentRun (i32.const "_"))
+                      (br $words))))
+                (local.set $p (global.get $ptr))
+                (local.set $c2 (call $templateByte (local.get $p)))
+                (if (call $lexIsDigit (local.get $c))
+                  (then
+                    (call $emitTok (enum.get $Token.number) (local.get $lhs) (local.get $p))
+                    (br $next)))
+                ;; values in style lists and `@{ ... }` are never keywords;
+                ;; `style` shares the table hash of `state`
+                (local.set $v (i32.const -1))
+                (if (i32.eqz (i32.or (local.get $style) (local.get $attr)))
+                  (then
+                    (local.set $v
+                      (if (result i32)
+                        (i32.and
+                          (i32.eq (i32.sub (local.get $p) (local.get $lhs)) (i32.const 5))
+                          (i64.eq (i64.and (i64.load (local.get $lhs)) (i64.const 0xffffffffff)) (i64.const "style")))
+                        (then (i32.or (enum.get $Token.keyword) (i32.const 512)))
+                        (else (keyword-table.value $mermaidWords (local.get $lhs) (local.get $p)))))))
+                (if (i32.ge_s (local.get $v) (i32.const 0))
+                  (then
+                    (call $emitTok (i32.and (local.get $v) (i32.const 255)) (local.get $lhs) (local.get $p))
+                    (if (i32.and (local.get $first) (i32.eq (i32.shr_u (local.get $v) (i32.const 8)) (i32.const 1)))
+                      (then
+                        (global.set $ptr (call $lexSkipSpaceAt (local.get $p)))
+                        (call $emitGap (local.get $p) (global.get $ptr))
+                        (local.set $p (global.get $ptr))
+                        (call $scanToLineEnd)
+                        (call $emitTok (enum.get $Token.string) (local.get $p) (global.get $ptr))))
+                    (local.set $style
+                      (i32.or (local.get $style) (i32.eq (i32.shr_u (local.get $v) (i32.const 8)) (i32.const 2))))
+                    (br $next)))
+                ;; `TD`, `LR`, and other directions
+                (if
+                  (i32.and
+                    (i32.eq (i32.sub (local.get $p) (local.get $lhs)) (i32.const 2))
+                    (i32.or
                       (i32.or
-                        (i32.or
-                          (i32.eq (local.tee $q (i32.load16_u (local.get $lhs))) (i32.const "TD"))
-                          (i32.eq (local.get $q) (i32.const "TB")))
-                        (i32.or
-                          (i32.or (i32.eq (local.get $q) (i32.const "BT")) (i32.eq (local.get $q) (i32.const "RL")))
-                          (i32.eq (local.get $q) (i32.const "LR")))))
-                    (then
-                      (call $emitTok (enum.get $Token.constant) (local.get $lhs) (local.get $p))
-                      (br $next)))
-                  (if (i32.and (i32.eq (local.get $c2) (i32.const ":")) (i32.or (local.get $style) (local.get $attr)))
-                    (then
-                      (call $emitTok (enum.get $Token.property) (local.get $lhs) (local.get $p))
-                      (br $next)))
-                  (if (i32.eq (local.get $kind) (i32.const 2))
-                    (then
-                      (call $emitTok
-                        (select (enum.get $Token.function) (enum.get $Token.variable) (i32.eq (local.get $c2) (i32.const "(")))
-                        (local.get $lhs)
-                        (local.get $p))
-                      (br $next)))
-                  (call $emitTok (enum.get $Token.variable) (local.get $lhs) (local.get $p))
-                  ;; a node id glued to its shape: `A[text]`, `B((text))`, `C{text}`, `D>text]`
-                  (br_if $shape (i32.or (byteset.get "([{" (local.get $c2)) (i32.eq (local.get $c2) (i32.const ">"))))
-                  (br $next)))
-              ;; a bare `[text]` or `(text)` node, as in mindmaps
-              (br_if $punct
-                (i32.or
-                  (i32.eq (local.get $kind) (i32.const 2))
-                  (i32.and (i32.ne (local.get $c) (i32.const "[")) (i32.ne (local.get $c) (i32.const "(")))))
-              (local.set $p (local.get $lhs)))
+                        (i32.eq (local.tee $q (i32.load16_u (local.get $lhs))) (i32.const "TD"))
+                        (i32.eq (local.get $q) (i32.const "TB")))
+                      (i32.or
+                        (i32.or (i32.eq (local.get $q) (i32.const "BT")) (i32.eq (local.get $q) (i32.const "RL")))
+                        (i32.eq (local.get $q) (i32.const "LR")))))
+                  (then
+                    (call $emitTok (enum.get $Token.constant) (local.get $lhs) (local.get $p))
+                    (br $next)))
+                (if (i32.and (i32.eq (local.get $c2) (i32.const ":")) (i32.or (local.get $style) (local.get $attr)))
+                  (then
+                    (call $emitTok (enum.get $Token.property) (local.get $lhs) (local.get $p))
+                    (br $next)))
+                (if (i32.eq (local.get $kind) (i32.const 2))
+                  (then
+                    (call $emitTok
+                      (select (enum.get $Token.function) (enum.get $Token.variable) (i32.eq (local.get $c2) (i32.const "(")))
+                      (local.get $lhs)
+                      (local.get $p))
+                    (br $next)))
+                (call $emitTok (enum.get $Token.variable) (local.get $lhs) (local.get $p))
+                ;; a node id glued to its shape: `A[text]`, `B((text))`, `C{text}`, `D>text]`
+                (br_if $next (i32.eqz (i32.or (byteset.get "([{" (local.get $c2)) (i32.eq (local.get $c2) (i32.const ">"))))))
+              (else
+                ;; a bare `[text]` or `(text)` node, as in mindmaps
+                (br_if $punct
+                  (i32.or
+                    (i32.eq (local.get $kind) (i32.const 2))
+                    (i32.and (i32.ne (local.get $c) (i32.const "[")) (i32.ne (local.get $c) (i32.const "(")))))
+                (local.set $p (local.get $lhs))))
             ;; shape openers `[[`, `[(`, `((`, `{{`, `[/`; the label is one
             ;; quoted string or runs to the closer of the last opener bracket on
             ;; this line
