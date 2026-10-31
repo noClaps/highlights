@@ -2076,51 +2076,51 @@ func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 	if c == 117 {
 		t0 = m.ScanHexRun(e, 4)
 		e = t0
-		goto done
-	}
-	if c == 85 {
-		t1 = m.ScanHexRun(e, 8)
-		e = t1
-		goto done
-	}
-	if c == 120 {
-		t2 = m.ScanHexRun(e, 64)
-		e = t2
-		goto done
-	}
-	if (c == 78) && ((e < m.End) && (rt.Ld8(m.Mem, int(e)) == 123)) {
-		e = e + 1
-	named:
-		for {
-			if e >= m.End {
-				goto done
+	} else {
+		if c == 85 {
+			t1 = m.ScanHexRun(e, 8)
+			e = t1
+		} else {
+			if c == 120 {
+				t2 = m.ScanHexRun(e, 64)
+				e = t2
+			} else {
+				if (c == 78) && ((e < m.End) && (rt.Ld8(m.Mem, int(e)) == 123)) {
+					e = e + 1
+				named:
+					for {
+						if e >= m.End {
+							goto done
+						}
+						c = rt.Ld8(m.Mem, int(e))
+						if ((c == 10) || (c == 13)) || ((c == 34) || ((c == 39) || (c == 92))) {
+							goto done
+						}
+						e = e + 1
+						if c == 125 {
+							goto done
+						}
+						continue named
+					}
+				}
+				if (c - 48) <= 7 {
+				oct:
+					for {
+						if (e >= m.End) || ((e - p) >= 4) {
+							goto done
+						}
+						if (rt.Ld8(m.Mem, int(e)) - 48) > 7 {
+							goto done
+						}
+						e = e + 1
+						continue oct
+					}
+				}
+				t3 = m.LexEscapeEnd(p)
+				e = t3
 			}
-			c = rt.Ld8(m.Mem, int(e))
-			if ((c == 10) || (c == 13)) || ((c == 34) || ((c == 39) || (c == 92))) {
-				goto done
-			}
-			e = e + 1
-			if c == 125 {
-				goto done
-			}
-			continue named
 		}
 	}
-	if (c - 48) <= 7 {
-	oct:
-		for {
-			if (e >= m.End) || ((e - p) >= 4) {
-				goto done
-			}
-			if (rt.Ld8(m.Mem, int(e)) - 48) > 7 {
-				goto done
-			}
-			e = e + 1
-			continue oct
-		}
-	}
-	t3 = m.LexEscapeEnd(p)
-	e = t3
 done:
 	t4 = m.Utf8SpanEnd(e, m.End)
 	return t4
@@ -2987,20 +2987,15 @@ l:
 			break l
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
-		if (c - 48) <= 9 {
-			goto consume
+		if (c - 48) > 9 {
+			if c != 46 {
+				if (c | 32) != 101 {
+					if !(((c == 43) || (c == 45)) && ((prev | 32) == 101)) {
+						break l
+					}
+				}
+			}
 		}
-		if c == 46 {
-			goto consume
-		}
-		if (c | 32) == 101 {
-			goto consume
-		}
-		if ((c == 43) || (c == 45)) && ((prev | 32) == 101) {
-			goto consume
-		}
-		break l
-	consume:
 		prev = c
 		m.Ptr = m.Ptr + 1
 		continue l
@@ -3716,194 +3711,192 @@ next:
 				m.EmitTok(25, lhs, m.Ptr)
 				continue next
 			}
-			goto misc
-		}
-		if mode == 2 {
-			t22 = m.CssDialect == 1
-			t23 = (c == 46) || (c == 35)
-			t24 = m.CssIdentStart(c2)
-			if (rt.B2u(t22) & (rt.B2u(t23) & t24)) != 0 {
+		} else {
+			if mode == 2 {
+				t22 = m.CssDialect == 1
+				t23 = (c == 46) || (c == 35)
+				t24 = m.CssIdentStart(c2)
+				if (rt.B2u(t22) & (rt.B2u(t23) & t24)) != 0 {
+					m.Ptr = m.Ptr + 1
+					m.CssScanIdent()
+					m.EmitTok(rt.Sel32((c == 46), 42, 43), lhs, m.Ptr)
+					continue next
+				}
+				t25 = m.CssIdentStart(c)
+				if (t25 | rt.B2u(c == 45)) != 0 {
+					m.CssScanIdent()
+					m.EmitTok(rt.Sel32(((c == 45) && (c2 == 45)), 58, 29), lhs, m.Ptr)
+					if false {
+						mode = 3
+					}
+					continue next
+				}
+				if c == 58 {
+					mode = 3
+					m.Ptr = m.Ptr + 1
+					m.EmitTok(35, lhs, m.Ptr)
+					continue next
+				}
+			}
+			t26 = m.CssIdentStart(c)
+			t27 = c == 45
+			t28 = m.CssIdentStart(c2)
+			if (t26 | (rt.B2u(t27) & (t28 | rt.B2u(c2 == 45)))) != 0 {
+				m.CssScanIdent()
+				if (c == 45) && (c2 == 45) {
+					m.EmitTok(58, lhs, m.Ptr)
+					continue next
+				}
+				if false {
+					t29 = m.LexKeywordValue(lhs, m.Ptr, 58224, 15, 50)
+					p = t29
+					if p < 256 {
+						m.EmitTok(p, lhs, m.Ptr)
+						continue next
+					}
+				}
+				t30 = mode == 1
+				t31 = m.CssIsQueryOp(lhs, m.Ptr)
+				if (rt.B2u(t30) & t31) != 0 {
+					m.EmitTok(21, lhs, m.Ptr)
+					continue next
+				}
+				if (rt.B2u(mode == 1) & fnPrelude) != 0 {
+					fnPrelude = 0
+					m.EmitTok(14, lhs, m.Ptr)
+					continue next
+				}
+				if (m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 40) {
+					if ((m.Ptr - lhs) == 3) && ((rt.Ld32(m.Mem, int(lhs)) | 0x20202020) == 0x286c7275) {
+						m.EmitTok(14, lhs, m.Ptr)
+						lhs = m.Ptr
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(32, lhs, m.Ptr)
+						p = m.Ptr
+					uWs:
+						for {
+							if p >= m.End {
+								break uWs
+							}
+							c2 = rt.Ld8(m.Mem, int(p))
+							if (c2 != 32) && (c2 != 9) {
+								break uWs
+							}
+							p = p + 1
+							continue uWs
+						}
+						if (rt.B2u(p < m.End) & (rt.Clz32((rt.Ld8(m.Mem, int(c2)+1424) & 64)) >> 5)) != 0 {
+							m.EmitGap(m.Ptr, p)
+							m.Ptr = p
+							lhs = p
+						urlWide:
+							for {
+								if m.Ptr >= m.End {
+									break urlWide
+								}
+								urlW = rt.LdV(m.Mem, int(m.Ptr))
+								urlMask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(urlW, rt.Splat8(9)), rt.Splat8(4)), rt.Eq8(urlW, rt.Splat8(32))), rt.Or(rt.Or(rt.Eq8(urlW, rt.Splat8(34)), rt.Eq8(urlW, rt.Splat8(39))), rt.Eq8(urlW, rt.Splat8(41)))))
+								urlRem = m.End - m.Ptr
+								if urlRem < 16 {
+									urlMask = urlMask & ((uint32(1) << (urlRem & 31)) - 1)
+								}
+								if urlMask != 0 {
+									m.Ptr = m.Ptr + rt.Ctz32(urlMask)
+									break urlWide
+								}
+								if urlRem <= 16 {
+									m.Ptr = m.End
+									break urlWide
+								}
+								m.Ptr = m.Ptr + 16
+								continue urlWide
+							}
+							m.EmitTok(7, lhs, m.Ptr)
+						}
+						continue next
+					}
+					m.EmitTok(14, lhs, m.Ptr)
+					continue next
+				}
+				if (rt.B2u(mode == 1) & namespace) != 0 {
+					namespace = 0
+					m.EmitTok(23, lhs, m.Ptr)
+					continue next
+				}
+				if mode == 1 {
+					p = m.Ptr
+				aWs:
+					for {
+						if p >= m.End {
+							break aWs
+						}
+						c2 = rt.Ld8(m.Mem, int(p))
+						if (c2 != 32) && (c2 != 9) {
+							break aWs
+						}
+						p = p + 1
+						continue aWs
+					}
+					if (p < m.End) && (c2 == 58) {
+						m.EmitTok(29, lhs, m.Ptr)
+						continue next
+					}
+					t32 = m.CssIsQueryOp(lhs, m.Ptr)
+					if t32 != 0 {
+						m.EmitTok(21, lhs, m.Ptr)
+						continue next
+					}
+				}
+				m.EmitTok(7, lhs, m.Ptr)
+				continue next
+			}
+			if (c - 48) <= 9 {
+				m.Ptr = m.Ptr + 1
+				m.CssScanNumber()
+				m.EmitTok(24, lhs, m.Ptr)
+				continue next
+			}
+			if (c == 46) && ((c2 - 48) <= 9) {
+				m.Ptr = m.Ptr + 1
+				m.CssScanNumber()
+				m.EmitTok(24, lhs, m.Ptr)
+				continue next
+			}
+			if ((c == 43) || (c == 45)) && (((c2 - 48) <= 9) || ((c2 == 46) && (((m.Ptr + 2) < m.End) && ((rt.Ld8(m.Mem, int(m.Ptr)+2) - 48) <= 9)))) {
+				m.Ptr = m.Ptr + 1
+				m.CssScanNumber()
+				m.EmitTok(24, lhs, m.Ptr)
+				continue next
+			}
+			if c == 35 {
 				m.Ptr = m.Ptr + 1
 				m.CssScanIdent()
-				m.EmitTok(rt.Sel32((c == 46), 42, 43), lhs, m.Ptr)
+				m.EmitTok(47, lhs, m.Ptr)
 				continue next
 			}
-			t25 = m.CssIdentStart(c)
-			if (t25 | rt.B2u(c == 45)) != 0 {
+			if c == 33 {
+				m.Ptr = m.Ptr + 1
+				mid = m.Ptr
 				m.CssScanIdent()
-				m.EmitTok(rt.Sel32(((c == 45) && (c2 == 45)), 58, 29), lhs, m.Ptr)
-				if false {
-					mode = 3
-				}
+				m.EmitTok(rt.Sel32((m.Ptr > mid), 17, 25), lhs, m.Ptr)
 				continue next
 			}
-			if c == 58 {
-				mode = 3
+			if (c == 44) || (c == 58) {
 				m.Ptr = m.Ptr + 1
 				m.EmitTok(35, lhs, m.Ptr)
 				continue next
 			}
-		}
-		t26 = m.CssIdentStart(c)
-		t27 = c == 45
-		t28 = m.CssIdentStart(c2)
-		if (t26 | (rt.B2u(t27) & (t28 | rt.B2u(c2 == 45)))) != 0 {
-			m.CssScanIdent()
-			if (c == 45) && (c2 == 45) {
-				m.EmitTok(58, lhs, m.Ptr)
+			if ((c == 40) || (c == 41)) || ((c == 91) || (c == 93)) {
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(32, lhs, m.Ptr)
 				continue next
 			}
-			if false {
-				t29 = m.LexKeywordValue(lhs, m.Ptr, 58224, 15, 50)
-				p = t29
-				if p < 256 {
-					m.EmitTok(p, lhs, m.Ptr)
-					continue next
-				}
-			}
-			t30 = mode == 1
-			t31 = m.CssIsQueryOp(lhs, m.Ptr)
-			if (rt.B2u(t30) & t31) != 0 {
-				m.EmitTok(21, lhs, m.Ptr)
+			if (rt.Ld8(m.Mem, int(c)+1424) & 128) != 0 {
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(25, lhs, m.Ptr)
 				continue next
 			}
-			if (rt.B2u(mode == 1) & fnPrelude) != 0 {
-				fnPrelude = 0
-				m.EmitTok(14, lhs, m.Ptr)
-				continue next
-			}
-			if (m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 40) {
-				if ((m.Ptr - lhs) == 3) && ((rt.Ld32(m.Mem, int(lhs)) | 0x20202020) == 0x286c7275) {
-					m.EmitTok(14, lhs, m.Ptr)
-					lhs = m.Ptr
-					m.Ptr = m.Ptr + 1
-					m.EmitTok(32, lhs, m.Ptr)
-					p = m.Ptr
-				uWs:
-					for {
-						if p >= m.End {
-							break uWs
-						}
-						c2 = rt.Ld8(m.Mem, int(p))
-						if (c2 != 32) && (c2 != 9) {
-							break uWs
-						}
-						p = p + 1
-						continue uWs
-					}
-					if (rt.B2u(p < m.End) & (rt.Clz32((rt.Ld8(m.Mem, int(c2)+1424) & 64)) >> 5)) != 0 {
-						m.EmitGap(m.Ptr, p)
-						m.Ptr = p
-						lhs = p
-					urlWide:
-						for {
-							if m.Ptr >= m.End {
-								break urlWide
-							}
-							urlW = rt.LdV(m.Mem, int(m.Ptr))
-							urlMask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(urlW, rt.Splat8(9)), rt.Splat8(4)), rt.Eq8(urlW, rt.Splat8(32))), rt.Or(rt.Or(rt.Eq8(urlW, rt.Splat8(34)), rt.Eq8(urlW, rt.Splat8(39))), rt.Eq8(urlW, rt.Splat8(41)))))
-							urlRem = m.End - m.Ptr
-							if urlRem < 16 {
-								urlMask = urlMask & ((uint32(1) << (urlRem & 31)) - 1)
-							}
-							if urlMask != 0 {
-								m.Ptr = m.Ptr + rt.Ctz32(urlMask)
-								break urlWide
-							}
-							if urlRem <= 16 {
-								m.Ptr = m.End
-								break urlWide
-							}
-							m.Ptr = m.Ptr + 16
-							continue urlWide
-						}
-						m.EmitTok(7, lhs, m.Ptr)
-					}
-					continue next
-				}
-				m.EmitTok(14, lhs, m.Ptr)
-				continue next
-			}
-			if (rt.B2u(mode == 1) & namespace) != 0 {
-				namespace = 0
-				m.EmitTok(23, lhs, m.Ptr)
-				continue next
-			}
-			if mode == 1 {
-				p = m.Ptr
-			aWs:
-				for {
-					if p >= m.End {
-						break aWs
-					}
-					c2 = rt.Ld8(m.Mem, int(p))
-					if (c2 != 32) && (c2 != 9) {
-						break aWs
-					}
-					p = p + 1
-					continue aWs
-				}
-				if (p < m.End) && (c2 == 58) {
-					m.EmitTok(29, lhs, m.Ptr)
-					continue next
-				}
-				t32 = m.CssIsQueryOp(lhs, m.Ptr)
-				if t32 != 0 {
-					m.EmitTok(21, lhs, m.Ptr)
-					continue next
-				}
-			}
-			m.EmitTok(7, lhs, m.Ptr)
-			continue next
 		}
-		if (c - 48) <= 9 {
-			m.Ptr = m.Ptr + 1
-			m.CssScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			continue next
-		}
-		if (c == 46) && ((c2 - 48) <= 9) {
-			m.Ptr = m.Ptr + 1
-			m.CssScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			continue next
-		}
-		if ((c == 43) || (c == 45)) && (((c2 - 48) <= 9) || ((c2 == 46) && (((m.Ptr + 2) < m.End) && ((rt.Ld8(m.Mem, int(m.Ptr)+2) - 48) <= 9)))) {
-			m.Ptr = m.Ptr + 1
-			m.CssScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			continue next
-		}
-		if c == 35 {
-			m.Ptr = m.Ptr + 1
-			m.CssScanIdent()
-			m.EmitTok(47, lhs, m.Ptr)
-			continue next
-		}
-		if c == 33 {
-			m.Ptr = m.Ptr + 1
-			mid = m.Ptr
-			m.CssScanIdent()
-			m.EmitTok(rt.Sel32((m.Ptr > mid), 17, 25), lhs, m.Ptr)
-			continue next
-		}
-		if (c == 44) || (c == 58) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			continue next
-		}
-		if ((c == 40) || (c == 41)) || ((c == 91) || (c == 93)) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+1424) & 128) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(25, lhs, m.Ptr)
-			continue next
-		}
-		goto misc
-	misc:
 		m.Ptr = m.Ptr + 1
 		m.EmitTok(0, lhs, m.Ptr)
 		continue next
@@ -4280,193 +4273,191 @@ next:
 				m.EmitTok(25, lhs, m.Ptr)
 				continue next
 			}
-			goto misc
-		}
-		if mode == 2 {
-			t18 = (c == 46) || (c == 35)
-			t19 = m.CssIdentStart(c2)
-			if (rt.B2u(false) & (rt.B2u(t18) & t19)) != 0 {
+		} else {
+			if mode == 2 {
+				t18 = (c == 46) || (c == 35)
+				t19 = m.CssIdentStart(c2)
+				if (rt.B2u(false) & (rt.B2u(t18) & t19)) != 0 {
+					m.Ptr = m.Ptr + 1
+					m.CssScanIdent()
+					m.EmitTok(rt.Sel32((c == 46), 42, 43), lhs, m.Ptr)
+					continue next
+				}
+				t20 = m.CssIdentStart(c)
+				if (t20 | rt.B2u(c == 45)) != 0 {
+					m.CssScanIdent()
+					m.EmitTok(rt.Sel32(((c == 45) && (c2 == 45)), 58, 29), lhs, m.Ptr)
+					if true {
+						mode = 3
+					}
+					continue next
+				}
+				if c == 58 {
+					mode = 3
+					m.Ptr = m.Ptr + 1
+					m.EmitTok(35, lhs, m.Ptr)
+					continue next
+				}
+			}
+			t21 = m.CssIdentStart(c)
+			t22 = c == 45
+			t23 = m.CssIdentStart(c2)
+			if (t21 | (rt.B2u(t22) & (t23 | rt.B2u(c2 == 45)))) != 0 {
+				m.CssScanIdent()
+				if (c == 45) && (c2 == 45) {
+					m.EmitTok(58, lhs, m.Ptr)
+					continue next
+				}
+				if true {
+					t24 = m.LexKeywordValue(lhs, m.Ptr, 58224, 15, 50)
+					p = t24
+					if p < 256 {
+						m.EmitTok(p, lhs, m.Ptr)
+						continue next
+					}
+				}
+				t25 = mode == 1
+				t26 = m.CssIsQueryOp(lhs, m.Ptr)
+				if (rt.B2u(t25) & t26) != 0 {
+					m.EmitTok(21, lhs, m.Ptr)
+					continue next
+				}
+				if (rt.B2u(mode == 1) & fnPrelude) != 0 {
+					fnPrelude = 0
+					m.EmitTok(14, lhs, m.Ptr)
+					continue next
+				}
+				if (m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 40) {
+					if ((m.Ptr - lhs) == 3) && ((rt.Ld32(m.Mem, int(lhs)) | 0x20202020) == 0x286c7275) {
+						m.EmitTok(14, lhs, m.Ptr)
+						lhs = m.Ptr
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(32, lhs, m.Ptr)
+						p = m.Ptr
+					uWs:
+						for {
+							if p >= m.End {
+								break uWs
+							}
+							c2 = rt.Ld8(m.Mem, int(p))
+							if (c2 != 32) && (c2 != 9) {
+								break uWs
+							}
+							p = p + 1
+							continue uWs
+						}
+						if (rt.B2u(p < m.End) & (rt.Clz32((rt.Ld8(m.Mem, int(c2)+1424) & 64)) >> 5)) != 0 {
+							m.EmitGap(m.Ptr, p)
+							m.Ptr = p
+							lhs = p
+						urlWide:
+							for {
+								if m.Ptr >= m.End {
+									break urlWide
+								}
+								urlW = rt.LdV(m.Mem, int(m.Ptr))
+								urlMask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(urlW, rt.Splat8(9)), rt.Splat8(4)), rt.Eq8(urlW, rt.Splat8(32))), rt.Or(rt.Or(rt.Eq8(urlW, rt.Splat8(34)), rt.Eq8(urlW, rt.Splat8(39))), rt.Eq8(urlW, rt.Splat8(41)))))
+								urlRem = m.End - m.Ptr
+								if urlRem < 16 {
+									urlMask = urlMask & ((uint32(1) << (urlRem & 31)) - 1)
+								}
+								if urlMask != 0 {
+									m.Ptr = m.Ptr + rt.Ctz32(urlMask)
+									break urlWide
+								}
+								if urlRem <= 16 {
+									m.Ptr = m.End
+									break urlWide
+								}
+								m.Ptr = m.Ptr + 16
+								continue urlWide
+							}
+							m.EmitTok(7, lhs, m.Ptr)
+						}
+						continue next
+					}
+					m.EmitTok(14, lhs, m.Ptr)
+					continue next
+				}
+				if (rt.B2u(mode == 1) & namespace) != 0 {
+					namespace = 0
+					m.EmitTok(23, lhs, m.Ptr)
+					continue next
+				}
+				if mode == 1 {
+					p = m.Ptr
+				aWs:
+					for {
+						if p >= m.End {
+							break aWs
+						}
+						c2 = rt.Ld8(m.Mem, int(p))
+						if (c2 != 32) && (c2 != 9) {
+							break aWs
+						}
+						p = p + 1
+						continue aWs
+					}
+					if (p < m.End) && (c2 == 58) {
+						m.EmitTok(29, lhs, m.Ptr)
+						continue next
+					}
+					t27 = m.CssIsQueryOp(lhs, m.Ptr)
+					if t27 != 0 {
+						m.EmitTok(21, lhs, m.Ptr)
+						continue next
+					}
+				}
+				m.EmitTok(7, lhs, m.Ptr)
+				continue next
+			}
+			if (c - 48) <= 9 {
+				m.Ptr = m.Ptr + 1
+				m.CssScanNumber()
+				m.EmitTok(24, lhs, m.Ptr)
+				continue next
+			}
+			if (c == 46) && ((c2 - 48) <= 9) {
+				m.Ptr = m.Ptr + 1
+				m.CssScanNumber()
+				m.EmitTok(24, lhs, m.Ptr)
+				continue next
+			}
+			if ((c == 43) || (c == 45)) && (((c2 - 48) <= 9) || ((c2 == 46) && (((m.Ptr + 2) < m.End) && ((rt.Ld8(m.Mem, int(m.Ptr)+2) - 48) <= 9)))) {
+				m.Ptr = m.Ptr + 1
+				m.CssScanNumber()
+				m.EmitTok(24, lhs, m.Ptr)
+				continue next
+			}
+			if c == 35 {
 				m.Ptr = m.Ptr + 1
 				m.CssScanIdent()
-				m.EmitTok(rt.Sel32((c == 46), 42, 43), lhs, m.Ptr)
+				m.EmitTok(47, lhs, m.Ptr)
 				continue next
 			}
-			t20 = m.CssIdentStart(c)
-			if (t20 | rt.B2u(c == 45)) != 0 {
+			if c == 33 {
+				m.Ptr = m.Ptr + 1
+				mid = m.Ptr
 				m.CssScanIdent()
-				m.EmitTok(rt.Sel32(((c == 45) && (c2 == 45)), 58, 29), lhs, m.Ptr)
-				if true {
-					mode = 3
-				}
+				m.EmitTok(rt.Sel32((m.Ptr > mid), 17, 25), lhs, m.Ptr)
 				continue next
 			}
-			if c == 58 {
-				mode = 3
+			if (c == 44) || (c == 58) {
 				m.Ptr = m.Ptr + 1
 				m.EmitTok(35, lhs, m.Ptr)
 				continue next
 			}
-		}
-		t21 = m.CssIdentStart(c)
-		t22 = c == 45
-		t23 = m.CssIdentStart(c2)
-		if (t21 | (rt.B2u(t22) & (t23 | rt.B2u(c2 == 45)))) != 0 {
-			m.CssScanIdent()
-			if (c == 45) && (c2 == 45) {
-				m.EmitTok(58, lhs, m.Ptr)
+			if ((c == 40) || (c == 41)) || ((c == 91) || (c == 93)) {
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(32, lhs, m.Ptr)
 				continue next
 			}
-			if true {
-				t24 = m.LexKeywordValue(lhs, m.Ptr, 58224, 15, 50)
-				p = t24
-				if p < 256 {
-					m.EmitTok(p, lhs, m.Ptr)
-					continue next
-				}
-			}
-			t25 = mode == 1
-			t26 = m.CssIsQueryOp(lhs, m.Ptr)
-			if (rt.B2u(t25) & t26) != 0 {
-				m.EmitTok(21, lhs, m.Ptr)
+			if (rt.Ld8(m.Mem, int(c)+1424) & 128) != 0 {
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(25, lhs, m.Ptr)
 				continue next
 			}
-			if (rt.B2u(mode == 1) & fnPrelude) != 0 {
-				fnPrelude = 0
-				m.EmitTok(14, lhs, m.Ptr)
-				continue next
-			}
-			if (m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 40) {
-				if ((m.Ptr - lhs) == 3) && ((rt.Ld32(m.Mem, int(lhs)) | 0x20202020) == 0x286c7275) {
-					m.EmitTok(14, lhs, m.Ptr)
-					lhs = m.Ptr
-					m.Ptr = m.Ptr + 1
-					m.EmitTok(32, lhs, m.Ptr)
-					p = m.Ptr
-				uWs:
-					for {
-						if p >= m.End {
-							break uWs
-						}
-						c2 = rt.Ld8(m.Mem, int(p))
-						if (c2 != 32) && (c2 != 9) {
-							break uWs
-						}
-						p = p + 1
-						continue uWs
-					}
-					if (rt.B2u(p < m.End) & (rt.Clz32((rt.Ld8(m.Mem, int(c2)+1424) & 64)) >> 5)) != 0 {
-						m.EmitGap(m.Ptr, p)
-						m.Ptr = p
-						lhs = p
-					urlWide:
-						for {
-							if m.Ptr >= m.End {
-								break urlWide
-							}
-							urlW = rt.LdV(m.Mem, int(m.Ptr))
-							urlMask = rt.Bitmask8(rt.Or(rt.Or(rt.LeU8(rt.Sub8(urlW, rt.Splat8(9)), rt.Splat8(4)), rt.Eq8(urlW, rt.Splat8(32))), rt.Or(rt.Or(rt.Eq8(urlW, rt.Splat8(34)), rt.Eq8(urlW, rt.Splat8(39))), rt.Eq8(urlW, rt.Splat8(41)))))
-							urlRem = m.End - m.Ptr
-							if urlRem < 16 {
-								urlMask = urlMask & ((uint32(1) << (urlRem & 31)) - 1)
-							}
-							if urlMask != 0 {
-								m.Ptr = m.Ptr + rt.Ctz32(urlMask)
-								break urlWide
-							}
-							if urlRem <= 16 {
-								m.Ptr = m.End
-								break urlWide
-							}
-							m.Ptr = m.Ptr + 16
-							continue urlWide
-						}
-						m.EmitTok(7, lhs, m.Ptr)
-					}
-					continue next
-				}
-				m.EmitTok(14, lhs, m.Ptr)
-				continue next
-			}
-			if (rt.B2u(mode == 1) & namespace) != 0 {
-				namespace = 0
-				m.EmitTok(23, lhs, m.Ptr)
-				continue next
-			}
-			if mode == 1 {
-				p = m.Ptr
-			aWs:
-				for {
-					if p >= m.End {
-						break aWs
-					}
-					c2 = rt.Ld8(m.Mem, int(p))
-					if (c2 != 32) && (c2 != 9) {
-						break aWs
-					}
-					p = p + 1
-					continue aWs
-				}
-				if (p < m.End) && (c2 == 58) {
-					m.EmitTok(29, lhs, m.Ptr)
-					continue next
-				}
-				t27 = m.CssIsQueryOp(lhs, m.Ptr)
-				if t27 != 0 {
-					m.EmitTok(21, lhs, m.Ptr)
-					continue next
-				}
-			}
-			m.EmitTok(7, lhs, m.Ptr)
-			continue next
 		}
-		if (c - 48) <= 9 {
-			m.Ptr = m.Ptr + 1
-			m.CssScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			continue next
-		}
-		if (c == 46) && ((c2 - 48) <= 9) {
-			m.Ptr = m.Ptr + 1
-			m.CssScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			continue next
-		}
-		if ((c == 43) || (c == 45)) && (((c2 - 48) <= 9) || ((c2 == 46) && (((m.Ptr + 2) < m.End) && ((rt.Ld8(m.Mem, int(m.Ptr)+2) - 48) <= 9)))) {
-			m.Ptr = m.Ptr + 1
-			m.CssScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			continue next
-		}
-		if c == 35 {
-			m.Ptr = m.Ptr + 1
-			m.CssScanIdent()
-			m.EmitTok(47, lhs, m.Ptr)
-			continue next
-		}
-		if c == 33 {
-			m.Ptr = m.Ptr + 1
-			mid = m.Ptr
-			m.CssScanIdent()
-			m.EmitTok(rt.Sel32((m.Ptr > mid), 17, 25), lhs, m.Ptr)
-			continue next
-		}
-		if (c == 44) || (c == 58) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			continue next
-		}
-		if ((c == 40) || (c == 41)) || ((c == 91) || (c == 93)) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+1424) & 128) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(25, lhs, m.Ptr)
-			continue next
-		}
-		goto misc
-	misc:
 		m.Ptr = m.Ptr + 1
 		m.EmitTok(0, lhs, m.Ptr)
 		continue next
@@ -4953,14 +4944,11 @@ l:
 			break l
 		}
 		c = rt.Ld8(m.Mem, int(q))
-		if (c - 48) <= 9 {
-			goto ok
+		if (c - 48) > 9 {
+			if ((c | 32) - 97) > 25 {
+				break l
+			}
 		}
-		if ((c | 32) - 97) <= 25 {
-			goto ok
-		}
-		break l
-	ok:
 		q = q + 1
 		continue l
 	}
@@ -6226,24 +6214,19 @@ l:
 			break l
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
-		if (c - 48) <= 9 {
-			goto consume
+		if (c - 48) > 9 {
+			if ((c | 32) - 97) > 25 {
+				if c != 95 {
+					if !(((c == 43) || (c == 45)) && ((hex == 0) && ((prevC | 32) == 101))) {
+						if (c == 46) && (seenDot == 0) {
+							seenDot = 1
+						} else {
+							break l
+						}
+					}
+				}
+			}
 		}
-		if ((c | 32) - 97) <= 25 {
-			goto consume
-		}
-		if c == 95 {
-			goto consume
-		}
-		if ((c == 43) || (c == 45)) && ((hex == 0) && ((prevC | 32) == 101)) {
-			goto consume
-		}
-		if (c == 46) && (seenDot == 0) {
-			seenDot = 1
-			goto consume
-		}
-		break l
-	consume:
 		prevC = c
 		m.Ptr = m.Ptr + 1
 		continue l
@@ -6550,407 +6533,216 @@ ws:
 	}
 	t7 = m.TsxByte(m.Ptr + 1)
 	c2 = t7
-	switch c - 33 {
-	case 0:
-		goto byteSwitch011
-	case 1:
-		goto byteSwitch015
-	case 2:
-		goto byteSwitch027
-	case 3:
-		goto byteSwitch0Default
-	case 4:
-		goto byteSwitch022
-	case 5:
-		goto byteSwitch010
-	case 6:
-		goto byteSwitch016
-	case 7:
-		goto byteSwitch00
-	case 8:
-		goto byteSwitch01
-	case 9:
-		goto byteSwitch021
-	case 10:
-		goto byteSwitch019
-	case 11:
-		goto byteSwitch04
-	case 12:
-		goto byteSwitch020
-	case 13:
-		goto byteSwitch02
-	case 14:
-		goto byteSwitch09
-	case 15:
-		goto byteSwitch0Default
-	case 16:
-		goto byteSwitch0Default
-	case 17:
-		goto byteSwitch0Default
-	case 18:
-		goto byteSwitch0Default
-	case 19:
-		goto byteSwitch0Default
-	case 20:
-		goto byteSwitch0Default
-	case 21:
-		goto byteSwitch0Default
-	case 22:
-		goto byteSwitch0Default
-	case 23:
-		goto byteSwitch0Default
-	case 24:
-		goto byteSwitch0Default
-	case 25:
-		goto byteSwitch05
-	case 26:
-		goto byteSwitch03
-	case 27:
-		goto byteSwitch017
-	case 28:
-		goto byteSwitch08
-	case 29:
-		goto byteSwitch018
-	case 30:
-		goto byteSwitch013
-	case 31:
-		goto byteSwitch026
-	case 32:
-		goto byteSwitch0Default
-	case 33:
-		goto byteSwitch0Default
-	case 34:
-		goto byteSwitch0Default
-	case 35:
-		goto byteSwitch0Default
-	case 36:
-		goto byteSwitch0Default
-	case 37:
-		goto byteSwitch0Default
-	case 38:
-		goto byteSwitch0Default
-	case 39:
-		goto byteSwitch0Default
-	case 40:
-		goto byteSwitch0Default
-	case 41:
-		goto byteSwitch0Default
-	case 42:
-		goto byteSwitch0Default
-	case 43:
-		goto byteSwitch0Default
-	case 44:
-		goto byteSwitch0Default
-	case 45:
-		goto byteSwitch0Default
-	case 46:
-		goto byteSwitch0Default
-	case 47:
-		goto byteSwitch0Default
-	case 48:
-		goto byteSwitch0Default
-	case 49:
-		goto byteSwitch0Default
-	case 50:
-		goto byteSwitch0Default
-	case 51:
-		goto byteSwitch0Default
-	case 52:
-		goto byteSwitch0Default
-	case 53:
-		goto byteSwitch0Default
-	case 54:
-		goto byteSwitch0Default
-	case 55:
-		goto byteSwitch0Default
-	case 56:
-		goto byteSwitch0Default
-	case 57:
-		goto byteSwitch0Default
-	case 58:
-		goto byteSwitch014
-	case 59:
-		goto byteSwitch0Default
-	case 60:
-		goto byteSwitch01
-	case 61:
-		goto byteSwitch023
-	case 62:
-		goto byteSwitch0Default
-	case 63:
-		goto byteSwitch025
-	case 64:
-		goto byteSwitch0Default
-	case 65:
-		goto byteSwitch0Default
-	case 66:
-		goto byteSwitch0Default
-	case 67:
-		goto byteSwitch0Default
-	case 68:
-		goto byteSwitch0Default
-	case 69:
-		goto byteSwitch0Default
-	case 70:
-		goto byteSwitch0Default
-	case 71:
-		goto byteSwitch0Default
-	case 72:
-		goto byteSwitch0Default
-	case 73:
-		goto byteSwitch0Default
-	case 74:
-		goto byteSwitch0Default
-	case 75:
-		goto byteSwitch0Default
-	case 76:
-		goto byteSwitch0Default
-	case 77:
-		goto byteSwitch0Default
-	case 78:
-		goto byteSwitch0Default
-	case 79:
-		goto byteSwitch0Default
-	case 80:
-		goto byteSwitch0Default
-	case 81:
-		goto byteSwitch0Default
-	case 82:
-		goto byteSwitch0Default
-	case 83:
-		goto byteSwitch0Default
-	case 84:
-		goto byteSwitch0Default
-	case 85:
-		goto byteSwitch0Default
-	case 86:
-		goto byteSwitch0Default
-	case 87:
-		goto byteSwitch0Default
-	case 88:
-		goto byteSwitch0Default
-	case 89:
-		goto byteSwitch0Default
-	case 90:
-		goto byteSwitch06
-	case 91:
-		goto byteSwitch012
-	case 92:
-		goto byteSwitch07
-	case 93:
-		goto byteSwitch024
-	default:
-		goto byteSwitch0Default
-	}
-byteSwitch00:
-	t10 = m.ParenIsCtrl()
-	m.BrkPush(t10)
-	t8 = 265
-	goto takeDone
-byteSwitch01:
-	m.BrkPop()
-	t8 = rt.Sel32((c == 41), 449, 409)
-	goto takeDone
-byteSwitch02:
-	t11 = c2 == 46
-	t12 = m.TsxByte(m.Ptr + 2)
-	if t11 && (t12 == 46) {
-		t8 = 499
+	switch c {
+	case '(':
+		t10 = m.ParenIsCtrl()
+		m.BrkPush(t10)
+		t8 = 265
 		goto takeDone
-	}
-	if (c2 - 48) <= 9 {
-		m.Ptr = m.Ptr + 1
-		t13 = m.ScanNumber(1)
-		return t13
-	}
-	t8 = 153
-	goto takeDone
-byteSwitch03:
-	m.TernarySet(0)
-	t8 = 473
-	goto takeDone
-byteSwitch04:
-	t8 = 129
-	goto takeDone
-byteSwitch05:
-	t14 = m.TernaryCount()
-	kw = t14
-	if kw != 0 {
-		m.TernarySet(kw - 1)
-		t8 = 1081
+	case ')', ']':
+		m.BrkPop()
+		t8 = rt.Sel32((c == 41), 449, 409)
 		goto takeDone
-	}
-	t8 = 121
-	goto takeDone
-byteSwitch06:
-	t15 = m.BraceIsBlock()
-	m.BrkPush(t15)
-	m.BraceDepth = m.BraceDepth + 1
-	t8 = 217
-	goto takeDone
-byteSwitch07:
-	if (m.JsTemplateLexSp > 0) && (m.BraceDepth == rt.Ld32(m.Mem, int((38944+((m.JsTemplateLexSp-1)<<2))))) {
-		m.JsTemplateLexSp = m.JsTemplateLexSp - 1
-		m.Ptr = m.Ptr + 1
-		t16 = m.ScanTemplateBody()
-		return t16
-	}
-	m.BrkPop()
-	m.BraceDepth = m.BraceDepth - 1
-	t8 = 401
-	goto takeDone
-byteSwitch08:
-	if c2 == 62 {
-		t8 = 178
-		goto takeDone
-	}
-	t9 = 190
-	goto family
-byteSwitch09:
-	if c2 == 47 {
-		m.Ptr = m.Ptr + 2
-		m.ScanToLineEnd()
-		return 17
-	}
-	if c2 == 42 {
-		m.Ptr = m.Ptr + 2
-		m.ScanBlockCommentEnd()
-		return 37
-	}
-	t17 = m.RegexpAllowed()
-	if t17 != 0 {
-		t18 = m.ScanRegexp()
-		return t18
-	}
-	t9 = 489
-	goto family
-byteSwitch010:
-	t9 = 47
-	goto family
-byteSwitch011:
-	if c2 == 61 {
-		t19 = m.TsxByte(m.Ptr + 2)
-		if t19 == 61 {
-			t8 = 99
+	case '.':
+		t11 = c2 == 46
+		t12 = m.TsxByte(m.Ptr + 2)
+		if t11 && (t12 == 46) {
+			t8 = 499
 			goto takeDone
 		}
-		t8 = 106
+		if (c2 - 48) <= 9 {
+			m.Ptr = m.Ptr + 1
+			t13 = m.ScanNumber(1)
+			return t13
+		}
+		t8 = 153
 		goto takeDone
-	}
-	t8 = 113
-	goto takeDone
-byteSwitch012:
-	t9 = 375
-	goto family
-byteSwitch013:
-	if c2 == 46 {
-		t20 = m.TsxByte(m.Ptr + 2)
-		if (t20 - 48) > 9 {
-			t8 = 322
+	case ';':
+		m.TernarySet(0)
+		t8 = 473
+		goto takeDone
+	case ',':
+		t8 = 129
+		goto takeDone
+	case ':':
+		t14 = m.TernaryCount()
+		kw = t14
+		if kw != 0 {
+			m.TernarySet(kw - 1)
+			t8 = 1081
 			goto takeDone
 		}
-	}
-	if c2 != 63 {
-		t21 = m.EcmaHasTypeScript()
-		if (rt.Clz32((t21 & rt.B2u((c2 == 40) || (c2 == 60)))) >> 5) != 0 {
-			t22 = m.LexSkipSpaceAt(m.Ptr + 1)
-			t23 = m.TsxByte(t22)
-			after = t23
-			if (rt.Clz32((rt.Ld8(m.Mem, int(after)+1680) & 64)) >> 5) != 0 {
-				t24 = m.TernaryCount()
-				m.TernarySet(t24 + 1)
-			}
+		t8 = 121
+		goto takeDone
+	case '{':
+		t15 = m.BraceIsBlock()
+		m.BrkPush(t15)
+		m.BraceDepth = m.BraceDepth + 1
+		t8 = 217
+		goto takeDone
+	case '}':
+		if (m.JsTemplateLexSp > 0) && (m.BraceDepth == rt.Ld32(m.Mem, int((38944+((m.JsTemplateLexSp-1)<<2))))) {
+			m.JsTemplateLexSp = m.JsTemplateLexSp - 1
+			m.Ptr = m.Ptr + 1
+			t16 = m.ScanTemplateBody()
+			return t16
 		}
-	}
-	t9 = 334
-	goto family
-byteSwitch014:
-	m.BrkPush(0)
-	t8 = 225
-	goto takeDone
-byteSwitch015:
-	t25 = m.ScanString(34)
-	return t25
-byteSwitch016:
-	t26 = m.ScanString(39)
-	return t26
-byteSwitch017:
-	t27 = m.EcmaHasTsrx()
-	if t27 != 0 {
-		t28 = m.JsxTopMode()
-		t29 = m.TsrxRawClose(m.Ptr, 1)
-		if (rt.B2u(t28 == 5) & t29) != 0 {
-			return 0
+		m.BrkPop()
+		m.BraceDepth = m.BraceDepth - 1
+		t8 = 401
+		goto takeDone
+	case '=':
+		if c2 == 62 {
+			t8 = 178
+			goto takeDone
 		}
-	}
-	t9 = 263
-	goto family
-byteSwitch018:
-	if c2 == 62 {
-		t30 = m.TsxByte(m.Ptr + 2)
-		if t30 == 62 {
-			t31 = m.TsxByte(m.Ptr + 3)
-			if t31 == 61 {
-				t8 = 564
+		t9 = 190
+		goto family
+	case '/':
+		if c2 == 47 {
+			m.Ptr = m.Ptr + 2
+			m.ScanToLineEnd()
+			return 17
+		}
+		if c2 == 42 {
+			m.Ptr = m.Ptr + 2
+			m.ScanBlockCommentEnd()
+			return 37
+		}
+		t17 = m.RegexpAllowed()
+		if t17 != 0 {
+			t18 = m.ScanRegexp()
+			return t18
+		}
+		t9 = 489
+		goto family
+	case '&':
+		t9 = 47
+		goto family
+	case '!':
+		if c2 == 61 {
+			t19 = m.TsxByte(m.Ptr + 2)
+			if t19 == 61 {
+				t8 = 99
 				goto takeDone
 			}
-			t8 = 459
+			t8 = 106
 			goto takeDone
 		}
-	}
-	t9 = 447
-	goto family
-byteSwitch019:
-	t9 = 395
-	goto family
-byteSwitch020:
-	t9 = 291
-	goto family
-byteSwitch021:
-	t9 = 79
-	goto family
-byteSwitch022:
-	t9 = 537
-	goto family
-byteSwitch023:
-	t9 = 521
-	goto family
-byteSwitch024:
-	t8 = 569
-	goto takeDone
-byteSwitch025:
-	m.Ptr = m.Ptr + 1
-	t32 = m.ScanTemplateBody()
-	return t32
-byteSwitch026:
-	t33 = m.EcmaHasTsrx()
-	if (t33 & rt.B2u(c2 == 123)) != 0 {
-		m.BrkPush(1)
-		m.BraceDepth = m.BraceDepth + 1
-		t8 = 218
+		t8 = 113
 		goto takeDone
-	}
-	m.Ptr = m.Ptr + 1
-	m.ScanIdentTail()
-	t34 = m.EcmaHasTsrx()
-	if t34 != 0 {
-		t35 = m.TsrxDirectiveKind(m.Lhs+1, m.Ptr)
-		kw = t35
-		if kw != 1 {
-			return kw
+	case '|':
+		t9 = 375
+		goto family
+	case '?':
+		if c2 == 46 {
+			t20 = m.TsxByte(m.Ptr + 2)
+			if (t20 - 48) > 9 {
+				t8 = 322
+				goto takeDone
+			}
 		}
+		if c2 != 63 {
+			t21 = m.EcmaHasTypeScript()
+			if (rt.Clz32((t21 & rt.B2u((c2 == 40) || (c2 == 60)))) >> 5) != 0 {
+				t22 = m.LexSkipSpaceAt(m.Ptr + 1)
+				t23 = m.TsxByte(t22)
+				after = t23
+				if (rt.Clz32((rt.Ld8(m.Mem, int(after)+1680) & 64)) >> 5) != 0 {
+					t24 = m.TernaryCount()
+					m.TernarySet(t24 + 1)
+				}
+			}
+		}
+		t9 = 334
+		goto family
+	case '[':
+		m.BrkPush(0)
+		t8 = 225
+		goto takeDone
+	case '"':
+		t25 = m.ScanString(34)
+		return t25
+	case '\'':
+		t26 = m.ScanString(39)
+		return t26
+	case '<':
+		t27 = m.EcmaHasTsrx()
+		if t27 != 0 {
+			t28 = m.JsxTopMode()
+			t29 = m.TsrxRawClose(m.Ptr, 1)
+			if (rt.B2u(t28 == 5) & t29) != 0 {
+				return 0
+			}
+		}
+		t9 = 263
+		goto family
+	case '>':
+		if c2 == 62 {
+			t30 = m.TsxByte(m.Ptr + 2)
+			if t30 == 62 {
+				t31 = m.TsxByte(m.Ptr + 3)
+				if t31 == 61 {
+					t8 = 564
+					goto takeDone
+				}
+				t8 = 459
+				goto takeDone
+			}
+		}
+		t9 = 447
+		goto family
+	case '+':
+		t9 = 395
+		goto family
+	case '-':
+		t9 = 291
+		goto family
+	case '*':
+		t9 = 79
+		goto family
+	case '%':
+		t9 = 537
+		goto family
+	case '^':
+		t9 = 521
+		goto family
+	case '~':
+		t8 = 569
+		goto takeDone
+	case '`':
+		m.Ptr = m.Ptr + 1
+		t32 = m.ScanTemplateBody()
+		return t32
+	case '@':
+		t33 = m.EcmaHasTsrx()
+		if (t33 & rt.B2u(c2 == 123)) != 0 {
+			m.BrkPush(1)
+			m.BraceDepth = m.BraceDepth + 1
+			t8 = 218
+			goto takeDone
+		}
+		m.Ptr = m.Ptr + 1
+		m.ScanIdentTail()
+		t34 = m.EcmaHasTsrx()
+		if t34 != 0 {
+			t35 = m.TsrxDirectiveKind(m.Lhs+1, m.Ptr)
+			kw = t35
+			if kw != 1 {
+				return kw
+			}
+		}
+		return 10
+	case '#':
+		if (m.Ptr == m.SourceStart) && (c2 == 33) {
+			m.Ptr = m.Ptr + 2
+			m.ScanToLineEnd()
+			return 24
+		}
+		m.Ptr = m.Ptr + 1
+		m.ScanIdentTail()
+		return 25
 	}
-	return 10
-byteSwitch027:
-	if (m.Ptr == m.SourceStart) && (c2 == 33) {
-		m.Ptr = m.Ptr + 2
-		m.ScanToLineEnd()
-		return 24
-	}
-	m.Ptr = m.Ptr + 1
-	m.ScanIdentTail()
-	return 25
-byteSwitch0Default:
 	if c >= 128 {
 		t36 = m.Utf8Bits(c)
 		bits = t36
@@ -7333,69 +7125,64 @@ scan:
 		p = e
 		t2 = m.BlanksEnd(p, rhs)
 		q = t2
-		if q >= rhs {
-			goto noType
+		if q < rhs {
+			if rt.Ld8(m.Mem, int(q)) == 123 {
+				b = q + 1
+				depth = 1
+			brace:
+				for {
+					if b >= rhs {
+						goto noType
+					}
+					c = rt.Ld8(m.Mem, int(b))
+					if (c == 10) || (c == 13) {
+						goto noType
+					}
+					if c == 123 {
+						depth = depth + 1
+					}
+					if c == 125 {
+						depth = depth - 1
+					}
+					b = b + 1
+					if depth != 0 {
+						continue brace
+					}
+					break
+				}
+				m.EmitTok(5, seg, q)
+				m.EmitTok(32, q, q+1)
+				m.EmitTok(68, q+1, b-1)
+				m.EmitTok(32, b-1, b)
+				seg = b
+				p = b
+			}
 		}
-		if rt.Ld8(m.Mem, int(q)) != 123 {
-			goto noType
-		}
-		b = q + 1
-		depth = 1
-	brace:
-		for {
-			if b >= rhs {
-				goto noType
-			}
-			c = rt.Ld8(m.Mem, int(b))
-			if (c == 10) || (c == 13) {
-				goto noType
-			}
-			if c == 123 {
-				depth = depth + 1
-			}
-			if c == 125 {
-				depth = depth - 1
-			}
-			b = b + 1
-			if depth != 0 {
-				continue brace
-			}
-			break
-		}
-		m.EmitTok(5, seg, q)
-		m.EmitTok(32, q, q+1)
-		m.EmitTok(68, q+1, b-1)
-		m.EmitTok(32, b-1, b)
-		seg = b
-		p = b
 	noType:
 		if isParam != 0 {
 			t3 = m.BlanksEnd(p, rhs)
 			q = t3
-			if q >= rhs {
-				goto noName
-			}
-			b = q
-		name:
-			for {
-				if b >= rhs {
-					break name
+			if q < rhs {
+				b = q
+			name:
+				for {
+					if b >= rhs {
+						break name
+					}
+					t4 = m.DocNameChar(rt.Ld8(m.Mem, int(b)))
+					if t4 == 0 {
+						break name
+					}
+					b = b + 1
+					continue name
 				}
-				t4 = m.DocNameChar(rt.Ld8(m.Mem, int(b)))
-				if t4 == 0 {
-					break name
+				if b != q {
+					m.EmitTok(5, seg, q)
+					m.EmitTok(69, q, b)
+					seg = b
+					p = b
 				}
-				b = b + 1
-				continue name
 			}
-			if b == q {
-				goto noName
-			}
-			m.EmitTok(5, seg, q)
-			m.EmitTok(69, q, b)
-			seg = b
-			p = b
-		noName:
 		}
 		continue scan
 	}
@@ -8641,17 +8428,13 @@ l:
 			return 1
 		}
 		c = rt.Ld8(m.Mem, int(lhs))
-		if (c - 65) <= 25 {
-			goto ok
+		if (c - 65) > 25 {
+			if (c - 48) > 9 {
+				if c != 95 {
+					break l
+				}
+			}
 		}
-		if (c - 48) <= 9 {
-			goto ok
-		}
-		if c == 95 {
-			goto ok
-		}
-		break l
-	ok:
 		lhs = lhs + 1
 		continue l
 	}
@@ -9081,41 +8864,40 @@ func (m *Machine) TsxResume() uint32 {
 		if t == 1 {
 			goto cut
 		}
-		goto finish
-	}
-	if mode <= 3 {
-		m.ScanBlockCommentEnd()
-		if mode == 3 {
-			m.EmitDocCommentRange(from, m.Ptr, 0)
+	} else {
+		if mode <= 3 {
+			m.ScanBlockCommentEnd()
+			if mode == 3 {
+				m.EmitDocCommentRange(from, m.Ptr, 0)
+			} else {
+				m.EmitTok(4, from, m.Ptr)
+			}
+			if ((m.Ptr - from) < 2) || (rt.Ld16(m.Mem, int((m.Ptr-2))) != 12074) {
+				goto cut
+			}
+			goto done
+		}
+		if mode <= 5 {
+			t1 = m.ScanStringBody(quote)
+			t = t1
+			m.EmitEscaped(44, from, m.Ptr)
+			if (t == 1) && (m.Ptr == m.End) {
+				goto cut
+			}
 		} else {
-			m.EmitTok(4, from, m.Ptr)
+			t2 = m.ScanFind3(m.Ptr, quote, quote, quote)
+			m.Ptr = t2
+			c = rt.B2u(m.Ptr < m.End)
+			if c != 0 {
+				m.Ptr = m.Ptr + 1
+			}
+			m.EmitTok(44, from, m.Ptr)
+			if c == 0 {
+				goto cut
+			}
+			goto done
 		}
-		if ((m.Ptr - from) < 2) || (rt.Ld16(m.Mem, int((m.Ptr-2))) != 12074) {
-			goto cut
-		}
-		goto done
 	}
-	if mode <= 5 {
-		t1 = m.ScanStringBody(quote)
-		t = t1
-		m.EmitEscaped(44, from, m.Ptr)
-		if (t == 1) && (m.Ptr == m.End) {
-			goto cut
-		}
-		goto finish
-	}
-	t2 = m.ScanFind3(m.Ptr, quote, quote, quote)
-	m.Ptr = t2
-	c = rt.B2u(m.Ptr < m.End)
-	if c != 0 {
-		m.Ptr = m.Ptr + 1
-	}
-	m.EmitTok(44, from, m.Ptr)
-	if c == 0 {
-		goto cut
-	}
-	goto done
-finish:
 	m.TsxFinishStreamToken(t)
 done:
 	m.TsxStreamMode = 0
@@ -9831,34 +9613,33 @@ next:
 			if m.Ptr == p {
 				goto key
 			}
-			goto scalar
-		}
-		if (rt.Ld8(m.Mem, int(c)+1936) & 1) != 0 {
-			if (rt.Ld8(m.Mem, int(c)+1936) & 2) != 0 {
-				flow = flow + 1
-			} else {
-				if flow != 0 {
-					flow = flow - 1
+		} else {
+			if (rt.Ld8(m.Mem, int(c)+1936) & 1) != 0 {
+				if (rt.Ld8(m.Mem, int(c)+1936) & 2) != 0 {
+					flow = flow + 1
+				} else {
+					if flow != 0 {
+						flow = flow - 1
+					}
+				}
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(32, lhs, m.Ptr)
+				continue next
+			}
+			if (c == 124) || (c == 62) {
+				t9 = m.YamlBlockScalar()
+				if t9 != 0 {
+					continue next
 				}
 			}
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			continue next
-		}
-		if (c == 124) || (c == 62) {
-			t9 = m.YamlBlockScalar()
-			if t9 != 0 {
+			t10 = (rt.Ld8(m.Mem, int(c)+1936) >> 2) & 1
+			t11 = m.YamlColonEnds(m.Ptr, flow)
+			if (t10 | t11) != 0 {
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(35, lhs, m.Ptr)
 				continue next
 			}
 		}
-		t10 = (rt.Ld8(m.Mem, int(c)+1936) >> 2) & 1
-		t11 = m.YamlColonEnds(m.Ptr, flow)
-		if (t10 | t11) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			continue next
-		}
-	scalar:
 		m.YamlScanPlain(flow)
 		if m.Ptr == lhs {
 			m.Ptr = m.Ptr + 1
@@ -10117,40 +9898,40 @@ func (m *Machine) MarkdownCodeRange(lang uint32, from uint32, to uint32, resume 
 		} else {
 			m.HlMdx()
 		}
-		goto codeDone
-	}
-	if (m.Streaming == 0) || (resume == 0) {
-		m.SigReset()
-	}
-	saveDepth = m.StreamDepth
-	saveReset = m.StreamReset
-	if m.Streaming != 0 {
-		m.StreamDepth = 0
-		m.StreamReset = rt.B2u(resume == 0)
-	}
-	t3 = m.Streaming & resume
-	t4 = m.IsEcmaLang(lang)
-	if (t3 & rt.B2u(t4 == 0)) != 0 {
-		if m.StreamRegionKind != 0 {
-			t5 = m.StreamResumeLang(lang)
-			if t5 != 0 {
+	} else {
+		if (m.Streaming == 0) || (resume == 0) {
+			m.SigReset()
+		}
+		saveDepth = m.StreamDepth
+		saveReset = m.StreamReset
+		if m.Streaming != 0 {
+			m.StreamDepth = 0
+			m.StreamReset = rt.B2u(resume == 0)
+		}
+		t3 = m.Streaming & resume
+		t4 = m.IsEcmaLang(lang)
+		if (t3 & rt.B2u(t4 == 0)) != 0 {
+			if m.StreamRegionKind != 0 {
+				t5 = m.StreamResumeLang(lang)
+				if t5 != 0 {
+					goto bodyDone
+				}
+			}
+			t6 = m.StreamResumeCommon()
+			if t6 != 0 {
+				goto bodyDone
+			}
+			t7 = m.StreamResumeLang(lang)
+			if t7 != 0 {
 				goto bodyDone
 			}
 		}
-		t6 = m.StreamResumeCommon()
-		if t6 != 0 {
-			goto bodyDone
+		m.MarkdownFenceLexer(lang, resume)
+	bodyDone:
+		if m.Streaming != 0 {
+			m.StreamDepth = saveDepth
+			m.StreamReset = saveReset
 		}
-		t7 = m.StreamResumeLang(lang)
-		if t7 != 0 {
-			goto bodyDone
-		}
-	}
-	m.MarkdownFenceLexer(lang, resume)
-bodyDone:
-	if m.Streaming != 0 {
-		m.StreamDepth = saveDepth
-		m.StreamReset = saveReset
 	}
 codeDone:
 	m.MarkdownDepth = m.MarkdownDepth - 1
@@ -10468,23 +10249,22 @@ lines:
 			q = q + 1
 			continue run
 		}
-		if (q - n) < length {
-			goto skip
-		}
-	space:
-		for {
-			if q >= lineEnd {
-				break space
+		if (q - n) >= length {
+		space:
+			for {
+				if q >= lineEnd {
+					break space
+				}
+				c = rt.Ld8(m.Mem, int(q))
+				if (c != 32) && (c != 9) {
+					break space
+				}
+				q = q + 1
+				continue space
 			}
-			c = rt.Ld8(m.Mem, int(q))
-			if (c != 32) && (c != 9) {
-				break space
+			if q == lineEnd {
+				return p
 			}
-			q = q + 1
-			continue space
-		}
-		if q == lineEnd {
-			return p
 		}
 	skip:
 		t3 = m.MarkdownAfterLine(lineEnd)
@@ -11865,12 +11645,10 @@ next:
 					}
 					break
 				}
-				if c != 35 {
-					goto basedDone
+				if c == 35 {
+					m.Ptr = m.Ptr + 1
+					m.LexScanNumberBody(0)
 				}
-				m.Ptr = m.Ptr + 1
-				m.LexScanNumberBody(0)
-			basedDone:
 			}
 			m.EmitTok(24, lhs, m.Ptr)
 			continue next
@@ -12137,240 +11915,239 @@ next:
 			m.Ptr = m.Ptr + 3
 			textBlock = 1
 			hl = 44
-			goto plainTok
-		}
-		if (c == 34) || (c == 39) {
-			m.LexString(c, 0, 44)
-			member = 0
-			afterType = 0
-			continue next
-		}
-		t5 = c == 64
-		t6 = m.LexIsIdentStart(c2)
-		c2Ident = t6
-		if (rt.B2u(t5) & c2Ident) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.LexScanIdent()
-			hl = 1
-			goto tok
-		}
-		t7 = m.LexIsIdentStart(c)
-		if t7 != 0 {
-			m.LexScanIdent()
-			rhs = m.Ptr
-			if m.JavaApex != 0 {
-				kind = 0xffffffff
-				if member == 0 {
-					t8 = m.ApexWordHl(lhs, rhs)
-					kind = t8
-				}
-				if (pending & rt.B2u(int32(kind) >= int32(4096))) != 0 {
-					soql = 2
-				}
-				if soql > 1 {
-					hl = kind & 255
-					if int32(kind) < int32(0) {
-						t9 = m.JavaByte(rhs)
-						hl = rt.Sel32((expect != 0), 55, rt.Sel32((t9 == 40), 14, 58))
-						expect = 0
-					} else {
-						expect = (kind >> 8) & 3
-						if hl == 56 {
-							hl = 58
-						}
-					}
-					m.EmitTok(hl, lhs, rhs)
-					member = 0
-					continue next
-				}
-				t10 = int32(kind) > int32(2047)
-				t11 = int32(kind) > int32(255)
-				t12 = m.JavaByte(rhs)
-				if t10 || (t11 && (t12 == 46)) {
+		} else {
+			if (c == 34) || (c == 39) {
+				m.LexString(c, 0, 44)
+				member = 0
+				afterType = 0
+				continue next
+			}
+			t5 = c == 64
+			t6 = m.LexIsIdentStart(c2)
+			c2Ident = t6
+			if (rt.B2u(t5) & c2Ident) != 0 {
+				m.Ptr = m.Ptr + 1
+				m.LexScanIdent()
+				hl = 1
+				goto tok
+			}
+			t7 = m.LexIsIdentStart(c)
+			if t7 != 0 {
+				m.LexScanIdent()
+				rhs = m.Ptr
+				if m.JavaApex != 0 {
 					kind = 0xffffffff
-				}
-				if (kind == 56) && (c >= 97) {
-					t13 = m.LexSkipSpaceAt(rhs)
-					t14 = m.JavaByte(t13)
-					c3 = t14
-					if (rt.Ld8(m.Mem, int(c3)+2192) & 64) != 0 {
+					if member == 0 {
+						t8 = m.ApexWordHl(lhs, rhs)
+						kind = t8
+					}
+					if (pending & rt.B2u(int32(kind) >= int32(4096))) != 0 {
+						soql = 2
+					}
+					if soql > 1 {
+						hl = kind & 255
+						if int32(kind) < int32(0) {
+							t9 = m.JavaByte(rhs)
+							hl = rt.Sel32((expect != 0), 55, rt.Sel32((t9 == 40), 14, 58))
+							expect = 0
+						} else {
+							expect = (kind >> 8) & 3
+							if hl == 56 {
+								hl = 58
+							}
+						}
+						m.EmitTok(hl, lhs, rhs)
+						member = 0
+						continue next
+					}
+					t10 = int32(kind) > int32(2047)
+					t11 = int32(kind) > int32(255)
+					t12 = m.JavaByte(rhs)
+					if t10 || (t11 && (t12 == 46)) {
 						kind = 0xffffffff
 					}
-				}
-				if ((rhs - lhs) == 3) && (rt.Ld16(m.Mem, 1361) == 29797) {
-					t15 = m.LexSkipSpaceAt(rhs)
-					t16 = m.JavaByte(t15)
-					c3 = t16
-					if (member == 0) && ((((c | 32) == 103) || ((c | 32) == 115)) && ((c3 == 59) || (c3 == 123))) {
-						kind = 19
+					if (kind == 56) && (c >= 97) {
+						t13 = m.LexSkipSpaceAt(rhs)
+						t14 = m.JavaByte(t13)
+						c3 = t14
+						if (rt.Ld8(m.Mem, int(c3)+2192) & 64) != 0 {
+							kind = 0xffffffff
+						}
 					}
-				}
-			} else {
-				t17 = m.JavaWordHl(lhs, rhs)
-				kind = t17
-			}
-			if int32(kind) > int32(1023) {
-				t18 = m.LexSkipSpaceAt(rhs)
-				p = t18
-				t19 = kind & 1023
-				t20 = (member == 0) && (p > rhs)
-				t21 = m.JavaByte(p)
-				t22 = m.LexIsIdentStart(t21)
-				kind = rt.Sel32(((rt.B2u(t20) & t22) != 0), t19, 0xffffffff)
-			}
-			if int32(kind) >= int32(0) {
-				hl = kind & 255
-				if member == 0 {
-					expect = kind >> 8
-				}
-				afterType = rt.B2u(hl == 56)
-			} else {
-				t23 = m.LexSkipSpaceAt(rhs)
-				p = t23
-				if expect != 0 {
-					hl = rt.Sel32((expect == 1), 55, 23)
-					afterType = rt.B2u(expect == 1)
-					t24 = expect == 1
-					t25 = m.JavaByte(p)
-					if t24 || (t25 != 46) {
-						expect = 0
+					if ((rhs - lhs) == 3) && (rt.Ld16(m.Mem, 1361) == 29797) {
+						t15 = m.LexSkipSpaceAt(rhs)
+						t16 = m.JavaByte(t15)
+						c3 = t16
+						if (member == 0) && ((((c | 32) == 103) || ((c | 32) == 115)) && ((c3 == 59) || (c3 == 123))) {
+							kind = 19
+						}
 					}
 				} else {
-					if member != 0 {
-						t26 = m.JavaByte(p)
-						if t26 == 40 {
-							hl = 16
-							afterType = 0
-						} else {
-							afterType = rt.B2u((m.JavaApex == 0) && ((c - 65) <= 25))
-							hl = rt.Sel32((afterType != 0), 55, 29)
+					t17 = m.JavaWordHl(lhs, rhs)
+					kind = t17
+				}
+				if int32(kind) > int32(1023) {
+					t18 = m.LexSkipSpaceAt(rhs)
+					p = t18
+					t19 = kind & 1023
+					t20 = (member == 0) && (p > rhs)
+					t21 = m.JavaByte(p)
+					t22 = m.LexIsIdentStart(t21)
+					kind = rt.Sel32(((rt.B2u(t20) & t22) != 0), t19, 0xffffffff)
+				}
+				if int32(kind) >= int32(0) {
+					hl = kind & 255
+					if member == 0 {
+						expect = kind >> 8
+					}
+					afterType = rt.B2u(hl == 56)
+				} else {
+					t23 = m.LexSkipSpaceAt(rhs)
+					p = t23
+					if expect != 0 {
+						hl = rt.Sel32((expect == 1), 55, 23)
+						afterType = rt.B2u(expect == 1)
+						t24 = expect == 1
+						t25 = m.JavaByte(p)
+						if t24 || (t25 != 46) {
+							expect = 0
 						}
 					} else {
-						t27 = m.JavaByte(p)
-						if t27 == 40 {
-							if (c - 65) <= 25 {
-								hl = 55
-							} else {
-								hl = rt.Sel32((afterType != 0), 15, 14)
-							}
-							afterType = 0
-						} else {
-							t28 = m.LexIsConstCase(lhs, rhs)
-							if t28 != 0 {
-								hl = 6
+						if member != 0 {
+							t26 = m.JavaByte(p)
+							if t26 == 40 {
+								hl = 16
 								afterType = 0
 							} else {
-								afterType = rt.B2u((c - 65) <= 25)
-								hl = rt.Sel32((afterType != 0), 55, 58)
+								afterType = rt.B2u((m.JavaApex == 0) && ((c - 65) <= 25))
+								hl = rt.Sel32((afterType != 0), 55, 29)
+							}
+						} else {
+							t27 = m.JavaByte(p)
+							if t27 == 40 {
+								if (c - 65) <= 25 {
+									hl = 55
+								} else {
+									hl = rt.Sel32((afterType != 0), 15, 14)
+								}
+								afterType = 0
+							} else {
+								t28 = m.LexIsConstCase(lhs, rhs)
+								if t28 != 0 {
+									hl = 6
+									afterType = 0
+								} else {
+									afterType = rt.B2u((c - 65) <= 25)
+									hl = rt.Sel32((afterType != 0), 55, 58)
+								}
 							}
 						}
 					}
 				}
+				m.EmitTok(hl, lhs, rhs)
+				member = 0
+				continue next
 			}
-			m.EmitTok(hl, lhs, rhs)
-			member = 0
-			continue next
-		}
-		t29 = m.LexIsDigit(c)
-		t30 = c == 46
-		t31 = m.LexIsDigit(c2)
-		if (t29 | (rt.B2u(t30) & t31)) != 0 {
-			m.LexScanHexNumber(1)
-			m.EmitTok(24, lhs, m.Ptr)
-			member = 0
-			afterType = 0
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			member = 0
-			if m.JavaApex != 0 {
-				if c == 91 {
-					soql = rt.Sel32((soql > 1), (soql + 1), 1)
-				}
-				if (c == 93) && (soql > 1) {
-					soql = rt.Sel32((soql == 2), 0, (soql - 1))
-				}
+			t29 = m.LexIsDigit(c)
+			t30 = c == 46
+			t31 = m.LexIsDigit(c2)
+			if (t29 | (rt.B2u(t30) & t31)) != 0 {
+				m.LexScanHexNumber(1)
+				m.EmitTok(24, lhs, m.Ptr)
+				member = 0
+				afterType = 0
+				continue next
 			}
-			if (c != 91) && (c != 93) {
+			if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(32, lhs, m.Ptr)
+				member = 0
+				if m.JavaApex != 0 {
+					if c == 91 {
+						soql = rt.Sel32((soql > 1), (soql + 1), 1)
+					}
+					if (c == 93) && (soql > 1) {
+						soql = rt.Sel32((soql == 2), 0, (soql - 1))
+					}
+				}
+				if (c != 91) && (c != 93) {
+					afterType = 0
+					expect = 0
+				}
+				continue next
+			}
+			if (c == 44) || (c == 59) {
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(35, lhs, m.Ptr)
+				member = 0
+				expect = 0
+				if c == 59 {
+					afterType = 0
+				}
+				continue next
+			}
+			if (rt.B2u(c == 58) & (rt.B2u(soql > 1) & c2Ident)) != 0 {
+				m.Ptr = m.Ptr + 1
+				m.LexScanIdent()
+				m.EmitTok(60, lhs, m.Ptr)
+				continue next
+			}
+			if c == 58 {
+				m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
+				m.EmitTok(35, lhs, m.Ptr)
+				member = rt.B2u(c2 == 58)
 				afterType = 0
 				expect = 0
+				continue next
 			}
-			continue next
-		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			member = 0
-			expect = 0
-			if c == 59 {
-				afterType = 0
+			if c == 46 {
+				m.Ptr = m.Ptr + rt.Sel32(((c2 == 46) && (c3 == 46)), 3, 1)
+				m.EmitTok(rt.Sel32((c2 == 46), 25, 35), lhs, m.Ptr)
+				member = rt.B2u(c2 != 46)
+				if c2 == 46 {
+					afterType = 0
+				}
+				continue next
 			}
-			continue next
-		}
-		if (rt.B2u(c == 58) & (rt.B2u(soql > 1) & c2Ident)) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.LexScanIdent()
-			m.EmitTok(60, lhs, m.Ptr)
-			continue next
-		}
-		if c == 58 {
-			m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
-			m.EmitTok(35, lhs, m.Ptr)
-			member = rt.B2u(c2 == 58)
-			afterType = 0
-			expect = 0
-			continue next
-		}
-		if c == 46 {
-			m.Ptr = m.Ptr + rt.Sel32(((c2 == 46) && (c3 == 46)), 3, 1)
-			m.EmitTok(rt.Sel32((c2 == 46), 25, 35), lhs, m.Ptr)
-			member = rt.B2u(c2 != 46)
-			if c2 == 46 {
-				afterType = 0
-			}
-			continue next
-		}
-		t32 = m.JavaIsOp(c)
-		if t32 != 0 {
-			m.Ptr = m.Ptr + 1
-			if (c == 45) && (c2 == 62) {
+			t32 = m.JavaIsOp(c)
+			if t32 != 0 {
 				m.Ptr = m.Ptr + 1
-			} else {
-				if (rt.B2u(c2 == 61) | (rt.B2u(c == c2) & (rt.Ld8(m.Mem, int(c)+2192) >> 7))) != 0 {
+				if (c == 45) && (c2 == 62) {
 					m.Ptr = m.Ptr + 1
-					if (c == 62) && ((c3 == 62) || (c3 == 61)) {
+				} else {
+					if (rt.B2u(c2 == 61) | (rt.B2u(c == c2) & (rt.Ld8(m.Mem, int(c)+2192) >> 7))) != 0 {
 						m.Ptr = m.Ptr + 1
-						t33 = m.JavaByte(m.Ptr)
-						if t33 == 61 {
+						if (c == 62) && ((c3 == 62) || (c3 == 61)) {
+							m.Ptr = m.Ptr + 1
+							t33 = m.JavaByte(m.Ptr)
+							if t33 == 61 {
+								m.Ptr = m.Ptr + 1
+							}
+						}
+						if (c == 60) && (c3 == 61) {
 							m.Ptr = m.Ptr + 1
 						}
 					}
-					if (c == 60) && (c3 == 61) {
-						m.Ptr = m.Ptr + 1
-					}
 				}
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			member = 0
-			t34 = m.LexIsTypeGlue(lhs, m.Ptr)
-			if t34 != 0 {
-				t35 = gap != lhs
-				t36 = c == 62
-				t37 = m.JavaByte(m.Ptr)
-				t38 = m.LexIsIdentStart(t37)
-				if (rt.B2u(t35) | (rt.B2u(t36) & t38)) != 0 {
+				m.EmitTok(25, lhs, m.Ptr)
+				member = 0
+				t34 = m.LexIsTypeGlue(lhs, m.Ptr)
+				if t34 != 0 {
+					t35 = gap != lhs
+					t36 = c == 62
+					t37 = m.JavaByte(m.Ptr)
+					t38 = m.LexIsIdentStart(t37)
+					if (rt.B2u(t35) | (rt.B2u(t36) & t38)) != 0 {
+						afterType = 0
+					}
+				} else {
 					afterType = 0
 				}
-			} else {
-				afterType = 0
+				continue next
 			}
-			continue next
+			m.Ptr = m.Ptr + 1
+			hl = 0
 		}
-		m.Ptr = m.Ptr + 1
-		hl = 0
-	plainTok:
 		afterType = 0
 	tok:
 		m.EmitTok(hl, lhs, m.Ptr)
@@ -13129,132 +12906,129 @@ next:
 					expect = 0
 				}
 			}
-			goto tok
-		}
-		if c == 39 {
-			hl = 0
-			m.Ptr = lhs + 1
-			t11 = (c2 | 32) == 115
-			t12 = m.TemplateByte(lhs + 2)
-			t13 = m.LexIsIdentContinue(t12)
-			if t11 && (t13 == 0) {
-				hl = 21
-				m.Ptr = lhs + 2
-			}
-			goto tok
-		}
-		t14 = m.LexIsIdentStart(c)
-		if (t14 & rt.B2u(c != 36)) != 0 {
-			m.ScanIdentRun(95)
-			t15 = m.TemplateByte(m.Ptr)
-			t16 = m.TemplateByte(m.Ptr + 1)
-			t17 = m.TemplateByte(m.Ptr + 2)
-			t18 = m.LexIsIdentContinue(t17)
-			if ((t15 == 39) && ((t16 | 32) == 116)) && (t18 == 0) {
-				m.Ptr = m.Ptr + 2
-			}
-			rhs = m.Ptr
-			t19 = m.LexLowerCopy(lhs, rhs, 1360)
-			n = t19
-			t20 = m.LexKeywordValue(1360, 1360+n, 50096, 63, 142)
-			v = t20
-			if int32(v) < int32(0) {
-				t21 = m.ApplescriptWord(n)
-				v = t21
-			}
-			t22 = m.LexSkipSpaceAt(rhs)
-			p = t22
-			t23 = m.TemplateByte(p)
-			c2 = t23
-			if int32(v) >= int32(0) {
-				hl = v & 255
-				v = v >> 8
-				if expect == 5 {
-					expect = rt.Sel32(((n == 4) && (rt.Ld32(m.Mem, 1360) == 0x68746977)), 2, 0)
+		} else {
+			if c == 39 {
+				hl = 0
+				m.Ptr = lhs + 1
+				t11 = (c2 | 32) == 115
+				t12 = m.TemplateByte(lhs + 2)
+				t13 = m.LexIsIdentContinue(t12)
+				if t11 && (t13 == 0) {
+					hl = 21
+					m.Ptr = lhs + 2
 				}
-				if expect == 1 {
-					if hl == 14 {
-						hl = 15
+			} else {
+				t14 = m.LexIsIdentStart(c)
+				if (t14 & rt.B2u(c != 36)) != 0 {
+					m.ScanIdentRun(95)
+					t15 = m.TemplateByte(m.Ptr)
+					t16 = m.TemplateByte(m.Ptr + 1)
+					t17 = m.TemplateByte(m.Ptr + 2)
+					t18 = m.LexIsIdentContinue(t17)
+					if ((t15 == 39) && ((t16 | 32) == 116)) && (t18 == 0) {
+						m.Ptr = m.Ptr + 2
 					}
-					expect = 3
-				}
-				if v == 1 {
-					if head != 0 {
-						expect = 1
+					rhs = m.Ptr
+					t19 = m.LexLowerCopy(lhs, rhs, 1360)
+					n = t19
+					t20 = m.LexKeywordValue(1360, 1360+n, 50096, 63, 142)
+					v = t20
+					if int32(v) < int32(0) {
+						t21 = m.ApplescriptWord(n)
+						v = t21
+					}
+					t22 = m.LexSkipSpaceAt(rhs)
+					p = t22
+					t23 = m.TemplateByte(p)
+					c2 = t23
+					if int32(v) >= int32(0) {
+						hl = v & 255
+						v = v >> 8
+						if expect == 5 {
+							expect = rt.Sel32(((n == 4) && (rt.Ld32(m.Mem, 1360) == 0x68746977)), 2, 0)
+						}
+						if expect == 1 {
+							if hl == 14 {
+								hl = 15
+							}
+							expect = 3
+						}
+						if v == 1 {
+							if head != 0 {
+								expect = 1
+							} else {
+								hl = 17
+							}
+						} else {
+							if v == 3 {
+								n = rt.Sel32((n == 7), 5, 6)
+								t24 = (p + n) <= m.End
+								t25 = ((rt.Ld64(m.Mem, int(p)) | 0x2020202020202020) & ((uint64(1) << (uint64((n << 3)) & 63)) - 1)) == rt.Sel64((n == 5), 0x65756c6176, 0x747069726373)
+								t26 = m.TemplateByte(p + n)
+								t27 = m.LexIsIdentContinue(t26)
+								if t24 && (t25 && (t27 == 0)) {
+									rhs = p + n
+								}
+							} else {
+								if v != 0 {
+									expect = v
+								}
+							}
+						}
 					} else {
-						hl = 17
+						if expect == 1 {
+							hl = 15
+							expect = 3
+						} else {
+							v = expect
+							if (v == 2) || (v == 5) {
+								expect = 0
+							}
+							hl = 29
+							t28 = c2 == 58
+							t29 = (p + 2) <= m.End
+							t30 = (rt.Ld16(m.Mem, int(p)) | 8224) == 26223
+							t31 = m.TemplateByte(p + 2)
+							t32 = m.LexIsIdentContinue(t31)
+							if !(t28 || (t29 && (t30 && (t32 == 0)))) {
+								hl = 14
+								if c2 != 40 {
+									hl = 0
+									if v == 3 {
+										hl = 59
+									}
+									if (v == 2) || (v == 4) {
+										hl = 58
+									}
+								}
+							}
+						}
 					}
-					goto classified
+					m.Ptr = rhs
+					m.EmitTok(hl, lhs, rhs)
+					continue next
 				}
-				if v == 3 {
-					n = rt.Sel32((n == 7), 5, 6)
-					t24 = (p + n) <= m.End
-					t25 = ((rt.Ld64(m.Mem, int(p)) | 0x2020202020202020) & ((uint64(1) << (uint64((n << 3)) & 63)) - 1)) == rt.Sel64((n == 5), 0x65756c6176, 0x747069726373)
-					t26 = m.TemplateByte(p + n)
-					t27 = m.LexIsIdentContinue(t26)
-					if t24 && (t25 && (t27 == 0)) {
-						rhs = p + n
+				m.Ptr = lhs + 1
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					m.EmitTok(32, lhs, m.Ptr)
+					continue next
+				}
+				if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
+					m.EmitTok(35, lhs, m.Ptr)
+					continue next
+				}
+				if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
+					if ((c | 2) == 62) && ((c2 == 61) || (c2 == 62)) {
+						m.Ptr = lhs + 2
 					}
-					goto classified
+					m.EmitTok(25, lhs, m.Ptr)
+					continue next
 				}
-				if v != 0 {
-					expect = v
-				}
-				goto classified
+				t33 = m.Utf8SpanEnd(m.Ptr, m.End)
+				m.Ptr = t33
+				hl = 0
 			}
-			if expect == 1 {
-				hl = 15
-				expect = 3
-				goto classified
-			}
-			v = expect
-			if (v == 2) || (v == 5) {
-				expect = 0
-			}
-			hl = 29
-			t28 = c2 == 58
-			t29 = (p + 2) <= m.End
-			t30 = (rt.Ld16(m.Mem, int(p)) | 8224) == 26223
-			t31 = m.TemplateByte(p + 2)
-			t32 = m.LexIsIdentContinue(t31)
-			if t28 || (t29 && (t30 && (t32 == 0))) {
-				goto classified
-			}
-			hl = 14
-			if c2 == 40 {
-				goto classified
-			}
-			hl = 0
-			if v == 3 {
-				hl = 59
-			}
-			if (v == 2) || (v == 4) {
-				hl = 58
-			}
-		classified:
-			m.Ptr = rhs
-			m.EmitTok(hl, lhs, rhs)
-			continue next
 		}
-		m.Ptr = lhs + 1
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.EmitTok(32, lhs, m.Ptr)
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
-			m.EmitTok(35, lhs, m.Ptr)
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
-			if ((c | 2) == 62) && ((c2 == 61) || (c2 == 62)) {
-				m.Ptr = lhs + 2
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			continue next
-		}
-		t33 = m.Utf8SpanEnd(m.Ptr, m.End)
-		m.Ptr = t33
-		hl = 0
 	tok:
 		m.EmitTok(hl, lhs, m.Ptr)
 		continue next
@@ -15141,264 +14915,264 @@ next:
 		joined = joined & rt.B2u((c == 92) && (((m.Ptr+1) >= m.End) || ((c2 == 10) || (c2 == 13))))
 		if c == 39 {
 			m.LexRawString(39, 1, 44)
-			goto block16
-		}
-		if c == 34 {
-			m.BashDouble()
-			goto block16
-		}
-		if c == 96 {
-			m.LexString(96, 1, 47)
-			goto block16
-		}
-		if c == 36 {
-			if c2 == 39 {
-				m.Ptr = m.Ptr + 1
-				m.EmitTok(44, lhs, m.Ptr)
-				m.LexString(39, 1, 44)
-				goto block16
-			}
-			p = m.BashArith
-			m.BashDollar(0)
-			cmd = rt.B2u((c2 == 40) && (m.BashArith == p))
-			if c2 == 40 {
-				flow = flow & 0xfffffff7
-				if arrayOpen != 0 {
-					arrayOpen = arrayOpen + (2 - cmd)
-				}
-			}
-			continue next
-		}
-		t5 = c == 92
-		t6 = m.LexIsIdentStart(c2)
-		if (rt.B2u(t5) & (rt.Clz32((t6 & rt.B2u(c2 != 36))) >> 5)) != 0 {
-			if ((m.Ptr + 1) >= m.End) || ((c2 == 10) || (c2 == 13)) {
-				m.Ptr = m.Ptr + 1
-				m.EmitTok(40, lhs, m.Ptr)
-				if hdLen == 0 {
-					t7 = m.LexEscapeEnd(lhs)
-					p = t7
-					m.EmitGap(m.Ptr, p)
-					m.Ptr = p
-					joined = joined | (cmd | rt.B2u(gap < lhs))
-				}
-				continue next
-			}
-			t8 = m.LexEscapeEnd(m.Ptr)
-			m.Ptr = t8
-			m.EmitTok(45, lhs, m.Ptr)
-			goto block16
-		}
-		if ((c == 60) && (c2 == 60)) && ((m.BashArith == 0) && (((m.Ptr + 2) >= m.End) || (rt.Ld8(m.Mem, int(m.Ptr)+2) != 60))) {
-			m.Ptr = m.Ptr + 2
-			t9 = m.BashByte(m.Ptr)
-			p = rt.B2u(t9 == 45)
-			m.Ptr = m.Ptr + p
-			m.EmitTok(25, lhs, m.Ptr)
-			gap = m.Ptr
-			t10 = m.LexSkipSpaceAt(m.Ptr)
-			m.Ptr = t10
-			m.EmitGap(gap, m.Ptr)
-			cmd = 0
-			if m.Ptr >= m.End {
-				continue next
-			}
-			lhs = m.Ptr
-			quote = rt.Ld8(m.Mem, int(m.Ptr))
-			if (quote == 34) || (quote == 39) {
-				m.Ptr = m.Ptr + 1
-				rhs = m.Ptr
-				t11 = m.ScanFindSpecial(m.Ptr, m.End, quote, 0, 1)
-				m.Ptr = t11
-				group = m.Ptr - rhs
-				t12 = m.BashByte(m.Ptr)
-				if t12 == quote {
-					m.Ptr = m.Ptr + 1
-				}
-			} else {
-				rhs = m.Ptr
-			bare:
-				for {
-					if m.Ptr >= m.End {
-						break bare
-					}
-					t13 = m.BashIsWordEnd(rt.Ld8(m.Mem, int(m.Ptr)))
-					if t13 != 0 {
-						break bare
-					}
-					m.Ptr = m.Ptr + 1
-					continue bare
-				}
-				group = m.Ptr - rhs
-			}
-			m.EmitTok(44, lhs, m.Ptr)
-			if (rt.B2u(hdLen == 0) & group) != 0 {
-				hdDelim = rhs
-				hdLen = group
-				hdStrip = p
-			}
-			continue next
-		}
-		t14 = m.LexIsDigit(c)
-		t15 = c == 46
-		t16 = m.LexIsDigit(c2)
-		if (t14 | (rt.B2u(t15) & t16)) != 0 {
-			m.LexScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			goto block16
-		}
-		t17 = m.LexIsIdentStart(c)
-		if t17 != 0 {
-			t18 = 1
 		} else {
-			if ((c - 45) <= 2) || (c == 126) {
-				t20 = m.BashIsPunctWordStart(c, c2)
-				t19 = t20
+			if c == 34 {
+				m.BashDouble()
 			} else {
-				t19 = rt.B2u(c == 92)
-			}
-			t18 = t19
-		}
-		if t18 != 0 {
-			if (c == 126) || (c == 92) {
-				m.Ptr = m.Ptr + 1
-			}
-			m.BashScanWord()
-			rhs = m.Ptr
-			group = 0
-			if (cmd | (flow & 4)) != 0 {
-				t21 = m.LexKeywordLookup(lhs, rhs, 14144, 7, 25)
-				group = t21
-				if group != 0 {
-					if (rt.B2u(group == 4) != rt.B2u((flow&4) != 0)) || (((flow & 3) == 2) && (group != 3)) {
-						group = 0
-					}
-				}
-			}
-			t22 = m.BashWordHl(group)
-			hl = t22
-			if decl != 0 {
-				hl = 15
-				decl = 0
-			} else {
-				if hl == 58 {
-					t23 = m.LexSkipSpaceAt(rhs)
-					p = t23
-					if ((p + 1) < m.End) && (rt.Ld16(m.Mem, int(p)) == 10536) {
-						hl = 15
-					} else {
-						if cmd != 0 {
-							t24 = m.BashByte(m.Ptr)
-							if (t24 == 61) && (c != 92) {
-								flow = flow | 8
-							} else {
-								if (flow & 3) != 2 {
-									hl = 14
-								}
+				if c == 96 {
+					m.LexString(96, 1, 47)
+				} else {
+					if c == 36 {
+						if c2 == 39 {
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(44, lhs, m.Ptr)
+							m.LexString(39, 1, 44)
+							goto block16
+						}
+						p = m.BashArith
+						m.BashDollar(0)
+						cmd = rt.B2u((c2 == 40) && (m.BashArith == p))
+						if c2 == 40 {
+							flow = flow & 0xfffffff7
+							if arrayOpen != 0 {
+								arrayOpen = arrayOpen + (2 - cmd)
 							}
+						}
+						continue next
+					}
+					t5 = c == 92
+					t6 = m.LexIsIdentStart(c2)
+					if (rt.B2u(t5) & (rt.Clz32((t6 & rt.B2u(c2 != 36))) >> 5)) != 0 {
+						if ((m.Ptr + 1) >= m.End) || ((c2 == 10) || (c2 == 13)) {
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(40, lhs, m.Ptr)
+							if hdLen == 0 {
+								t7 = m.LexEscapeEnd(lhs)
+								p = t7
+								m.EmitGap(m.Ptr, p)
+								m.Ptr = p
+								joined = joined | (cmd | rt.B2u(gap < lhs))
+							}
+							continue next
+						}
+						t8 = m.LexEscapeEnd(m.Ptr)
+						m.Ptr = t8
+						m.EmitTok(45, lhs, m.Ptr)
+					} else {
+						if ((c == 60) && (c2 == 60)) && ((m.BashArith == 0) && (((m.Ptr + 2) >= m.End) || (rt.Ld8(m.Mem, int(m.Ptr)+2) != 60))) {
+							m.Ptr = m.Ptr + 2
+							t9 = m.BashByte(m.Ptr)
+							p = rt.B2u(t9 == 45)
+							m.Ptr = m.Ptr + p
+							m.EmitTok(25, lhs, m.Ptr)
+							gap = m.Ptr
+							t10 = m.LexSkipSpaceAt(m.Ptr)
+							m.Ptr = t10
+							m.EmitGap(gap, m.Ptr)
+							cmd = 0
+							if m.Ptr >= m.End {
+								continue next
+							}
+							lhs = m.Ptr
+							quote = rt.Ld8(m.Mem, int(m.Ptr))
+							if (quote == 34) || (quote == 39) {
+								m.Ptr = m.Ptr + 1
+								rhs = m.Ptr
+								t11 = m.ScanFindSpecial(m.Ptr, m.End, quote, 0, 1)
+								m.Ptr = t11
+								group = m.Ptr - rhs
+								t12 = m.BashByte(m.Ptr)
+								if t12 == quote {
+									m.Ptr = m.Ptr + 1
+								}
+							} else {
+								rhs = m.Ptr
+							bare:
+								for {
+									if m.Ptr >= m.End {
+										break bare
+									}
+									t13 = m.BashIsWordEnd(rt.Ld8(m.Mem, int(m.Ptr)))
+									if t13 != 0 {
+										break bare
+									}
+									m.Ptr = m.Ptr + 1
+									continue bare
+								}
+								group = m.Ptr - rhs
+							}
+							m.EmitTok(44, lhs, m.Ptr)
+							if (rt.B2u(hdLen == 0) & group) != 0 {
+								hdDelim = rhs
+								hdLen = group
+								hdStrip = p
+							}
+							continue next
+						}
+						t14 = m.LexIsDigit(c)
+						t15 = c == 46
+						t16 = m.LexIsDigit(c2)
+						if (t14 | (rt.B2u(t15) & t16)) != 0 {
+							m.LexScanNumber()
+							m.EmitTok(24, lhs, m.Ptr)
+						} else {
+							t17 = m.LexIsIdentStart(c)
+							if t17 != 0 {
+								t18 = 1
+							} else {
+								if ((c - 45) <= 2) || (c == 126) {
+									t20 = m.BashIsPunctWordStart(c, c2)
+									t19 = t20
+								} else {
+									t19 = rt.B2u(c == 92)
+								}
+								t18 = t19
+							}
+							if t18 != 0 {
+								if (c == 126) || (c == 92) {
+									m.Ptr = m.Ptr + 1
+								}
+								m.BashScanWord()
+								rhs = m.Ptr
+								group = 0
+								if (cmd | (flow & 4)) != 0 {
+									t21 = m.LexKeywordLookup(lhs, rhs, 14144, 7, 25)
+									group = t21
+									if group != 0 {
+										if (rt.B2u(group == 4) != rt.B2u((flow&4) != 0)) || (((flow & 3) == 2) && (group != 3)) {
+											group = 0
+										}
+									}
+								}
+								t22 = m.BashWordHl(group)
+								hl = t22
+								if decl != 0 {
+									hl = 15
+									decl = 0
+								} else {
+									if hl == 58 {
+										t23 = m.LexSkipSpaceAt(rhs)
+										p = t23
+										if ((p + 1) < m.End) && (rt.Ld16(m.Mem, int(p)) == 10536) {
+											hl = 15
+										} else {
+											if cmd != 0 {
+												t24 = m.BashByte(m.Ptr)
+												if (t24 == 61) && (c != 92) {
+													flow = flow | 8
+												} else {
+													if (flow & 3) != 2 {
+														hl = 14
+													}
+												}
+											}
+										}
+									}
+								}
+								m.EmitTok(hl, lhs, rhs)
+								cmd = (uint32(514) >> (group & 31)) & 1
+								if group >= 3 {
+									if group == 3 {
+										flow = flow & 0xfffffffc
+									}
+									if group == 4 {
+										flow = flow & 0xfffffffb
+										if (flow & 3) == 1 {
+											flow = flow + 1
+										}
+									}
+									if group >= 5 {
+										flow = (flow & 0xfffffffb) | rt.Sel32((group <= 6), 4, 0)
+										if group == 6 {
+											flow = (flow & 0xfffffffc) | 1
+										}
+										if (hl == 19) && (group == 8) {
+											decl = 1
+										}
+									}
+								}
+								continue next
+							}
+							if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+								m.Ptr = m.Ptr + 1
+								p = cmd
+								cmd = 0
+								if c > 41 {
+									if c2 == c {
+										if c <= 93 {
+											m.Ptr = m.Ptr + 1
+										}
+									}
+									if c == 123 {
+										t25 = m.Ptr >= m.End
+										t26 = m.LexIsSpace(rt.Ld8(m.Mem, int(m.Ptr)))
+										cmd = rt.B2u(t25) | t26
+									}
+									m.EmitTok(32, lhs, m.Ptr)
+									continue next
+								}
+								if ((m.BashArith != 0) && (c == 41)) && (c2 == 41) {
+									m.BashArith = m.BashArith - 1
+								}
+								if c == 40 {
+									flow = flow & 0xfffffff7
+									if ((p | rt.B2u((flow&4) != 0)) & rt.B2u(c2 == 40)) != 0 {
+										m.Ptr = m.Ptr + 1
+										m.BashArith = m.BashArith + 1
+										flow = flow & 0xfffffffb
+										p = 0
+									}
+									t27 = m.BashIsArrayOpen(lhs)
+									if t27 != 0 {
+										arrayOpen = 1
+									} else {
+										if arrayOpen != 0 {
+											arrayOpen = arrayOpen + (m.Ptr - lhs)
+										}
+										cmd = p | rt.B2u((lhs > m.SrcBase) && ((rt.Ld8(m.Mem, int((lhs-1)))|2) == 62))
+									}
+								}
+								if c == 41 {
+									if arrayOpen != 0 {
+										arrayOpen = arrayOpen - 1
+									}
+									if (flow & 3) == 2 {
+										flow = flow + 1
+										cmd = 1
+									}
+								}
+								m.EmitTok(32, lhs, m.Ptr)
+								continue next
+							}
+							t28 = m.BashIsOp(c)
+							if t28 != 0 {
+								m.Ptr = m.Ptr + 1
+								if (c2 == 61) || (c == c2) {
+									m.Ptr = m.Ptr + 1
+									t29 = m.BashByte(m.Ptr)
+									if t29 == c {
+										m.Ptr = m.Ptr + 1
+									}
+								}
+								m.EmitTok(25, lhs, m.Ptr)
+								if (m.BashArith == 0) && ((c == 59) || ((c == 38) || (c == 124))) {
+									cmd = 1
+									flow = flow & 3
+									if flow == 3 {
+										if (c == 59) && ((c2 == 59) || (c2 == 38)) {
+											flow = 2
+										}
+									}
+								}
+								continue next
+							}
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(0, lhs, m.Ptr)
 						}
 					}
 				}
 			}
-			m.EmitTok(hl, lhs, rhs)
-			cmd = (uint32(514) >> (group & 31)) & 1
-			if group >= 3 {
-				if group == 3 {
-					flow = flow & 0xfffffffc
-				}
-				if group == 4 {
-					flow = flow & 0xfffffffb
-					if (flow & 3) == 1 {
-						flow = flow + 1
-					}
-				}
-				if group >= 5 {
-					flow = (flow & 0xfffffffb) | rt.Sel32((group <= 6), 4, 0)
-					if group == 6 {
-						flow = (flow & 0xfffffffc) | 1
-					}
-					if (hl == 19) && (group == 8) {
-						decl = 1
-					}
-				}
-			}
-			continue next
 		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			p = cmd
-			cmd = 0
-			if c > 41 {
-				if c2 == c {
-					if c <= 93 {
-						m.Ptr = m.Ptr + 1
-					}
-				}
-				if c == 123 {
-					t25 = m.Ptr >= m.End
-					t26 = m.LexIsSpace(rt.Ld8(m.Mem, int(m.Ptr)))
-					cmd = rt.B2u(t25) | t26
-				}
-				m.EmitTok(32, lhs, m.Ptr)
-				continue next
-			}
-			if ((m.BashArith != 0) && (c == 41)) && (c2 == 41) {
-				m.BashArith = m.BashArith - 1
-			}
-			if c == 40 {
-				flow = flow & 0xfffffff7
-				if ((p | rt.B2u((flow&4) != 0)) & rt.B2u(c2 == 40)) != 0 {
-					m.Ptr = m.Ptr + 1
-					m.BashArith = m.BashArith + 1
-					flow = flow & 0xfffffffb
-					p = 0
-				}
-				t27 = m.BashIsArrayOpen(lhs)
-				if t27 != 0 {
-					arrayOpen = 1
-				} else {
-					if arrayOpen != 0 {
-						arrayOpen = arrayOpen + (m.Ptr - lhs)
-					}
-					cmd = p | rt.B2u((lhs > m.SrcBase) && ((rt.Ld8(m.Mem, int((lhs-1)))|2) == 62))
-				}
-			}
-			if c == 41 {
-				if arrayOpen != 0 {
-					arrayOpen = arrayOpen - 1
-				}
-				if (flow & 3) == 2 {
-					flow = flow + 1
-					cmd = 1
-				}
-			}
-			m.EmitTok(32, lhs, m.Ptr)
-			continue next
-		}
-		t28 = m.BashIsOp(c)
-		if t28 != 0 {
-			m.Ptr = m.Ptr + 1
-			if (c2 == 61) || (c == c2) {
-				m.Ptr = m.Ptr + 1
-				t29 = m.BashByte(m.Ptr)
-				if t29 == c {
-					m.Ptr = m.Ptr + 1
-				}
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			if (m.BashArith == 0) && ((c == 59) || ((c == 38) || (c == 124))) {
-				cmd = 1
-				flow = flow & 3
-				if flow == 3 {
-					if (c == 59) && ((c2 == 59) || (c2 == 38)) {
-						flow = 2
-					}
-				}
-			}
-			continue next
-		}
-		m.Ptr = m.Ptr + 1
-		m.EmitTok(0, lhs, m.Ptr)
 	block16:
 		cmd = 0
 		continue next
@@ -16390,59 +16164,50 @@ func (m *Machine) PhpWordHl(lhs uint32, rhs uint32) uint32 {
 	if (n - 2) > 10 {
 		return 58
 	}
-	switch n - 2 {
-	case 0:
-		goto byteSwitch10
-	case 1:
-		goto byteSwitch11
+	switch n {
 	case 2:
-		goto byteSwitch12
-	default:
-		goto byteSwitch1Default
+		w = rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020
+		w = w & 65535
+		if (w == 26217) || (w == 28516) {
+			return 18
+		}
+		if (w == 29537) || (w == 28262) {
+			return 17
+		}
+		return 58
+	case 3:
+		w = rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020
+		w = w & 0xffffff
+		if (w == 0x77656e) || ((w == 0x657375) || (w == 0x726176)) {
+			return 17
+		}
+		if (w == 0x726f66) || (w == 0x797274) {
+			return 18
+		}
+		if w == 0x746e69 {
+			return 56
+		}
+		return 58
+	case 4:
+		w = rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020
+		w = w & 0xffffffff
+		if w == 0x65757274 {
+			return 3
+		}
+		if w == 0x6c6c756e {
+			return 7
+		}
+		if ((w == 0x65736c65) || (w == 0x65736163)) || ((w == 0x6f686365) || (w == 0x6f746f67)) {
+			return 18
+		}
+		if w == 0x6d756e65 {
+			return 19
+		}
+		if (w == 0x6c6f6f62) || (w == 0x64696f76) {
+			return 56
+		}
+		return 58
 	}
-byteSwitch10:
-	w = rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020
-	w = w & 65535
-	if (w == 26217) || (w == 28516) {
-		return 18
-	}
-	if (w == 29537) || (w == 28262) {
-		return 17
-	}
-	return 58
-byteSwitch11:
-	w = rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020
-	w = w & 0xffffff
-	if (w == 0x77656e) || ((w == 0x657375) || (w == 0x726176)) {
-		return 17
-	}
-	if (w == 0x726f66) || (w == 0x797274) {
-		return 18
-	}
-	if w == 0x746e69 {
-		return 56
-	}
-	return 58
-byteSwitch12:
-	w = rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020
-	w = w & 0xffffffff
-	if w == 0x65757274 {
-		return 3
-	}
-	if w == 0x6c6c756e {
-		return 7
-	}
-	if ((w == 0x65736c65) || (w == 0x65736163)) || ((w == 0x6f686365) || (w == 0x6f746f67)) {
-		return 18
-	}
-	if w == 0x6d756e65 {
-		return 19
-	}
-	if (w == 0x6c6f6f62) || (w == 0x64696f76) {
-		return 56
-	}
-	return 58
-byteSwitch1Default:
 	v = rt.LdV(m.Mem, int(lhs))
 	rt.StV(m.Mem, 1360, rt.Or(v, rt.And(rt.LeU8(rt.Sub8(v, rt.Splat8(65)), rt.Splat8(25)), rt.Splat8(32))))
 	t0 = m.LexKeywordValue(1360, 1360+n, 24704, 15, 51)
@@ -16746,135 +16511,135 @@ token:
 			} else {
 				m.LexString(c, 1, 44)
 			}
-			goto reset
-		}
-		if c == 36 {
-			m.Ptr = m.Ptr + 1
-			m.LexScanIdent()
-			m.EmitTok(58, lhs, m.Ptr)
-			m.SigPattern = 0
-			goto reset
-		}
-		t8 = m.LexIsDigit(c)
-		t9 = c == 46
-		t10 = m.LexIsDigit(next)
-		if (t8 | (rt.B2u(t9) & t10)) != 0 {
-			m.LexScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			goto reset
-		}
-		t11 = m.LexIsIdentStart(c)
-		if t11 != 0 {
-			m.LexScanIdent()
-			t12 = m.PhpWordHl(lhs, m.Ptr)
-			hl = t12
-			if m.PhpHack != 0 {
-				if hl == 58 {
-					t13 = m.LexKeywordValue(lhs, m.Ptr, 58576, 7, 27)
-					p = t13
-					if int32(p) >= int32(0) {
-						hl = p
-					}
-				}
-				if (hl == 19) || (hl == 56) {
-					decl = 0
-				}
-			}
-			if decl != 0 {
-				if (decl < 3) || (hl == 58) {
-					hl = rt.Sel32((decl == 1), 15, 57)
-				}
-				if (decl == 3) && ((m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 92)) {
-					hl = 23
-				} else {
-					decl = 0
-				}
+		} else {
+			if c == 36 {
+				m.Ptr = m.Ptr + 1
+				m.LexScanIdent()
+				m.EmitTok(58, lhs, m.Ptr)
+				m.SigPattern = 0
 			} else {
-				if member != 0 {
-					t14 = m.LexSkipSpaceAt(m.Ptr)
-					p = t14
-					hl = rt.Sel32(((p < m.End) && (rt.Ld8(m.Mem, int(p)) == 40)), 16, 29)
-					if member == 2 {
-						if (hl == 29) && ((c - 65) <= 25) {
-							t15 = m.LexIsConstCase(lhs, m.Ptr)
-							if t15 != 0 {
-								hl = 6
-							}
-						}
-					}
-					member = 0
+				t8 = m.LexIsDigit(c)
+				t9 = c == 46
+				t10 = m.LexIsDigit(next)
+				if (t8 | (rt.B2u(t9) & t10)) != 0 {
+					m.LexScanNumber()
+					m.EmitTok(24, lhs, m.Ptr)
 				} else {
-					if hl == 58 {
-						t16 = m.LexSkipSpaceAt(m.Ptr)
-						p = t16
-						if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 40) {
-							hl = 14
-						} else {
-							if (c - 65) <= 25 {
-								t17 = m.PhpUpperName(lhs, m.Ptr)
-								hl = t17
+					t11 = m.LexIsIdentStart(c)
+					if t11 != 0 {
+						m.LexScanIdent()
+						t12 = m.PhpWordHl(lhs, m.Ptr)
+						hl = t12
+						if m.PhpHack != 0 {
+							if hl == 58 {
+								t13 = m.LexKeywordValue(lhs, m.Ptr, 58576, 7, 27)
+								p = t13
+								if int32(p) >= int32(0) {
+									hl = p
+								}
+							}
+							if (hl == 19) || (hl == 56) {
+								decl = 0
 							}
 						}
-						if (m.SigPattern & rt.B2u(((p < m.End) && (rt.Ld8(m.Mem, int(p)) == 58)) && (rt.Sel32(((p+1) < m.End), rt.Ld8(m.Mem, int(p)+1), 0) != 58))) != 0 {
-							hl = 59
+						if decl != 0 {
+							if (decl < 3) || (hl == 58) {
+								hl = rt.Sel32((decl == 1), 15, 57)
+							}
+							if (decl == 3) && ((m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 92)) {
+								hl = 23
+							} else {
+								decl = 0
+							}
+						} else {
+							if member != 0 {
+								t14 = m.LexSkipSpaceAt(m.Ptr)
+								p = t14
+								hl = rt.Sel32(((p < m.End) && (rt.Ld8(m.Mem, int(p)) == 40)), 16, 29)
+								if member == 2 {
+									if (hl == 29) && ((c - 65) <= 25) {
+										t15 = m.LexIsConstCase(lhs, m.Ptr)
+										if t15 != 0 {
+											hl = 6
+										}
+									}
+								}
+								member = 0
+							} else {
+								if hl == 58 {
+									t16 = m.LexSkipSpaceAt(m.Ptr)
+									p = t16
+									if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 40) {
+										hl = 14
+									} else {
+										if (c - 65) <= 25 {
+											t17 = m.PhpUpperName(lhs, m.Ptr)
+											hl = t17
+										}
+									}
+									if (m.SigPattern & rt.B2u(((p < m.End) && (rt.Ld8(m.Mem, int(p)) == 58)) && (rt.Sel32(((p+1) < m.End), rt.Ld8(m.Mem, int(p)+1), 0) != 58))) != 0 {
+										hl = 59
+									}
+								} else {
+									if hl == 19 {
+										decl = rt.Sel32((((m.Ptr - lhs) == 8) && ((rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020) == 0x6e6f6974636e7566)), 1, 2)
+									} else {
+										if ((m.Ptr - lhs) == 3) && (((rt.Ld32(m.Mem, int(lhs)) | 0x202020) & 0xffffff) == 0x77656e) {
+											decl = 3
+										}
+									}
+								}
+							}
 						}
+						if attr == 1 {
+							hl = 1
+							attr = 2
+						}
+						m.EmitTok(hl, lhs, m.Ptr)
+						m.SigPattern = 0
+						continue token
+					}
+					if ((c == 45) && (next == 62)) || ((c == 58) && (next == 58)) {
+						m.Ptr = m.Ptr + 2
+						m.EmitTok(25, lhs, m.Ptr)
+						decl = 0
+						member = rt.Sel32((c == 58), 2, 1)
+						m.SigPattern = 0
+						continue token
+					}
+					if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(32, lhs, m.Ptr)
+						m.SigPattern = rt.B2u(c == 40)
 					} else {
-						if hl == 19 {
-							decl = rt.Sel32((((m.Ptr - lhs) == 8) && ((rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020) == 0x6e6f6974636e7566)), 1, 2)
-						} else {
-							if ((m.Ptr - lhs) == 3) && (((rt.Ld32(m.Mem, int(lhs)) | 0x202020) & 0xffffff) == 0x77656e) {
-								decl = 3
+						if (c == 44) || ((c == 59) || (c == 58)) {
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(35, lhs, m.Ptr)
+							m.SigPattern = rt.B2u(c == 44)
+							if attr != 0 {
+								attr = 1
 							}
+						} else {
+							m.Ptr = m.Ptr + 1
+							hl = rt.Sel32(((c == 35) && (next == 91)), 1, 25)
+							if (attr != 0) && ((c == 62) && (next == 62)) {
+								m.Ptr = m.Ptr + 1
+								hl = 1
+								attr = 0
+							}
+							m.EmitTok(hl, lhs, m.Ptr)
+							if decl != 0 {
+								if (c != 38) && (c != 92) {
+									decl = 0
+								}
+							}
+							member = 0
+							continue token
 						}
 					}
 				}
 			}
-			if attr == 1 {
-				hl = 1
-				attr = 2
-			}
-			m.EmitTok(hl, lhs, m.Ptr)
-			m.SigPattern = 0
-			continue token
 		}
-		if ((c == 45) && (next == 62)) || ((c == 58) && (next == 58)) {
-			m.Ptr = m.Ptr + 2
-			m.EmitTok(25, lhs, m.Ptr)
-			decl = 0
-			member = rt.Sel32((c == 58), 2, 1)
-			m.SigPattern = 0
-			continue token
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			m.SigPattern = rt.B2u(c == 40)
-			goto reset
-		}
-		if (c == 44) || ((c == 59) || (c == 58)) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			m.SigPattern = rt.B2u(c == 44)
-			if attr != 0 {
-				attr = 1
-			}
-			goto reset
-		}
-		m.Ptr = m.Ptr + 1
-		hl = rt.Sel32(((c == 35) && (next == 91)), 1, 25)
-		if (attr != 0) && ((c == 62) && (next == 62)) {
-			m.Ptr = m.Ptr + 1
-			hl = 1
-			attr = 0
-		}
-		m.EmitTok(hl, lhs, m.Ptr)
-		if decl != 0 {
-			if (c != 38) && (c != 92) {
-				decl = 0
-			}
-		}
-		member = 0
-		continue token
 	reset:
 		decl = 0
 		member = 0
@@ -17380,303 +17145,282 @@ func (m *Machine) HlBlade() {
 			m.End = saveEnd
 		}
 	}
-	if resumed != 0 {
-		goto done
-	}
-next:
-	for {
-		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St32(m.Mem, 98068, markup)
-				rt.St32(m.Mem, 98072, php)
-				rt.St32(m.Mem, 98076, phpMode)
-				rt.St32(m.Mem, 98080, verbatim)
-				rt.St32(m.Mem, 98084, resumed)
-				m.LiveSuspended = 1
-				return
+	if resumed == 0 {
+	next:
+		for {
+			if m.Ptr >= m.LiveLimit {
+				if liveRoot != 0 {
+					rt.St32(m.Mem, 98064, streamRoot)
+					rt.St32(m.Mem, 98068, markup)
+					rt.St32(m.Mem, 98072, php)
+					rt.St32(m.Mem, 98076, phpMode)
+					rt.St32(m.Mem, 98080, verbatim)
+					rt.St32(m.Mem, 98084, resumed)
+					m.LiveSuspended = 1
+					return
+				}
 			}
-		}
-		if m.Ptr >= m.End {
-			goto done
-		}
-		lhs = m.Ptr
-		if php != 0 {
-			kind = php & 15
-			hl = 32
-			n = 1
-			word = 0
-			if kind == 3 {
-				q = (php >> 8) & 255
-				depth = php >> 16
-				p = lhs
-			scan:
-				for {
-					if q != 0 {
-						t2 = m.ScanFindSpecial(p, m.End, q, 1, 0)
-						p = t2
+			if m.Ptr >= m.End {
+				goto done
+			}
+			lhs = m.Ptr
+			if php != 0 {
+				kind = php & 15
+				hl = 32
+				n = 1
+				word = 0
+				if kind == 3 {
+					q = (php >> 8) & 255
+					depth = php >> 16
+					p = lhs
+				scan:
+					for {
+						if q != 0 {
+							t2 = m.ScanFindSpecial(p, m.End, q, 1, 0)
+							p = t2
+							if p >= m.End {
+								break scan
+							}
+							if rt.Ld8(m.Mem, int(p)) == q {
+								q = 0
+							} else {
+								p = p + 1
+							}
+							p = p + 1
+							continue scan
+						}
+						t3 = m.TmplFind4(p, 40, 41, 34, 39)
+						p = t3
 						if p >= m.End {
 							break scan
 						}
-						if rt.Ld8(m.Mem, int(p)) == q {
-							q = 0
+						c = rt.Ld8(m.Mem, int(p))
+						if c == 41 {
+							if depth == 0 {
+								break scan
+							}
+							depth = depth - 1
 						} else {
-							p = p + 1
+							if c == 40 {
+								depth = depth + 1
+							} else {
+								q = c
+							}
 						}
 						p = p + 1
 						continue scan
 					}
-					t3 = m.TmplFind4(p, 40, 41, 34, 39)
-					p = t3
-					if p >= m.End {
-						break scan
+					if p > m.End {
+						p = m.End
 					}
-					c = rt.Ld8(m.Mem, int(p))
-					if c == 41 {
-						if depth == 0 {
-							break scan
-						}
-						depth = depth - 1
+					php = 3 | ((q << 8) | (depth << 16))
+				} else {
+					switch kind {
+					case 1:
+						word = 32125
+						n = 2
+						hl = 40
+					case 2:
+						word = 0x7d2121
+						n = 3
+						hl = 40
+					case 4:
+						word = 0x706870646e6540
+						n = 7
+						hl = 17
+					case 5:
+						word = uint64((php >> 8))
+						hl = 44
+					case 6:
+						word = 15935
+						n = 2
+						hl = 27
+					}
+					t4 = m.TmplFindWord(lhs, word, n)
+					p = t4
+				}
+				saveEnd = m.End
+				m.End = p
+				if phpMode != 0 {
+					m.StreamMode = phpMode
+					phpMode = 0
+					if m.StreamMode == 14 {
+						m.PhpHeredocResume()
 					} else {
-						if c == 40 {
-							depth = depth + 1
+						if m.StreamMode == 15 {
+							t5 = m.PhpSingleBody(m.Ptr)
+							if t5 != 0 {
+								m.StreamMode = 0
+							}
 						} else {
-							q = c
+							m.StreamResumeCommon()
 						}
 					}
-					p = p + 1
-					continue scan
 				}
-				if p > m.End {
-					p = m.End
-				}
-				php = 3 | ((q << 8) | (depth << 16))
-			} else {
-				switch kind - 1 {
-				case 0:
-					goto byteSwitch20
-				case 1:
-					goto byteSwitch21
-				case 2:
-					goto byteSwitch2Default
-				case 3:
-					goto byteSwitch22
-				case 4:
-					goto byteSwitch23
-				case 5:
-					goto byteSwitch24
-				default:
-					goto byteSwitch2Default
-				}
-			byteSwitch20:
-				word = 32125
-				n = 2
-				hl = 40
-				goto byteSwitch2Default
-			byteSwitch21:
-				word = 0x7d2121
-				n = 3
-				hl = 40
-				goto byteSwitch2Default
-			byteSwitch22:
-				word = 0x706870646e6540
-				n = 7
-				hl = 17
-				goto byteSwitch2Default
-			byteSwitch23:
-				word = uint64((php >> 8))
-				hl = 44
-				goto byteSwitch2Default
-			byteSwitch24:
-				word = 15935
-				n = 2
-				hl = 27
-				goto byteSwitch2Default
-			byteSwitch2Default:
-				t4 = m.TmplFindWord(lhs, word, n)
-				p = t4
-			}
-			saveEnd = m.End
-			m.End = p
-			if phpMode != 0 {
-				m.StreamMode = phpMode
-				phpMode = 0
-				if m.StreamMode == 14 {
-					m.PhpHeredocResume()
-				} else {
-					if m.StreamMode == 15 {
-						t5 = m.PhpSingleBody(m.Ptr)
-						if t5 != 0 {
-							m.StreamMode = 0
-						}
-					} else {
-						m.StreamResumeCommon()
+			code:
+				for {
+					m.PhpCode(1)
+					if m.Ptr >= m.End {
+						break code
 					}
+					q = m.Ptr
+					m.Ptr = q + 2
+					m.EmitTok(25, q, m.Ptr)
+					m.PhpStreamDecl = 0
+					m.PhpStreamMember = 0
+					continue code
 				}
-			}
-		code:
-			for {
-				m.PhpCode(1)
-				if m.Ptr >= m.End {
-					break code
-				}
-				q = m.Ptr
-				m.Ptr = q + 2
-				m.EmitTok(25, q, m.Ptr)
-				m.PhpStreamDecl = 0
-				m.PhpStreamMember = 0
-				continue code
-			}
-			m.End = saveEnd
-			if p < m.End {
-				m.StreamMode = 0
-				m.PhpStreamDecl = 0
-				m.PhpStreamMember = 0
-				m.Ptr = p + n
-				m.EmitTok(hl, p, m.Ptr)
-				if kind == 5 {
-					markup = (markup & 0xffff00e8) | 1
-				}
-				php = 0
-			} else {
-				if (m.Streaming & rt.B2u(m.Ptr == m.Eof)) != 0 {
-					phpMode = m.StreamMode
+				m.End = saveEnd
+				if p < m.End {
 					m.StreamMode = 0
-				}
-			}
-			continue next
-		}
-		saveEnd = m.End
-		if verbatim != 0 {
-			t6 = m.BladeVerbatimEnd(lhs)
-			m.End = t6
-			if phpMode != 0 {
-				m.StreamMode = phpMode
-				phpMode = 0
-				m.StreamResumeCommon()
-			}
-		}
-		skip = 0
-	markupNext:
-		for {
-			t7 = m.TmplMarkup(markup, (verbatim<<2)|(skip<<4))
-			r = t7
-			m.End = saveEnd
-			markup = r & 0xffffff
-			r = r >> 24
-			if verbatim != 0 {
-				if m.Ptr < m.End {
-					m.TmplCut()
-					lhs = m.Ptr
-					m.Ptr = lhs + 12
-					m.EmitTok(17, lhs, m.Ptr)
-					verbatim = 0
-					markup = 0
+					m.PhpStreamDecl = 0
+					m.PhpStreamMember = 0
+					m.Ptr = p + n
+					m.EmitTok(hl, p, m.Ptr)
+					if kind == 5 {
+						markup = (markup & 0xffff00e8) | 1
+					}
+					php = 0
 				} else {
-					if ((m.Streaming & rt.B2u(m.Ptr == m.Eof)) & rt.B2u(m.StreamRegionKind == 0)) != 0 {
+					if (m.Streaming & rt.B2u(m.Ptr == m.Eof)) != 0 {
 						phpMode = m.StreamMode
 						m.StreamMode = 0
 					}
 				}
 				continue next
 			}
-			if r == 0 {
-				continue next
+			saveEnd = m.End
+			if verbatim != 0 {
+				t6 = m.BladeVerbatimEnd(lhs)
+				m.End = t6
+				if phpMode != 0 {
+					m.StreamMode = phpMode
+					phpMode = 0
+					m.StreamResumeCommon()
+				}
 			}
-			lhs = m.Ptr
-			if r == 2 {
-				php = 5 | (markup & 65280)
-				goto construct
-			}
-			c = rt.Ld8(m.Mem, int(lhs))
-			t8 = m.TemplateByte(lhs + 1)
-			q = t8
-			if c == 60 {
-				m.Ptr = lhs + rt.Sel32((rt.Ld8(m.Mem, int(lhs)+2) == 61), 3, 5)
-				m.EmitTok(27, lhs, m.Ptr)
-				php = 6
-				goto construct
-			}
-			t9 = m.TemplateByte(lhs + 2)
-			p = t9
-			if c == 123 {
-				if q == 33 {
-					if p != 33 {
-						goto plain
+			skip = 0
+		markupNext:
+			for {
+				t7 = m.TmplMarkup(markup, (verbatim<<2)|(skip<<4))
+				r = t7
+				m.End = saveEnd
+				markup = r & 0xffffff
+				r = r >> 24
+				if verbatim != 0 {
+					if m.Ptr < m.End {
+						m.TmplCut()
+						lhs = m.Ptr
+						m.Ptr = lhs + 12
+						m.EmitTok(17, lhs, m.Ptr)
+						verbatim = 0
+						markup = 0
+					} else {
+						if ((m.Streaming & rt.B2u(m.Ptr == m.Eof)) & rt.B2u(m.StreamRegionKind == 0)) != 0 {
+							phpMode = m.StreamMode
+							m.StreamMode = 0
+						}
 					}
-					php = 2
-					n = 3
+					continue next
+				}
+				if r == 0 {
+					continue next
+				}
+				lhs = m.Ptr
+				if r == 2 {
+					php = 5 | (markup & 65280)
 				} else {
-					if q != 123 {
-						goto plain
+					c = rt.Ld8(m.Mem, int(lhs))
+					t8 = m.TemplateByte(lhs + 1)
+					q = t8
+					if c == 60 {
+						m.Ptr = lhs + rt.Sel32((rt.Ld8(m.Mem, int(lhs)+2) == 61), 3, 5)
+						m.EmitTok(27, lhs, m.Ptr)
+						php = 6
+					} else {
+						t9 = m.TemplateByte(lhs + 2)
+						p = t9
+						if c == 123 {
+							if q == 33 {
+								if p != 33 {
+									goto plain
+								}
+								php = 2
+								n = 3
+							} else {
+								if q != 123 {
+									goto plain
+								}
+								t10 = p == 45
+								t11 = m.TemplateByte(lhs + 3)
+								if t10 && (t11 == 45) {
+									m.TmplComment(4, 0x7d7d2d2d, 4)
+									goto construct
+								}
+								php = 1
+								n = 2
+							}
+							m.Ptr = lhs + n
+							m.EmitTok(40, lhs, m.Ptr)
+						} else {
+							if (q == 64) || ((q == 123) && (p == 123)) {
+								m.Ptr = lhs + rt.Sel32((q == 123), 3, 2)
+								m.EmitTok(45, lhs, m.Ptr)
+							} else {
+								if (((q | 32) - 97) > 25) && (q != 95) {
+									goto plain
+								}
+								t12 = lhs > m.SrcBase
+								t13 = m.LexIsIdentContinue(rt.Ld8(m.Mem, int((lhs - 1))))
+								if (rt.B2u(t12) & t13) != 0 {
+									goto plain
+								}
+								m.Ptr = lhs + 1
+								m.ScanIdentRun(95)
+								q = m.Ptr
+								t14 = m.BladeDirective(lhs+1, q)
+								hl = t14
+								t15 = m.LexSkipSpaceAt(q)
+								p = t15
+								t16 = m.TemplateByte(p)
+								c = rt.B2u(t16 == 40)
+								if int32(hl) < int32(0) {
+									m.Ptr = lhs
+									if c == 0 {
+										goto plain
+									}
+									hl = 14
+								}
+								m.EmitTok(hl&255, lhs, q)
+								m.Ptr = q
+								if c != 0 {
+									m.EmitGap(q, p)
+									m.Ptr = p + 1
+									m.EmitTok(32, p, m.Ptr)
+									php = 3
+								} else {
+									if (hl >> 8) == 1 {
+										php = 4
+									}
+									verbatim = rt.B2u((hl >> 8) == 2)
+								}
+							}
+						}
 					}
-					t10 = p == 45
-					t11 = m.TemplateByte(lhs + 3)
-					if t10 && (t11 == 45) {
-						m.TmplComment(4, 0x7d7d2d2d, 4)
-						goto construct
-					}
-					php = 1
-					n = 2
 				}
-				m.Ptr = lhs + n
-				m.EmitTok(40, lhs, m.Ptr)
-				goto construct
-			}
-			if (q == 64) || ((q == 123) && (p == 123)) {
-				m.Ptr = lhs + rt.Sel32((q == 123), 3, 2)
-				m.EmitTok(45, lhs, m.Ptr)
-				goto construct
-			}
-			if (((q | 32) - 97) > 25) && (q != 95) {
-				goto plain
-			}
-			t12 = lhs > m.SrcBase
-			t13 = m.LexIsIdentContinue(rt.Ld8(m.Mem, int((lhs - 1))))
-			if (rt.B2u(t12) & t13) != 0 {
-				goto plain
-			}
-			m.Ptr = lhs + 1
-			m.ScanIdentRun(95)
-			q = m.Ptr
-			t14 = m.BladeDirective(lhs+1, q)
-			hl = t14
-			t15 = m.LexSkipSpaceAt(q)
-			p = t15
-			t16 = m.TemplateByte(p)
-			c = rt.B2u(t16 == 40)
-			if int32(hl) < int32(0) {
-				m.Ptr = lhs
-				if c == 0 {
-					goto plain
+			construct:
+				if (markup & 7) == 3 {
+					markup = markup ^ 2
 				}
-				hl = 14
+				if php != 0 {
+					m.PhpStreamDecl = 0
+					m.PhpStreamMember = 0
+				}
+				continue next
+			plain:
+				skip = 1
+				continue markupNext
 			}
-			m.EmitTok(hl&255, lhs, q)
-			m.Ptr = q
-			if c != 0 {
-				m.EmitGap(q, p)
-				m.Ptr = p + 1
-				m.EmitTok(32, p, m.Ptr)
-				php = 3
-				goto construct
-			}
-			if (hl >> 8) == 1 {
-				php = 4
-			}
-			verbatim = rt.B2u((hl >> 8) == 2)
-		construct:
-			if (markup & 7) == 3 {
-				markup = markup ^ 2
-			}
-			if php != 0 {
-				m.PhpStreamDecl = 0
-				m.PhpStreamMember = 0
-			}
-			continue next
-		plain:
-			skip = 1
-			continue markupNext
 		}
 	}
 done:
@@ -19003,35 +18747,33 @@ next:
 			}
 			t4 = m.TemplateByte(p)
 			c2 = t4
-			if (rt.Clz32((rt.Ld8(m.Mem, int(c2)+3216) & 2)) >> 5) != 0 {
-				goto free
+			if (rt.Clz32((rt.Ld8(m.Mem, int(c2)+3216) & 2)) >> 5) == 0 {
+				t5 = (c2 | 32) == 100
+				t6 = m.TemplateByte(p + 1)
+				if !(t5 && (t6 != 32)) {
+					if n != 0 {
+						m.EmitTok(4, lhs, p)
+					} else {
+						m.EmitGap(lhs, p)
+					}
+					m.Ptr = p
+					if (c2 == 42) || (c2 == 47) {
+						m.LexLineComment(0, 4)
+						col = 2
+						continue next
+					}
+					t7 = m.Utf8SpanEnd(lhs+72, m.End)
+					area = t7
+					if c2 != 32 {
+						m.Ptr = p + 1
+						m.EmitTok(rt.Sel32((c2 == 45), 25, 27), p, m.Ptr)
+					}
+					t8 = c2 != 45
+					t9 = m.LexSkipSpaceAt(m.Ptr)
+					col = rt.Sel32((t8 && ((t9 - lhs) <= 10)), 1, 2)
+					continue next
+				}
 			}
-			t5 = (c2 | 32) == 100
-			t6 = m.TemplateByte(p + 1)
-			if t5 && (t6 != 32) {
-				goto free
-			}
-			if n != 0 {
-				m.EmitTok(4, lhs, p)
-			} else {
-				m.EmitGap(lhs, p)
-			}
-			m.Ptr = p
-			if (c2 == 42) || (c2 == 47) {
-				m.LexLineComment(0, 4)
-				col = 2
-				continue next
-			}
-			t7 = m.Utf8SpanEnd(lhs+72, m.End)
-			area = t7
-			if c2 != 32 {
-				m.Ptr = p + 1
-				m.EmitTok(rt.Sel32((c2 == 45), 25, 27), p, m.Ptr)
-			}
-			t8 = c2 != 45
-			t9 = m.LexSkipSpaceAt(m.Ptr)
-			col = rt.Sel32((t8 && ((t9 - lhs) <= 10)), 1, 2)
-			continue next
 		free:
 			t10 = m.LexSkipSpaceAt(lhs)
 			col = rt.Sel32(((t10 - lhs) <= 3), 1, 2)
@@ -19437,34 +19179,30 @@ next:
 						rhs = p + 1
 					}
 				}
-				goto classified
-			}
-			hl = 23
-			if (p == 58) && (c2 == 58) {
-				goto classified
-			}
-			if was == 1 {
-				expect = rt.B2u(p == 46)
-				goto classified
-			}
-			hl = 15
-			if was == 3 {
-				goto classified
-			}
-			if (was == 2) || ((c - 65) <= 25) {
-				hl = 55
-				expect = 4
-				goto classified
-			}
-			if p == 40 {
-				if was == 4 {
-					goto classified
+			} else {
+				hl = 23
+				if !((p == 58) && (c2 == 58)) {
+					if was == 1 {
+						expect = rt.B2u(p == 46)
+					} else {
+						hl = 15
+						if was != 3 {
+							if (was == 2) || ((c - 65) <= 25) {
+								hl = 55
+								expect = 4
+							} else {
+								if p == 40 {
+									if was != 4 {
+										hl = 14
+									}
+								} else {
+									hl = rt.Sel32(((lhs > m.SrcBase) && (rt.Ld8(m.Mem, int((lhs-1))) == 46)), 29, 58)
+								}
+							}
+						}
+					}
 				}
-				hl = 14
-				goto classified
 			}
-			hl = rt.Sel32(((lhs > m.SrcBase) && (rt.Ld8(m.Mem, int((lhs-1))) == 46)), 29, 58)
-		classified:
 			m.EmitTok(hl, lhs, rhs)
 			m.Ptr = rhs
 			continue next
@@ -19875,190 +19613,189 @@ next:
 				lq = c | 256
 			}
 			hl = rt.Sel32((c == 47), 46, rt.Sel32((c == 96), 40, 44))
-			goto tok
-		}
-		if (c == 47) && (c2 != 47) {
-			t18 = prev == 0
-			t19 = prev == 2
-			t20 = (lhs > gap) && (divide == 0)
-			t21 = m.TemplateByte(lhs + (1 + rt.B2u(c2 == 61)))
-			t22 = m.LexIsSpace(t21)
-			if t18 || (t19 && (t20 && (t22 == 0))) {
+		} else {
+			if (c == 47) && (c2 != 47) {
+				t18 = prev == 0
+				t19 = prev == 2
+				t20 = (lhs > gap) && (divide == 0)
+				t21 = m.TemplateByte(lhs + (1 + rt.B2u(c2 == 61)))
+				t22 = m.LexIsSpace(t21)
+				if t18 || (t19 && (t20 && (t22 == 0))) {
+					m.Ptr = lhs
+					t23 = m.CoffeeRegex()
+					if (t23 | rt.B2u(prev == 0)) != 0 {
+						hl = 46
+						prev = 1
+						goto tok
+					}
+					divide = 1
+					m.Ptr = lhs + 1
+				}
+			}
+			t24 = m.LexIsDigit(c)
+			t25 = c == 46
+			t26 = m.LexIsDigit(c2)
+			if (t24 | (rt.B2u(t25) & t26)) != 0 {
 				m.Ptr = lhs
-				t23 = m.CoffeeRegex()
-				if (t23 | rt.B2u(prev == 0)) != 0 {
-					hl = 46
-					prev = 1
-					goto tok
+				m.LexScanNumber()
+				hl = 24
+				prev = 1
+			} else {
+				t27 = m.LexIsIdentStart(c)
+				if (t27 | rt.B2u(c == 64)) != 0 {
+					m.LexScanIdent()
+					prev = 2
+					v = 0xffffffff
+					if (rt.Clz32((member | rt.B2u(c == 64))) >> 5) != 0 {
+						t28 = m.LexKeywordValue(lhs, m.Ptr, 30656, 15, 56)
+						v = t28
+					}
+					if v != 0xffffffff {
+						hl = v & 127
+						prev = (v >> 7) & 3
+						p = v >> 9
+						member = 0
+						param = 0
+						decl = p
+					} else {
+						t29 = m.LexSkipSpaceAt(m.Ptr)
+						p = t29
+						t30 = m.TemplateByte(p)
+						c2 = t30
+						hl = rt.Sel32((c == 64), 60, 58)
+						if decl != 0 {
+							hl = rt.Sel32((decl == 1), 57, 55)
+						} else {
+							t31 = c2 == 58
+							t32 = m.TemplateByte(p + 1)
+							t33 = c2 == 61
+							t34 = m.TemplateByte(p + 1)
+							v = t34
+							if (t31 && (t32 != 58)) || (t33 && ((v != 61) && (v != 62))) {
+								t35 = m.CoffeeArrowAt(p + 1)
+								if t35 != 0 {
+									hl = 15
+									goto named
+								}
+							}
+							if c != 64 {
+								if param != 0 {
+									hl = 59
+								} else {
+									if (c2 == 58) && (member == 0) {
+										t36 = m.TemplateByte(p + 1)
+										if t36 != 58 {
+											hl = 29
+											goto named
+										}
+									}
+									t37 = m.TemplateByte(m.Ptr)
+									if t37 == 40 {
+										hl = rt.Sel32((member != 0), 16, 14)
+									} else {
+										if member != 0 {
+											hl = 29
+										} else {
+											t38 = m.LexIsConstCase(lhs, m.Ptr)
+											if t38 != 0 {
+												hl = 6
+											} else {
+												if (c - 65) <= 25 {
+													hl = 55
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					named:
+						decl = 0
+						member = 0
+						param = 0
+					}
+				} else {
+					v = prev
+					prev = 0
+					hl = 32
+					if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+						if (iq != 0) && (c == 123) {
+							depth = depth + 1
+						}
+						if (rt.Ld8(m.Mem, int(c)+1680) & 8) != 0 {
+							prev = 2
+							params = 0
+						}
+						if (c == 40) && ((v != 2) || (lhs > gap)) {
+							t39 = m.CoffeeArrowAt(lhs)
+							params = t39
+							param = params
+						}
+						member = 0
+						decl = 0
+					} else {
+						param = 0
+						member = 0
+						decl = 0
+						hl = 35
+						if (c == 44) || (c == 59) {
+							param = params
+						} else {
+							if c == 46 {
+								if c2 == 46 {
+									t40 = m.Ptr
+									t41 = m.TemplateByte(lhs + 2)
+									m.Ptr = t40 + (1 + rt.B2u(t41 == 46))
+									param = params
+									hl = 25
+								} else {
+									member = 1
+								}
+							} else {
+								if c == 58 {
+									if c2 == 58 {
+										m.Ptr = m.Ptr + 1
+										member = 1
+									}
+								} else {
+									if ((c == 61) || (c == 45)) && (c2 == 62) {
+										m.Ptr = m.Ptr + 1
+										params = 0
+										hl = 19
+									} else {
+										if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
+										op:
+											for {
+												t42 = m.TemplateByte(m.Ptr)
+												c = t42
+												if (rt.Clz32((rt.Ld8(m.Mem, int(c)+2192) & 32)) >> 5) != 0 {
+													break op
+												}
+												t43 = (c == 61) || (c == 45)
+												t44 = m.TemplateByte(m.Ptr + 1)
+												if t43 && (t44 == 62) {
+													break op
+												}
+												m.Ptr = m.Ptr + 1
+												continue op
+											}
+											if rt.Ld8(m.Mem, int((m.Ptr-1))) == 63 {
+												prev = v
+											}
+											hl = 25
+										} else {
+											t45 = m.Utf8SpanEnd(m.Ptr, m.End)
+											m.Ptr = t45
+											hl = 0
+										}
+									}
+								}
+							}
+						}
+					}
 				}
-				divide = 1
-				m.Ptr = lhs + 1
 			}
 		}
-		t24 = m.LexIsDigit(c)
-		t25 = c == 46
-		t26 = m.LexIsDigit(c2)
-		if (t24 | (rt.B2u(t25) & t26)) != 0 {
-			m.Ptr = lhs
-			m.LexScanNumber()
-			hl = 24
-			prev = 1
-			goto tok
-		}
-		t27 = m.LexIsIdentStart(c)
-		if (t27 | rt.B2u(c == 64)) != 0 {
-			m.LexScanIdent()
-			prev = 2
-			v = 0xffffffff
-			if (rt.Clz32((member | rt.B2u(c == 64))) >> 5) != 0 {
-				t28 = m.LexKeywordValue(lhs, m.Ptr, 30656, 15, 56)
-				v = t28
-			}
-			if v != 0xffffffff {
-				hl = v & 127
-				prev = (v >> 7) & 3
-				p = v >> 9
-				member = 0
-				param = 0
-				decl = p
-				goto tok
-			}
-			t29 = m.LexSkipSpaceAt(m.Ptr)
-			p = t29
-			t30 = m.TemplateByte(p)
-			c2 = t30
-			hl = rt.Sel32((c == 64), 60, 58)
-			if decl != 0 {
-				hl = rt.Sel32((decl == 1), 57, 55)
-				goto named
-			}
-			t31 = c2 == 58
-			t32 = m.TemplateByte(p + 1)
-			t33 = c2 == 61
-			t34 = m.TemplateByte(p + 1)
-			v = t34
-			if (t31 && (t32 != 58)) || (t33 && ((v != 61) && (v != 62))) {
-				t35 = m.CoffeeArrowAt(p + 1)
-				if t35 != 0 {
-					hl = 15
-					goto named
-				}
-			}
-			if c == 64 {
-				goto named
-			}
-			if param != 0 {
-				hl = 59
-				goto named
-			}
-			if (c2 == 58) && (member == 0) {
-				t36 = m.TemplateByte(p + 1)
-				if t36 != 58 {
-					hl = 29
-					goto named
-				}
-			}
-			t37 = m.TemplateByte(m.Ptr)
-			if t37 == 40 {
-				hl = rt.Sel32((member != 0), 16, 14)
-				goto named
-			}
-			if member != 0 {
-				hl = 29
-				goto named
-			}
-			t38 = m.LexIsConstCase(lhs, m.Ptr)
-			if t38 != 0 {
-				hl = 6
-				goto named
-			}
-			if (c - 65) <= 25 {
-				hl = 55
-			}
-		named:
-			decl = 0
-			member = 0
-			param = 0
-			goto tok
-		}
-		v = prev
-		prev = 0
-		hl = 32
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			if (iq != 0) && (c == 123) {
-				depth = depth + 1
-			}
-			if (rt.Ld8(m.Mem, int(c)+1680) & 8) != 0 {
-				prev = 2
-				params = 0
-			}
-			if (c == 40) && ((v != 2) || (lhs > gap)) {
-				t39 = m.CoffeeArrowAt(lhs)
-				params = t39
-				param = params
-			}
-			member = 0
-			decl = 0
-			goto tok
-		}
-		param = 0
-		member = 0
-		decl = 0
-		hl = 35
-		if (c == 44) || (c == 59) {
-			param = params
-			goto tok
-		}
-		if c == 46 {
-			if c2 == 46 {
-				t40 = m.Ptr
-				t41 = m.TemplateByte(lhs + 2)
-				m.Ptr = t40 + (1 + rt.B2u(t41 == 46))
-				param = params
-				hl = 25
-				goto tok
-			}
-			member = 1
-			goto tok
-		}
-		if c == 58 {
-			if c2 == 58 {
-				m.Ptr = m.Ptr + 1
-				member = 1
-			}
-			goto tok
-		}
-		if ((c == 61) || (c == 45)) && (c2 == 62) {
-			m.Ptr = m.Ptr + 1
-			params = 0
-			hl = 19
-			goto tok
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
-		op:
-			for {
-				t42 = m.TemplateByte(m.Ptr)
-				c = t42
-				if (rt.Clz32((rt.Ld8(m.Mem, int(c)+2192) & 32)) >> 5) != 0 {
-					break op
-				}
-				t43 = (c == 61) || (c == 45)
-				t44 = m.TemplateByte(m.Ptr + 1)
-				if t43 && (t44 == 62) {
-					break op
-				}
-				m.Ptr = m.Ptr + 1
-				continue op
-			}
-			if rt.Ld8(m.Mem, int((m.Ptr-1))) == 63 {
-				prev = v
-			}
-			hl = 25
-			goto tok
-		}
-		t45 = m.Utf8SpanEnd(m.Ptr, m.End)
-		m.Ptr = t45
-		hl = 0
 	tok:
 		m.EmitTok(hl, lhs, m.Ptr)
 		continue next
@@ -20183,47 +19920,46 @@ next:
 			if int32(kind) > int32(255) {
 				hl = kind & 255
 				expect = kind >> 8
-				goto mid1
+			} else {
+				if (expect - 1) <= 2 {
+					hl = rt.Sel32((expect == 1), 15, rt.Sel32((expect == 2), 55, 23))
+					expect = rt.Sel32((expect == 2), 6, 0)
+				} else {
+					if expect == 7 {
+						hl = 8
+						expect = 6
+					} else {
+						if (rt.B2u(mid == 0) & cap_) != 0 {
+							hl = 17
+							mid = 2
+							goto classified
+						}
+						if expect == 4 {
+							hl = 23
+							goto classified
+						}
+						if int32(kind) >= int32(0) {
+							hl = kind
+						} else {
+							t6 = rt.B2u(mid == 2) & cap_
+							t7 = (rhs - lhs) > 1
+							t8 = m.LexSkipSpaceAt(rhs)
+							t9 = m.TemplateByte(t8)
+							t10 = m.LexIsIdentStart(t9)
+							if (t6 & (rt.B2u(t7) & t10)) != 0 {
+								hl = 17
+								goto classified
+							}
+							t11 = m.TemplateByte(rhs)
+							t12 = m.TemplateByte(rhs + 1)
+							t13 = m.LexIsIdentStart(t12)
+							if (rt.B2u(t11 == 46) & t13) != 0 {
+								hl = 23
+							}
+						}
+					}
+				}
 			}
-			if (expect - 1) <= 2 {
-				hl = rt.Sel32((expect == 1), 15, rt.Sel32((expect == 2), 55, 23))
-				expect = rt.Sel32((expect == 2), 6, 0)
-				goto mid1
-			}
-			if expect == 7 {
-				hl = 8
-				expect = 6
-				goto mid1
-			}
-			if (rt.B2u(mid == 0) & cap_) != 0 {
-				hl = 17
-				mid = 2
-				goto classified
-			}
-			if expect == 4 {
-				hl = 23
-				goto classified
-			}
-			if int32(kind) >= int32(0) {
-				hl = kind
-				goto mid1
-			}
-			t6 = rt.B2u(mid == 2) & cap_
-			t7 = (rhs - lhs) > 1
-			t8 = m.LexSkipSpaceAt(rhs)
-			t9 = m.TemplateByte(t8)
-			t10 = m.LexIsIdentStart(t9)
-			if (t6 & (rt.B2u(t7) & t10)) != 0 {
-				hl = 17
-				goto classified
-			}
-			t11 = m.TemplateByte(rhs)
-			t12 = m.TemplateByte(rhs + 1)
-			t13 = m.LexIsIdentStart(t12)
-			if (rt.B2u(t11 == 46) & t13) != 0 {
-				hl = 23
-			}
-		mid1:
 			mid = 1
 		classified:
 			m.EmitTok(hl, lhs, rhs)
@@ -20332,20 +20068,17 @@ l:
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
 		t0 = m.LexIsIdentContinue(c)
-		if t0 != 0 {
-			goto take
+		if t0 == 0 {
+			if c != 39 {
+				if (c == 46) && (dot == 0) {
+					dot = 1
+				} else {
+					if (rt.Clz32(rt.B2u(((c == 43) || (c == 45)) && (((prev|32) == 101) || ((prev|32) == 112)))) >> 5) != 0 {
+						break l
+					}
+				}
+			}
 		}
-		if c == 39 {
-			goto take
-		}
-		if (c == 46) && (dot == 0) {
-			dot = 1
-			goto take
-		}
-		if (rt.Clz32(rt.B2u(((c == 43) || (c == 45)) && (((prev|32) == 101) || ((prev|32) == 112)))) >> 5) != 0 {
-			break l
-		}
-	take:
 		prev = c
 		m.Ptr = m.Ptr + 1
 		continue l
@@ -20600,176 +20333,176 @@ next:
 			if t10 == 0 {
 				m.EmitTok(27, lhs, m.Ptr)
 			}
-			goto tailType
-		}
-		t11 = m.CppStringKind(lhs, c, c2, c3)
-		kind = t11
-		if kind != 0 {
-			t12 = m.CppString(lhs, kind)
-			strCont = t12
-			goto tailType
-		}
-		t13 = m.LexIsIdentStart(c)
-		if t13 != 0 {
-			m.LexScanIdent()
-			rhs = m.Ptr
-			if (lhs > m.SrcBase) && (rt.Ld8(m.Mem, int((lhs-1))) == 34) {
-				m.EmitTok(44, lhs, rhs)
-				goto tailType
-			}
-			t14 = m.CppWordHl(lhs, rhs)
-			kind = t14
-			if (cuda & rt.B2u(int32(kind) < int32(0))) != 0 {
-				t15 = m.LexKeywordValue(lhs, rhs, 16320, 7, 32)
-				kind = t15
-				if ((rhs - lhs) == 10) && ((rt.Ld16(m.Mem, int(lhs)+8) == 24415) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6563697665645f5f) || (rt.Ld64(m.Mem, int(lhs)) == 0x6465726168735f5f))) {
-					kind = 17
-				}
-				if ((rhs - lhs) == 12) && (((rt.Ld64(m.Mem, int(lhs)) == 0x6972747365725f5f) && (rt.Ld32(m.Mem, int(lhs)+8) == 0x5f5f7463)) || ((rt.Ld64(m.Mem, int(lhs)) == 0x696c6e696f6e5f5f) && (rt.Ld32(m.Mem, int(lhs)+8) == 0x5f5f656e))) {
-					kind = 17
-				}
-				if ((rhs - lhs) == 11) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6e65764561647563) && ((rt.Ld32(m.Mem, int(lhs)+8) & 0xffffff) == 0x745f74)) {
-					kind = 56
-				}
-			}
-			if int32(kind) >= int32(0) {
-				hl = kind & 255
-				if (kind >> 8) != 0 {
-					expectType = kind >> 8
-				}
+		} else {
+			t11 = m.CppStringKind(lhs, c, c2, c3)
+			kind = t11
+			if kind != 0 {
+				t12 = m.CppString(lhs, kind)
+				strCont = t12
 			} else {
-				t16 = m.LexSkipSpaceAt(rhs)
-				p = t16
-				t17 = m.CppByte(p)
-				c2 = t17
-				t18 = c2 == 58
-				t19 = m.CppByte(p + 1)
-				c3 = rt.B2u(t18 && (t19 == 58))
-				if expectType != 0 {
-					if c3 != 0 {
-						hl = 23
-					} else {
-						hl = rt.Sel32((expectType == 1), 57, rt.Sel32((expectType == 3), 23, 55))
-						expectType = 0
+				t13 = m.LexIsIdentStart(c)
+				if t13 != 0 {
+					m.LexScanIdent()
+					rhs = m.Ptr
+					if (lhs > m.SrcBase) && (rt.Ld8(m.Mem, int((lhs-1))) == 34) {
+						m.EmitTok(44, lhs, rhs)
+						goto tailType
 					}
-				} else {
-					if (rt.B2u(c2 == 40) | (cuda & rt.B2u(((p+3) <= m.End) && ((rt.Ld32(m.Mem, int(p))&0xffffff) == 0x3c3c3c)))) != 0 {
-						hl = rt.Sel32((member != 0), 16, 14)
+					t14 = m.CppWordHl(lhs, rhs)
+					kind = t14
+					if (cuda & rt.B2u(int32(kind) < int32(0))) != 0 {
+						t15 = m.LexKeywordValue(lhs, rhs, 16320, 7, 32)
+						kind = t15
+						if ((rhs - lhs) == 10) && ((rt.Ld16(m.Mem, int(lhs)+8) == 24415) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6563697665645f5f) || (rt.Ld64(m.Mem, int(lhs)) == 0x6465726168735f5f))) {
+							kind = 17
+						}
+						if ((rhs - lhs) == 12) && (((rt.Ld64(m.Mem, int(lhs)) == 0x6972747365725f5f) && (rt.Ld32(m.Mem, int(lhs)+8) == 0x5f5f7463)) || ((rt.Ld64(m.Mem, int(lhs)) == 0x696c6e696f6e5f5f) && (rt.Ld32(m.Mem, int(lhs)+8) == 0x5f5f656e))) {
+							kind = 17
+						}
+						if ((rhs - lhs) == 11) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6e65764561647563) && ((rt.Ld32(m.Mem, int(lhs)+8) & 0xffffff) == 0x745f74)) {
+							kind = 56
+						}
+					}
+					if int32(kind) >= int32(0) {
+						hl = kind & 255
+						if (kind >> 8) != 0 {
+							expectType = kind >> 8
+						}
 					} else {
-						if member == 1 {
-							hl = 29
-						} else {
-							if (rt.B2u(member == 2) | c3) != 0 {
-								hl = rt.Sel32((c3 != 0), 23, 55)
+						t16 = m.LexSkipSpaceAt(rhs)
+						p = t16
+						t17 = m.CppByte(p)
+						c2 = t17
+						t18 = c2 == 58
+						t19 = m.CppByte(p + 1)
+						c3 = rt.B2u(t18 && (t19 == 58))
+						if expectType != 0 {
+							if c3 != 0 {
+								hl = 23
 							} else {
-								if c2 == 58 {
-									hl = 22
+								hl = rt.Sel32((expectType == 1), 57, rt.Sel32((expectType == 3), 23, 55))
+								expectType = 0
+							}
+						} else {
+							if (rt.B2u(c2 == 40) | (cuda & rt.B2u(((p+3) <= m.End) && ((rt.Ld32(m.Mem, int(p))&0xffffff) == 0x3c3c3c)))) != 0 {
+								hl = rt.Sel32((member != 0), 16, 14)
+							} else {
+								if member == 1 {
+									hl = 29
 								} else {
-									t20 = m.LexIsConstCase(lhs, rhs)
-									if t20 != 0 {
-										hl = 6
+									if (rt.B2u(member == 2) | c3) != 0 {
+										hl = rt.Sel32((c3 != 0), 23, 55)
 									} else {
-										if (rt.Ld8(m.Mem, int(lhs)) - 65) <= 25 {
-											hl = 55
+										if c2 == 58 {
+											hl = 22
 										} else {
-											hl = 58
+											t20 = m.LexIsConstCase(lhs, rhs)
+											if t20 != 0 {
+												hl = 6
+											} else {
+												if (rt.Ld8(m.Mem, int(lhs)) - 65) <= 25 {
+													hl = 55
+												} else {
+													hl = 58
+												}
+											}
 										}
 									}
 								}
 							}
 						}
 					}
+					m.EmitTok(hl, lhs, rhs)
+					goto tail0
 				}
-			}
-			m.EmitTok(hl, lhs, rhs)
-			goto tail0
-		}
-		t21 = m.LexIsDigit(c)
-		t22 = c == 46
-		t23 = m.LexIsDigit(c2)
-		if (t21 | (rt.B2u(t22) & t23)) != 0 {
-			m.CppScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			goto tail0
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			if (c == 123) || (c == 125) {
-				expectType = 0
-			}
-			goto tail0
-		}
-		if c == 58 {
-			m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
-			m.EmitTok(35, lhs, m.Ptr)
-			member = rt.Sel32((c2 == 58), 2, 0)
-			goto tail
-		}
-		if c == 46 {
-			if (c2 == 42) || ((c2 == 46) && (c3 == 46)) {
-				m.Ptr = m.Ptr + rt.Sel32((c2 == 46), 3, 2)
-				m.EmitTok(25, lhs, m.Ptr)
-				member = 0
-			} else {
-				m.Ptr = m.Ptr + 1
-				m.EmitTok(35, lhs, m.Ptr)
-				member = 1
-			}
-			goto tail
-		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			if c == 59 {
-				expectType = 0
-			}
-			goto tail0
-		}
-		t24 = m.CppIsOp(c)
-		if t24 != 0 {
-			m.Ptr = m.Ptr + 1
-			member = 0
-			if (c == 45) && (c2 == 62) {
-				m.Ptr = m.Ptr + 1
-				if c3 == 42 {
+				t21 = m.LexIsDigit(c)
+				t22 = c == 46
+				t23 = m.LexIsDigit(c2)
+				if (t21 | (rt.B2u(t22) & t23)) != 0 {
+					m.CppScanNumber()
+					m.EmitTok(24, lhs, m.Ptr)
+					goto tail0
+				}
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
 					m.Ptr = m.Ptr + 1
+					m.EmitTok(32, lhs, m.Ptr)
+					if (c == 123) || (c == 125) {
+						expectType = 0
+					}
+					goto tail0
 				}
-				member = 1
-			} else {
-				if (c == 60) && ((c2 == 61) && (c3 == 62)) {
-					m.Ptr = m.Ptr + 2
-				} else {
-					if (c2 == 61) || (c == c2) {
+				if c == 58 {
+					m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
+					m.EmitTok(35, lhs, m.Ptr)
+					member = rt.Sel32((c2 == 58), 2, 0)
+					goto tail
+				}
+				if c == 46 {
+					if (c2 == 42) || ((c2 == 46) && (c3 == 46)) {
+						m.Ptr = m.Ptr + rt.Sel32((c2 == 46), 3, 2)
+						m.EmitTok(25, lhs, m.Ptr)
+						member = 0
+					} else {
 						m.Ptr = m.Ptr + 1
-						if ((c == 60) || (c == 62)) && (c3 == 61) {
+						m.EmitTok(35, lhs, m.Ptr)
+						member = 1
+					}
+					goto tail
+				}
+				if (c == 44) || (c == 59) {
+					m.Ptr = m.Ptr + 1
+					m.EmitTok(35, lhs, m.Ptr)
+					if c == 59 {
+						expectType = 0
+					}
+					goto tail0
+				}
+				t24 = m.CppIsOp(c)
+				if t24 != 0 {
+					m.Ptr = m.Ptr + 1
+					member = 0
+					if (c == 45) && (c2 == 62) {
+						m.Ptr = m.Ptr + 1
+						if c3 == 42 {
 							m.Ptr = m.Ptr + 1
 						}
+						member = 1
+					} else {
+						if (c == 60) && ((c2 == 61) && (c3 == 62)) {
+							m.Ptr = m.Ptr + 2
+						} else {
+							if (c2 == 61) || (c == c2) {
+								m.Ptr = m.Ptr + 1
+								if ((c == 60) || (c == 62)) && (c3 == 61) {
+									m.Ptr = m.Ptr + 1
+								}
+							}
+						}
 					}
+					m.EmitTok(25, lhs, m.Ptr)
+					goto tail
 				}
+				m.Ptr = m.Ptr + 1
+			plain:
+				for {
+					if m.Ptr >= m.End {
+						break plain
+					}
+					c = rt.Ld8(m.Mem, int(m.Ptr))
+					t25 = m.LexIsSpace(c)
+					t26 = m.LexIsIdentStart(c)
+					t27 = m.LexIsDigit(c)
+					t28 = m.CppIsOp(c)
+					if (((t25 | t26) | (t27 | t28)) | ((rt.Ld8(m.Mem, int(c)+3216) >> 4) & 1)) != 0 {
+						break plain
+					}
+					m.Ptr = m.Ptr + 1
+					continue plain
+				}
+				m.EmitTok(0, lhs, m.Ptr)
+				goto tail0
 			}
-			m.EmitTok(25, lhs, m.Ptr)
-			goto tail
 		}
-		m.Ptr = m.Ptr + 1
-	plain:
-		for {
-			if m.Ptr >= m.End {
-				break plain
-			}
-			c = rt.Ld8(m.Mem, int(m.Ptr))
-			t25 = m.LexIsSpace(c)
-			t26 = m.LexIsIdentStart(c)
-			t27 = m.LexIsDigit(c)
-			t28 = m.CppIsOp(c)
-			if (((t25 | t26) | (t27 | t28)) | ((rt.Ld8(m.Mem, int(c)+3216) >> 4) & 1)) != 0 {
-				break plain
-			}
-			m.Ptr = m.Ptr + 1
-			continue plain
-		}
-		m.EmitTok(0, lhs, m.Ptr)
-		goto tail0
 	tailType:
 		expectType = 0
 	tail0:
@@ -20877,52 +20610,49 @@ scan:
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
 		e = 1
-		if (kind >= 4) && (c == 125) {
-			goto special
-		}
-		if c == 34 {
-			if kind == 2 {
-				t2 = m.CsByte(m.Ptr + 1)
-				if t2 == 34 {
-					m.Ptr = m.Ptr + 2
-					continue scan
+		if !((kind >= 4) && (c == 125)) {
+			if c == 34 {
+				if kind == 2 {
+					t2 = m.CsByte(m.Ptr + 1)
+					if t2 == 34 {
+						m.Ptr = m.Ptr + 2
+						continue scan
+					}
 				}
-			}
-			if kind == 3 {
-				t3 = m.CsByte(m.Ptr + 1)
-				t4 = m.CsByte(m.Ptr + 2)
-				if (rt.Clz32(rt.B2u((t3 == 34) && (t4 == 34))) >> 5) != 0 {
-					m.Ptr = m.Ptr + 1
-					continue scan
+				if kind == 3 {
+					t3 = m.CsByte(m.Ptr + 1)
+					t4 = m.CsByte(m.Ptr + 2)
+					if (rt.Clz32(rt.B2u((t3 == 34) && (t4 == 34))) >> 5) != 0 {
+						m.Ptr = m.Ptr + 1
+						continue scan
+					}
 				}
+				m.Ptr = m.Ptr + rt.Sel32((kind == 3), 3, 1)
+				status = 1
+				break scan
 			}
-			m.Ptr = m.Ptr + rt.Sel32((kind == 3), 3, 1)
-			status = 1
-			break scan
-		}
-		if (c == 10) || (c == 13) {
-			break scan
-		}
-		if c == 92 {
-			t5 = m.StringEscapeAt(seg)
-			if t5 != 0 {
-				status = 3
+			if (c == 10) || (c == 13) {
+				break scan
 			}
-			seg = m.Ptr
-			continue scan
+			if c == 92 {
+				t5 = m.StringEscapeAt(seg)
+				if t5 != 0 {
+					status = 3
+				}
+				seg = m.Ptr
+				continue scan
+			}
+			t6 = m.CsByte(m.Ptr + 1)
+			if t6 == c {
+				m.Ptr = m.Ptr + 2
+				continue scan
+			}
+			e = 2
+			if c != 123 {
+				m.Ptr = m.Ptr + 1
+				continue scan
+			}
 		}
-		t6 = m.CsByte(m.Ptr + 1)
-		if t6 == c {
-			m.Ptr = m.Ptr + 2
-			continue scan
-		}
-		e = 2
-		if c == 123 {
-			goto special
-		}
-		m.Ptr = m.Ptr + 1
-		continue scan
-	special:
 		m.EmitTok(44, seg, m.Ptr)
 		m.Ptr = m.Ptr + 1
 		m.EmitTok(40, m.Ptr-1, m.Ptr)
@@ -21446,44 +21176,43 @@ field:
 			if rt.Ld8(m.Mem, int(p)) != 34 {
 				m.Ptr = p + 1
 				m.EmitGap(p, m.Ptr)
-				goto next
+			} else {
+				if ((p + 1) < m.End) && (rt.Ld8(m.Mem, int(p)+1) == 34) {
+					m.Ptr = p + 2
+					m.EmitTok(45, p, m.Ptr)
+				} else {
+					m.Ptr = p + 1
+					m.EmitTok(tok, p, m.Ptr)
+					quoted = 0
+				}
 			}
-			if ((p + 1) < m.End) && (rt.Ld8(m.Mem, int(p)+1) == 34) {
-				m.Ptr = p + 2
-				m.EmitTok(45, p, m.Ptr)
-				goto next
-			}
-			m.Ptr = p + 1
-			m.EmitTok(tok, p, m.Ptr)
-			quoted = 0
-			goto next
-		}
-		if c == delim {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			col = col + 1
-			goto next
-		}
-		if (c == 10) || (c == 13) {
-			m.Ptr = m.Ptr + 1
-			if (c == 13) && ((m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 10)) {
+		} else {
+			if c == delim {
 				m.Ptr = m.Ptr + 1
+				m.EmitTok(35, lhs, m.Ptr)
+				col = col + 1
+			} else {
+				if (c == 10) || (c == 13) {
+					m.Ptr = m.Ptr + 1
+					if (c == 13) && ((m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 10)) {
+						m.Ptr = m.Ptr + 1
+					}
+					m.EmitGap(lhs, m.Ptr)
+					col = 0
+				} else {
+					if (quoting & rt.B2u(c == 34)) != 0 {
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(tok, lhs, m.Ptr)
+						quoted = 1
+					} else {
+						t2 = m.ScanFind3(m.Ptr, delim, 10, 13)
+						p = t2
+						m.EmitTok(tok, lhs, p)
+						m.Ptr = p
+					}
+				}
 			}
-			m.EmitGap(lhs, m.Ptr)
-			col = 0
-			goto next
 		}
-		if (quoting & rt.B2u(c == 34)) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(tok, lhs, m.Ptr)
-			quoted = 1
-			goto next
-		}
-		t2 = m.ScanFind3(m.Ptr, delim, 10, 13)
-		p = t2
-		m.EmitTok(tok, lhs, p)
-		m.Ptr = p
-	next:
 		continue field
 	}
 	if streamRoot != 0 {
@@ -21600,26 +21329,24 @@ next:
 			hl = 55
 			if was == 1 {
 				label = 2
-				goto classified
-			}
-			hl = rt.Sel32((p == 40), 14, 29)
-			if (lhs > m.SrcBase) && ((rt.Ld8(m.Mem, int((lhs-1))) == 46) && (((lhs - 1) <= m.SrcBase) || (rt.Ld8(m.Mem, int((lhs-2))) != 46))) {
-				goto classified
-			}
-			hl = 29
-			if ((maps & 1) & rt.B2u(p == 58)) != 0 {
-				goto classified
-			}
-			if c != 96 {
-				t11 = m.LexLowerCopy(lhs, rhs, 1360)
-				t12 = m.LexKeywordValue(1360, 1360+t11, 51280, 15, 66)
-				g = t12
-				hl = g
-				if int32(g) >= int32(0) {
-					goto classified
+			} else {
+				hl = rt.Sel32((p == 40), 14, 29)
+				if !((lhs > m.SrcBase) && ((rt.Ld8(m.Mem, int((lhs-1))) == 46) && (((lhs - 1) <= m.SrcBase) || (rt.Ld8(m.Mem, int((lhs-2))) != 46)))) {
+					hl = 29
+					if ((maps & 1) & rt.B2u(p == 58)) == 0 {
+						if c != 96 {
+							t11 = m.LexLowerCopy(lhs, rhs, 1360)
+							t12 = m.LexKeywordValue(1360, 1360+t11, 51280, 15, 66)
+							g = t12
+							hl = g
+							if int32(g) >= int32(0) {
+								goto classified
+							}
+						}
+						hl = rt.Sel32((p == 40), 14, 58)
+					}
 				}
 			}
-			hl = rt.Sel32((p == 40), 14, 58)
 		classified:
 			m.EmitTok(hl, lhs, rhs)
 			continue next
@@ -21954,37 +21681,36 @@ next:
 			kind = 0xffffffff
 			if expect == 2 {
 				hl = 23
-				goto classified
-			}
-			if member != 0 {
-				hl = rt.Sel32((c3 != 0), 16, 29)
-				goto classified
-			}
-			t16 = m.DWordKind(lhs, rhs)
-			kind = t16
-			if int32(kind) >= int32(0) {
-				hl = kind & 255
-				if ((kind >> 8) - 1) < 2 {
-					expect = kind >> 8
+			} else {
+				if member != 0 {
+					hl = rt.Sel32((c3 != 0), 16, 29)
+				} else {
+					t16 = m.DWordKind(lhs, rhs)
+					kind = t16
+					if int32(kind) >= int32(0) {
+						hl = kind & 255
+						if ((kind >> 8) - 1) < 2 {
+							expect = kind >> 8
+						}
+					} else {
+						if expect != 0 {
+							hl = rt.Sel32((c2 == 61), 58, 55)
+							expect = 0
+						} else {
+							if c3 != 0 {
+								hl = rt.Sel32((afterType != 0), 15, rt.Sel32(((c-65) <= 25), 55, 14))
+							} else {
+								t17 = m.LexIsConstCase(lhs, rhs)
+								if t17 != 0 {
+									hl = 6
+								} else {
+									hl = rt.Sel32(((c - 65) <= 25), 55, 58)
+								}
+							}
+						}
+					}
 				}
-				goto classified
 			}
-			if expect != 0 {
-				hl = rt.Sel32((c2 == 61), 58, 55)
-				expect = 0
-				goto classified
-			}
-			if c3 != 0 {
-				hl = rt.Sel32((afterType != 0), 15, rt.Sel32(((c-65) <= 25), 55, 14))
-				goto classified
-			}
-			t17 = m.LexIsConstCase(lhs, rhs)
-			if t17 != 0 {
-				hl = 6
-				goto classified
-			}
-			hl = rt.Sel32(((c - 65) <= 25), 55, 58)
-		classified:
 			m.EmitTok(hl, lhs, rhs)
 			afterType = rt.B2u((hl == 55) || ((kind >> 8) == 3))
 			member = 0
@@ -22755,143 +22481,141 @@ line:
 			}
 			m.EmitTok(40, lhs, p)
 			m.EmitTok(rt.Sel32((c == 43), 10, 9), p, lineEnd)
+		} else {
+			p = lhs
+			if (length >= 2) && (rt.Ld16(m.Mem, int(lhs)) == 16448) {
+				t3 = 1
+				goto rest
+			}
+			if c == 35 {
+				t3 = 4
+				goto rest
+			}
+			if (rt.Clz32(rt.B2u((c == 66) || (((c-99) <= 1) || ((c == 105) || (((c-110) <= 1) || ((c-114) <= 1)))))) >> 5) == 0 {
+				t4 = length >= 4
+				t5 = rt.Ld32(m.Mem, int(lhs)) == 0x66666964
+				t6 = (lhs + 4) == lineEnd
+				t7 = m.LexIsSpace(rt.Ld8(m.Mem, int(lhs)+4))
+				if (rt.B2u(t4) & (rt.B2u(t5) & (rt.B2u(t6) | t7))) != 0 {
+					m.EmitTok(14, lhs, lhs+4)
+					p = lhs + 4
+					tok = p
+					t8 = m.DiffSkipSpace(p, lineEnd)
+					p = t8
+					m.EmitGap(tok, p)
+					tok = p
+				loop19:
+					for {
+						if p >= lineEnd {
+							break loop19
+						}
+						t9 = m.LexIsSpace(rt.Ld8(m.Mem, int(p)))
+						if t9 != 0 {
+							break loop19
+						}
+						p = p + 1
+						continue loop19
+					}
+					m.EmitTok(59, tok, p)
+					t3 = 0
+					goto rest
+				}
+				t10 = length >= 5
+				t11 = (rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x7865646e69
+				t12 = (lhs + 5) == lineEnd
+				t13 = m.LexIsSpace(rt.Ld8(m.Mem, int(lhs)+5))
+				if (rt.B2u(t10) & (rt.B2u(t11) & (rt.B2u(t12) | t13))) != 0 {
+					m.EmitTok(17, lhs, lhs+5)
+					p = lhs + 5
+					tok = p
+					t14 = m.DiffSkipSpace(p, lineEnd)
+					p = t14
+					m.EmitGap(tok, p)
+					tok = p
+					t15 = m.ScanHexRun(p, lineEnd-p)
+					p = t15
+					if p == tok {
+						t3 = 0
+						goto rest
+					}
+					m.EmitTok(6, tok, p)
+					if ((p + 2) > lineEnd) || (rt.Ld16(m.Mem, int(p)) != 11822) {
+						t3 = 0
+						goto rest
+					}
+					m.EmitTok(40, p, p+2)
+					p = p + 2
+					tok = p
+					t16 = m.ScanHexRun(p, lineEnd-p)
+					p = t16
+					if p == tok {
+						t3 = 0
+						goto rest
+					}
+					m.EmitTok(6, tok, p)
+					tok = p
+					t17 = m.DiffSkipSpace(p, lineEnd)
+					p = t17
+					m.EmitGap(tok, p)
+					tok = p
+					t18 = m.DiffSkipDigits(p, lineEnd)
+					p = t18
+					m.EmitTok(24, tok, p)
+					t3 = 0
+					goto rest
+				}
+				if (length >= 16) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6972616c696d6973) && (rt.Ld64(m.Mem, int(lhs)+8) == 0x7865646e69207974)) {
+					p = lhs + 16
+					t19 = m.DiffSkipSpace(p, lineEnd)
+					p = t19
+					m.EmitTok(22, lhs, p)
+					tok = p
+					t20 = m.DiffSkipDigits(p, lineEnd)
+					p = t20
+					m.EmitTok(24, tok, p)
+					if (p < lineEnd) && (rt.Ld8(m.Mem, int(p)) == 37) {
+						m.EmitTok(24, p, p+1)
+						p = p + 1
+					}
+					t3 = 22
+					goto rest
+				}
+				tok = 0
+				if (length >= 13) && ((rt.Ld64(m.Mem, int(lhs)) == 0x656c69662077656e) && ((rt.Ld64(m.Mem, int(lhs)+8) & 0xffffffffff) == 0x65646f6d20)) {
+					tok = lhs + 13
+				}
+				if (length >= 17) && ((rt.Ld64(m.Mem, int(lhs)) == 0x20646574656c6564) && ((rt.Ld64(m.Mem, int(lhs)+8) == 0x646f6d20656c6966) && (rt.Ld8(m.Mem, int(lhs)+16) == 101))) {
+					tok = lhs + 17
+				}
+				if (length >= 8) && ((rt.Ld64(m.Mem, int(lhs)) == 0x65646f6d2077656e) || (rt.Ld64(m.Mem, int(lhs)) == 0x65646f6d20646c6f)) {
+					tok = lhs + 8
+				}
+				if tok != 0 {
+					t21 = m.DiffSkipSpace(tok, lineEnd)
+					p = t21
+					m.EmitTok(22, lhs, p)
+					tok = p
+					t22 = m.DiffSkipDigits(p, lineEnd)
+					p = t22
+					m.EmitTok(24, tok, p)
+					t3 = 22
+					goto rest
+				}
+				if ((length >= 11) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6620656d616e6572) && ((rt.Ld32(m.Mem, int(lhs)+8) & 0xffffff) == 0x6d6f72))) || (((length >= 9) && ((rt.Ld64(m.Mem, int(lhs)) == 0x7420656d616e6572) && (rt.Ld8(m.Mem, int(lhs)+8) == 111))) || (((length >= 9) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6f72662079706f63) && (rt.Ld8(m.Mem, int(lhs)+8) == 109))) || ((length >= 7) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffffff) == 0x6f742079706f63)))) {
+					t3 = 22
+					goto rest
+				}
+				if (length >= 12) && ((rt.Ld64(m.Mem, int(lhs)) == 0x66207972616e6942) && (rt.Ld32(m.Mem, int(lhs)+8) == 0x73656c69)) {
+					t3 = 22
+					goto rest
+				}
+			}
+			m.EmitTok(0, lhs, lineEnd)
 			goto emitDone
+		rest:
+			hl = t3
+			m.EmitTok(hl, p, lineEnd)
 		}
-		p = lhs
-		if (length >= 2) && (rt.Ld16(m.Mem, int(lhs)) == 16448) {
-			t3 = 1
-			goto rest
-		}
-		if c == 35 {
-			t3 = 4
-			goto rest
-		}
-		if (rt.Clz32(rt.B2u((c == 66) || (((c-99) <= 1) || ((c == 105) || (((c-110) <= 1) || ((c-114) <= 1)))))) >> 5) != 0 {
-			goto metaDone
-		}
-		t4 = length >= 4
-		t5 = rt.Ld32(m.Mem, int(lhs)) == 0x66666964
-		t6 = (lhs + 4) == lineEnd
-		t7 = m.LexIsSpace(rt.Ld8(m.Mem, int(lhs)+4))
-		if (rt.B2u(t4) & (rt.B2u(t5) & (rt.B2u(t6) | t7))) != 0 {
-			m.EmitTok(14, lhs, lhs+4)
-			p = lhs + 4
-			tok = p
-			t8 = m.DiffSkipSpace(p, lineEnd)
-			p = t8
-			m.EmitGap(tok, p)
-			tok = p
-		loop19:
-			for {
-				if p >= lineEnd {
-					break loop19
-				}
-				t9 = m.LexIsSpace(rt.Ld8(m.Mem, int(p)))
-				if t9 != 0 {
-					break loop19
-				}
-				p = p + 1
-				continue loop19
-			}
-			m.EmitTok(59, tok, p)
-			t3 = 0
-			goto rest
-		}
-		t10 = length >= 5
-		t11 = (rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x7865646e69
-		t12 = (lhs + 5) == lineEnd
-		t13 = m.LexIsSpace(rt.Ld8(m.Mem, int(lhs)+5))
-		if (rt.B2u(t10) & (rt.B2u(t11) & (rt.B2u(t12) | t13))) != 0 {
-			m.EmitTok(17, lhs, lhs+5)
-			p = lhs + 5
-			tok = p
-			t14 = m.DiffSkipSpace(p, lineEnd)
-			p = t14
-			m.EmitGap(tok, p)
-			tok = p
-			t15 = m.ScanHexRun(p, lineEnd-p)
-			p = t15
-			if p == tok {
-				t3 = 0
-				goto rest
-			}
-			m.EmitTok(6, tok, p)
-			if ((p + 2) > lineEnd) || (rt.Ld16(m.Mem, int(p)) != 11822) {
-				t3 = 0
-				goto rest
-			}
-			m.EmitTok(40, p, p+2)
-			p = p + 2
-			tok = p
-			t16 = m.ScanHexRun(p, lineEnd-p)
-			p = t16
-			if p == tok {
-				t3 = 0
-				goto rest
-			}
-			m.EmitTok(6, tok, p)
-			tok = p
-			t17 = m.DiffSkipSpace(p, lineEnd)
-			p = t17
-			m.EmitGap(tok, p)
-			tok = p
-			t18 = m.DiffSkipDigits(p, lineEnd)
-			p = t18
-			m.EmitTok(24, tok, p)
-			t3 = 0
-			goto rest
-		}
-		if (length >= 16) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6972616c696d6973) && (rt.Ld64(m.Mem, int(lhs)+8) == 0x7865646e69207974)) {
-			p = lhs + 16
-			t19 = m.DiffSkipSpace(p, lineEnd)
-			p = t19
-			m.EmitTok(22, lhs, p)
-			tok = p
-			t20 = m.DiffSkipDigits(p, lineEnd)
-			p = t20
-			m.EmitTok(24, tok, p)
-			if (p < lineEnd) && (rt.Ld8(m.Mem, int(p)) == 37) {
-				m.EmitTok(24, p, p+1)
-				p = p + 1
-			}
-			t3 = 22
-			goto rest
-		}
-		tok = 0
-		if (length >= 13) && ((rt.Ld64(m.Mem, int(lhs)) == 0x656c69662077656e) && ((rt.Ld64(m.Mem, int(lhs)+8) & 0xffffffffff) == 0x65646f6d20)) {
-			tok = lhs + 13
-		}
-		if (length >= 17) && ((rt.Ld64(m.Mem, int(lhs)) == 0x20646574656c6564) && ((rt.Ld64(m.Mem, int(lhs)+8) == 0x646f6d20656c6966) && (rt.Ld8(m.Mem, int(lhs)+16) == 101))) {
-			tok = lhs + 17
-		}
-		if (length >= 8) && ((rt.Ld64(m.Mem, int(lhs)) == 0x65646f6d2077656e) || (rt.Ld64(m.Mem, int(lhs)) == 0x65646f6d20646c6f)) {
-			tok = lhs + 8
-		}
-		if tok != 0 {
-			t21 = m.DiffSkipSpace(tok, lineEnd)
-			p = t21
-			m.EmitTok(22, lhs, p)
-			tok = p
-			t22 = m.DiffSkipDigits(p, lineEnd)
-			p = t22
-			m.EmitTok(24, tok, p)
-			t3 = 22
-			goto rest
-		}
-		if ((length >= 11) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6620656d616e6572) && ((rt.Ld32(m.Mem, int(lhs)+8) & 0xffffff) == 0x6d6f72))) || (((length >= 9) && ((rt.Ld64(m.Mem, int(lhs)) == 0x7420656d616e6572) && (rt.Ld8(m.Mem, int(lhs)+8) == 111))) || (((length >= 9) && ((rt.Ld64(m.Mem, int(lhs)) == 0x6f72662079706f63) && (rt.Ld8(m.Mem, int(lhs)+8) == 109))) || ((length >= 7) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffffff) == 0x6f742079706f63)))) {
-			t3 = 22
-			goto rest
-		}
-		if (length >= 12) && ((rt.Ld64(m.Mem, int(lhs)) == 0x66207972616e6942) && (rt.Ld32(m.Mem, int(lhs)+8) == 0x73656c69)) {
-			t3 = 22
-			goto rest
-		}
-	metaDone:
-		m.EmitTok(0, lhs, lineEnd)
-		goto emitDone
-	rest:
-		hl = t3
-		m.EmitTok(hl, p, lineEnd)
 	emitDone:
 		lhs = m.Ptr
 	gap:
@@ -23167,141 +22891,141 @@ next:
 		}
 		if c == 34 {
 			m.LexString(34, 0, 44)
-			goto tok
-		}
-		if c == 39 {
-			m.LexRawString(39, 0, 44)
-			goto tok
-		}
-		if c == 36 {
-			t7 = m.DockerVar(c2)
-			if t7 != 0 {
-				m.EmitTok(58, lhs, m.Ptr)
-				goto tok
-			}
-		}
-		if (c == 45) && (c2 == 45) {
-			t9 = m.TemplateByte(m.Ptr + 2)
-			t10 = m.LexIsIdentStart(t9)
-			t8 = t10
 		} else {
-			t8 = 0
-		}
-		if t8 != 0 {
-			m.Ptr = m.Ptr + 2
-			m.ScanIdentRun(45)
-			m.EmitTok(59, lhs, m.Ptr)
-			t11 = cmdHead | rt.B2u(inst != 2)
-			t12 = m.TemplateByte(m.Ptr)
-			if (t11 & rt.B2u(t12 == 61)) != 0 {
-				lhs = m.Ptr
-				m.Ptr = m.Ptr + 1
-			value:
-				for {
-					if m.Ptr >= m.End {
-						break value
+			if c == 39 {
+				m.LexRawString(39, 0, 44)
+			} else {
+				if c == 36 {
+					t7 = m.DockerVar(c2)
+					if t7 != 0 {
+						m.EmitTok(58, lhs, m.Ptr)
+						goto tok
 					}
-					c = rt.Ld8(m.Mem, int(m.Ptr))
-					t13 = m.LexIsSpace(c)
-					if t13 != 0 {
-						break value
-					}
-					if c == 36 {
-						p = m.Ptr
-						t14 = m.TemplateByte(m.Ptr + 1)
-						t15 = m.DockerVar(t14)
-						if t15 != 0 {
-							m.EmitTok(0, lhs, p)
-							m.EmitTok(58, p, m.Ptr)
-							lhs = m.Ptr
+				}
+				if (c == 45) && (c2 == 45) {
+					t9 = m.TemplateByte(m.Ptr + 2)
+					t10 = m.LexIsIdentStart(t9)
+					t8 = t10
+				} else {
+					t8 = 0
+				}
+				if t8 != 0 {
+					m.Ptr = m.Ptr + 2
+					m.ScanIdentRun(45)
+					m.EmitTok(59, lhs, m.Ptr)
+					t11 = cmdHead | rt.B2u(inst != 2)
+					t12 = m.TemplateByte(m.Ptr)
+					if (t11 & rt.B2u(t12 == 61)) != 0 {
+						lhs = m.Ptr
+						m.Ptr = m.Ptr + 1
+					value:
+						for {
+							if m.Ptr >= m.End {
+								break value
+							}
+							c = rt.Ld8(m.Mem, int(m.Ptr))
+							t13 = m.LexIsSpace(c)
+							if t13 != 0 {
+								break value
+							}
+							if c == 36 {
+								p = m.Ptr
+								t14 = m.TemplateByte(m.Ptr + 1)
+								t15 = m.DockerVar(t14)
+								if t15 != 0 {
+									m.EmitTok(0, lhs, p)
+									m.EmitTok(58, p, m.Ptr)
+									lhs = m.Ptr
+									continue value
+								}
+							}
+							m.Ptr = m.Ptr + 1
 							continue value
 						}
+						m.EmitTok(0, lhs, m.Ptr)
 					}
-					m.Ptr = m.Ptr + 1
-					continue value
+					continue next
 				}
-				m.EmitTok(0, lhs, m.Ptr)
-			}
-			continue next
-		}
-		if (c == 60) && ((c2 == 60) && (inst != 0)) {
-			t16 = m.TemplateByte(m.Ptr + 2)
-			hdStrip = rt.B2u(t16 == 45)
-			rhs = (m.Ptr + 2) + hdStrip
-			p = rhs
-			t17 = m.TemplateByte(p)
-			g = t17
-			if (g == 34) || (g == 39) {
-				p = p + 1
-			} else {
-				g = 0
-			}
-			t18 = m.TemplateByte(p)
-			t19 = m.LexIsIdentStart(t18)
-			if t19 != 0 {
-				m.EmitTok(25, lhs, rhs)
-				m.Ptr = p
-				hdDelim = p
-				m.LexScanIdent()
-				hdLen = ((m.Ptr - hdDelim) << 1) | hdStrip
-				t20 = g != 0
-				t21 = m.TemplateByte(m.Ptr)
-				if t20 && (t21 == g) {
-					m.Ptr = m.Ptr + 1
+				if (c == 60) && ((c2 == 60) && (inst != 0)) {
+					t16 = m.TemplateByte(m.Ptr + 2)
+					hdStrip = rt.B2u(t16 == 45)
+					rhs = (m.Ptr + 2) + hdStrip
+					p = rhs
+					t17 = m.TemplateByte(p)
+					g = t17
+					if (g == 34) || (g == 39) {
+						p = p + 1
+					} else {
+						g = 0
+					}
+					t18 = m.TemplateByte(p)
+					t19 = m.LexIsIdentStart(t18)
+					if t19 != 0 {
+						m.EmitTok(25, lhs, rhs)
+						m.Ptr = p
+						hdDelim = p
+						m.LexScanIdent()
+						hdLen = ((m.Ptr - hdDelim) << 1) | hdStrip
+						t20 = g != 0
+						t21 = m.TemplateByte(m.Ptr)
+						if t20 && (t21 == g) {
+							m.Ptr = m.Ptr + 1
+						}
+						m.EmitTok(47, rhs, m.Ptr)
+						goto tok
+					}
 				}
-				m.EmitTok(47, rhs, m.Ptr)
-				goto tok
-			}
-		}
-		if (name & rt.B2u(c != 36)) != 0 {
-			m.ScanIdentRun(45)
-			t22 = inst == 1
-			t23 = m.DockerWordGroup(lhs, m.Ptr)
-			if t22 && (t23 == 3) {
-				m.EmitTok(17, lhs, m.Ptr)
-			} else {
-				m.EmitTok(rt.Sel32((cmdHead != 0), 14, 0), lhs, m.Ptr)
-			}
-			goto tok
-		}
-		t24 = m.LexIsDigit(c)
-		if (t24 & rt.B2u(lhs > gap)) != 0 {
-			m.LexScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			goto tok
-		}
-		if (c == 91) || (c == 93) {
-			m.Ptr = m.Ptr + 1
-			hl = 32
-			goto emit
-		}
-		if c == 44 {
-			m.Ptr = m.Ptr + 1
-			hl = 35
-			goto emit
-		}
-		t25 = m.DockerIsShellOp(c)
-		if t25 != 0 {
-		op:
-			for {
-				t26 = m.TemplateByte(m.Ptr)
-				t27 = m.DockerIsShellOp(t26)
-				if t27 == 0 {
-					break op
+				if (name & rt.B2u(c != 36)) != 0 {
+					m.ScanIdentRun(45)
+					t22 = inst == 1
+					t23 = m.DockerWordGroup(lhs, m.Ptr)
+					if t22 && (t23 == 3) {
+						m.EmitTok(17, lhs, m.Ptr)
+					} else {
+						m.EmitTok(rt.Sel32((cmdHead != 0), 14, 0), lhs, m.Ptr)
+					}
+				} else {
+					t24 = m.LexIsDigit(c)
+					if (t24 & rt.B2u(lhs > gap)) != 0 {
+						m.LexScanNumber()
+						m.EmitTok(24, lhs, m.Ptr)
+					} else {
+						if (c == 91) || (c == 93) {
+							m.Ptr = m.Ptr + 1
+							hl = 32
+							goto emit
+						}
+						if c == 44 {
+							m.Ptr = m.Ptr + 1
+							hl = 35
+							goto emit
+						}
+						t25 = m.DockerIsShellOp(c)
+						if t25 != 0 {
+						op:
+							for {
+								t26 = m.TemplateByte(m.Ptr)
+								t27 = m.DockerIsShellOp(t26)
+								if t27 == 0 {
+									break op
+								}
+								m.Ptr = m.Ptr + 1
+								continue op
+							}
+							hl = 25
+							if (inst == 2) && (((c == 38) || (c == 124)) || (c == 59)) {
+								cmdHead = 1
+							}
+							goto emit
+						}
+						t28 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+						m.Ptr = t28
+						hl = 0
+						goto emit
+					}
 				}
-				m.Ptr = m.Ptr + 1
-				continue op
 			}
-			hl = 25
-			if (inst == 2) && (((c == 38) || (c == 124)) || (c == 59)) {
-				cmdHead = 1
-			}
-			goto emit
 		}
-		t28 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-		m.Ptr = t28
-		hl = 0
-		goto emit
 	tok:
 		cmdHead = 0
 		continue next
@@ -24781,302 +24505,302 @@ next:
 			sClose = c
 			sOpen = 0
 			sFlags = rt.B2u(c != 39)
-			goto literal
-		}
-		if (rt.B2u(c == 47) & operand) != 0 {
-			m.Ptr = m.Ptr + 1
-			sClose = 47
-			sOpen = 0
-			sFlags = 11
-			goto literal
-		}
-		if (rt.B2u(c == 37) & operand) != 0 {
-			t21 = m.RubyPercentKind(c2)
-			kind = t21
-			p = m.Ptr + rt.Sel32((kind != 0), 2, 1)
-			t22 = m.RubyByte(p)
-			sOpen = t22
-			t23 = sOpen > 32
-			t24 = sOpen < 128
-			t25 = m.LexIsIdentContinue(sOpen)
-			if t23 && (t24 && (t25 == 0)) {
-				m.Ptr = p + 1
-				t26 = m.RubyCloser(sOpen)
-				sClose = t26
-				if sClose == sOpen {
-					sOpen = 0
-				}
-				sFlags = rt.B2u(kind != 2)
-				if c2 == 114 {
-					sFlags = 3
-				}
-				if (c2 == 115) || (c2 == 105) {
-					sFlags = sFlags | 4
-				}
-				if c2 == 73 {
-					sFlags = 5
-				}
-				goto literal
-			}
-		}
-		if (c == 58) && (c2 != 58) {
-			if (c2 == 34) || (c2 == 39) {
-				m.Ptr = m.Ptr + 2
-				sClose = c2
+		} else {
+			if (rt.B2u(c == 47) & operand) != 0 {
+				m.Ptr = m.Ptr + 1
+				sClose = 47
 				sOpen = 0
-				sFlags = 12 | rt.B2u(c2 != 39)
-				goto literal
-			}
-			t27 = m.LexIsIdentStart(c2)
-			if t27 != 0 {
-				m.Ptr = m.Ptr + 1
-				m.LexScanIdent()
-				t28 = m.RubyByte(m.Ptr)
-				c3 = t28
-				if (c3 == 63) || ((c3 == 33) || (c3 == 61)) {
-					m.Ptr = m.Ptr + 1
-				}
-				hl = 48
-				goto valueTok
-			}
-			t29 = m.RubyIsOp(c2)
-			if (t29 & operand) != 0 {
-				m.Ptr = m.Ptr + 1
-			op:
-				for {
-					t30 = m.RubyByte(m.Ptr)
-					t31 = m.RubyIsOp(t30)
-					if t31 == 0 {
-						break op
-					}
-					m.Ptr = m.Ptr + 1
-					continue op
-				}
-				hl = 48
-				goto valueTok
-			}
-		}
-		t32 = c == 64
-		t33 = m.LexIsIdentStart(c2)
-		t34 = c2 == 64
-		t35 = m.LexIsIdentStart(c3)
-		if ((rt.B2u(t32) & (t33 | (rt.B2u(t34) & t35))) | rt.B2u((c == 36) && (c2 > 32))) != 0 {
-			m.Ptr = m.Ptr + 1
-			if c2 == 64 {
-				m.Ptr = m.Ptr + 1
-			}
-			t36 = m.RubyByte(m.Ptr)
-			t37 = m.LexIsIdentContinue(t36)
-			if t37 != 0 {
-				m.LexScanIdent()
+				sFlags = 11
 			} else {
-				m.Ptr = m.Ptr + 1
-			}
-			hl = 60
-			goto valueTok
-		}
-		t38 = m.LexIsIdentStart(c)
-		if (t38 & rt.B2u(c != 36)) != 0 {
-			m.LexScanIdent()
-			t39 = m.RubyByte(m.Ptr)
-			c3 = t39
-			t40 = m.RubyByte(m.Ptr + 1)
-			kind = t40
-			if ((c3 == 63) || (c3 == 33)) && (kind != 61) {
-				m.Ptr = m.Ptr + 1
-				c3 = kind
-			}
-			rhs = m.Ptr
-			t41 = m.LexSkipSpaceAt(rhs)
-			p = t41
-			t42 = c3 == 58
-			t43 = m.RubyByte(rhs + 1)
-			if t42 && ((t43 != 58) && (member == 0)) {
-				m.Ptr = rhs + 1
-				m.EmitTok(48, lhs, m.Ptr)
-				operand = 1
-				decl = 0
-				continue next
-			}
-			if (member & rt.B2u(decl == 0)) != 0 {
-				t44 = 0xffffffff
-			} else {
-				t45 = m.RubyWordHl(lhs, rhs)
-				t44 = t45
-			}
-			kind = t44
-			if int32(kind) >= int32(0) {
-				hl = kind & 255
-				decl = kind >> 8
-				if (hl == 60) && (c3 == 46) {
-					decl = 1
-				}
-				operand = rt.B2u((hl == 18) || ((hl == 19) || (hl == 21)))
-				if hl == 14 {
-					operand = 2
-				}
-			} else {
-				if decl != 0 {
-					hl = rt.Sel32((decl == 1), 15, 55)
-					t46 = c3 == 58
-					t47 = m.RubyByte(rhs + 1)
-					if (rt.Clz32(rt.B2u(t46 && (t47 == 58))) >> 5) != 0 {
-						decl = 0
-					}
-					operand = 0
-				} else {
-					if member != 0 {
-						hl = 16
-						if (member == 2) && ((rt.Ld8(m.Mem, int(lhs)) - 65) <= 25) {
-							t48 = m.LexIsConstCase(lhs, rhs)
-							hl = rt.Sel32((t48 != 0), 6, 55)
+				if (rt.B2u(c == 37) & operand) != 0 {
+					t21 = m.RubyPercentKind(c2)
+					kind = t21
+					p = m.Ptr + rt.Sel32((kind != 0), 2, 1)
+					t22 = m.RubyByte(p)
+					sOpen = t22
+					t23 = sOpen > 32
+					t24 = sOpen < 128
+					t25 = m.LexIsIdentContinue(sOpen)
+					if t23 && (t24 && (t25 == 0)) {
+						m.Ptr = p + 1
+						t26 = m.RubyCloser(sOpen)
+						sClose = t26
+						if sClose == sOpen {
+							sOpen = 0
 						}
-						operand = 0
+						sFlags = rt.B2u(kind != 2)
+						if c2 == 114 {
+							sFlags = 3
+						}
+						if (c2 == 115) || (c2 == 105) {
+							sFlags = sFlags | 4
+						}
+						if c2 == 73 {
+							sFlags = 5
+						}
+						goto literal
+					}
+				}
+				if (c == 58) && (c2 != 58) {
+					if (c2 == 34) || (c2 == 39) {
+						m.Ptr = m.Ptr + 2
+						sClose = c2
+						sOpen = 0
+						sFlags = 12 | rt.B2u(c2 != 39)
+						goto literal
+					}
+					t27 = m.LexIsIdentStart(c2)
+					if t27 != 0 {
+						m.Ptr = m.Ptr + 1
+						m.LexScanIdent()
+						t28 = m.RubyByte(m.Ptr)
+						c3 = t28
+						if (c3 == 63) || ((c3 == 33) || (c3 == 61)) {
+							m.Ptr = m.Ptr + 1
+						}
+						hl = 48
+						goto valueTok
+					}
+					t29 = m.RubyIsOp(c2)
+					if (t29 & operand) != 0 {
+						m.Ptr = m.Ptr + 1
+					op:
+						for {
+							t30 = m.RubyByte(m.Ptr)
+							t31 = m.RubyIsOp(t30)
+							if t31 == 0 {
+								break op
+							}
+							m.Ptr = m.Ptr + 1
+							continue op
+						}
+						hl = 48
+						goto valueTok
+					}
+				}
+				t32 = c == 64
+				t33 = m.LexIsIdentStart(c2)
+				t34 = c2 == 64
+				t35 = m.LexIsIdentStart(c3)
+				if ((rt.B2u(t32) & (t33 | (rt.B2u(t34) & t35))) | rt.B2u((c == 36) && (c2 > 32))) != 0 {
+					m.Ptr = m.Ptr + 1
+					if c2 == 64 {
+						m.Ptr = m.Ptr + 1
+					}
+					t36 = m.RubyByte(m.Ptr)
+					t37 = m.LexIsIdentContinue(t36)
+					if t37 != 0 {
+						m.LexScanIdent()
 					} else {
-						t49 = m.LexIsConstCase(lhs, rhs)
-						if t49 != 0 {
-							hl = 6
+						m.Ptr = m.Ptr + 1
+					}
+					hl = 60
+					goto valueTok
+				}
+				t38 = m.LexIsIdentStart(c)
+				if (t38 & rt.B2u(c != 36)) != 0 {
+					m.LexScanIdent()
+					t39 = m.RubyByte(m.Ptr)
+					c3 = t39
+					t40 = m.RubyByte(m.Ptr + 1)
+					kind = t40
+					if ((c3 == 63) || (c3 == 33)) && (kind != 61) {
+						m.Ptr = m.Ptr + 1
+						c3 = kind
+					}
+					rhs = m.Ptr
+					t41 = m.LexSkipSpaceAt(rhs)
+					p = t41
+					t42 = c3 == 58
+					t43 = m.RubyByte(rhs + 1)
+					if t42 && ((t43 != 58) && (member == 0)) {
+						m.Ptr = rhs + 1
+						m.EmitTok(48, lhs, m.Ptr)
+						operand = 1
+						decl = 0
+						continue next
+					}
+					if (member & rt.B2u(decl == 0)) != 0 {
+						t44 = 0xffffffff
+					} else {
+						t45 = m.RubyWordHl(lhs, rhs)
+						t44 = t45
+					}
+					kind = t44
+					if int32(kind) >= int32(0) {
+						hl = kind & 255
+						decl = kind >> 8
+						if (hl == 60) && (c3 == 46) {
+							decl = 1
+						}
+						operand = rt.B2u((hl == 18) || ((hl == 19) || (hl == 21)))
+						if hl == 14 {
+							operand = 2
+						}
+					} else {
+						if decl != 0 {
+							hl = rt.Sel32((decl == 1), 15, 55)
+							t46 = c3 == 58
+							t47 = m.RubyByte(rhs + 1)
+							if (rt.Clz32(rt.B2u(t46 && (t47 == 58))) >> 5) != 0 {
+								decl = 0
+							}
 							operand = 0
 						} else {
-							if (rt.Ld8(m.Mem, int(lhs)) - 65) <= 25 {
-								hl = 55
+							if member != 0 {
+								hl = 16
+								if (member == 2) && ((rt.Ld8(m.Mem, int(lhs)) - 65) <= 25) {
+									t48 = m.LexIsConstCase(lhs, rhs)
+									hl = rt.Sel32((t48 != 0), 6, 55)
+								}
 								operand = 0
 							} else {
-								hl = 58
-								operand = 2
-								t50 = m.RubyByte(p)
-								c2 = t50
-								if c3 == 40 {
-									t51 = 1
+								t49 = m.LexIsConstCase(lhs, rhs)
+								if t49 != 0 {
+									hl = 6
+									operand = 0
 								} else {
-									if p > rhs {
-										t53 = (c2 == 34) || (c2 == 39)
-										t54 = c2 == 64
-										t55 = c2 == 58
-										t56 = m.RubyByte(p + 1)
-										t57 = m.LexIsIdentStart(t56)
-										if (rt.B2u(t53) | (rt.B2u(t54) | (rt.B2u(t55) & t57))) != 0 {
-											t58 = 1
-										} else {
-											t59 = m.LexIsIdentStart(c2)
-											if t59 != 0 {
-												t61 = m.RubyArgWord(p)
-												t60 = rt.B2u(t61 == 1)
-											} else {
-												t60 = 0
-											}
-											t58 = t60
-										}
-										t52 = t58
+									if (rt.Ld8(m.Mem, int(lhs)) - 65) <= 25 {
+										hl = 55
+										operand = 0
 									} else {
-										t52 = 0
+										hl = 58
+										operand = 2
+										t50 = m.RubyByte(p)
+										c2 = t50
+										if c3 == 40 {
+											t51 = 1
+										} else {
+											if p > rhs {
+												t53 = (c2 == 34) || (c2 == 39)
+												t54 = c2 == 64
+												t55 = c2 == 58
+												t56 = m.RubyByte(p + 1)
+												t57 = m.LexIsIdentStart(t56)
+												if (rt.B2u(t53) | (rt.B2u(t54) | (rt.B2u(t55) & t57))) != 0 {
+													t58 = 1
+												} else {
+													t59 = m.LexIsIdentStart(c2)
+													if t59 != 0 {
+														t61 = m.RubyArgWord(p)
+														t60 = rt.B2u(t61 == 1)
+													} else {
+														t60 = 0
+													}
+													t58 = t60
+												}
+												t52 = t58
+											} else {
+												t52 = 0
+											}
+											t51 = t52
+										}
+										if t51 != 0 {
+											hl = 14
+											operand = 1
+										}
 									}
-									t51 = t52
-								}
-								if t51 != 0 {
-									hl = 14
-									operand = 1
 								}
 							}
 						}
 					}
+					goto tok
 				}
-			}
-			goto tok
-		}
-		t62 = m.LexIsDigit(c)
-		t63 = c == 46
-		t64 = m.LexIsDigit(c2)
-		if (t62 | (rt.B2u(t63) & t64)) != 0 {
-			m.LexScanNumber()
-			hl = 24
-			goto valueTok
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			if interp != 0 {
-				if c == 123 {
-					interp = interp + 1
-				}
-				if c == 125 {
-					interp = interp - 1
-					if interp == 0 {
-						m.EmitTok(40, lhs, m.Ptr)
-						sClose = iClose
-						sOpen = iOpen
-						sDepth = iDepth
-						sFlags = iFlags
-						sActive = 1
-						seg = m.Ptr
-						member = 0
-						decl = 0
-						continue next
-					}
-				}
-			}
-			operand = rt.B2u(((c == 40) || (c == 91)) || (c == 123))
-			decl = 0
-			hl = 32
-			goto tok
-		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + 1
-			decl = 0
-			hl = 35
-			goto opTok
-		}
-		if (((c == 46) && (c2 != 46)) || ((c == 38) && (c2 == 46))) || ((c == 58) && (c2 == 58)) {
-			m.Ptr = m.Ptr + rt.Sel32((c == 46), 1, 2)
-			m.EmitTok(35, lhs, m.Ptr)
-			member = rt.Sel32((c == 58), 2, 1)
-			operand = 0
-			continue next
-		}
-		if c == 58 {
-			m.Ptr = m.Ptr + 1
-			hl = 35
-			goto opTok
-		}
-		if (c == 63) && (operand == 1) {
-			p = m.Ptr + rt.Sel32((c2 == 92), 2, 1)
-			t65 = m.RubyByte(p)
-			c3 = t65
-			if c3 > 32 {
-				t66 = m.Utf8SpanEnd(p+1, m.End)
-				kind = t66
-				t67 = c2 == 92
-				t68 = m.LexIsIdentContinue(c3)
-				t69 = m.RubyByte(kind)
-				t70 = m.LexIsIdentContinue(t69)
-				if t67 || ((t68 == 0) || (t70 == 0)) {
-					m.Ptr = kind
-					hl = 44
+				t62 = m.LexIsDigit(c)
+				t63 = c == 46
+				t64 = m.LexIsDigit(c2)
+				if (t62 | (rt.B2u(t63) & t64)) != 0 {
+					m.LexScanNumber()
+					hl = 24
 					goto valueTok
 				}
-			}
-		}
-		t71 = m.RubyIsOp(c)
-		if (t71 | rt.B2u(c == 46)) != 0 {
-		op2:
-			for {
-				t72 = m.RubyByte(m.Ptr)
-				c2 = t72
-				t73 = m.RubyIsOp(c2)
-				if (rt.Clz32((t73 | rt.B2u(c2 == 46))) >> 5) != 0 {
-					break op2
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					m.Ptr = m.Ptr + 1
+					if interp != 0 {
+						if c == 123 {
+							interp = interp + 1
+						}
+						if c == 125 {
+							interp = interp - 1
+							if interp == 0 {
+								m.EmitTok(40, lhs, m.Ptr)
+								sClose = iClose
+								sOpen = iOpen
+								sDepth = iDepth
+								sFlags = iFlags
+								sActive = 1
+								seg = m.Ptr
+								member = 0
+								decl = 0
+								continue next
+							}
+						}
+					}
+					operand = rt.B2u(((c == 40) || (c == 91)) || (c == 123))
+					decl = 0
+					hl = 32
+					goto tok
+				}
+				if (c == 44) || (c == 59) {
+					m.Ptr = m.Ptr + 1
+					decl = 0
+					hl = 35
+					goto opTok
+				}
+				if (((c == 46) && (c2 != 46)) || ((c == 38) && (c2 == 46))) || ((c == 58) && (c2 == 58)) {
+					m.Ptr = m.Ptr + rt.Sel32((c == 46), 1, 2)
+					m.EmitTok(35, lhs, m.Ptr)
+					member = rt.Sel32((c == 58), 2, 1)
+					operand = 0
+					continue next
+				}
+				if c == 58 {
+					m.Ptr = m.Ptr + 1
+					hl = 35
+					goto opTok
+				}
+				if (c == 63) && (operand == 1) {
+					p = m.Ptr + rt.Sel32((c2 == 92), 2, 1)
+					t65 = m.RubyByte(p)
+					c3 = t65
+					if c3 > 32 {
+						t66 = m.Utf8SpanEnd(p+1, m.End)
+						kind = t66
+						t67 = c2 == 92
+						t68 = m.LexIsIdentContinue(c3)
+						t69 = m.RubyByte(kind)
+						t70 = m.LexIsIdentContinue(t69)
+						if t67 || ((t68 == 0) || (t70 == 0)) {
+							m.Ptr = kind
+							hl = 44
+							goto valueTok
+						}
+					}
+				}
+				t71 = m.RubyIsOp(c)
+				if (t71 | rt.B2u(c == 46)) != 0 {
+				op2:
+					for {
+						t72 = m.RubyByte(m.Ptr)
+						c2 = t72
+						t73 = m.RubyIsOp(c2)
+						if (rt.Clz32((t73 | rt.B2u(c2 == 46))) >> 5) != 0 {
+							break op2
+						}
+						m.Ptr = m.Ptr + 1
+						continue op2
+					}
+					if decl == 1 {
+						decl = 0
+					}
+					hl = 25
+					goto opTok
 				}
 				m.Ptr = m.Ptr + 1
-				continue op2
+				hl = 0
+				goto opTok
 			}
-			if decl == 1 {
-				decl = 0
-			}
-			hl = 25
-			goto opTok
 		}
-		m.Ptr = m.Ptr + 1
-		hl = 0
-		goto opTok
 	literal:
 		hl = rt.Sel32(((sFlags & 2) != 0), 46, rt.Sel32(((sFlags&4) != 0), 48, 44))
 		sActive = 1
@@ -25565,156 +25289,154 @@ next:
 				m.Ptr = t3
 			}
 			tok = 47
-			goto emit
-		}
-		t4 = c == 63
-		t5 = m.LexIsIdentStart(c2)
-		t6 = c2 == 63
-		t7 = m.LexIsIdentStart(c3)
-		if (rt.B2u(t4) & (t5 | (rt.B2u(t6) & t7))) != 0 {
-			m.Ptr = m.Ptr + 1
-			if c2 == 63 {
+		} else {
+			t4 = c == 63
+			t5 = m.LexIsIdentStart(c2)
+			t6 = c2 == 63
+			t7 = m.LexIsIdentStart(c3)
+			if (rt.B2u(t4) & (t5 | (rt.B2u(t6) & t7))) != 0 {
 				m.Ptr = m.Ptr + 1
-			}
-			m.ScanIdentRun(64)
-			tok = 6
-			goto emit
-		}
-		if c == 35 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(40, lhs, m.Ptr)
-			t8 = m.LexIsIdentStart(c2)
-			if t8 != 0 {
-				attr = 2
-			}
-			continue next
-		}
-		if (rt.B2u(c == 45) & (atCol0 & rt.B2u((c2-97) <= 25))) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.ScanIdentRun(95)
-			t9 = m.LexKeywordLookup(lhs+1, m.Ptr, 17152, 15, 41)
-			g = t9
-			m.EmitTok(rt.Sel32((g == 6), 20, 17), lhs, m.Ptr)
-			attr = 0
-			if g == 7 {
-				attr = 1
-			}
-			if g == 8 {
-				attr = 2
-			}
-			if g == 9 {
-				attr = 4
-			}
-			if g == 10 {
-				attr = 3
-			}
-			continue next
-		}
-		if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
-			m.ScanIdentRun(64)
-			rhs = m.Ptr
-			if ((c - 65) <= 25) || (c == 95) {
-				m.EmitTok(rt.Sel32((attr == 4), 6, 58), lhs, rhs)
-				attr = 0
-				continue next
-			}
-			t10 = m.LexSkipSpaceAt(rhs)
-			p = t10
-			if attr != 0 {
-				hl = 23
-				if attr == 2 {
-					hl = 55
+				if c2 == 63 {
+					m.Ptr = m.Ptr + 1
 				}
-				if attr == 3 {
-					hl = 14
-				}
-				if attr == 4 {
-					hl = 6
-				}
-				attr = 0
+				m.ScanIdentRun(64)
+				tok = 6
 			} else {
-				t11 = m.ErlWordHl(lhs, rhs)
-				hl = t11
-				if int32(hl) < int32(0) {
-					hl = 48
-					t12 = m.TemplateByte(p)
-					if t12 == 40 {
-						hl = rt.Sel32((atCol0 != 0), 15, 14)
-					} else {
-						t13 = m.TemplateByte(rhs)
-						c2 = t13
-						t14 = m.TemplateByte(rhs + 1)
-						c3 = t14
-						t15 = c2 == 47
-						t16 = m.LexIsDigit(c3)
-						if (rt.B2u(t15) & t16) != 0 {
+				if c == 35 {
+					m.Ptr = m.Ptr + 1
+					m.EmitTok(40, lhs, m.Ptr)
+					t8 = m.LexIsIdentStart(c2)
+					if t8 != 0 {
+						attr = 2
+					}
+					continue next
+				}
+				if (rt.B2u(c == 45) & (atCol0 & rt.B2u((c2-97) <= 25))) != 0 {
+					m.Ptr = m.Ptr + 1
+					m.ScanIdentRun(95)
+					t9 = m.LexKeywordLookup(lhs+1, m.Ptr, 17152, 15, 41)
+					g = t9
+					m.EmitTok(rt.Sel32((g == 6), 20, 17), lhs, m.Ptr)
+					attr = 0
+					if g == 7 {
+						attr = 1
+					}
+					if g == 8 {
+						attr = 2
+					}
+					if g == 9 {
+						attr = 4
+					}
+					if g == 10 {
+						attr = 3
+					}
+					continue next
+				}
+				if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
+					m.ScanIdentRun(64)
+					rhs = m.Ptr
+					if ((c - 65) <= 25) || (c == 95) {
+						m.EmitTok(rt.Sel32((attr == 4), 6, 58), lhs, rhs)
+						attr = 0
+						continue next
+					}
+					t10 = m.LexSkipSpaceAt(rhs)
+					p = t10
+					if attr != 0 {
+						hl = 23
+						if attr == 2 {
+							hl = 55
+						}
+						if attr == 3 {
 							hl = 14
-						} else {
-							if (c2 == 58) && ((c3 == 39) || ((c3 >= 128) || ((((c3 | 32) - 97) <= 25) || (c3 == 95)))) {
-								hl = 23
+						}
+						if attr == 4 {
+							hl = 6
+						}
+						attr = 0
+					} else {
+						t11 = m.ErlWordHl(lhs, rhs)
+						hl = t11
+						if int32(hl) < int32(0) {
+							hl = 48
+							t12 = m.TemplateByte(p)
+							if t12 == 40 {
+								hl = rt.Sel32((atCol0 != 0), 15, 14)
+							} else {
+								t13 = m.TemplateByte(rhs)
+								c2 = t13
+								t14 = m.TemplateByte(rhs + 1)
+								c3 = t14
+								t15 = c2 == 47
+								t16 = m.LexIsDigit(c3)
+								if (rt.B2u(t15) & t16) != 0 {
+									hl = 14
+								} else {
+									if (c2 == 58) && ((c3 == 39) || ((c3 >= 128) || ((((c3 | 32) - 97) <= 25) || (c3 == 95)))) {
+										hl = 23
+									}
+								}
 							}
+						}
+					}
+					m.EmitTok(hl, lhs, rhs)
+					continue next
+				}
+				t17 = m.LexIsDigit(c)
+				if t17 != 0 {
+					m.ErlScanNumber()
+					tok = 24
+				} else {
+					if ((c == 60) && (c2 == 60)) || ((c == 62) && (c2 == 62)) {
+						m.Ptr = m.Ptr + 2
+						tok = 32
+					} else {
+						if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(32, lhs, m.Ptr)
+							if c != 40 {
+								attr = 0
+							}
+							continue next
+						}
+						if ((c == 44) || (c == 59)) || ((c == 46) && (c2 != 46)) {
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(35, lhs, m.Ptr)
+							attr = 0
+							continue next
+						}
+						if c == 58 {
+							m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
+							tok = rt.Sel32((c2 == 58), 25, 35)
+						} else {
+							t18 = m.ErlIsOp(c)
+							if (t18 | rt.B2u(c == 46)) != 0 {
+							op:
+								for {
+									t19 = m.TemplateByte(m.Ptr)
+									p = t19
+									t20 = m.ErlIsOp(p)
+									if (rt.Clz32((t20 | rt.B2u((p == 46) || (p == 58)))) >> 5) != 0 {
+										break op
+									}
+									if (m.Ptr > lhs) && (((rt.Ld16(m.Mem, int(m.Ptr)) & 65535) == 15420) || ((rt.Ld16(m.Mem, int(m.Ptr)) & 65535) == 15934)) {
+										break op
+									}
+									m.Ptr = m.Ptr + 1
+									continue op
+								}
+								m.EmitTok(25, lhs, m.Ptr)
+								attr = 0
+								continue next
+							}
+							t21 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+							m.Ptr = t21
+							tok = 0
 						}
 					}
 				}
 			}
-			m.EmitTok(hl, lhs, rhs)
-			continue next
 		}
-		t17 = m.LexIsDigit(c)
-		if t17 != 0 {
-			m.ErlScanNumber()
-			tok = 24
-			goto emit
-		}
-		if ((c == 60) && (c2 == 60)) || ((c == 62) && (c2 == 62)) {
-			m.Ptr = m.Ptr + 2
-			tok = 32
-			goto emit
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			if c != 40 {
-				attr = 0
-			}
-			continue next
-		}
-		if ((c == 44) || (c == 59)) || ((c == 46) && (c2 != 46)) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			attr = 0
-			continue next
-		}
-		if c == 58 {
-			m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
-			tok = rt.Sel32((c2 == 58), 25, 35)
-			goto emit
-		}
-		t18 = m.ErlIsOp(c)
-		if (t18 | rt.B2u(c == 46)) != 0 {
-		op:
-			for {
-				t19 = m.TemplateByte(m.Ptr)
-				p = t19
-				t20 = m.ErlIsOp(p)
-				if (rt.Clz32((t20 | rt.B2u((p == 46) || (p == 58)))) >> 5) != 0 {
-					break op
-				}
-				if (m.Ptr > lhs) && (((rt.Ld16(m.Mem, int(m.Ptr)) & 65535) == 15420) || ((rt.Ld16(m.Mem, int(m.Ptr)) & 65535) == 15934)) {
-					break op
-				}
-				m.Ptr = m.Ptr + 1
-				continue op
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			attr = 0
-			continue next
-		}
-		t21 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-		m.Ptr = t21
-		tok = 0
-		goto emit
-	emit:
 		m.EmitTok(tok, lhs, m.Ptr)
 		continue next
 	}
@@ -26032,41 +25754,40 @@ next:
 			hl = 59
 			expect = v
 			cmd = head
-			goto classified
-		}
-		if v == 5 {
-			if ((rhs - lhs) == 2) && (rt.Ld16(m.Mem, int(lhs)) == 28265) {
-				hl = 18
+		} else {
+			if v == 5 {
+				if ((rhs - lhs) == 2) && (rt.Ld16(m.Mem, int(lhs)) == 28265) {
+					hl = 18
+				}
+			} else {
+				if v != 0 {
+					hl = rt.Sel32((v == 2), 15, 58)
+					expect = rt.Sel32((v == 4), 5, 0)
+				} else {
+					if head != 0 {
+						hl = 14
+						t13 = m.LexKeywordValue(lhs, rhs, 49680, 3, 22)
+						v = t13
+						if int32(v) >= int32(0) {
+							hl = v & 255
+							v = v >> 8
+							cmd = rt.B2u(v == 1)
+							expect = rt.Sel32((v >= 2), v, 0)
+						}
+					} else {
+						t14 = m.LexIsDigit(c)
+						if t14 != 0 {
+							m.Ptr = lhs
+							m.LexScanNumber()
+							if m.Ptr == rhs {
+								hl = 24
+							}
+							m.Ptr = rhs
+						}
+					}
+				}
 			}
-			goto classified
 		}
-		if v != 0 {
-			hl = rt.Sel32((v == 2), 15, 58)
-			expect = rt.Sel32((v == 4), 5, 0)
-			goto classified
-		}
-		if head != 0 {
-			hl = 14
-			t13 = m.LexKeywordValue(lhs, rhs, 49680, 3, 22)
-			v = t13
-			if int32(v) >= int32(0) {
-				hl = v & 255
-				v = v >> 8
-				cmd = rt.B2u(v == 1)
-				expect = rt.Sel32((v >= 2), v, 0)
-			}
-			goto classified
-		}
-		t14 = m.LexIsDigit(c)
-		if t14 != 0 {
-			m.Ptr = lhs
-			m.LexScanNumber()
-			if m.Ptr == rhs {
-				hl = 24
-			}
-			m.Ptr = rhs
-		}
-	classified:
 		m.EmitTok(hl, lhs, rhs)
 		continue next
 	}
@@ -26126,10 +25847,9 @@ blank:
 	c = t2
 	t3 = c == 0
 	t4 = m.LexIsSpace(c)
-	if (rt.B2u(t3) | (t4 | rt.B2u(c == 48))) != 0 {
-		goto initial
+	if (rt.B2u(t3) | (t4 | rt.B2u(c == 48))) == 0 {
+		return 1
 	}
-	return 1
 initial:
 	t5 = m.LexSkipSpaceAt(p)
 	t6 = m.TemplateByte(t5)
@@ -26728,81 +26448,81 @@ next:
 			m.LexScanHexNumber(1)
 			m.MlFloatDot()
 			hl = 24
-			goto valueTok
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			hl = 32
-			afterValue = rt.B2u(((c == 41) || (c == 93)) || (c == 125))
-			if (c == 41) || (c == 93) {
-				typeMode = 0
-			}
-			if c == 40 {
-				expect = 0
-			}
-			goto tok
-		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + rt.Sel32(((c == 59) && (c2 == 59)), 2, 1)
-			typeMode = 0
-			expect = 0
-			hl = 35
-			goto opTok
-		}
-		if (c == 46) && (c2 != 46) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			member = rt.Sel32((lastModule != 0), 2, 1)
-			if member == 2 {
-				t37 = m.MlIdEnd(m.Ptr)
-				t38 = m.LexSkipSpaceAt(t37)
-				p = t38
-				t39 = m.MlIsArgAt(p)
-				if t39 == 0 {
-					member = 1
-				}
-			}
-			afterValue = 0
-			continue next
-		}
-		t40 = m.MlIsSymbol(c)
-		if t40 != 0 {
-		symbol:
-			for {
-				if m.Ptr >= m.End {
-					break symbol
-				}
-				t41 = m.MlIsSymbol(rt.Ld8(m.Mem, int(m.Ptr)))
-				if (rt.Clz32((t41 | rt.B2u(rt.Ld8(m.Mem, int(m.Ptr)) == 46))) >> 5) != 0 {
-					break symbol
-				}
-				t42 = rt.Ld8(m.Mem, int(m.Ptr)) == 40
-				t43 = m.MlByte(m.Ptr + 1)
-				if t42 && (t43 == 42) {
-					break symbol
-				}
+		} else {
+			if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
 				m.Ptr = m.Ptr + 1
-				continue symbol
-			}
-			n = m.Ptr - lhs
-			if n == 1 {
-				if c == 58 {
-					typeMode = 1
-				}
-				if (c == 61) || (c == 124) {
+				hl = 32
+				afterValue = rt.B2u(((c == 41) || (c == 93)) || (c == 125))
+				if (c == 41) || (c == 93) {
 					typeMode = 0
+				}
+				if c == 40 {
 					expect = 0
 				}
+				goto tok
 			}
-			if (n == 2) && (rt.Ld16(m.Mem, int(lhs)) == 14906) {
+			if (c == 44) || (c == 59) {
+				m.Ptr = m.Ptr + rt.Sel32(((c == 59) && (c2 == 59)), 2, 1)
 				typeMode = 0
+				expect = 0
+				hl = 35
+				goto opTok
 			}
-			hl = 25
-			goto opTok
+			if (c == 46) && (c2 != 46) {
+				m.Ptr = m.Ptr + 1
+				m.EmitTok(35, lhs, m.Ptr)
+				member = rt.Sel32((lastModule != 0), 2, 1)
+				if member == 2 {
+					t37 = m.MlIdEnd(m.Ptr)
+					t38 = m.LexSkipSpaceAt(t37)
+					p = t38
+					t39 = m.MlIsArgAt(p)
+					if t39 == 0 {
+						member = 1
+					}
+				}
+				afterValue = 0
+				continue next
+			}
+			t40 = m.MlIsSymbol(c)
+			if t40 != 0 {
+			symbol:
+				for {
+					if m.Ptr >= m.End {
+						break symbol
+					}
+					t41 = m.MlIsSymbol(rt.Ld8(m.Mem, int(m.Ptr)))
+					if (rt.Clz32((t41 | rt.B2u(rt.Ld8(m.Mem, int(m.Ptr)) == 46))) >> 5) != 0 {
+						break symbol
+					}
+					t42 = rt.Ld8(m.Mem, int(m.Ptr)) == 40
+					t43 = m.MlByte(m.Ptr + 1)
+					if t42 && (t43 == 42) {
+						break symbol
+					}
+					m.Ptr = m.Ptr + 1
+					continue symbol
+				}
+				n = m.Ptr - lhs
+				if n == 1 {
+					if c == 58 {
+						typeMode = 1
+					}
+					if (c == 61) || (c == 124) {
+						typeMode = 0
+						expect = 0
+					}
+				}
+				if (n == 2) && (rt.Ld16(m.Mem, int(lhs)) == 14906) {
+					typeMode = 0
+				}
+				hl = 25
+				goto opTok
+			}
+			m.Ptr = m.Ptr + 1
+			hl = 0
+			goto tok
 		}
-		m.Ptr = m.Ptr + 1
-		hl = 0
-		goto tok
 	valueTok:
 		afterValue = 1
 		goto tok
@@ -27040,19 +26760,18 @@ scan:
 		if c == 92 {
 			t9 = m.LexEscapeEnd(p)
 			e = t9
-			goto escape
+		} else {
+			if c2 != 123 {
+				if nested == 0 {
+					m.EmitTok(44, seg, p)
+					m.Ptr = p + 1
+					m.EmitTok(40, p, m.Ptr)
+					return 2
+				}
+				m.Ptr = p + 1
+				continue scan
+			}
 		}
-		if c2 == 123 {
-			goto escape
-		}
-		if nested == 0 {
-			m.EmitTok(44, seg, p)
-			m.Ptr = p + 1
-			m.EmitTok(40, p, m.Ptr)
-			return 2
-		}
-		m.Ptr = p + 1
-		continue scan
 	escape:
 		m.EmitTok(44, seg, q)
 		m.EmitTok(45, q, e)
@@ -27824,184 +27543,184 @@ next:
 		}
 		if (c == 34) || (c == 39) {
 			m.PyString(0, c, 0, 0)
-			goto plain
-		}
-		t2 = m.LexIsDigit(c)
-		t3 = c == 46
-		t4 = m.LexIsDigit(c2)
-		if (t2 | (rt.B2u(t3) & t4)) != 0 {
-			m.LexScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			typeNext = 0
-			goto plain
-		}
-		t5 = m.LexIsIdentStart(c)
-		if t5 != 0 {
-			c = c | 32
-			if (c2 == 34) || (c2 == 39) {
-				if (((c == 114) || (c == 117)) || ((c == 98) || (c == 102))) || (c == 116) {
-					m.PyString(1, c2, rt.B2u(c == 114), rt.B2u((c == 102) || (c == 116)))
-					goto plain
-				}
+		} else {
+			t2 = m.LexIsDigit(c)
+			t3 = c == 46
+			t4 = m.LexIsDigit(c2)
+			if (t2 | (rt.B2u(t3) & t4)) != 0 {
+				m.LexScanNumber()
+				m.EmitTok(24, lhs, m.Ptr)
+				typeNext = 0
 			} else {
-				if ((lhs + 2) < m.End) && ((rt.Ld8(m.Mem, int(lhs)+2) == 34) || (rt.Ld8(m.Mem, int(lhs)+2) == 39)) {
-					p = rt.Ld16(m.Mem, int(lhs)) | 8224
-					if (((p == 29282) || (p == 25202)) || ((p == 29286) || (p == 26226))) || ((p == 29300) || (p == 29810)) {
-						m.PyString(2, rt.Ld8(m.Mem, int(lhs)+2), 1, rt.B2u((p != 29282) && (p != 25202)))
-						goto plain
-					}
-				}
-			}
-			m.LexScanIdent()
-			if afterDot != 0 {
-				g = 0
-			} else {
-				t6 = m.PyWordHl(lhs, m.Ptr)
-				g = t6
-			}
-			hl = g & 255
-			if hl == 0 {
-				if lineHead != 0 {
-					t8 = m.PySoftKeyword(lhs, m.Ptr)
-					t7 = t8
-				} else {
-					t7 = 0
-				}
-				if t7 != 0 {
-					hl = 18
-				} else {
-					if afterDecl != 0 {
-						hl = rt.Sel32((afterDecl == 2), 57, 15)
-						if afterDecl == 1 {
-							m.SigFnPend = 1
-							m.SigFnAngle = 0
+				t5 = m.LexIsIdentStart(c)
+				if t5 != 0 {
+					c = c | 32
+					if (c2 == 34) || (c2 == 39) {
+						if (((c == 114) || (c == 117)) || ((c == 98) || (c == 102))) || (c == 116) {
+							m.PyString(1, c2, rt.B2u(c == 114), rt.B2u((c == 102) || (c == 116)))
+							goto plain
 						}
 					} else {
-						if afterDot != 0 {
-							t9 = m.LexSkipSpaceAt(m.Ptr)
-							q = t9
-							hl = rt.Sel32(((q < m.End) && (rt.Ld8(m.Mem, int(q)) == 40)), 16, 29)
+						if ((lhs + 2) < m.End) && ((rt.Ld8(m.Mem, int(lhs)+2) == 34) || (rt.Ld8(m.Mem, int(lhs)+2) == 39)) {
+							p = rt.Ld16(m.Mem, int(lhs)) | 8224
+							if (((p == 29282) || (p == 25202)) || ((p == 29286) || (p == 26226))) || ((p == 29300) || (p == 29810)) {
+								m.PyString(2, rt.Ld8(m.Mem, int(lhs)+2), 1, rt.B2u((p != 29282) && (p != 25202)))
+								goto plain
+							}
+						}
+					}
+					m.LexScanIdent()
+					if afterDot != 0 {
+						g = 0
+					} else {
+						t6 = m.PyWordHl(lhs, m.Ptr)
+						g = t6
+					}
+					hl = g & 255
+					if hl == 0 {
+						if lineHead != 0 {
+							t8 = m.PySoftKeyword(lhs, m.Ptr)
+							t7 = t8
 						} else {
-							t10 = m.SigActive()
-							if ((t10 & m.SigPattern) & rt.B2u(m.SigObscure == 0)) != 0 {
-								hl = 59
+							t7 = 0
+						}
+						if t7 != 0 {
+							hl = 18
+						} else {
+							if afterDecl != 0 {
+								hl = rt.Sel32((afterDecl == 2), 57, 15)
+								if afterDecl == 1 {
+									m.SigFnPend = 1
+									m.SigFnAngle = 0
+								}
 							} else {
-								t11 = m.LexIsConstCase(lhs, m.Ptr)
-								if t11 != 0 {
-									hl = 6
+								if afterDot != 0 {
+									t9 = m.LexSkipSpaceAt(m.Ptr)
+									q = t9
+									hl = rt.Sel32(((q < m.End) && (rt.Ld8(m.Mem, int(q)) == 40)), 16, 29)
 								} else {
-									if (typeNext | rt.B2u((rt.Ld8(m.Mem, int(lhs))-65) <= 25)) != 0 {
-										hl = 55
+									t10 = m.SigActive()
+									if ((t10 & m.SigPattern) & rt.B2u(m.SigObscure == 0)) != 0 {
+										hl = 59
 									} else {
-										t12 = m.LexSkipSpaceAt(m.Ptr)
-										q = t12
-										hl = rt.Sel32(((q < m.End) && (rt.Ld8(m.Mem, int(q)) == 40)), 14, 58)
+										t11 = m.LexIsConstCase(lhs, m.Ptr)
+										if t11 != 0 {
+											hl = 6
+										} else {
+											if (typeNext | rt.B2u((rt.Ld8(m.Mem, int(lhs))-65) <= 25)) != 0 {
+												hl = 55
+											} else {
+												t12 = m.LexSkipSpaceAt(m.Ptr)
+												q = t12
+												hl = rt.Sel32(((q < m.End) && (rt.Ld8(m.Mem, int(q)) == 40)), 14, 58)
+											}
+										}
 									}
 								}
 							}
 						}
 					}
+					m.EmitTok(hl, lhs, m.Ptr)
+					annotName = rt.B2u(((g == 0) && (hl != 18)) || (hl == 60)) & (rt.B2u(hl == 59) | (lineHead | (afterDot & annotName)))
+					if ((m.Ptr - lhs) == 6) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffff) == 0x6164626d616c) {
+						brackDepth = brackDepth | 1
+					}
+					afterDecl = g >> 8
+					afterDot = 0
+					typeNext = 0
+					lineHead = 0
+					m.SigPattern = 0
+					continue next
 				}
-			}
-			m.EmitTok(hl, lhs, m.Ptr)
-			annotName = rt.B2u(((g == 0) && (hl != 18)) || (hl == 60)) & (rt.B2u(hl == 59) | (lineHead | (afterDot & annotName)))
-			if ((m.Ptr - lhs) == 6) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffff) == 0x6164626d616c) {
-				brackDepth = brackDepth | 1
-			}
-			afterDecl = g >> 8
-			afterDot = 0
-			typeNext = 0
-			lineHead = 0
-			m.SigPattern = 0
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			if c == 40 {
-				m.SigParens = m.SigParens + 1
-				if m.SigFnAngle == 0 {
-					if m.SigFnPend != 0 {
-						m.SigMark()
-					}
-					m.SigFnPend = 0
-				}
-				m.SigPattern = 1
-			} else {
-				m.SigPattern = 0
-				if c == 41 {
-					t13 = m.SigActive()
-					if t13 != 0 {
-						m.SigUnmark()
-					}
-					if m.SigParens > 0 {
-						m.SigParens = m.SigParens - 1
-					}
-				} else {
-					if m.SigFnPend != 0 {
-						if c == 91 {
-							m.SigFnAngle = m.SigFnAngle + 1
-						} else {
-							if c == 93 {
-								m.SigFnAngleDrop(1)
-							} else {
-								m.SigFnPend = 0
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					if c == 40 {
+						m.SigParens = m.SigParens + 1
+						if m.SigFnAngle == 0 {
+							if m.SigFnPend != 0 {
+								m.SigMark()
 							}
+							m.SigFnPend = 0
 						}
+						m.SigPattern = 1
 					} else {
-						t14 = m.SigActive()
-						if t14 != 0 {
-							if (c == 91) || (c == 123) {
-								m.SigObscure = m.SigObscure + 1
+						m.SigPattern = 0
+						if c == 41 {
+							t13 = m.SigActive()
+							if t13 != 0 {
+								m.SigUnmark()
+							}
+							if m.SigParens > 0 {
+								m.SigParens = m.SigParens - 1
+							}
+						} else {
+							if m.SigFnPend != 0 {
+								if c == 91 {
+									m.SigFnAngle = m.SigFnAngle + 1
+								} else {
+									if c == 93 {
+										m.SigFnAngleDrop(1)
+									} else {
+										m.SigFnPend = 0
+									}
+								}
 							} else {
-								if m.SigObscure > 0 {
-									m.SigObscure = m.SigObscure - 1
+								t14 = m.SigActive()
+								if t14 != 0 {
+									if (c == 91) || (c == 123) {
+										m.SigObscure = m.SigObscure + 1
+									} else {
+										if m.SigObscure > 0 {
+											m.SigObscure = m.SigObscure - 1
+										}
+									}
 								}
 							}
 						}
 					}
-				}
-			}
-			if (c == 91) || (c == 123) {
-				brackDepth = brackDepth + 2
-			} else {
-				if (brackDepth > 1) && ((c == 93) || (c == 125)) {
-					brackDepth = brackDepth - 2
-				}
-			}
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			goto plain
-		}
-		if ((c == 46) || (c == 44)) || (((c == 58) && (c2 != 61)) || (c == 59)) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			afterDot = rt.B2u(c == 46)
-			typeNext = rt.B2u(c == 58) & (annotName & rt.B2u(brackDepth == 0))
-			if c == 58 {
-				brackDepth = brackDepth & 0xfffffffe
-			}
-			if c != 46 {
-				annotName = 0
-			}
-			lineHead = 0
-			m.SigPattern = rt.B2u(c == 44)
-			continue next
-		}
-		t15 = m.PyIsOp(c)
-		if (t15 | rt.B2u(c == 58)) != 0 {
-			m.Ptr = m.Ptr + 1
-			if (m.Ptr < m.End) && ((c2 == 61) || ((c == c2) || ((c == 45) && (c2 == 62)))) {
-				m.Ptr = m.Ptr + 1
-				if (m.Ptr < m.End) && ((rt.Ld8(m.Mem, int(m.Ptr)) == 61) || ((c == 47) && (rt.Ld8(m.Mem, int(m.Ptr)) == 47))) {
+					if (c == 91) || (c == 123) {
+						brackDepth = brackDepth + 2
+					} else {
+						if (brackDepth > 1) && ((c == 93) || (c == 125)) {
+							brackDepth = brackDepth - 2
+						}
+					}
 					m.Ptr = m.Ptr + 1
+					m.EmitTok(32, lhs, m.Ptr)
+				} else {
+					if ((c == 46) || (c == 44)) || (((c == 58) && (c2 != 61)) || (c == 59)) {
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(35, lhs, m.Ptr)
+						afterDot = rt.B2u(c == 46)
+						typeNext = rt.B2u(c == 58) & (annotName & rt.B2u(brackDepth == 0))
+						if c == 58 {
+							brackDepth = brackDepth & 0xfffffffe
+						}
+						if c != 46 {
+							annotName = 0
+						}
+						lineHead = 0
+						m.SigPattern = rt.B2u(c == 44)
+						continue next
+					}
+					t15 = m.PyIsOp(c)
+					if (t15 | rt.B2u(c == 58)) != 0 {
+						m.Ptr = m.Ptr + 1
+						if (m.Ptr < m.End) && ((c2 == 61) || ((c == c2) || ((c == 45) && (c2 == 62)))) {
+							m.Ptr = m.Ptr + 1
+							if (m.Ptr < m.End) && ((rt.Ld8(m.Mem, int(m.Ptr)) == 61) || ((c == 47) && (rt.Ld8(m.Mem, int(m.Ptr)) == 47))) {
+								m.Ptr = m.Ptr + 1
+							}
+						}
+						m.EmitTok(25, lhs, m.Ptr)
+						typeNext = rt.B2u((c == 45) && (c2 == 62))
+						m.SigPattern = m.SigPattern & rt.B2u(c == 42)
+					} else {
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(0, lhs, m.Ptr)
+					}
 				}
 			}
-			m.EmitTok(25, lhs, m.Ptr)
-			typeNext = rt.B2u((c == 45) && (c2 == 62))
-			m.SigPattern = m.SigPattern & rt.B2u(c == 42)
-			goto plain
 		}
-		m.Ptr = m.Ptr + 1
-		m.EmitTok(0, lhs, m.Ptr)
 	plain:
 		annotName = 0
 		afterDot = 0
@@ -28091,138 +27810,136 @@ token:
 			break token
 		}
 		lhs = m.Ptr
-		if quote != 0 {
-			goto block8
-		}
-		m.ScanWhitespace()
-		t0 = m.LexGapHasBreak(lhs, m.Ptr)
-		if t0 != 0 {
-			operand = 0
-			decl = 0
-		}
-		m.EmitGap(lhs, m.Ptr)
-		if m.Ptr >= m.End {
-			break token
-		}
-		lhs = m.Ptr
-		c = rt.Ld8(m.Mem, int(m.Ptr))
-		n = rt.Sel32(((m.Ptr + 1) < m.End), rt.Ld8(m.Mem, int(m.Ptr)+1), 0)
-		if c == 35 {
-			m.LexLineComment(1, rt.Sel32((n == 35), 5, 4))
-			continue token
-		}
-		raw = rt.B2u(c == 114)
-		if (rt.B2u((n == 34) || (n == 39)) & ((rt.Ld8(m.Mem, int(c)+3984) & 1) | rt.B2u((operand == 0) && (c == 37)))) != 0 {
-			m.Ptr = m.Ptr + 1
-			c = n
-		}
-		if (c == 34) || (c == 39) {
-			triple = rt.B2u(((m.Ptr + 2) < m.End) && ((rt.Ld8(m.Mem, int(m.Ptr)+1) == c) && (rt.Ld8(m.Mem, int(m.Ptr)+2) == c)))
-			quote = c | ((raw << 8) | (triple << 9))
-			m.Ptr = m.Ptr + rt.Sel32((triple != 0), 3, 1)
-			goto block8
-		}
-		if c == 64 {
-			m.Ptr = m.Ptr + 1
-			m.LexScanIdent()
-			m.EmitTok(1, lhs, m.Ptr)
-			continue token
-		}
-		if c == 37 {
-			t2 = operand == 0
-			t3 = m.LexIsIdentStart(n)
-			t1 = rt.B2u(t2) & t3
-		} else {
-			t1 = rt.B2u(c == 36)
-		}
-		if t1 != 0 {
-			m.Ptr = m.Ptr + 1
-			m.LexScanIdent()
-		path:
-			for {
-				if m.Ptr >= m.End {
-					break path
-				}
-				if rt.Ld8(m.Mem, int(m.Ptr)) != 47 {
-					break path
-				}
-				m.Ptr = m.Ptr + 1
-				m.LexScanIdent()
-				continue path
+		if quote == 0 {
+			m.ScanWhitespace()
+			t0 = m.LexGapHasBreak(lhs, m.Ptr)
+			if t0 != 0 {
+				operand = 0
+				decl = 0
 			}
-			m.EmitTok(60, lhs, m.Ptr)
-			operand = 1
-			member = 0
-			continue token
-		}
-		t4 = m.LexIsDigit(c)
-		t5 = c == 46
-		t6 = m.LexIsDigit(n)
-		if (t4 | (rt.B2u(t5) & t6)) != 0 {
-			m.LexScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			operand = 1
-			member = 0
-			continue token
-		}
-		if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
-			m.LexScanIdent()
-			t7 = m.LexSkipSpaceAt(m.Ptr)
-			p = t7
-			n = rt.B2u((p < m.End) && (rt.Ld8(m.Mem, int(p)) == 40))
-			t8 = m.LexKeywordValue(lhs, m.Ptr, 18464, 15, 40)
-			group = t8
-			hl = group & 255
-			if int32(group) < int32(0) {
-				t9 = m.GdTypeHl(lhs, m.Ptr)
-				hl = t9
-				if int32(hl) < int32(0) {
-					hl = 58
-					t10 = m.LexIsConstCase(lhs, m.Ptr)
-					if t10 != 0 {
-						hl = 6
-					} else {
-						if (c - 65) <= 25 {
-							hl = 55
-						} else {
-							if n != 0 {
-								hl = 14
+			m.EmitGap(lhs, m.Ptr)
+			if m.Ptr >= m.End {
+				break token
+			}
+			lhs = m.Ptr
+			c = rt.Ld8(m.Mem, int(m.Ptr))
+			n = rt.Sel32(((m.Ptr + 1) < m.End), rt.Ld8(m.Mem, int(m.Ptr)+1), 0)
+			if c == 35 {
+				m.LexLineComment(1, rt.Sel32((n == 35), 5, 4))
+				continue token
+			}
+			raw = rt.B2u(c == 114)
+			if (rt.B2u((n == 34) || (n == 39)) & ((rt.Ld8(m.Mem, int(c)+3984) & 1) | rt.B2u((operand == 0) && (c == 37)))) != 0 {
+				m.Ptr = m.Ptr + 1
+				c = n
+			}
+			if (c == 34) || (c == 39) {
+				triple = rt.B2u(((m.Ptr + 2) < m.End) && ((rt.Ld8(m.Mem, int(m.Ptr)+1) == c) && (rt.Ld8(m.Mem, int(m.Ptr)+2) == c)))
+				quote = c | ((raw << 8) | (triple << 9))
+				m.Ptr = m.Ptr + rt.Sel32((triple != 0), 3, 1)
+			} else {
+				if c == 64 {
+					m.Ptr = m.Ptr + 1
+					m.LexScanIdent()
+					m.EmitTok(1, lhs, m.Ptr)
+					continue token
+				}
+				if c == 37 {
+					t2 = operand == 0
+					t3 = m.LexIsIdentStart(n)
+					t1 = rt.B2u(t2) & t3
+				} else {
+					t1 = rt.B2u(c == 36)
+				}
+				if t1 != 0 {
+					m.Ptr = m.Ptr + 1
+					m.LexScanIdent()
+				path:
+					for {
+						if m.Ptr >= m.End {
+							break path
+						}
+						if rt.Ld8(m.Mem, int(m.Ptr)) != 47 {
+							break path
+						}
+						m.Ptr = m.Ptr + 1
+						m.LexScanIdent()
+						continue path
+					}
+					m.EmitTok(60, lhs, m.Ptr)
+					operand = 1
+					member = 0
+					continue token
+				}
+				t4 = m.LexIsDigit(c)
+				t5 = c == 46
+				t6 = m.LexIsDigit(n)
+				if (t4 | (rt.B2u(t5) & t6)) != 0 {
+					m.LexScanNumber()
+					m.EmitTok(24, lhs, m.Ptr)
+					operand = 1
+					member = 0
+					continue token
+				}
+				if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
+					m.LexScanIdent()
+					t7 = m.LexSkipSpaceAt(m.Ptr)
+					p = t7
+					n = rt.B2u((p < m.End) && (rt.Ld8(m.Mem, int(p)) == 40))
+					t8 = m.LexKeywordValue(lhs, m.Ptr, 18464, 15, 40)
+					group = t8
+					hl = group & 255
+					if int32(group) < int32(0) {
+						t9 = m.GdTypeHl(lhs, m.Ptr)
+						hl = t9
+						if int32(hl) < int32(0) {
+							hl = 58
+							t10 = m.LexIsConstCase(lhs, m.Ptr)
+							if t10 != 0 {
+								hl = 6
+							} else {
+								if (c - 65) <= 25 {
+									hl = 55
+								} else {
+									if n != 0 {
+										hl = 14
+									}
+								}
 							}
 						}
 					}
+					if decl != 0 {
+						hl = rt.Sel32((decl == 1), 15, 55)
+					}
+					if member != 0 {
+						hl = rt.Sel32((n != 0), 16, 29)
+					}
+					m.EmitTok(hl, lhs, m.Ptr)
+					decl = rt.Sel32((hl == 19), (group >> 8), 0)
+					member = 0
+					operand = rt.B2u((hl != 21) && ((hl != 18) && (hl != 19)))
+					continue token
 				}
-			}
-			if decl != 0 {
-				hl = rt.Sel32((decl == 1), 15, 55)
-			}
-			if member != 0 {
-				hl = rt.Sel32((n != 0), 16, 29)
-			}
-			m.EmitTok(hl, lhs, m.Ptr)
-			decl = rt.Sel32((hl == 19), (group >> 8), 0)
-			member = 0
-			operand = rt.B2u((hl != 21) && ((hl != 18) && (hl != 19)))
-			continue token
-		}
-		m.Ptr = m.Ptr + 1
-		hl = 25
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			hl = 32
-		} else {
-			if (rt.Ld8(m.Mem, int(c)+2192) & 8) != 0 {
-				hl = 35
+				m.Ptr = m.Ptr + 1
+				hl = 25
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					hl = 32
+				} else {
+					if (rt.Ld8(m.Mem, int(c)+2192) & 8) != 0 {
+						hl = 35
+					}
+				}
+				if (c == 58) && (n == 61) {
+					m.Ptr = m.Ptr + 1
+					hl = 25
+				}
+				m.EmitTok(hl, lhs, m.Ptr)
+				operand = (rt.Ld8(m.Mem, int(c)+1680) >> 3) & 1
+				member = rt.B2u(c == 46)
+				decl = 0
+				continue token
 			}
 		}
-		if (c == 58) && (n == 61) {
-			m.Ptr = m.Ptr + 1
-			hl = 25
-		}
-		m.EmitTok(hl, lhs, m.Ptr)
-		operand = (rt.Ld8(m.Mem, int(c)+1680) >> 3) & 1
-		member = rt.B2u(c == 46)
-		decl = 0
-		continue token
-	block8:
 		triple = quote >> 9
 		t11 = m.PyStringBody(quote&255, (quote>>8)&1, 0, triple, triple, 6, lhs, 0)
 		status = t11
@@ -28290,118 +28007,116 @@ token:
 			break token
 		}
 		lhs = m.Ptr
-		if quote != 0 {
-			goto block8
-		}
-		m.ScanWhitespace()
-		m.EmitGap(lhs, m.Ptr)
-		if m.Ptr >= m.End {
-			break token
-		}
-		lhs = m.Ptr
-		c = rt.Ld8(m.Mem, int(m.Ptr))
-		n = rt.Sel32(((m.Ptr + 1) < m.End), rt.Ld8(m.Mem, int(m.Ptr)+1), 0)
-		if c == 59 {
-			m.LexLineComment(1, 4)
-			continue token
-		}
-		if (c == 38) && (n == 34) {
-			m.Ptr = m.Ptr + 1
-			c = n
-		}
-		if c == 34 {
-			quote = c
-			m.Ptr = m.Ptr + 1
-			goto block8
-		}
-		t0 = m.LexIsDigit(c)
-		if t0 != 0 {
-			t1 = m.LexLineByteBefore(lhs)
-			if t1 == 0 {
-			key:
-				for {
-					m.LexScanIdent()
-					if m.Ptr >= m.End {
-						break key
+		if quote == 0 {
+			m.ScanWhitespace()
+			m.EmitGap(lhs, m.Ptr)
+			if m.Ptr >= m.End {
+				break token
+			}
+			lhs = m.Ptr
+			c = rt.Ld8(m.Mem, int(m.Ptr))
+			n = rt.Sel32(((m.Ptr + 1) < m.End), rt.Ld8(m.Mem, int(m.Ptr)+1), 0)
+			if c == 59 {
+				m.LexLineComment(1, 4)
+				continue token
+			}
+			if (c == 38) && (n == 34) {
+				m.Ptr = m.Ptr + 1
+				c = n
+			}
+			if c == 34 {
+				quote = c
+				m.Ptr = m.Ptr + 1
+			} else {
+				t0 = m.LexIsDigit(c)
+				if t0 != 0 {
+					t1 = m.LexLineByteBefore(lhs)
+					if t1 == 0 {
+					key:
+						for {
+							m.LexScanIdent()
+							if m.Ptr >= m.End {
+								break key
+							}
+							p = rt.Ld8(m.Mem, int(m.Ptr))
+							if (p != 47) && (p != 58) {
+								break key
+							}
+							m.Ptr = m.Ptr + 1
+							continue key
+						}
+						t2 = m.LexSkipSpaceAt(m.Ptr)
+						p = t2
+						if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 61) {
+							m.EmitTok(29, lhs, m.Ptr)
+							header = 0
+							continue token
+						}
+						m.Ptr = lhs
 					}
-					p = rt.Ld8(m.Mem, int(m.Ptr))
-					if (p != 47) && (p != 58) {
-						break key
-					}
-					m.Ptr = m.Ptr + 1
-					continue key
 				}
-				t2 = m.LexSkipSpaceAt(m.Ptr)
-				p = t2
-				if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 61) {
-					m.EmitTok(29, lhs, m.Ptr)
+				t3 = m.LexIsDigit(c)
+				t4 = c == 46
+				t5 = m.LexIsDigit(n)
+				if (t3 | (rt.B2u(t4) & t5)) != 0 {
+					m.LexScanNumber()
+					m.EmitTok(24, lhs, m.Ptr)
 					header = 0
 					continue token
 				}
-				m.Ptr = lhs
-			}
-		}
-		t3 = m.LexIsDigit(c)
-		t4 = c == 46
-		t5 = m.LexIsDigit(n)
-		if (t3 | (rt.B2u(t4) & t5)) != 0 {
-			m.LexScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			header = 0
-			continue token
-		}
-		t6 = m.LexIsIdentStart(c)
-		if t6 != 0 {
-			m.LexScanIdent()
-		key2:
-			for {
-				if m.Ptr >= m.End {
-					break key2
+				t6 = m.LexIsIdentStart(c)
+				if t6 != 0 {
+					m.LexScanIdent()
+				key2:
+					for {
+						if m.Ptr >= m.End {
+							break key2
+						}
+						if rt.Ld8(m.Mem, int(m.Ptr)) != 47 {
+							break key2
+						}
+						m.Ptr = m.Ptr + 1
+						m.LexScanIdent()
+						continue key2
+					}
+					t7 = m.LexSkipSpaceAt(m.Ptr)
+					p = t7
+					t8 = m.LexKeywordValue(lhs, m.Ptr, 19488, 3, 18)
+					hl = t8
+					if (hl == 49) && (header == 0) {
+						hl = 0xffffffff
+					}
+					if int32(hl) < int32(0) {
+						t9 = m.GdTypeHl(lhs, m.Ptr)
+						hl = t9
+					}
+					if int32(hl) < int32(0) {
+						hl = rt.Sel32(((c - 65) <= 25), 55, 58)
+					}
+					if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 61) {
+						hl = 29
+					}
+					m.EmitTok(hl, lhs, m.Ptr)
+					header = 0
+					continue token
 				}
-				if rt.Ld8(m.Mem, int(m.Ptr)) != 47 {
-					break key2
+				header = 0
+				if c == 91 {
+					t10 = m.LexLineByteBefore(lhs)
+					header = rt.B2u(t10 == 0)
+				}
+				hl = 25
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					hl = 32
+				}
+				if (rt.Ld8(m.Mem, int(c)+2192) & 2) != 0 {
+					hl = 35
 				}
 				m.Ptr = m.Ptr + 1
-				m.LexScanIdent()
-				continue key2
+				m.EmitTok(hl, lhs, m.Ptr)
+				continue token
 			}
-			t7 = m.LexSkipSpaceAt(m.Ptr)
-			p = t7
-			t8 = m.LexKeywordValue(lhs, m.Ptr, 19488, 3, 18)
-			hl = t8
-			if (hl == 49) && (header == 0) {
-				hl = 0xffffffff
-			}
-			if int32(hl) < int32(0) {
-				t9 = m.GdTypeHl(lhs, m.Ptr)
-				hl = t9
-			}
-			if int32(hl) < int32(0) {
-				hl = rt.Sel32(((c - 65) <= 25), 55, 58)
-			}
-			if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 61) {
-				hl = 29
-			}
-			m.EmitTok(hl, lhs, m.Ptr)
-			header = 0
-			continue token
 		}
-		header = 0
-		if c == 91 {
-			t10 = m.LexLineByteBefore(lhs)
-			header = rt.B2u(t10 == 0)
-		}
-		hl = 25
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			hl = 32
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 2) != 0 {
-			hl = 35
-		}
-		m.Ptr = m.Ptr + 1
-		m.EmitTok(hl, lhs, m.Ptr)
-		continue token
-	block8:
 		t11 = m.PyStringBody(quote, 0, 0, 0, 1, 6, lhs, 0)
 		if t11 == 1 {
 			quote = 0
@@ -29549,128 +29264,127 @@ next:
 		}
 		if (c == 34) || (c == 39) {
 			m.LexString(c, 0, 44)
-			goto tail0
-		}
-		if c == 96 {
-			m.LexRawString(96, 1, 44)
-			goto tail0
-		}
-		t3 = m.LexIsIdentStart(c)
-		if t3 != 0 {
-			m.LexScanIdent()
-			rhs = m.Ptr
-			t4 = m.GoWordHl(lhs, rhs)
-			kind = t4
-			if int32(kind) >= int32(0) {
-				hl = kind & 255
-				if expect == 4 {
-					expect = 0
-				}
-				if (kind >> 8) != 0 {
-					expect = kind >> 8
-				}
+		} else {
+			if c == 96 {
+				m.LexRawString(96, 1, 44)
 			} else {
-				t5 = m.LexSkipSpaceAt(rhs)
-				t6 = m.GoByte(t5)
-				p = t6
-				if (expect == 4) && (p != 40) {
-					expect = 0
-				}
-				if expect != 0 {
-					hl = rt.Sel32(((expect == 1) || (expect == 4)), 15, rt.Sel32((expect == 3), 23, 55))
-					expect = 0
-				} else {
-					if p == 40 {
-						hl = rt.Sel32((member != 0), 16, 14)
+				t3 = m.LexIsIdentStart(c)
+				if t3 != 0 {
+					m.LexScanIdent()
+					rhs = m.Ptr
+					t4 = m.GoWordHl(lhs, rhs)
+					kind = t4
+					if int32(kind) >= int32(0) {
+						hl = kind & 255
+						if expect == 4 {
+							expect = 0
+						}
+						if (kind >> 8) != 0 {
+							expect = kind >> 8
+						}
 					} else {
-						if member != 0 {
-							hl = 29
+						t5 = m.LexSkipSpaceAt(rhs)
+						t6 = m.GoByte(t5)
+						p = t6
+						if (expect == 4) && (p != 40) {
+							expect = 0
+						}
+						if expect != 0 {
+							hl = rt.Sel32(((expect == 1) || (expect == 4)), 15, rt.Sel32((expect == 3), 23, 55))
+							expect = 0
 						} else {
-							t7 = m.LexIsConstCase(lhs, rhs)
-							if t7 != 0 {
-								hl = 6
+							if p == 40 {
+								hl = rt.Sel32((member != 0), 16, 14)
 							} else {
-								if (c - 65) <= 25 {
-									hl = 55
+								if member != 0 {
+									hl = 29
 								} else {
-									hl = 58
+									t7 = m.LexIsConstCase(lhs, rhs)
+									if t7 != 0 {
+										hl = 6
+									} else {
+										if (c - 65) <= 25 {
+											hl = 55
+										} else {
+											hl = 58
+										}
+									}
 								}
+							}
+						}
+					}
+					m.EmitTok(hl, lhs, rhs)
+				} else {
+					t8 = m.LexIsDigit(c)
+					t9 = c == 46
+					t10 = m.LexIsDigit(c2)
+					if (t8 | (rt.B2u(t9) & t10)) != 0 {
+						m.LexScanHexNumber(1)
+						m.EmitTok(24, lhs, m.Ptr)
+					} else {
+						if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(32, lhs, m.Ptr)
+							if typeGroup != 0 {
+								if (c == 41) || ((c == 93) || (c == 125)) {
+									typeGroup = typeGroup - 1
+									if typeGroup == 0 {
+										expect = 0
+									}
+								} else {
+									typeGroup = typeGroup + 1
+								}
+							}
+							if c == 40 {
+								if (expect == 2) && (typeGroup == 0) {
+									typeGroup = 1
+								}
+								recv = rt.B2u(expect == 1)
+								expect = 0
+							}
+							if (rt.B2u(c == 41) & recv) != 0 {
+								recv = 0
+								t11 = m.LexSkipSpaceAt(m.Ptr)
+								t12 = m.GoByte(t11)
+								t13 = m.LexIsIdentStart(t12)
+								if t13 != 0 {
+									expect = 4
+								}
+							}
+							if (c == 123) || (c == 125) {
+								recv = 0
+								expect = 0
+							}
+						} else {
+							if (rt.Ld8(m.Mem, int(c)+2192) & 8) != 0 {
+								m.Ptr = m.Ptr + 1
+								m.EmitTok(35, lhs, m.Ptr)
+								member = rt.B2u(c == 46)
+								if c == 59 {
+									recv = 0
+									expect = 0
+								}
+								continue next
+							}
+							t14 = m.GoIsOp(c)
+							if t14 != 0 {
+								m.Ptr = m.Ptr + 1
+								if (rt.B2u(c2 == 61) | (rt.B2u(c == c2) & (rt.Ld8(m.Mem, int(c)+2192) >> 7))) != 0 {
+									m.Ptr = m.Ptr + 1
+									if ((c == 60) || (c == 62)) && (c3 == 61) {
+										m.Ptr = m.Ptr + 1
+									}
+								}
+								m.EmitTok(25, lhs, m.Ptr)
+							} else {
+								m.Ptr = m.Ptr + 1
+								m.EmitTok(0, lhs, m.Ptr)
 							}
 						}
 					}
 				}
 			}
-			m.EmitTok(hl, lhs, rhs)
-			goto tail0
 		}
-		t8 = m.LexIsDigit(c)
-		t9 = c == 46
-		t10 = m.LexIsDigit(c2)
-		if (t8 | (rt.B2u(t9) & t10)) != 0 {
-			m.LexScanHexNumber(1)
-			m.EmitTok(24, lhs, m.Ptr)
-			goto tail0
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			if typeGroup != 0 {
-				if (c == 41) || ((c == 93) || (c == 125)) {
-					typeGroup = typeGroup - 1
-					if typeGroup == 0 {
-						expect = 0
-					}
-				} else {
-					typeGroup = typeGroup + 1
-				}
-			}
-			if c == 40 {
-				if (expect == 2) && (typeGroup == 0) {
-					typeGroup = 1
-				}
-				recv = rt.B2u(expect == 1)
-				expect = 0
-			}
-			if (rt.B2u(c == 41) & recv) != 0 {
-				recv = 0
-				t11 = m.LexSkipSpaceAt(m.Ptr)
-				t12 = m.GoByte(t11)
-				t13 = m.LexIsIdentStart(t12)
-				if t13 != 0 {
-					expect = 4
-				}
-			}
-			if (c == 123) || (c == 125) {
-				recv = 0
-				expect = 0
-			}
-			goto tail0
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 8) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			member = rt.B2u(c == 46)
-			if c == 59 {
-				recv = 0
-				expect = 0
-			}
-			continue next
-		}
-		t14 = m.GoIsOp(c)
-		if t14 != 0 {
-			m.Ptr = m.Ptr + 1
-			if (rt.B2u(c2 == 61) | (rt.B2u(c == c2) & (rt.Ld8(m.Mem, int(c)+2192) >> 7))) != 0 {
-				m.Ptr = m.Ptr + 1
-				if ((c == 60) || (c == 62)) && (c3 == 61) {
-					m.Ptr = m.Ptr + 1
-				}
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			goto tail0
-		}
-		m.Ptr = m.Ptr + 1
-		m.EmitTok(0, lhs, m.Ptr)
-	tail0:
 		member = 0
 		continue next
 	}
@@ -30086,132 +29800,132 @@ next:
 			m.Ptr = m.Ptr + 1
 			m.ScanIdentRun(95)
 			hl = 58
-			goto valueTok
-		}
-		if (c == 64) || (c == 94) {
-			m.Ptr = m.Ptr + 1
-			if c == 94 {
-			more:
-				for {
-					t5 = m.GroqByte(m.Ptr)
-					if t5 != 94 {
-						break more
+		} else {
+			if (c == 64) || (c == 94) {
+				m.Ptr = m.Ptr + 1
+				if c == 94 {
+				more:
+					for {
+						t5 = m.GroqByte(m.Ptr)
+						if t5 != 94 {
+							break more
+						}
+						m.Ptr = m.Ptr + 1
+						continue more
 					}
-					m.Ptr = m.Ptr + 1
-					continue more
 				}
-			}
-			hl = 60
-			goto valueTok
-		}
-		t6 = m.LexIsIdentStart(c)
-		if (t6 & rt.B2u(c != 36)) != 0 {
-			m.ScanIdentRun(95)
-			rhs = m.Ptr
-			t7 = m.LexSkipSpaceAt(rhs)
-			p = t7
-			t8 = m.GroqByte(p)
-			c3 = t8
-			hl = 29
-			t9 = c3 == 58
-			t10 = m.GroqByte(p + 1)
-			if t9 && (t10 == 58) {
-				hl = 23
+				hl = 60
 			} else {
-				if member == 0 {
-					t11 = m.LexKeywordValue(lhs, rhs, 20320, 3, 8)
-					g = t11
-					if ((g & 255) == 21) && (operand == 0) {
-						g = 0xffffffff
-					}
-					if int32(g) >= int32(0) {
-						hl = g & 255
-						expect = g >> 8
+				t6 = m.LexIsIdentStart(c)
+				if (t6 & rt.B2u(c != 36)) != 0 {
+					m.ScanIdentRun(95)
+					rhs = m.Ptr
+					t7 = m.LexSkipSpaceAt(rhs)
+					p = t7
+					t8 = m.GroqByte(p)
+					c3 = t8
+					hl = 29
+					t9 = c3 == 58
+					t10 = m.GroqByte(p + 1)
+					if t9 && (t10 == 58) {
+						hl = 23
 					} else {
-						if expect != 0 {
-							hl = 15
-							expect = 0
-						} else {
-							if c3 == 40 {
-								hl = 14
+						if member == 0 {
+							t11 = m.LexKeywordValue(lhs, rhs, 20320, 3, 8)
+							g = t11
+							if ((g & 255) == 21) && (operand == 0) {
+								g = 0xffffffff
+							}
+							if int32(g) >= int32(0) {
+								hl = g & 255
+								expect = g >> 8
+							} else {
+								if expect != 0 {
+									hl = 15
+									expect = 0
+								} else {
+									if c3 == 40 {
+										hl = 14
+									}
+								}
 							}
 						}
 					}
+					m.EmitTok(hl, lhs, rhs)
+					operand = rt.B2u((hl == 29) || ((hl == 3) || (hl == 7)))
+					member = 0
+					continue next
 				}
+				t12 = m.LexIsDigit(c)
+				t13 = c == 45
+				t14 = m.LexIsDigit(c2)
+				if (t12 | (rt.B2u(t13) & (t14 & rt.B2u(operand == 0)))) != 0 {
+					t15 = m.LexIsDigit(c)
+					if t15 == 0 {
+						m.Ptr = m.Ptr + 1
+					}
+					m.LexScanNumber()
+					m.EmitTok(24, lhs, m.Ptr)
+					operand = 1
+					member = 0
+					continue next
+				}
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					m.Ptr = m.Ptr + 1
+					operand = (rt.Ld8(m.Mem, int(c)+1680) >> 3) & 1
+					expect = 0
+					member = 0
+					m.EmitTok(32, lhs, m.Ptr)
+					continue next
+				}
+				if c == 46 {
+					operand = 0
+					if c2 == 46 {
+						m.Ptr = m.Ptr + rt.Sel32((c3 == 46), 3, 2)
+						hl = 25
+					} else {
+						m.Ptr = m.Ptr + 1
+						hl = 35
+						member = 1
+					}
+					goto emit
+				}
+				if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
+					m.Ptr = m.Ptr + (1 + rt.B2u((c == 58) && (c2 == 58)))
+					m.EmitTok(35, lhs, m.Ptr)
+					operand = 0
+					member = 0
+					continue next
+				}
+				if (c == 45) && (c2 == 62) {
+					m.Ptr = m.Ptr + 2
+					operand = 0
+					member = 1
+					hl = 25
+					goto emit
+				}
+				if c == 42 {
+					t16 = c2 != 42
+					t17 = m.GroqStarIsEverything(m.Ptr+1, operand, freshLine)
+					if (rt.B2u(t16) & t17) != 0 {
+						m.Ptr = m.Ptr + 1
+						hl = 60
+						goto valueTok
+					}
+				}
+				if (rt.Ld8(m.Mem, int(c)+2192) & 16) != 0 {
+					m.Ptr = m.Ptr + (1 + (((rt.B2u(c2 == 61) & ((rt.Ld8(m.Mem, int(c)+3984) >> 5) & 1)) | rt.B2u((c2 == 62) && (c == 61))) | (rt.B2u(c == c2) & ((rt.Ld8(m.Mem, int(c)+3984) >> 6) & 1))))
+					m.EmitTok(25, lhs, m.Ptr)
+					operand = 0
+					member = 0
+					continue next
+				}
+				t18 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+				m.Ptr = t18
+				hl = 0
+				goto emit
 			}
-			m.EmitTok(hl, lhs, rhs)
-			operand = rt.B2u((hl == 29) || ((hl == 3) || (hl == 7)))
-			member = 0
-			continue next
 		}
-		t12 = m.LexIsDigit(c)
-		t13 = c == 45
-		t14 = m.LexIsDigit(c2)
-		if (t12 | (rt.B2u(t13) & (t14 & rt.B2u(operand == 0)))) != 0 {
-			t15 = m.LexIsDigit(c)
-			if t15 == 0 {
-				m.Ptr = m.Ptr + 1
-			}
-			m.LexScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			operand = 1
-			member = 0
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			operand = (rt.Ld8(m.Mem, int(c)+1680) >> 3) & 1
-			expect = 0
-			member = 0
-			m.EmitTok(32, lhs, m.Ptr)
-			continue next
-		}
-		if c == 46 {
-			operand = 0
-			if c2 == 46 {
-				m.Ptr = m.Ptr + rt.Sel32((c3 == 46), 3, 2)
-				hl = 25
-			} else {
-				m.Ptr = m.Ptr + 1
-				hl = 35
-				member = 1
-			}
-			goto emit
-		}
-		if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
-			m.Ptr = m.Ptr + (1 + rt.B2u((c == 58) && (c2 == 58)))
-			m.EmitTok(35, lhs, m.Ptr)
-			operand = 0
-			member = 0
-			continue next
-		}
-		if (c == 45) && (c2 == 62) {
-			m.Ptr = m.Ptr + 2
-			operand = 0
-			member = 1
-			hl = 25
-			goto emit
-		}
-		if c == 42 {
-			t16 = c2 != 42
-			t17 = m.GroqStarIsEverything(m.Ptr+1, operand, freshLine)
-			if (rt.B2u(t16) & t17) != 0 {
-				m.Ptr = m.Ptr + 1
-				hl = 60
-				goto valueTok
-			}
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 16) != 0 {
-			m.Ptr = m.Ptr + (1 + (((rt.B2u(c2 == 61) & ((rt.Ld8(m.Mem, int(c)+3984) >> 5) & 1)) | rt.B2u((c2 == 62) && (c == 61))) | (rt.B2u(c == c2) & ((rt.Ld8(m.Mem, int(c)+3984) >> 6) & 1))))
-			m.EmitTok(25, lhs, m.Ptr)
-			operand = 0
-			member = 0
-			continue next
-		}
-		t18 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-		m.Ptr = t18
-		hl = 0
-		goto emit
 	valueTok:
 		operand = 1
 		goto tok
@@ -30782,18 +30496,18 @@ func (m *Machine) IndentBody(kind uint32, indent uint32, resume uint32) uint32 {
 		} else {
 			m.HlJs()
 		}
-		goto body
+	} else {
+		if kind == 6 {
+			m.HlRuby()
+		} else {
+			if kind == 7 {
+				m.HlCoffee()
+			} else {
+				m.CssDialect = kind - 2
+				m.HlCssImpl(0)
+			}
+		}
 	}
-	if kind == 6 {
-		m.HlRuby()
-		goto body
-	}
-	if kind == 7 {
-		m.HlCoffee()
-		goto body
-	}
-	m.CssDialect = kind - 2
-	m.HlCssImpl(0)
 body:
 	m.End = save
 	m.StreamDepth = saveDepth
@@ -31155,96 +30869,94 @@ line:
 		t1 = m.IndentLineEnd(lhs)
 		lineEnd = t1
 		kind = 0
-		if lhs == lineEnd {
-			goto rest
-		}
-		if block != 0 {
-			if indent > (block >> 8) {
-				m.Ptr = lineEnd
-				m.EmitTok(block&127, lhs, lineEnd)
-				goto rest
+		if lhs != lineEnd {
+			if block != 0 {
+				if indent > (block >> 8) {
+					m.Ptr = lineEnd
+					m.EmitTok(block&127, lhs, lineEnd)
+					goto rest
+				}
+				block = 0
 			}
-			block = 0
-		}
-		if cont != 0 {
-			t2 = m.HamlRubyLine(lineEnd)
-			cont = t2
-			goto rest
-		}
-		if tag != 0 {
-			if int32(tag) > int32(0) {
-				t3 = m.HamlMatch(tag, 123, lineEnd)
-				tag = t3
-				p = m.Ptr
-				m.Ptr = lhs
-				m.HamlRuby(p)
+			if cont != 0 {
+				t2 = m.HamlRubyLine(lineEnd)
+				cont = t2
 			} else {
-				t4 = m.HamlParen(lineEnd)
-				tag = t4
+				if tag != 0 {
+					if int32(tag) > int32(0) {
+						t3 = m.HamlMatch(tag, 123, lineEnd)
+						tag = t3
+						p = m.Ptr
+						m.Ptr = lhs
+						m.HamlRuby(p)
+					} else {
+						t4 = m.HamlParen(lineEnd)
+						tag = t4
+					}
+					if tag == 0 {
+						t5 = m.HamlTag(lineEnd)
+						tag = t5
+						cont = rt.B2u(tag == 0x40000000)
+						tag = rt.Sel32((cont != 0), 0, tag)
+					}
+				} else {
+					c = rt.Ld8(m.Mem, int(lhs))
+					t6 = m.TemplateByte(lhs + 1)
+					p = t6
+					t7 = c == 33
+					t8 = p == 33
+					t9 = m.TemplateByte(lhs + 2)
+					if t7 && (t8 && (t9 == 33)) {
+						m.Ptr = lineEnd
+						m.EmitTok(50, lhs, lineEnd)
+					} else {
+						if (c == 47) || ((c == 45) && (p == 35)) {
+							m.Ptr = lineEnd
+							m.EmitTok(4, lhs, lineEnd)
+							block = 132 | (indent << 8)
+						} else {
+							if c == 45 {
+								m.Ptr = lhs + 1
+								m.EmitTok(40, lhs, m.Ptr)
+								t10 = m.HamlRubyLine(lineEnd)
+								cont = t10
+							} else {
+								t11 = c == 58
+								t12 = m.LexIsIdentStart(p)
+								if (rt.B2u(t11) & t12) != 0 {
+									m.Ptr = lhs + 1
+									m.LexScanIdent()
+									t13 = m.IndentFilterKind(lhs+1, m.Ptr)
+									kind = 128 | t13
+									m.EmitTok(17, lhs, m.Ptr)
+									m.EmitTok(0, m.Ptr, lineEnd)
+									m.Ptr = lineEnd
+								} else {
+									if c == 92 {
+										m.Ptr = lhs + 1
+										m.EmitTok(40, lhs, m.Ptr)
+										m.HamlText(lineEnd)
+									} else {
+										t14 = c == 37
+										t15 = (c == 46) || (c == 35)
+										t16 = m.LexIsIdentContinue(p)
+										if (rt.B2u(t14) | (rt.B2u(t15) & (t16 | rt.B2u(p == 45)))) != 0 {
+											t17 = m.HamlTag(lineEnd)
+											tag = t17
+											cont = rt.B2u(tag == 0x40000000)
+											tag = rt.Sel32((cont != 0), 0, tag)
+										} else {
+											t18 = m.HamlContent(lineEnd)
+											cont = t18 >> 30
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			}
-			if tag != 0 {
-				goto rest
-			}
-			t5 = m.HamlTag(lineEnd)
-			tag = t5
-			cont = rt.B2u(tag == 0x40000000)
-			tag = rt.Sel32((cont != 0), 0, tag)
-			goto rest
 		}
-		c = rt.Ld8(m.Mem, int(lhs))
-		t6 = m.TemplateByte(lhs + 1)
-		p = t6
-		t7 = c == 33
-		t8 = p == 33
-		t9 = m.TemplateByte(lhs + 2)
-		if t7 && (t8 && (t9 == 33)) {
-			m.Ptr = lineEnd
-			m.EmitTok(50, lhs, lineEnd)
-			goto rest
-		}
-		if (c == 47) || ((c == 45) && (p == 35)) {
-			m.Ptr = lineEnd
-			m.EmitTok(4, lhs, lineEnd)
-			block = 132 | (indent << 8)
-			goto rest
-		}
-		if c == 45 {
-			m.Ptr = lhs + 1
-			m.EmitTok(40, lhs, m.Ptr)
-			t10 = m.HamlRubyLine(lineEnd)
-			cont = t10
-			goto rest
-		}
-		t11 = c == 58
-		t12 = m.LexIsIdentStart(p)
-		if (rt.B2u(t11) & t12) != 0 {
-			m.Ptr = lhs + 1
-			m.LexScanIdent()
-			t13 = m.IndentFilterKind(lhs+1, m.Ptr)
-			kind = 128 | t13
-			m.EmitTok(17, lhs, m.Ptr)
-			m.EmitTok(0, m.Ptr, lineEnd)
-			m.Ptr = lineEnd
-			goto rest
-		}
-		if c == 92 {
-			m.Ptr = lhs + 1
-			m.EmitTok(40, lhs, m.Ptr)
-			m.HamlText(lineEnd)
-			goto rest
-		}
-		t14 = c == 37
-		t15 = (c == 46) || (c == 35)
-		t16 = m.LexIsIdentContinue(p)
-		if (rt.B2u(t14) | (rt.B2u(t15) & (t16 | rt.B2u(p == 45)))) != 0 {
-			t17 = m.HamlTag(lineEnd)
-			tag = t17
-			cont = rt.B2u(tag == 0x40000000)
-			tag = rt.Sel32((cont != 0), 0, tag)
-			goto rest
-		}
-		t18 = m.HamlContent(lineEnd)
-		cont = t18 >> 30
 	rest:
 		m.EmitTok(0, m.Ptr, lineEnd)
 		t19 = m.IndentAfterBreak(lineEnd)
@@ -31455,293 +31167,290 @@ func (m *Machine) JinjaTag(state uint32, dialect uint32) uint32 {
 			continue find
 		}
 		m.EmitTok(4, lhs, m.Ptr)
-		goto done
-	}
-next:
-	for {
-		gap = m.Ptr
-		m.ScanWhitespace()
-		if (state & 8) != 0 {
-			t1 = m.LexGapHasBreak(gap, m.Ptr)
-			if t1 != 0 {
-				ctx = 1
-			}
-		}
-		m.EmitGap(gap, m.Ptr)
-		if m.Ptr >= m.End {
-			goto done
-		}
-		lhs = m.Ptr
-		c = rt.Ld8(m.Mem, int(lhs))
-		t2 = m.JinjaCloser(lhs, kind, dialect, state&65280)
-		p = t2
-		if p != 0 {
-			m.Ptr = p
-			m.EmitTok(40, lhs, p)
-			kind = 0
-			ctx = 0
-			state = state & 0x3000000
-			goto done
-		}
-		t3 = m.LexIsIdentStart(c)
-		if (t3 | rt.B2u((c == 64) && (dialect == 3))) != 0 {
-			m.Ptr = lhs + 1
-			m.ScanIdentRun(rt.Sel32((dialect >= 2), 45, 95))
-			if c == 64 {
-				hl = 60
-				ctx = 7
-				goto emit
-			}
-			if dialect == 2 {
-				t4 = m.TemplateByte(m.Ptr)
-				if t4 == 63 {
-					m.Ptr = m.Ptr + 1
-				}
-				if rt.Ld8(m.Mem, int((m.Ptr-1))) == 45 {
-					t5 = m.JinjaCloser(m.Ptr-1, kind, dialect, 0)
-					if t5 != 0 {
-						m.Ptr = m.Ptr - 1
-					}
+	} else {
+	next:
+		for {
+			gap = m.Ptr
+			m.ScanWhitespace()
+			if (state & 8) != 0 {
+				t1 = m.LexGapHasBreak(gap, m.Ptr)
+				if t1 != 0 {
+					ctx = 1
 				}
 			}
-			v = 0xffffffff
-			if dialect == 0 {
-				t6 = m.LexKeywordValue(lhs, m.Ptr, 29952, 7, 40)
-				v = t6
+			m.EmitGap(gap, m.Ptr)
+			if m.Ptr >= m.End {
+				goto done
 			}
-			if dialect == 1 {
-				t7 = m.LexKeywordValue(lhs, m.Ptr, 29696, 7, 35)
-				v = t7
-			}
-			if dialect == 2 {
-				t8 = m.LexKeywordValue(lhs, m.Ptr, 30208, 15, 39)
-				v = t8
-			}
-			if dialect == 3 {
-				t9 = m.LexKeywordValue(lhs, m.Ptr, 30432, 3, 9)
-				v = t9
-			}
-			t10 = m.LexSkipSpaceAt(m.Ptr)
-			p = t10
-			t11 = m.TemplateByte(p)
-			n = t11
-			if ctx == 1 {
-				hl = 17
+			lhs = m.Ptr
+			c = rt.Ld8(m.Mem, int(lhs))
+			t2 = m.JinjaCloser(lhs, kind, dialect, state&65280)
+			p = t2
+			if p != 0 {
+				m.Ptr = p
+				m.EmitTok(40, lhs, p)
+				kind = 0
 				ctx = 0
-				if int32(v) >= int32(0) {
-					hl = v & 255
-					if (rt.Clz32((state & 8)) >> 5) != 0 {
-						state = state | (((v >> 9) & 3) << 24)
-					}
-					ctx = v >> 11
-					if ctx == 9 {
-						state = state | 8
-						ctx = 1
-					}
-				}
-				goto emit
+				state = state & 0x3000000
+				goto done
 			}
-			if ctx == 2 {
-				hl = rt.Sel32((n == 40), 16, 29)
-				ctx = 7
-				goto emit
-			}
-			if ctx == 4 {
-				if (v & 255) == 21 {
-					hl = 21
-					goto emit
-				}
-				ctx = 3
-			}
-			if ctx == 3 {
-				hl = 14
-				ctx = 7
-				goto emit
-			}
-			if ctx == 5 {
-				hl = 15
-				ctx = 7
-				goto emit
-			}
-			if ctx == 8 {
-				hl = 59
-				goto emit
-			}
-			save = ctx
-			ctx = 7
-			hl = 14
-			if (dialect < 2) && (n == 40) {
-				goto emit
-			}
-			hl = 59
-			t12 = m.TemplateByte(p + 1)
-			c = t12
-			if ((n == 61) && ((c != 61) && (c != 62))) && ((dialect == 3) || ((dialect < 2) && ((state & 0xff0000) != 0))) {
-				goto emit
-			}
-			t13 = m.TemplateByte(m.Ptr)
-			t14 = m.TemplateByte(m.Ptr + 1)
-			if (t13 == 58) && (t14 != 58) {
-				if dialect == 2 {
-					goto emit
-				}
-				hl = 29
-				if dialect == 1 {
-					goto emit
-				}
-			}
-			if (rt.B2u(int32(v) >= int32(0)) & (rt.Clz32((v & 256)) >> 5)) != 0 {
-				hl = v & 255
-				ctx = rt.Sel32((v >= 2048), (v >> 11), 7)
-				goto emit
-			}
-			hl = 14
-			if ((save == 6) && (p > m.Ptr)) && ((n > 32) && ((n != 125) && ((n != 126) && (n != 41)))) {
-				goto emit
-			}
-			hl = 58
-			goto emit
-		}
-		if (c == 34) || (c == 39) {
-			if dialect == 2 {
-				m.LexRawString(c, 0, 44)
-			} else {
-				m.LexString(c, 0, 44)
-			}
-			ctx = 0
-			continue next
-		}
-		t15 = m.LexIsDigit(c)
-		if t15 != 0 {
-			m.LexScanNumber()
-			hl = 24
-			ctx = 0
-			goto emit
-		}
-		m.Ptr = lhs + 1
-		if c == 46 {
-			t16 = m.TemplateByte(m.Ptr)
-			if t16 == 46 {
-				m.Ptr = m.Ptr + 1
-				hl = rt.Sel32((dialect == 3), 60, 25)
-				ctx = 7
-				goto emit
-			}
-			if (dialect == 3) && (ctx != 7) {
-				hl = 60
-				ctx = 7
-				goto emit
-			}
-			hl = 35
-			ctx = 2
-			goto emit
-		}
-		if (c == 47) && ((dialect == 3) && (ctx == 7)) {
-			hl = 35
-			ctx = 2
-			goto emit
-		}
-		if c == 124 {
-			if dialect == 3 {
-				hl = 32
-				ctx = rt.Sel32((ctx == 8), 0, 8)
-				goto emit
-			}
-			hl = 25
-			ctx = 3
-			goto emit
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			hl = 32
-			ctx = 7
-			if (rt.Ld8(m.Mem, int(c)+1680) & 4) != 0 {
-				ctx = 0
-				if c == 123 {
-					if (dialect < 2) && ((state & 65280) < 65280) {
-						state = state + 256
-					}
+			t3 = m.LexIsIdentStart(c)
+			if (t3 | rt.B2u((c == 64) && (dialect == 3))) != 0 {
+				m.Ptr = lhs + 1
+				m.ScanIdentRun(rt.Sel32((dialect >= 2), 45, 95))
+				if c == 64 {
+					hl = 60
+					ctx = 7
 				} else {
-					if (state & 0xff0000) < 0xff0000 {
-						state = state + 0x10000
+					if dialect == 2 {
+						t4 = m.TemplateByte(m.Ptr)
+						if t4 == 63 {
+							m.Ptr = m.Ptr + 1
+						}
+						if rt.Ld8(m.Mem, int((m.Ptr-1))) == 45 {
+							t5 = m.JinjaCloser(m.Ptr-1, kind, dialect, 0)
+							if t5 != 0 {
+								m.Ptr = m.Ptr - 1
+							}
+						}
+					}
+					v = 0xffffffff
+					if dialect == 0 {
+						t6 = m.LexKeywordValue(lhs, m.Ptr, 29952, 7, 40)
+						v = t6
+					}
+					if dialect == 1 {
+						t7 = m.LexKeywordValue(lhs, m.Ptr, 29696, 7, 35)
+						v = t7
+					}
+					if dialect == 2 {
+						t8 = m.LexKeywordValue(lhs, m.Ptr, 30208, 15, 39)
+						v = t8
 					}
 					if dialect == 3 {
-						ctx = 6
+						t9 = m.LexKeywordValue(lhs, m.Ptr, 30432, 3, 9)
+						v = t9
+					}
+					t10 = m.LexSkipSpaceAt(m.Ptr)
+					p = t10
+					t11 = m.TemplateByte(p)
+					n = t11
+					if ctx == 1 {
+						hl = 17
+						ctx = 0
+						if int32(v) >= int32(0) {
+							hl = v & 255
+							if (rt.Clz32((state & 8)) >> 5) != 0 {
+								state = state | (((v >> 9) & 3) << 24)
+							}
+							ctx = v >> 11
+							if ctx == 9 {
+								state = state | 8
+								ctx = 1
+							}
+						}
+					} else {
+						if ctx == 2 {
+							hl = rt.Sel32((n == 40), 16, 29)
+							ctx = 7
+						} else {
+							if ctx == 4 {
+								if (v & 255) == 21 {
+									hl = 21
+									goto emit
+								}
+								ctx = 3
+							}
+							if ctx == 3 {
+								hl = 14
+								ctx = 7
+							} else {
+								if ctx == 5 {
+									hl = 15
+									ctx = 7
+								} else {
+									if ctx == 8 {
+										hl = 59
+									} else {
+										save = ctx
+										ctx = 7
+										hl = 14
+										if !((dialect < 2) && (n == 40)) {
+											hl = 59
+											t12 = m.TemplateByte(p + 1)
+											c = t12
+											if !(((n == 61) && ((c != 61) && (c != 62))) && ((dialect == 3) || ((dialect < 2) && ((state & 0xff0000) != 0)))) {
+												t13 = m.TemplateByte(m.Ptr)
+												t14 = m.TemplateByte(m.Ptr + 1)
+												if (t13 == 58) && (t14 != 58) {
+													if dialect == 2 {
+														goto emit
+													}
+													hl = 29
+													if dialect == 1 {
+														goto emit
+													}
+												}
+												if (rt.B2u(int32(v) >= int32(0)) & (rt.Clz32((v & 256)) >> 5)) != 0 {
+													hl = v & 255
+													ctx = rt.Sel32((v >= 2048), (v >> 11), 7)
+												} else {
+													hl = 14
+													if !(((save == 6) && (p > m.Ptr)) && ((n > 32) && ((n != 125) && ((n != 126) && (n != 41))))) {
+														hl = 58
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
 					}
 				}
 			} else {
-				if c == 125 {
-					if (state & 65280) != 0 {
-						state = state - 256
+				if (c == 34) || (c == 39) {
+					if dialect == 2 {
+						m.LexRawString(c, 0, 44)
+					} else {
+						m.LexString(c, 0, 44)
 					}
+					ctx = 0
+					continue next
+				}
+				t15 = m.LexIsDigit(c)
+				if t15 != 0 {
+					m.LexScanNumber()
+					hl = 24
+					ctx = 0
 				} else {
-					if (state & 0xff0000) != 0 {
-						state = state - 0x10000
+					m.Ptr = lhs + 1
+					if c == 46 {
+						t16 = m.TemplateByte(m.Ptr)
+						if t16 == 46 {
+							m.Ptr = m.Ptr + 1
+							hl = rt.Sel32((dialect == 3), 60, 25)
+							ctx = 7
+						} else {
+							if (dialect == 3) && (ctx != 7) {
+								hl = 60
+								ctx = 7
+							} else {
+								hl = 35
+								ctx = 2
+							}
+						}
+					} else {
+						if (c == 47) && ((dialect == 3) && (ctx == 7)) {
+							hl = 35
+							ctx = 2
+						} else {
+							if c == 124 {
+								if dialect == 3 {
+									hl = 32
+									ctx = rt.Sel32((ctx == 8), 0, 8)
+								} else {
+									hl = 25
+									ctx = 3
+								}
+							} else {
+								if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+									hl = 32
+									ctx = 7
+									if (rt.Ld8(m.Mem, int(c)+1680) & 4) != 0 {
+										ctx = 0
+										if c == 123 {
+											if (dialect < 2) && ((state & 65280) < 65280) {
+												state = state + 256
+											}
+										} else {
+											if (state & 0xff0000) < 0xff0000 {
+												state = state + 0x10000
+											}
+											if dialect == 3 {
+												ctx = 6
+											}
+										}
+									} else {
+										if c == 125 {
+											if (state & 65280) != 0 {
+												state = state - 256
+											}
+										} else {
+											if (state & 0xff0000) != 0 {
+												state = state - 0x10000
+											}
+										}
+									}
+								} else {
+									if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
+										hl = 35
+										ctx = 0
+									} else {
+										if (c == 35) && ((dialect == 2) && (ctx == 1)) {
+											save = m.End
+											m.ScanToLineEnd()
+											n = m.Ptr
+											m.End = n
+											p = lhs + 1
+										find2:
+											for {
+												t17 = m.LexFindByte(p, 37)
+												p = t17
+												if p >= n {
+													break find2
+												}
+												t18 = m.TemplateByte(p + 1)
+												if t18 == 125 {
+													break find2
+												}
+												p = p + 1
+												continue find2
+											}
+											m.End = save
+											if (p < n) && (rt.Ld8(m.Mem, int((p-1))) == 45) {
+												p = p - 1
+											}
+											m.Ptr = p
+											state = state | 8
+											hl = 4
+											ctx = 0
+										} else {
+											hl = 25
+											ctx = 0
+											if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
+											op:
+												for {
+													t19 = m.TemplateByte(m.Ptr)
+													n = t19
+													if (rt.Clz32((rt.Ld8(m.Mem, int(n)+2192) & 32)) >> 5) != 0 {
+														break op
+													}
+													if n == 124 {
+														break op
+													}
+													t20 = m.JinjaCloser(m.Ptr, kind, dialect, state&65280)
+													if t20 != 0 {
+														break op
+													}
+													m.Ptr = m.Ptr + 1
+													continue op
+												}
+											} else {
+												hl = 0
+											}
+										}
+									}
+								}
+							}
+						}
 					}
 				}
 			}
-			goto emit
+		emit:
+			m.EmitTok(hl, lhs, m.Ptr)
+			continue next
 		}
-		if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
-			hl = 35
-			ctx = 0
-			goto emit
-		}
-		if (c == 35) && ((dialect == 2) && (ctx == 1)) {
-			save = m.End
-			m.ScanToLineEnd()
-			n = m.Ptr
-			m.End = n
-			p = lhs + 1
-		find2:
-			for {
-				t17 = m.LexFindByte(p, 37)
-				p = t17
-				if p >= n {
-					break find2
-				}
-				t18 = m.TemplateByte(p + 1)
-				if t18 == 125 {
-					break find2
-				}
-				p = p + 1
-				continue find2
-			}
-			m.End = save
-			if (p < n) && (rt.Ld8(m.Mem, int((p-1))) == 45) {
-				p = p - 1
-			}
-			m.Ptr = p
-			state = state | 8
-			hl = 4
-			ctx = 0
-			goto emit
-		}
-		hl = 25
-		ctx = 0
-		if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
-		op:
-			for {
-				t19 = m.TemplateByte(m.Ptr)
-				n = t19
-				if (rt.Clz32((rt.Ld8(m.Mem, int(n)+2192) & 32)) >> 5) != 0 {
-					break op
-				}
-				if n == 124 {
-					break op
-				}
-				t20 = m.JinjaCloser(m.Ptr, kind, dialect, state&65280)
-				if t20 != 0 {
-					break op
-				}
-				m.Ptr = m.Ptr + 1
-				continue op
-			}
-			goto emit
-		}
-		hl = 0
-	emit:
-		m.EmitTok(hl, lhs, m.Ptr)
-		continue next
 	}
 done:
 	return (state | kind) | (ctx << 4)
@@ -32060,24 +31769,22 @@ next:
 			}
 			t1 = p < m.End
 			t2 = m.HsIsSymbol(rt.Ld8(m.Mem, int(p)))
-			if (rt.B2u(t1) & t2) != 0 {
-				goto notComment
-			}
-			hl = 4
-			if (m.Ptr + 2) < m.End {
-				p = m.Ptr + 2
-				if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 32) {
-					p = p + 1
+			if (rt.B2u(t1) & t2) == 0 {
+				hl = 4
+				if (m.Ptr + 2) < m.End {
+					p = m.Ptr + 2
+					if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 32) {
+						p = p + 1
+					}
+					if (p < m.End) && (((rt.Ld8(m.Mem, int(p)) == 124) || (rt.Ld8(m.Mem, int(p)) == 94)) || (rt.Ld8(m.Mem, int(p)) == 36)) {
+						hl = 5
+					}
 				}
-				if (p < m.End) && (((rt.Ld8(m.Mem, int(p)) == 124) || (rt.Ld8(m.Mem, int(p)) == 94)) || (rt.Ld8(m.Mem, int(p)) == 36)) {
-					hl = 5
-				}
+				m.LexLineComment(2, hl)
+				lineHead = atHead
+				continue next
 			}
-			m.LexLineComment(2, hl)
-			lineHead = atHead
-			continue next
 		}
-	notComment:
 		if c == 34 {
 			m.LexString(34, 0, 44)
 			continue next
@@ -32402,169 +32109,167 @@ next:
 			m.Ptr = m.Ptr + 1
 			strKind = c
 			hl = 44
-			goto tok
-		}
-		if (c == 126) && (c2 == 47) {
-			m.Ptr = m.Ptr + 2
-		rx:
-			for {
-				t5 = m.ScanFindSpecial(m.Ptr, m.End, 47, 1, 1)
-				m.Ptr = t5
-				if m.Ptr >= m.End {
-					break rx
+		} else {
+			if (c == 126) && (c2 == 47) {
+				m.Ptr = m.Ptr + 2
+			rx:
+				for {
+					t5 = m.ScanFindSpecial(m.Ptr, m.End, 47, 1, 1)
+					m.Ptr = t5
+					if m.Ptr >= m.End {
+						break rx
+					}
+					c = rt.Ld8(m.Mem, int(m.Ptr))
+					if c == 47 {
+						m.Ptr = m.Ptr + 1
+						m.ScanIdentRun(95)
+						break rx
+					}
+					if c != 92 {
+						break rx
+					}
+					t6 = m.TemplateByte(m.Ptr + 1)
+					c = t6
+					if (rt.B2u(c == 0) | ((rt.Ld8(m.Mem, int(c)+1424) >> 2) & 1)) != 0 {
+						break rx
+					}
+					t7 = m.Utf8SpanEnd(m.Ptr+2, m.End)
+					m.Ptr = t7
+					continue rx
 				}
-				c = rt.Ld8(m.Mem, int(m.Ptr))
-				if c == 47 {
+				hl = 46
+			} else {
+				t8 = c == 35
+				t9 = m.LexIsIdentStart(c2)
+				c2Ident = t9
+				if (rt.B2u(t8) & c2Ident) != 0 {
 					m.Ptr = m.Ptr + 1
 					m.ScanIdentRun(95)
-					break rx
-				}
-				if c != 92 {
-					break rx
-				}
-				t6 = m.TemplateByte(m.Ptr + 1)
-				c = t6
-				if (rt.B2u(c == 0) | ((rt.Ld8(m.Mem, int(c)+1424) >> 2) & 1)) != 0 {
-					break rx
-				}
-				t7 = m.Utf8SpanEnd(m.Ptr+2, m.End)
-				m.Ptr = t7
-				continue rx
-			}
-			hl = 46
-			goto tok
-		}
-		t8 = c == 35
-		t9 = m.LexIsIdentStart(c2)
-		c2Ident = t9
-		if (rt.B2u(t8) & c2Ident) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.ScanIdentRun(95)
-			rhs = m.Ptr - lhs
-			if ((rhs == 3) && (rt.Ld16(m.Mem, int(lhs)+1) == 26217)) || ((rhs == 7) && ((rt.Ld64(m.Mem, int(lhs)+1) & 0xffffffffffff) == 0x666965736c65)) {
-				t10 = m.HxCondEnd(m.Ptr)
-				m.Ptr = t10
-			}
-			hl = 27
-			goto tok
-		}
-		if (rt.B2u(c == 64) & (rt.B2u(c2 == 58) | c2Ident)) != 0 {
-			m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
-			m.LexScanIdent()
-			hl = 1
-			goto tok
-		}
-		t11 = m.LexIsIdentStart(c)
-		if t11 != 0 {
-			m.LexScanIdent()
-			rhs = m.Ptr
-			t12 = m.LexSkipSpaceAt(rhs)
-			t13 = m.TemplateByte(t12)
-			c2 = t13
-			hl = 0xffffffff
-			if atMember == 0 {
-				t14 = m.LexKeywordValue(lhs, rhs, 36064, 15, 60)
-				hl = t14
-			}
-			if expect == 2 {
-				hl = 15
-				expect = 0
-				goto classified
-			}
-			if int32(hl) >= int32(0) {
-				expect = hl >> 8
-				hl = hl & 255
-				goto classified
-			}
-			upper = rt.B2u((c - 65) <= 25)
-			if expect == 1 {
-				hl = 55
-				expect = 0
-				goto classified
-			}
-			if expect == 3 {
-				hl = rt.Sel32((upper != 0), 55, 23)
-				goto classified
-			}
-			isVar = rt.B2u(expect == 4)
-			expect = 0
-			if (c2 == 40) && (isVar == 0) {
-				hl = rt.Sel32((upper != 0), 55, rt.Sel32((atMember != 0), 16, 14))
-				goto classified
-			}
-			t15 = m.LexIsConstCase(lhs, rhs)
-			if t15 != 0 {
-				hl = 6
-				goto classified
-			}
-			hl = rt.Sel32((upper != 0), 55, rt.Sel32((atMember != 0), 29, 58))
-		classified:
-			m.EmitTok(hl, lhs, rhs)
-			continue next
-		}
-		t16 = m.LexIsDigit(c)
-		t17 = c == 46
-		t18 = m.LexIsDigit(c2)
-		if (t16 | (rt.B2u(t17) & t18)) != 0 {
-			m.LexScanNumber()
-			hl = 24
-			goto tok
-		}
-		m.Ptr = m.Ptr + 1
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			expect = 0
-			if interp != 0 {
-				if c == 123 {
-					interp = interp + 1
-				}
-				if c == 125 {
-					interp = interp - 1
-					if interp == 0 {
-						m.EmitTok(40, lhs, m.Ptr)
-						strKind = interpKind
-						interpKind = 0
-						continue next
+					rhs = m.Ptr - lhs
+					if ((rhs == 3) && (rt.Ld16(m.Mem, int(lhs)+1) == 26217)) || ((rhs == 7) && ((rt.Ld64(m.Mem, int(lhs)+1) & 0xffffffffffff) == 0x666965736c65)) {
+						t10 = m.HxCondEnd(m.Ptr)
+						m.Ptr = t10
+					}
+					hl = 27
+				} else {
+					if (rt.B2u(c == 64) & (rt.B2u(c2 == 58) | c2Ident)) != 0 {
+						m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
+						m.LexScanIdent()
+						hl = 1
+					} else {
+						t11 = m.LexIsIdentStart(c)
+						if t11 != 0 {
+							m.LexScanIdent()
+							rhs = m.Ptr
+							t12 = m.LexSkipSpaceAt(rhs)
+							t13 = m.TemplateByte(t12)
+							c2 = t13
+							hl = 0xffffffff
+							if atMember == 0 {
+								t14 = m.LexKeywordValue(lhs, rhs, 36064, 15, 60)
+								hl = t14
+							}
+							if expect == 2 {
+								hl = 15
+								expect = 0
+							} else {
+								if int32(hl) >= int32(0) {
+									expect = hl >> 8
+									hl = hl & 255
+								} else {
+									upper = rt.B2u((c - 65) <= 25)
+									if expect == 1 {
+										hl = 55
+										expect = 0
+									} else {
+										if expect == 3 {
+											hl = rt.Sel32((upper != 0), 55, 23)
+										} else {
+											isVar = rt.B2u(expect == 4)
+											expect = 0
+											if (c2 == 40) && (isVar == 0) {
+												hl = rt.Sel32((upper != 0), 55, rt.Sel32((atMember != 0), 16, 14))
+											} else {
+												t15 = m.LexIsConstCase(lhs, rhs)
+												if t15 != 0 {
+													hl = 6
+												} else {
+													hl = rt.Sel32((upper != 0), 55, rt.Sel32((atMember != 0), 29, 58))
+												}
+											}
+										}
+									}
+								}
+							}
+							m.EmitTok(hl, lhs, rhs)
+							continue next
+						}
+						t16 = m.LexIsDigit(c)
+						t17 = c == 46
+						t18 = m.LexIsDigit(c2)
+						if (t16 | (rt.B2u(t17) & t18)) != 0 {
+							m.LexScanNumber()
+							hl = 24
+						} else {
+							m.Ptr = m.Ptr + 1
+							if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+								expect = 0
+								if interp != 0 {
+									if c == 123 {
+										interp = interp + 1
+									}
+									if c == 125 {
+										interp = interp - 1
+										if interp == 0 {
+											m.EmitTok(40, lhs, m.Ptr)
+											strKind = interpKind
+											interpKind = 0
+											continue next
+										}
+									}
+								}
+								hl = 32
+							} else {
+								if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
+									if c != 58 {
+										expect = 0
+									}
+									hl = 35
+								} else {
+									if c == 46 {
+										if (c2 == 46) && (c3 == 46) {
+											m.Ptr = m.Ptr + 2
+											hl = 25
+										} else {
+											member = 1
+											hl = 35
+										}
+									} else {
+										if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
+										op:
+											for {
+												t19 = m.TemplateByte(m.Ptr)
+												c = t19
+												if (rt.Clz32((rt.Ld8(m.Mem, int(c)+2192) & 32)) >> 5) != 0 {
+													break op
+												}
+												m.Ptr = m.Ptr + 1
+												continue op
+											}
+											hl = 25
+										} else {
+											t20 = m.Utf8SpanEnd(m.Ptr, m.End)
+											m.Ptr = t20
+											hl = 0
+										}
+									}
+								}
+							}
+						}
 					}
 				}
 			}
-			hl = 32
-			goto tok
 		}
-		if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
-			if c != 58 {
-				expect = 0
-			}
-			hl = 35
-			goto tok
-		}
-		if c == 46 {
-			if (c2 == 46) && (c3 == 46) {
-				m.Ptr = m.Ptr + 2
-				hl = 25
-				goto tok
-			}
-			member = 1
-			hl = 35
-			goto tok
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
-		op:
-			for {
-				t19 = m.TemplateByte(m.Ptr)
-				c = t19
-				if (rt.Clz32((rt.Ld8(m.Mem, int(c)+2192) & 32)) >> 5) != 0 {
-					break op
-				}
-				m.Ptr = m.Ptr + 1
-				continue op
-			}
-			hl = 25
-			goto tok
-		}
-		t20 = m.Utf8SpanEnd(m.Ptr, m.End)
-		m.Ptr = t20
-		hl = 0
-	tok:
 		m.EmitTok(hl, lhs, m.Ptr)
 		continue next
 	}
@@ -33267,20 +32972,15 @@ l:
 			break l
 		}
 		c = rt.Ld8(m.Mem, int(m.Ptr))
-		if (c - 48) <= 9 {
-			goto consume
+		if (c - 48) > 9 {
+			if c != 46 {
+				if (c | 32) != 101 {
+					if !(((c == 43) || (c == 45)) && ((prev | 32) == 101)) {
+						break l
+					}
+				}
+			}
 		}
-		if c == 46 {
-			goto consume
-		}
-		if (c | 32) == 101 {
-			goto consume
-		}
-		if ((c == 43) || (c == 45)) && ((prev | 32) == 101) {
-			goto consume
-		}
-		break l
-	consume:
 		prev = c
 		m.Ptr = m.Ptr + 1
 		continue l
@@ -33403,13 +33103,13 @@ func (m *Machine) HttpBody(info uint32, resume uint32) {
 	}
 	if kind == 2 {
 		m.HlJson()
-		goto run
+	} else {
+		if kind == 3 {
+			m.HlXml()
+		} else {
+			m.HttpText(0, stop)
+		}
 	}
-	if kind == 3 {
-		m.HlXml()
-		goto run
-	}
-	m.HttpText(0, stop)
 run:
 	m.StreamDepth = depth
 	m.StreamReset = reset
@@ -33787,37 +33487,36 @@ next:
 				hl = kind & 255
 				expect = kind >> 8
 				key = 0
-				goto classified
-			}
-			t11 = m.LexLineByteBefore(lhs)
-			if t11 == 46 {
-				hl = rt.Sel32((c2 != 0), 14, 29)
-				goto classified
-			}
-			if key != 0 {
-				key = 0
-				if uint32((stack & 3)) == 2 {
-					hl = 59
-					goto classified
+			} else {
+				t11 = m.LexLineByteBefore(lhs)
+				if t11 == 46 {
+					hl = rt.Sel32((c2 != 0), 14, 29)
+				} else {
+					if key != 0 {
+						key = 0
+						if uint32((stack & 3)) == 2 {
+							hl = 59
+						} else {
+							hl = rt.Sel32((c2 != 0), 15, 29)
+							expect = c2 << 1
+						}
+					} else {
+						if expect == 1 {
+							hl = rt.Sel32((c2 != 0), 15, 58)
+							expect = c2 << 1
+						} else {
+							expect = 0
+							if c2 != 0 {
+								hl = 14
+							} else {
+								if ((rhs - lhs) == 3) && ((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x647473) {
+									hl = 23
+								}
+							}
+						}
+					}
 				}
-				hl = rt.Sel32((c2 != 0), 15, 29)
-				expect = c2 << 1
-				goto classified
 			}
-			if expect == 1 {
-				hl = rt.Sel32((c2 != 0), 15, 58)
-				expect = c2 << 1
-				goto classified
-			}
-			expect = 0
-			if c2 != 0 {
-				hl = 14
-				goto classified
-			}
-			if ((rhs - lhs) == 3) && ((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x647473) {
-				hl = 23
-			}
-		classified:
 			m.EmitTok(hl, lhs, rhs)
 			continue next
 		}
@@ -33851,16 +33550,13 @@ next:
 			}
 			if c == 58 {
 				t12 = m.TemplateByte(m.Ptr)
-				if t12 != 58 {
-					goto marks
+				if t12 == 58 {
+					m.Ptr = m.Ptr + 1
+					t13 = m.TemplateByte(m.Ptr)
+					if t13 == 58 {
+						m.Ptr = m.Ptr + 1
+					}
 				}
-				m.Ptr = m.Ptr + 1
-				t13 = m.TemplateByte(m.Ptr)
-				if t13 != 58 {
-					goto marks
-				}
-				m.Ptr = m.Ptr + 1
-			marks:
 			}
 		}
 		if hl == 0 {
@@ -34697,21 +34393,20 @@ next:
 					hl = 58
 					t6 = c2 == 58
 					t7 = m.TemplateByte(p + 1)
-					if t6 && (t7 == 61) {
-						goto classified
-					}
-					if c2 != 58 {
-						t8 = m.LexKeywordValue(lhs, rhs, 49840, 3, 10)
-						v = t8
-						if int32(v) >= int32(256) {
-							hl = v & 255
-							expect = v >> 8
-							goto classified
+					if !(t6 && (t7 == 61)) {
+						if c2 != 58 {
+							t8 = m.LexKeywordValue(lhs, rhs, 49840, 3, 10)
+							v = t8
+							if int32(v) >= int32(256) {
+								hl = v & 255
+								expect = v >> 8
+								goto classified
+							}
 						}
+						hl = 15
+						mode = 2
+						inRecipe = 1
 					}
-					hl = 15
-					mode = 2
-					inRecipe = 1
 				classified:
 					m.EmitTok(hl, lhs, rhs)
 					continue next
@@ -34900,30 +34595,27 @@ next:
 				t30 = m.JustExpectHl(expect)
 				hl = t30
 				expect = rt.Sel32((expect == 2), 5, 0)
-				goto classified2
+			} else {
+				if mode == 2 {
+					t31 = m.LexLineByteBefore(lhs)
+					hl = rt.Sel32((t31 == 61), 58, 59)
+				} else {
+					if mode == 3 {
+						t32 = depth == 0
+						t33 = m.LexLineByteBefore(lhs)
+						hl = rt.Sel32((t32 || (t33 == 40)), 14, 58)
+					} else {
+						hl = 1
+						if mode != 4 {
+							t34 = m.LexKeywordValue(lhs, rhs, 49840, 3, 10)
+							hl = t34
+							if hl >= 256 {
+								hl = rt.Sel32((v == 40), 14, 58)
+							}
+						}
+					}
+				}
 			}
-			if mode == 2 {
-				t31 = m.LexLineByteBefore(lhs)
-				hl = rt.Sel32((t31 == 61), 58, 59)
-				goto classified2
-			}
-			if mode == 3 {
-				t32 = depth == 0
-				t33 = m.LexLineByteBefore(lhs)
-				hl = rt.Sel32((t32 || (t33 == 40)), 14, 58)
-				goto classified2
-			}
-			hl = 1
-			if mode == 4 {
-				goto classified2
-			}
-			t34 = m.LexKeywordValue(lhs, rhs, 49840, 3, 10)
-			hl = t34
-			if hl < 256 {
-				goto classified2
-			}
-			hl = rt.Sel32((v == 40), 14, 58)
-		classified2:
 			m.EmitTok(hl, lhs, rhs)
 			continue next
 		}
@@ -35368,12 +35060,11 @@ next:
 				m.SigAngleOps(lhs, m.Ptr)
 			}
 			hl = 25
-			goto opTok
+		} else {
+			m.Ptr = m.Ptr + 1
+			hl = 0
+			goto tok
 		}
-		m.Ptr = m.Ptr + 1
-		hl = 0
-		goto tok
-	opTok:
 		m.SigPattern = 0
 	tok:
 		m.EmitTok(hl, lhs, m.Ptr)
@@ -35536,166 +35227,165 @@ next:
 		}
 		after = 0
 		lhs = m.Ptr
-		if open != 0 {
-			goto body
-		}
-		gap = m.Ptr
-		m.ScanWhitespace()
-		t0 = m.LexGapHasBreak(gap, m.Ptr)
-		if t0 != 0 {
-			c = 1
-			if join != 0 {
-				t1 = m.LexFindEither(gap, 10, 13)
-				p = t1
-				t2 = p
-				t3 = rt.Ld8(m.Mem, int(p)) == 13
-				t4 = m.TemplateByte(p + 1)
-				p = t2 + (1 + rt.B2u(t3 && (t4 == 10)))
-				t5 = m.LexGapHasBreak(p, m.Ptr)
-				c = t5
-				join = 0
-			}
-			if c != 0 {
-				if (rt.B2u(mute == 2) & args) != 0 {
-					mute = 0
+		if open == 0 {
+			gap = m.Ptr
+			m.ScanWhitespace()
+			t0 = m.LexGapHasBreak(gap, m.Ptr)
+			if t0 != 0 {
+				c = 1
+				if join != 0 {
+					t1 = m.LexFindEither(gap, 10, 13)
+					p = t1
+					t2 = p
+					t3 = rt.Ld8(m.Mem, int(p)) == 13
+					t4 = m.TemplateByte(p + 1)
+					p = t2 + (1 + rt.B2u(t3 && (t4 == 10)))
+					t5 = m.LexGapHasBreak(p, m.Ptr)
+					c = t5
+					join = 0
 				}
-				args = 0
-				paren = 0
-			}
-		}
-		m.EmitGap(gap, m.Ptr)
-		if m.Ptr >= m.End {
-			break next
-		}
-		lhs = m.Ptr
-		c = rt.Ld8(m.Mem, int(lhs))
-		t6 = m.TemplateByte(lhs + 1)
-		c2 = t6
-		m.Ptr = lhs + 1
-		hl = 32
-		if c == 47 {
-			if c2 == 45 {
-				if mute == 0 {
-					mute = 2 - args
+				if c != 0 {
+					if (rt.B2u(mute == 2) & args) != 0 {
+						mute = 0
+					}
+					args = 0
+					paren = 0
 				}
-				hl = 4
-				m.Ptr = lhs + 2
-				goto emit
 			}
-			hl = 0
-			if (c2 != 47) && (c2 != 42) {
-				goto emit
+			m.EmitGap(gap, m.Ptr)
+			if m.Ptr >= m.End {
+				break next
 			}
-			m.Ptr = lhs
-			if c2 == 47 {
-				m.LexLineComment(2, 4)
-			} else {
-				m.LexNestedBlockComment(10799, 12074, 4)
-			}
-			continue next
-		}
-		if c == 34 {
-			open = 1
-			t7 = c2 == 34
-			t8 = m.TemplateByte(lhs + 2)
-			if t7 && (t8 == 34) {
-				open = 2
-				m.Ptr = lhs + 3
-			}
-			goto body
-		}
-		if (c == 35) || ((c == 114) && ((c2 == 35) || (c2 == 34))) {
-			p = lhs + rt.B2u(c == 114)
-			t9 = m.KdlRawHashes(p)
-			c2 = t9
-			if int32(c2) >= int32(0) {
-				open = c2 + 3
-				m.Ptr = p + (c2 + 1)
-				goto body
-			}
-		}
-		if c == 35 {
-			m.KdlIdentEnd()
-			t10 = m.KdlLiteral(lhs+1, m.Ptr)
-			hl = rt.Sel32((t10 == 3), 3, 7)
-			after = 1
-			goto emit
-		}
-		if (rt.Ld8(m.Mem, int(c)+2960) & 1) != 0 {
-			paren = rt.B2u(c == 40)
-			goto emit
-		}
-		if c == 123 {
-			args = 0
-			paren = 0
-			if mute != 0 {
-				mute = rt.Sel32((mute == 1), 7, (mute + 4))
-			}
-			goto emit
-		}
-		if c == 125 {
-			args = 1
-			paren = 0
-			if (mute - 1) <= 1 {
-				mute = 0
-			}
-			if mute >= 4 {
-				mute = mute - 4
-				after = rt.B2u(mute == 3) << 1
-			}
-			goto emit
-		}
-		if c == 59 {
-			args = 0
-			paren = 0
-			hl = 35
-			after = rt.B2u(mute == 2) << 1
-			goto emit
-		}
-		if c == 61 {
-			hl = 25
-			goto emit
-		}
-		if c == 92 {
-			join = 1
-			hl = 40
-			goto emit
-		}
-		m.Ptr = lhs
-		m.KdlIdentEnd()
-		hl = 0
-		if m.Ptr == lhs {
+			lhs = m.Ptr
+			c = rt.Ld8(m.Mem, int(lhs))
+			t6 = m.TemplateByte(lhs + 1)
+			c2 = t6
 			m.Ptr = lhs + 1
-			goto emit
+			hl = 32
+			if c == 47 {
+				if c2 == 45 {
+					if mute == 0 {
+						mute = 2 - args
+					}
+					hl = 4
+					m.Ptr = lhs + 2
+					goto emit
+				}
+				hl = 0
+				if (c2 != 47) && (c2 != 42) {
+					goto emit
+				}
+				m.Ptr = lhs
+				if c2 == 47 {
+					m.LexLineComment(2, 4)
+				} else {
+					m.LexNestedBlockComment(10799, 12074, 4)
+				}
+				continue next
+			}
+			if c == 34 {
+				open = 1
+				t7 = c2 == 34
+				t8 = m.TemplateByte(lhs + 2)
+				if t7 && (t8 == 34) {
+					open = 2
+					m.Ptr = lhs + 3
+				}
+			} else {
+				if (c == 35) || ((c == 114) && ((c2 == 35) || (c2 == 34))) {
+					p = lhs + rt.B2u(c == 114)
+					t9 = m.KdlRawHashes(p)
+					c2 = t9
+					if int32(c2) >= int32(0) {
+						open = c2 + 3
+						m.Ptr = p + (c2 + 1)
+						goto body
+					}
+				}
+				if c == 35 {
+					m.KdlIdentEnd()
+					t10 = m.KdlLiteral(lhs+1, m.Ptr)
+					hl = rt.Sel32((t10 == 3), 3, 7)
+					after = 1
+					goto emit
+				}
+				if (rt.Ld8(m.Mem, int(c)+2960) & 1) != 0 {
+					paren = rt.B2u(c == 40)
+					goto emit
+				}
+				if c == 123 {
+					args = 0
+					paren = 0
+					if mute != 0 {
+						mute = rt.Sel32((mute == 1), 7, (mute + 4))
+					}
+					goto emit
+				}
+				if c == 125 {
+					args = 1
+					paren = 0
+					if (mute - 1) <= 1 {
+						mute = 0
+					}
+					if mute >= 4 {
+						mute = mute - 4
+						after = rt.B2u(mute == 3) << 1
+					}
+					goto emit
+				}
+				if c == 59 {
+					args = 0
+					paren = 0
+					hl = 35
+					after = rt.B2u(mute == 2) << 1
+					goto emit
+				}
+				if c == 61 {
+					hl = 25
+					goto emit
+				}
+				if c == 92 {
+					join = 1
+					hl = 40
+					goto emit
+				}
+				m.Ptr = lhs
+				m.KdlIdentEnd()
+				hl = 0
+				if m.Ptr == lhs {
+					m.Ptr = lhs + 1
+					goto emit
+				}
+				after = 1
+				hl = 24
+				t11 = m.LexIsDigit(c)
+				t12 = rt.Ld8(m.Mem, int(c)+2448) & 1
+				t13 = m.LexIsDigit(c2)
+				if (t11 | (t12 & t13)) != 0 {
+					goto emit
+				}
+				hl = 55
+				if paren != 0 {
+					goto emit
+				}
+				hl = 49
+				if args == 0 {
+					goto emit
+				}
+				hl = 1
+				t14 = m.LexSkipSpaceAt(m.Ptr)
+				t15 = m.TemplateByte(t14)
+				if t15 == 61 {
+					goto emit
+				}
+				t16 = m.KdlLiteral(lhs, m.Ptr)
+				hl = t16
+				if hl == 0 {
+					hl = 44
+				}
+				goto emit
+			}
 		}
-		after = 1
-		hl = 24
-		t11 = m.LexIsDigit(c)
-		t12 = rt.Ld8(m.Mem, int(c)+2448) & 1
-		t13 = m.LexIsDigit(c2)
-		if (t11 | (t12 & t13)) != 0 {
-			goto emit
-		}
-		hl = 55
-		if paren != 0 {
-			goto emit
-		}
-		hl = 49
-		if args == 0 {
-			goto emit
-		}
-		hl = 1
-		t14 = m.LexSkipSpaceAt(m.Ptr)
-		t15 = m.TemplateByte(t14)
-		if t15 == 61 {
-			goto emit
-		}
-		t16 = m.KdlLiteral(lhs, m.Ptr)
-		hl = t16
-		if hl == 0 {
-			hl = 44
-		}
-		goto emit
 	body:
 		hl = rt.Sel32((mute != 0), 4, rt.Sel32((paren != 0), 55, rt.Sel32((args != 0), 44, 49)))
 		if open < 3 {
@@ -36060,74 +35750,74 @@ next:
 				}
 			}
 			m.EmitTok(32, lhs, m.Ptr)
-			goto tailE
-		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			if (fnAngle == 0) || (c == 59) {
-				goto tailE
-			}
-			goto tailM
-		}
-		if c == 58 {
-			m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
-			m.EmitTok(rt.Sel32((c2 == 58), 25, 35), lhs, m.Ptr)
-			member = rt.B2u(c2 == 58)
-			continue next
-		}
-		if c == 46 {
-			m.Ptr = m.Ptr + rt.Sel32((c2 == 46), 2, 1)
-			m.EmitTok(rt.Sel32((c2 == 46), 25, 35), lhs, m.Ptr)
-			member = rt.B2u(c2 != 46)
-			continue next
-		}
-		if (c == 63) && (c2 == 46) {
-			m.Ptr = m.Ptr + 2
-			m.EmitTok(25, lhs, m.Ptr)
-			member = 1
-			continue next
-		}
-		t12 = m.KotlinIsOp(c)
-		if t12 != 0 {
-		op:
-			for {
-				t13 = m.KotlinByte(m.Ptr)
-				c2 = t13
-				t14 = m.KotlinIsOp(c2)
-				if t14 == 0 {
-					break op
-				}
-				t15 = m.KotlinByte(m.Ptr + 1)
-				c3 = t15
-				if (c2 == 47) && ((c3 == 47) || (c3 == 42)) {
-					break op
-				}
+		} else {
+			if (c == 44) || (c == 59) {
 				m.Ptr = m.Ptr + 1
-				continue op
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			if expect != 0 {
-				p = lhs
-			angle:
-				for {
-					if p >= m.Ptr {
-						break angle
-					}
-					if rt.Ld8(m.Mem, int(p)) == 60 {
-						fnAngle = fnAngle + 1
-					}
-					if (rt.Ld8(m.Mem, int(p)) == 62) && (fnAngle > 0) {
-						fnAngle = fnAngle - 1
-					}
-					p = p + 1
-					continue angle
+				m.EmitTok(35, lhs, m.Ptr)
+				if (fnAngle == 0) || (c == 59) {
+					goto tailE
 				}
+				goto tailM
 			}
-			goto tailM
+			if c == 58 {
+				m.Ptr = m.Ptr + rt.Sel32((c2 == 58), 2, 1)
+				m.EmitTok(rt.Sel32((c2 == 58), 25, 35), lhs, m.Ptr)
+				member = rt.B2u(c2 == 58)
+				continue next
+			}
+			if c == 46 {
+				m.Ptr = m.Ptr + rt.Sel32((c2 == 46), 2, 1)
+				m.EmitTok(rt.Sel32((c2 == 46), 25, 35), lhs, m.Ptr)
+				member = rt.B2u(c2 != 46)
+				continue next
+			}
+			if (c == 63) && (c2 == 46) {
+				m.Ptr = m.Ptr + 2
+				m.EmitTok(25, lhs, m.Ptr)
+				member = 1
+				continue next
+			}
+			t12 = m.KotlinIsOp(c)
+			if t12 != 0 {
+			op:
+				for {
+					t13 = m.KotlinByte(m.Ptr)
+					c2 = t13
+					t14 = m.KotlinIsOp(c2)
+					if t14 == 0 {
+						break op
+					}
+					t15 = m.KotlinByte(m.Ptr + 1)
+					c3 = t15
+					if (c2 == 47) && ((c3 == 47) || (c3 == 42)) {
+						break op
+					}
+					m.Ptr = m.Ptr + 1
+					continue op
+				}
+				m.EmitTok(25, lhs, m.Ptr)
+				if expect != 0 {
+					p = lhs
+				angle:
+					for {
+						if p >= m.Ptr {
+							break angle
+						}
+						if rt.Ld8(m.Mem, int(p)) == 60 {
+							fnAngle = fnAngle + 1
+						}
+						if (rt.Ld8(m.Mem, int(p)) == 62) && (fnAngle > 0) {
+							fnAngle = fnAngle - 1
+						}
+						p = p + 1
+						continue angle
+					}
+				}
+				goto tailM
+			}
+			m.Ptr = m.Ptr + 1
+			m.EmitTok(0, lhs, m.Ptr)
 		}
-		m.Ptr = m.Ptr + 1
-		m.EmitTok(0, lhs, m.Ptr)
 	tailE:
 		expect = 0
 		fnAngle = 0
@@ -36302,389 +35992,202 @@ next:
 		lhs = m.Ptr
 		c = rt.Ld8(m.Mem, int(lhs))
 		c2 = rt.Sel32(((lhs + 1) < m.End), rt.Ld8(m.Mem, int(lhs)+1), 0)
-		switch c - 35 {
-		case 0:
-			goto byteSwitch37
-		case 1:
-			goto byteSwitch31
-		case 2:
-			goto byteSwitch30
-		case 3:
-			goto byteSwitch36
-		case 4:
-			goto byteSwitch3Default
-		case 5:
-			goto byteSwitch3Default
-		case 6:
-			goto byteSwitch3Default
-		case 7:
-			goto byteSwitch3Default
-		case 8:
-			goto byteSwitch3Default
-		case 9:
-			goto byteSwitch3Default
-		case 10:
-			goto byteSwitch3Default
-		case 11:
-			goto byteSwitch3Default
-		case 12:
-			goto byteSwitch3Default
-		case 13:
-			goto byteSwitch3Default
-		case 14:
-			goto byteSwitch3Default
-		case 15:
-			goto byteSwitch3Default
-		case 16:
-			goto byteSwitch3Default
-		case 17:
-			goto byteSwitch3Default
-		case 18:
-			goto byteSwitch3Default
-		case 19:
-			goto byteSwitch3Default
-		case 20:
-			goto byteSwitch3Default
-		case 21:
-			goto byteSwitch3Default
-		case 22:
-			goto byteSwitch3Default
-		case 23:
-			goto byteSwitch3Default
-		case 24:
-			goto byteSwitch3Default
-		case 25:
-			goto byteSwitch3Default
-		case 26:
-			goto byteSwitch38
-		case 27:
-			goto byteSwitch3Default
-		case 28:
-			goto byteSwitch3Default
-		case 29:
-			goto byteSwitch3Default
-		case 30:
-			goto byteSwitch3Default
-		case 31:
-			goto byteSwitch3Default
-		case 32:
-			goto byteSwitch3Default
-		case 33:
-			goto byteSwitch3Default
-		case 34:
-			goto byteSwitch3Default
-		case 35:
-			goto byteSwitch3Default
-		case 36:
-			goto byteSwitch3Default
-		case 37:
-			goto byteSwitch3Default
-		case 38:
-			goto byteSwitch3Default
-		case 39:
-			goto byteSwitch3Default
-		case 40:
-			goto byteSwitch3Default
-		case 41:
-			goto byteSwitch3Default
-		case 42:
-			goto byteSwitch3Default
-		case 43:
-			goto byteSwitch3Default
-		case 44:
-			goto byteSwitch3Default
-		case 45:
-			goto byteSwitch3Default
-		case 46:
-			goto byteSwitch3Default
-		case 47:
-			goto byteSwitch3Default
-		case 48:
-			goto byteSwitch3Default
-		case 49:
-			goto byteSwitch3Default
-		case 50:
-			goto byteSwitch3Default
-		case 51:
-			goto byteSwitch3Default
-		case 52:
-			goto byteSwitch3Default
-		case 53:
-			goto byteSwitch3Default
-		case 54:
-			goto byteSwitch3Default
-		case 55:
-			goto byteSwitch3Default
-		case 56:
-			goto byteSwitch34
-		case 57:
-			goto byteSwitch39
-		case 58:
-			goto byteSwitch35
-		case 59:
-			goto byteSwitch38
-		case 60:
-			goto byteSwitch38
-		case 61:
-			goto byteSwitch3Default
-		case 62:
-			goto byteSwitch3Default
-		case 63:
-			goto byteSwitch3Default
-		case 64:
-			goto byteSwitch3Default
-		case 65:
-			goto byteSwitch3Default
-		case 66:
-			goto byteSwitch3Default
-		case 67:
-			goto byteSwitch3Default
-		case 68:
-			goto byteSwitch3Default
-		case 69:
-			goto byteSwitch3Default
-		case 70:
-			goto byteSwitch3Default
-		case 71:
-			goto byteSwitch3Default
-		case 72:
-			goto byteSwitch3Default
-		case 73:
-			goto byteSwitch3Default
-		case 74:
-			goto byteSwitch3Default
-		case 75:
-			goto byteSwitch3Default
-		case 76:
-			goto byteSwitch3Default
-		case 77:
-			goto byteSwitch3Default
-		case 78:
-			goto byteSwitch3Default
-		case 79:
-			goto byteSwitch3Default
-		case 80:
-			goto byteSwitch3Default
-		case 81:
-			goto byteSwitch3Default
-		case 82:
-			goto byteSwitch3Default
-		case 83:
-			goto byteSwitch3Default
-		case 84:
-			goto byteSwitch3Default
-		case 85:
-			goto byteSwitch3Default
-		case 86:
-			goto byteSwitch3Default
-		case 87:
-			goto byteSwitch3Default
-		case 88:
-			goto byteSwitch32
-		case 89:
-			goto byteSwitch3Default
-		case 90:
-			goto byteSwitch33
-		default:
-			goto byteSwitch3Default
-		}
-	byteSwitch30:
-		m.LexLineComment(1, 4)
-		continue next
-	byteSwitch31:
-		pend = pend * pendOpt
-		q = 1
-		if math == 0 {
-			q = 1 + rt.B2u(c2 == 36)
-			math = q
-		} else {
-			if math == 1 {
-				math = 0
+		switch c {
+		case '%':
+			m.LexLineComment(1, 4)
+			continue next
+		case '$':
+			pend = pend * pendOpt
+			q = 1
+			if math == 0 {
+				q = 1 + rt.B2u(c2 == 36)
+				math = q
+			} else {
+				if math == 1 {
+					math = 0
+				}
+				if (math == 2) && (c2 == 36) {
+					q = 2
+					math = 0
+				}
 			}
-			if (math == 2) && (c2 == 36) {
-				q = 2
-				math = 0
+			m.Ptr = lhs + q
+			m.EmitTok(32, lhs, m.Ptr)
+			continue next
+		case '{':
+			depth = depth + 1
+			if (pend != 0) && (pendOpt == 0) {
+				outerHl = argHl
+				outerDepth = argDepth
+				argHl = pend | rt.Sel32((math != 0), 256, 0)
+				argDepth = depth
+				pend = 0
 			}
-		}
-		m.Ptr = lhs + q
-		m.EmitTok(32, lhs, m.Ptr)
-		continue next
-	byteSwitch32:
-		depth = depth + 1
-		if (pend != 0) && (pendOpt == 0) {
-			outerHl = argHl
-			outerDepth = argDepth
-			argHl = pend | rt.Sel32((math != 0), 256, 0)
-			argDepth = depth
+			goto bracket
+		case '}':
+			if (argDepth != 0) && (depth == argDepth) {
+				argHl = outerHl
+				argDepth = outerDepth
+				outerHl = 0
+				outerDepth = 0
+			}
+			if depth != 0 {
+				depth = depth - 1
+			}
 			pend = 0
-		}
-		goto bracket
-	byteSwitch33:
-		if (argDepth != 0) && (depth == argDepth) {
-			argHl = outerHl
-			argDepth = outerDepth
-			outerHl = 0
-			outerDepth = 0
-		}
-		if depth != 0 {
-			depth = depth - 1
-		}
-		pend = 0
-		pendOpt = 0
-		goto bracket
-	byteSwitch34:
-		pendOpt = rt.B2u(pend != 0)
-		goto bracket
-	byteSwitch35:
-		pendOpt = 0
-		goto bracket
-	byteSwitch36:
-		pend = pend * pendOpt
-		m.Ptr = lhs + 1
-		m.EmitTok(35, lhs, m.Ptr)
-		continue next
-	byteSwitch37:
-		pend = pend * pendOpt
-		if (c2 - 49) <= 8 {
-			m.Ptr = lhs + 2
-			m.EmitTok(59, lhs, m.Ptr)
-			continue next
-		}
-		goto byteSwitch3Default
-	byteSwitch38:
-		if math != 0 {
+			pendOpt = 0
+			goto bracket
+		case '[':
+			pendOpt = rt.B2u(pend != 0)
+			goto bracket
+		case ']':
+			pendOpt = 0
+			goto bracket
+		case '&':
+			pend = pend * pendOpt
 			m.Ptr = lhs + 1
-			m.EmitTok(25, lhs, m.Ptr)
+			m.EmitTok(35, lhs, m.Ptr)
 			continue next
-		}
-		goto byteSwitch3Default
-	byteSwitch39:
-		pend = pend * pendOpt
-		p = lhs + 1
-		if (rt.Clz32(rt.B2u((((c2|32)-97) <= 25) || (c2 == 64))) >> 5) != 0 {
-			hl = 14
-			if (c2 == 40) || (c2 == 91) {
-				if math == 0 {
-					math = rt.Sel32((c2 == 40), 3, 4)
+		case '#':
+			pend = pend * pendOpt
+			if (c2 - 49) <= 8 {
+				m.Ptr = lhs + 2
+				m.EmitTok(59, lhs, m.Ptr)
+				continue next
+			}
+		case '=', '^', '_':
+			if math != 0 {
+				m.Ptr = lhs + 1
+				m.EmitTok(25, lhs, m.Ptr)
+				continue next
+			}
+		case '\\':
+			pend = pend * pendOpt
+			p = lhs + 1
+			if (rt.Clz32(rt.B2u((((c2|32)-97) <= 25) || (c2 == 64))) >> 5) != 0 {
+				hl = 14
+				if (c2 == 40) || (c2 == 91) {
+					if math == 0 {
+						math = rt.Sel32((c2 == 40), 3, 4)
+					}
+					hl = 32
 				}
-				hl = 32
-			}
-			if (c2 == 41) || (c2 == 93) {
-				if math == rt.Sel32((c2 == 41), 3, 4) {
-					math = 0
+				if (c2 == 41) || (c2 == 93) {
+					if math == rt.Sel32((c2 == 41), 3, 4) {
+						math = 0
+					}
+					hl = 32
 				}
-				hl = 32
-			}
-			if (p < m.End) && ((c2 != 10) && (c2 != 13)) {
-				t5 = m.Utf8SpanEnd(p+1, m.End)
-				p = t5
-			}
-			m.Ptr = p
-			m.EmitTok(hl, lhs, p)
-			continue next
-		}
-		q = p
-	name:
-		for {
-			q = q + 1
-			if q >= m.End {
-				break name
-			}
-			c = rt.Ld8(m.Mem, int(q))
-			if (((c | 32) - 97) <= 25) || (c == 64) {
-				continue name
-			}
-			break
-		}
-		t6 = m.LexKeywordValue(p, q, 21760, 31, 64)
-		v = t6
-		kind = uint32(int32(v) >> 8)
-		if (q < m.End) && (rt.Ld8(m.Mem, int(q)) == 42) {
-			q = q + 1
-		}
-		m.Ptr = q
-		hl = 14
-		if kind <= 3 {
-			if pendOpt == 0 {
-				pend = v & 255
-			}
-			hl = rt.Sel32((kind == 1), 17, rt.Sel32((kind == 2), 20, rt.Sel32((kind == 3), 38, 14)))
-		}
-		if kind == 4 {
-			hl = 17
-		}
-		m.EmitTok(hl, lhs, m.Ptr)
-		if kind == 5 {
-			c = rt.Sel32((m.Ptr < m.End), rt.Ld8(m.Mem, int(m.Ptr)), 0)
-			if ((c - 33) <= 93) && (((c | 32) - 97) > 25) {
-				t7 = m.LexFindEither(m.Ptr+1, c, 10)
-				p = t7
-				if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == c) {
-					p = p + 1
+				if (p < m.End) && ((c2 != 10) && (c2 != 13)) {
+					t5 = m.Utf8SpanEnd(p+1, m.End)
+					p = t5
 				}
-				m.EmitTok(53, m.Ptr, p)
 				m.Ptr = p
+				m.EmitTok(hl, lhs, p)
+				continue next
 			}
-		}
-		if kind == 4 {
-			c2 = rt.B2u((m.Ptr - lhs) == 4)
-			t8 = m.LexSkipSpaceAt(m.Ptr)
-			p = t8
 			q = p
-			if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 123) {
-				t9 = m.LatexEnvNameEnd(p + 1)
-				q = t9
-			}
-			if (q == p) || ((q >= m.End) || (rt.Ld8(m.Mem, int(q)) != 125)) {
-				pend = 55
-				continue next
-			}
-			m.EmitGap(m.Ptr, p)
-			m.EmitTok(32, p, p+1)
-			m.EmitTok(55, p+1, q)
-			m.Ptr = q + 1
-			m.EmitTok(32, q, m.Ptr)
-			t10 = m.LatexEnvKey(p+1, q)
-			v = t10
-			kind = rt.Sel32((int32(v) >= int32(0)), ((v & 4095) >> 8), 0xffffffff)
-			if c2 != 0 {
-				if (kind == 6) && (math == 5) {
-					math = 0
+		name:
+			for {
+				q = q + 1
+				if q >= m.End {
+					break name
 				}
-				continue next
+				c = rt.Ld8(m.Mem, int(q))
+				if (((c | 32) - 97) <= 25) || (c == 64) {
+					continue name
+				}
+				break
 			}
-			if (kind == 6) && (math == 0) {
-				math = 5
+			t6 = m.LexKeywordValue(p, q, 21760, 31, 64)
+			v = t6
+			kind = uint32(int32(v) >> 8)
+			if (q < m.End) && (rt.Ld8(m.Mem, int(q)) == 42) {
+				q = q + 1
 			}
-			if int32(kind) >= int32(7) {
-				raw = v
-			opts:
-				for {
-					if (int32(kind) < int32(8)) || (int32(kind) > int32(10)) {
-						break opts
+			m.Ptr = q
+			hl = 14
+			if kind <= 3 {
+				if pendOpt == 0 {
+					pend = v & 255
+				}
+				hl = rt.Sel32((kind == 1), 17, rt.Sel32((kind == 2), 20, rt.Sel32((kind == 3), 38, 14)))
+			}
+			if kind == 4 {
+				hl = 17
+			}
+			m.EmitTok(hl, lhs, m.Ptr)
+			if kind == 5 {
+				c = rt.Sel32((m.Ptr < m.End), rt.Ld8(m.Mem, int(m.Ptr)), 0)
+				if ((c - 33) <= 93) && (((c | 32) - 97) > 25) {
+					t7 = m.LexFindEither(m.Ptr+1, c, 10)
+					p = t7
+					if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == c) {
+						p = p + 1
 					}
-					if m.Ptr >= m.End {
-						break opts
-					}
-					c = rt.Ld8(m.Mem, int(m.Ptr))
-					if (c != 91) && (c != 123) {
-						break opts
-					}
-					t11 = m.LexFindEither(m.Ptr+1, c+2, 10)
-					p = t11
-					if (p >= m.End) || (rt.Ld8(m.Mem, int(p)) == 10) {
-						break opts
-					}
-					m.EmitTok(32, m.Ptr, m.Ptr+1)
-					m.EmitTok(0, m.Ptr+1, p)
-					m.Ptr = p + 1
-					m.EmitTok(32, p, m.Ptr)
-					continue opts
+					m.EmitTok(53, m.Ptr, p)
+					m.Ptr = p
 				}
 			}
+			if kind == 4 {
+				c2 = rt.B2u((m.Ptr - lhs) == 4)
+				t8 = m.LexSkipSpaceAt(m.Ptr)
+				p = t8
+				q = p
+				if (p < m.End) && (rt.Ld8(m.Mem, int(p)) == 123) {
+					t9 = m.LatexEnvNameEnd(p + 1)
+					q = t9
+				}
+				if (q == p) || ((q >= m.End) || (rt.Ld8(m.Mem, int(q)) != 125)) {
+					pend = 55
+					continue next
+				}
+				m.EmitGap(m.Ptr, p)
+				m.EmitTok(32, p, p+1)
+				m.EmitTok(55, p+1, q)
+				m.Ptr = q + 1
+				m.EmitTok(32, q, m.Ptr)
+				t10 = m.LatexEnvKey(p+1, q)
+				v = t10
+				kind = rt.Sel32((int32(v) >= int32(0)), ((v & 4095) >> 8), 0xffffffff)
+				if c2 != 0 {
+					if (kind == 6) && (math == 5) {
+						math = 0
+					}
+					continue next
+				}
+				if (kind == 6) && (math == 0) {
+					math = 5
+				}
+				if int32(kind) >= int32(7) {
+					raw = v
+				opts:
+					for {
+						if (int32(kind) < int32(8)) || (int32(kind) > int32(10)) {
+							break opts
+						}
+						if m.Ptr >= m.End {
+							break opts
+						}
+						c = rt.Ld8(m.Mem, int(m.Ptr))
+						if (c != 91) && (c != 123) {
+							break opts
+						}
+						t11 = m.LexFindEither(m.Ptr+1, c+2, 10)
+						p = t11
+						if (p >= m.End) || (rt.Ld8(m.Mem, int(p)) == 10) {
+							break opts
+						}
+						m.EmitTok(32, m.Ptr, m.Ptr+1)
+						m.EmitTok(0, m.Ptr+1, p)
+						m.Ptr = p + 1
+						m.EmitTok(32, p, m.Ptr)
+						continue opts
+					}
+				}
+			}
+			continue next
 		}
-		continue next
-	byteSwitch3Default:
 		pend = pend * pendOpt
 		rng = rt.Splat8(rt.Sel32((math != 0), 4, 2))
 		extra = rt.Splat8(rt.Sel32((math != 0), 61, 10))
@@ -37755,42 +37258,40 @@ next:
 			if t10 == 58 {
 				t11 = m.LexLineByteBefore(lhs)
 				hl = rt.Sel32((t11 != 0), 29, 22)
-				goto classified
-			}
-			t12 = m.LlvmWordHl(lhs, rhs)
-			hl = t12
-			if int32(hl) >= int32(0) {
-				goto classified
-			}
-			if (c == 120) && (rhs == (lhs + 1)) {
-				hl = 21
-				goto classified
-			}
-			t13 = c == 105
-			t14 = m.LexIsDigit(c2)
-			if (rt.B2u(t13) & t14) != 0 {
-				hl = 56
-				c2 = lhs + 1
-			digit:
-				for {
-					if c2 >= rhs {
-						break digit
+			} else {
+				t12 = m.LlvmWordHl(lhs, rhs)
+				hl = t12
+				if int32(hl) < int32(0) {
+					if (c == 120) && (rhs == (lhs + 1)) {
+						hl = 21
+					} else {
+						t13 = c == 105
+						t14 = m.LexIsDigit(c2)
+						if (rt.B2u(t13) & t14) != 0 {
+							hl = 56
+							c2 = lhs + 1
+						digit:
+							for {
+								if c2 >= rhs {
+									break digit
+								}
+								t15 = m.LexIsDigit(rt.Ld8(m.Mem, int(c2)))
+								if t15 == 0 {
+									hl = 0
+									break digit
+								}
+								c2 = c2 + 1
+								continue digit
+							}
+						} else {
+							hl = 0
+							if ((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x5f5744) || (rt.Ld32(m.Mem, int(lhs)) == 0x6c464944) {
+								hl = 7
+							}
+						}
 					}
-					t15 = m.LexIsDigit(rt.Ld8(m.Mem, int(c2)))
-					if t15 == 0 {
-						hl = 0
-						break digit
-					}
-					c2 = c2 + 1
-					continue digit
 				}
-				goto classified
 			}
-			hl = 0
-			if ((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x5f5744) || (rt.Ld32(m.Mem, int(lhs)) == 0x6c464944) {
-				hl = 7
-			}
-		classified:
 			m.EmitTok(hl, lhs, rhs)
 			continue next
 		}
@@ -38015,28 +37516,26 @@ next:
 				continue number
 			}
 			hl = 24
-			goto classified
+		} else {
+			if c == 34 {
+				m.EmitTok(0, plain, lhs)
+				m.Ptr = lhs
+				m.LexString(34, 0, 44)
+				plain = m.Ptr
+				continue next
+			}
+			t22 = c != 39
+			t23 = lhs > m.SrcBase
+			t24 = m.LexIsIdentContinue(rt.Ld8(m.Mem, int((lhs - 1))))
+			if (rt.B2u(t22) | (rt.B2u(t23) & t24)) == 0 {
+				t25 = m.ScanFindSpecial(m.Ptr, m.End, 39, 0, 1)
+				p = t25
+				if !((p >= m.End) || (rt.Ld8(m.Mem, int(p)) != 39)) {
+					m.Ptr = p + 1
+					hl = 44
+				}
+			}
 		}
-		if c == 34 {
-			m.EmitTok(0, plain, lhs)
-			m.Ptr = lhs
-			m.LexString(34, 0, 44)
-			plain = m.Ptr
-			continue next
-		}
-		t22 = c != 39
-		t23 = lhs > m.SrcBase
-		t24 = m.LexIsIdentContinue(rt.Ld8(m.Mem, int((lhs - 1))))
-		if (rt.B2u(t22) | (rt.B2u(t23) & t24)) != 0 {
-			goto classified
-		}
-		t25 = m.ScanFindSpecial(m.Ptr, m.End, 39, 0, 1)
-		p = t25
-		if (p >= m.End) || (rt.Ld8(m.Mem, int(p)) != 39) {
-			goto classified
-		}
-		m.Ptr = p + 1
-		hl = 44
 	classified:
 		if hl != 0 {
 			m.EmitTok(0, plain, lhs)
@@ -38799,24 +38298,23 @@ func (m *Machine) MakeDollar(nest uint32) {
 		if t1 != 0 {
 			m.ScanIdentRun(95)
 		}
-		goto emit
-	}
-	if (c == 40) || (c == 123) {
-		goto ref
-	}
-	if (rt.Ld8(m.Mem, int(c)+4496) & 4) != 0 {
-		hl = 60
-		goto emit
-	}
-	t2 = m.LexIsNameStart(c)
-	if t2 != 0 {
-		t3 = m.Utf8SpanEnd(m.Ptr, m.End)
-		m.Ptr = t3
 	} else {
-		m.Ptr = lhs + 1
-		hl = 0
+		if (c == 40) || (c == 123) {
+			goto ref
+		}
+		if (rt.Ld8(m.Mem, int(c)+4496) & 4) != 0 {
+			hl = 60
+		} else {
+			t2 = m.LexIsNameStart(c)
+			if t2 != 0 {
+				t3 = m.Utf8SpanEnd(m.Ptr, m.End)
+				m.Ptr = t3
+			} else {
+				m.Ptr = lhs + 1
+				hl = 0
+			}
+		}
 	}
-emit:
 	m.EmitTok(hl, lhs, m.Ptr)
 	return
 ref:
@@ -38870,22 +38368,21 @@ l:
 			continue l
 		}
 		hl = 35
-		if (c == 44) && (depth == 0) {
-			goto mark
-		}
-		if c == open {
-			depth = depth + 1
-		}
-		if c == close_ {
-			hl = 40
-			if depth == 0 {
-				goto mark
+		if !((c == 44) && (depth == 0)) {
+			if c == open {
+				depth = depth + 1
 			}
-			depth = depth - 1
+			if c == close_ {
+				hl = 40
+				if depth == 0 {
+					goto mark
+				}
+				depth = depth - 1
+			}
+			t11 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+			m.Ptr = t11
+			continue l
 		}
-		t11 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-		m.Ptr = t11
-		continue l
 	mark:
 		m.EmitTok(0, lhs, m.Ptr)
 		lhs = m.Ptr
@@ -39112,165 +38609,164 @@ next:
 			if c2 == 35 {
 				m.Ptr = m.Ptr + 2
 				hl = 45
-				goto emit
-			}
-			t7 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-			m.Ptr = t7
-			hl = 0
-			goto emit
-		}
-		if c == 35 {
-			m.LexLineComment(1, 4)
-			continue next
-		}
-		if c == 36 {
-			m.MakeDollar(0)
-			cmdHead = 0
-			expectVar = 0
-			continue next
-		}
-		if mode == 2 {
-			t8 = c == 61
-			t9 = (rt.Ld8(m.Mem, int(c)+4496) >> 3) & 1
-			t10 = c2 == 61
-			t11 = c2 == 58
-			t12 = m.TemplateByte(m.Ptr + 2)
-			if (rt.B2u(t8) | (t9 & rt.B2u(t10 || (t11 && (t12 == 61))))) != 0 {
-				m.Ptr = m.Ptr + 1
-			eq:
-				for {
-					t13 = m.TemplateByte(m.Ptr)
-					if t13 != 58 {
-						break eq
-					}
-					m.Ptr = m.Ptr + 1
-					continue eq
-				}
-				t14 = m.TemplateByte(m.Ptr)
-				if t14 == 61 {
-					m.Ptr = m.Ptr + 1
-				}
-				hl = 25
-				expectVar = 0
-				goto emit
-			}
-		}
-		if (mode == 3) || (mode == 6) {
-			if (c == 58) || (c == 38) {
-				m.Ptr = m.Ptr + 1
-				t15 = m.TemplateByte(m.Ptr)
-				if t15 == 58 {
-					m.Ptr = m.Ptr + 1
-				}
-				hl = 35
-				targets = 0
-				if mode == 6 {
-					mode = 2
-					expectVar = 1
-				}
-				goto emit
-			}
-			if c == 124 {
-				m.Ptr = m.Ptr + 1
-				hl = 25
-				goto emit
-			}
-			if c == 59 {
-				m.Ptr = m.Ptr + 1
-				hl = 35
-				mode = 1
-				cmdHead = 1
-				goto emit
-			}
-		}
-		if mode == 1 {
-			if (((rt.Ld8(m.Mem, int(c)+4496) >> 4) & 1) & cmdHead) != 0 {
-				m.Ptr = m.Ptr + 1
-				hl = 25
-				goto emit
-			}
-			if c == 39 {
-				m.LexRawString(39, 0, 44)
-				cmdHead = 0
-				continue next
-			}
-			if c == 34 {
-				m.MakeQuoted()
-				cmdHead = 0
-				continue next
-			}
-			t16 = m.MakeIsShellOp(c)
-			if t16 != 0 {
-			op:
-				for {
-					t17 = m.TemplateByte(m.Ptr)
-					t18 = m.MakeIsShellOp(t17)
-					if t18 == 0 {
-						break op
-					}
-					m.Ptr = m.Ptr + 1
-					continue op
-				}
-				hl = 25
-				if (c == 59) || ((c == 38) || (c == 124)) {
-					cmdHead = 1
-				}
-				goto emit
-			}
-			if (rt.Ld8(m.Mem, int(c)+2960) & 1) != 0 {
-				m.Ptr = m.Ptr + 1
-				hl = 32
-				goto emit
-			}
-		}
-		if (rt.Ld8(m.Mem, int(c)+4496) & 32) != 0 {
-			m.Ptr = m.Ptr + 1
-			hl = rt.Sel32((c == 44), 35, 32)
-			goto emit
-		}
-		t19 = m.MakeIsWordEnd(c)
-		if t19 == 0 {
-			m.MakeScanWord()
-			if m.Ptr == lhs {
-				t20 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-				m.Ptr = t20
-			}
-			rhs = m.Ptr
-			hl = 0
-			if expectVar != 0 {
-				hl = 58
-				expectVar = 0
 			} else {
-				if targets != 0 {
-					hl = rt.Sel32(((c == 46) && ((c2 - 65) <= 25)), 17, 14)
-				} else {
-					if (rt.B2u(mode == 1) & cmdHead) != 0 {
-						hl = 14
-						cmdHead = 0
+				t7 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+				m.Ptr = t7
+				hl = 0
+			}
+		} else {
+			if c == 35 {
+				m.LexLineComment(1, 4)
+				continue next
+			}
+			if c == 36 {
+				m.MakeDollar(0)
+				cmdHead = 0
+				expectVar = 0
+				continue next
+			}
+			if mode == 2 {
+				t8 = c == 61
+				t9 = (rt.Ld8(m.Mem, int(c)+4496) >> 3) & 1
+				t10 = c2 == 61
+				t11 = c2 == 58
+				t12 = m.TemplateByte(m.Ptr + 2)
+				if (rt.B2u(t8) | (t9 & rt.B2u(t10 || (t11 && (t12 == 61))))) != 0 {
+					m.Ptr = m.Ptr + 1
+				eq:
+					for {
+						t13 = m.TemplateByte(m.Ptr)
+						if t13 != 58 {
+							break eq
+						}
+						m.Ptr = m.Ptr + 1
+						continue eq
+					}
+					t14 = m.TemplateByte(m.Ptr)
+					if t14 == 61 {
+						m.Ptr = m.Ptr + 1
+					}
+					hl = 25
+					expectVar = 0
+					goto emit
+				}
+			}
+			if (mode == 3) || (mode == 6) {
+				if (c == 58) || (c == 38) {
+					m.Ptr = m.Ptr + 1
+					t15 = m.TemplateByte(m.Ptr)
+					if t15 == 58 {
+						m.Ptr = m.Ptr + 1
+					}
+					hl = 35
+					targets = 0
+					if mode == 6 {
+						mode = 2
+						expectVar = 1
+					}
+					goto emit
+				}
+				if c == 124 {
+					m.Ptr = m.Ptr + 1
+					hl = 25
+					goto emit
+				}
+				if c == 59 {
+					m.Ptr = m.Ptr + 1
+					hl = 35
+					mode = 1
+					cmdHead = 1
+					goto emit
+				}
+			}
+			if mode == 1 {
+				if (((rt.Ld8(m.Mem, int(c)+4496) >> 4) & 1) & cmdHead) != 0 {
+					m.Ptr = m.Ptr + 1
+					hl = 25
+					goto emit
+				}
+				if c == 39 {
+					m.LexRawString(39, 0, 44)
+					cmdHead = 0
+					continue next
+				}
+				if c == 34 {
+					m.MakeQuoted()
+					cmdHead = 0
+					continue next
+				}
+				t16 = m.MakeIsShellOp(c)
+				if t16 != 0 {
+				op:
+					for {
+						t17 = m.TemplateByte(m.Ptr)
+						t18 = m.MakeIsShellOp(t17)
+						if t18 == 0 {
+							break op
+						}
+						m.Ptr = m.Ptr + 1
+						continue op
+					}
+					hl = 25
+					if (c == 59) || ((c == 38) || (c == 124)) {
+						cmdHead = 1
+					}
+					goto emit
+				}
+				if (rt.Ld8(m.Mem, int(c)+2960) & 1) != 0 {
+					m.Ptr = m.Ptr + 1
+					hl = 32
+					goto emit
+				}
+			}
+			if (rt.Ld8(m.Mem, int(c)+4496) & 32) != 0 {
+				m.Ptr = m.Ptr + 1
+				hl = rt.Sel32((c == 44), 35, 32)
+			} else {
+				t19 = m.MakeIsWordEnd(c)
+				if t19 == 0 {
+					m.MakeScanWord()
+					if m.Ptr == lhs {
+						t20 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+						m.Ptr = t20
+					}
+					rhs = m.Ptr
+					hl = 0
+					if expectVar != 0 {
+						hl = 58
+						expectVar = 0
 					} else {
-						t21 = mode == 1
-						t22 = m.LexIsDigit(c)
-						t23 = m.TemplateByte(rhs)
-						t24 = m.LexIsIdentContinue(t23)
-						if (rt.B2u(t21) & (t22 & rt.B2u(t24 == 0))) != 0 {
-							m.Ptr = lhs
-							m.LexScanNumber()
-							if m.Ptr == rhs {
-								hl = 24
+						if targets != 0 {
+							hl = rt.Sel32(((c == 46) && ((c2 - 65) <= 25)), 17, 14)
+						} else {
+							if (rt.B2u(mode == 1) & cmdHead) != 0 {
+								hl = 14
+								cmdHead = 0
 							} else {
-								m.Ptr = rhs
+								t21 = mode == 1
+								t22 = m.LexIsDigit(c)
+								t23 = m.TemplateByte(rhs)
+								t24 = m.LexIsIdentContinue(t23)
+								if (rt.B2u(t21) & (t22 & rt.B2u(t24 == 0))) != 0 {
+									m.Ptr = lhs
+									m.LexScanNumber()
+									if m.Ptr == rhs {
+										hl = 24
+									} else {
+										m.Ptr = rhs
+									}
+								}
 							}
 						}
 					}
+				} else {
+					t25 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+					m.Ptr = t25
+					hl = 0
+					cmdHead = 0
 				}
 			}
-			goto emit
 		}
-		t25 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-		m.Ptr = t25
-		hl = 0
-		cmdHead = 0
-		goto emit
 	emit:
 		m.EmitTok(hl, lhs, m.Ptr)
 		continue next
@@ -40384,295 +39880,294 @@ next:
 				m.ScanIdentRun(45)
 				t9 = m.LexIsDigit(c)
 				tok = rt.Sel32((t9 != 0), 24, 29)
-				goto emit
+			} else {
+				tok = rt.Sel32(((rt.Ld8(m.Mem, int(c)+2192) & 1) != 0), 32, 35)
 			}
-			tok = rt.Sel32(((rt.Ld8(m.Mem, int(c)+2192) & 1) != 0), 32, 35)
-			goto emit
-		}
-		if (c == 37) && (c2 == 37) {
-			t10 = m.TemplateByte(lhs + 2)
-			if t10 == 123 {
-				m.Ptr = lhs + 3
-				m.EmitTok(40, lhs, m.Ptr)
-				dir = 1
+		} else {
+			if (c == 37) && (c2 == 37) {
+				t10 = m.TemplateByte(lhs + 2)
+				if t10 == 123 {
+					m.Ptr = lhs + 3
+					m.EmitTok(40, lhs, m.Ptr)
+					dir = 1
+					mid = rt.B2u(first == 0)
+					continue next
+				}
+				m.Ptr = lhs
+				m.LexLineComment(2, 4)
 				mid = rt.B2u(first == 0)
 				continue next
 			}
-			m.Ptr = lhs
-			m.LexLineComment(2, 4)
-			mid = rt.B2u(first == 0)
-			continue next
-		}
-		if kind == 0 {
-			kind = 1
-			t11 = m.LexIsIdentStart(c)
-			if t11 != 0 {
-				m.ScanIdentRun(45)
-				p = m.Ptr - lhs
-				if ((p == 9) && (rt.Ld64(m.Mem, int(lhs)) == 0x6172676169447265)) || ((p >= 12) && (rt.Ld64(m.Mem, int(lhs)) == 0x6169447373616c63)) {
-					kind = 2
+			if kind == 0 {
+				kind = 1
+				t11 = m.LexIsIdentStart(c)
+				if t11 != 0 {
+					m.ScanIdentRun(45)
+					p = m.Ptr - lhs
+					if ((p == 9) && (rt.Ld64(m.Mem, int(lhs)) == 0x6172676169447265)) || ((p >= 12) && (rt.Ld64(m.Mem, int(lhs)) == 0x6169447373616c63)) {
+						kind = 2
+					}
+					if (p == 15) && (rt.Ld64(m.Mem, int(lhs)) == 0x65636e6575716573) {
+						kind = 3
+					}
+					m.EmitTok(19, lhs, m.Ptr)
+					mid = 0
+					continue next
 				}
-				if (p == 15) && (rt.Ld64(m.Mem, int(lhs)) == 0x65636e6575716573) {
-					kind = 3
-				}
-				m.EmitTok(19, lhs, m.Ptr)
-				mid = 0
+			}
+			if c == 34 {
+				t12 = m.MmdString(lhs)
+				quote = t12
 				continue next
 			}
-		}
-		if c == 34 {
-			t12 = m.MmdString(lhs)
-			quote = t12
-			continue next
-		}
-		if (c == 60) && (c2 == 60) {
-			m.Ptr = lhs + 2
-			m.ScanIdentRun(95)
-			t13 = m.Ptr > (lhs + 2)
-			t14 = m.TemplateByte(m.Ptr)
-			t15 = m.TemplateByte(m.Ptr + 1)
-			if t13 && ((t14 == 62) && (t15 == 62)) {
-				m.Ptr = m.Ptr + 2
-				tok = 1
-				goto emit
+			if (c == 60) && (c2 == 60) {
+				m.Ptr = lhs + 2
+				m.ScanIdentRun(95)
+				t13 = m.Ptr > (lhs + 2)
+				t14 = m.TemplateByte(m.Ptr)
+				t15 = m.TemplateByte(m.Ptr + 1)
+				if t13 && ((t14 == 62) && (t15 == 62)) {
+					m.Ptr = m.Ptr + 2
+					tok = 1
+					goto emit
+				}
+				m.Ptr = lhs + 1
 			}
-			m.Ptr = lhs + 1
-		}
-		if ((rt.Ld8(m.Mem, int(c)+4752) & 1) | (rt.B2u(kind == 2) & ((rt.Ld8(m.Mem, int(c)+4752) >> 1) & 1))) != 0 {
-			t16 = m.MmdArrowEnd(lhs, rt.B2u(kind == 2))
-			p = t16
-			if p > lhs {
-				m.Ptr = p
-				m.EmitTok(25, lhs, m.Ptr)
-				t17 = (kind == 1) && ((p - lhs) == 2)
-				t18 = m.TemplateByte(p)
-				if t17 && ((t18 == 32) && ((c2 == c) || (c2 == 46))) {
-					q = p
-				label:
-					for {
-						t19 = m.ScanFind3(q, 45, 61, 10)
-						q = t19
-						t20 = m.TemplateByte(q)
-						v = t20
-						if v <= 10 {
-							break label
-						}
-						t21 = v == c
-						t22 = m.MmdArrowEnd(q, 0)
-						if t21 && (t22 > q) {
-							if rt.Ld8(m.Mem, int((q-1))) == 46 {
-								q = q - 1
+			if ((rt.Ld8(m.Mem, int(c)+4752) & 1) | (rt.B2u(kind == 2) & ((rt.Ld8(m.Mem, int(c)+4752) >> 1) & 1))) != 0 {
+				t16 = m.MmdArrowEnd(lhs, rt.B2u(kind == 2))
+				p = t16
+				if p > lhs {
+					m.Ptr = p
+					m.EmitTok(25, lhs, m.Ptr)
+					t17 = (kind == 1) && ((p - lhs) == 2)
+					t18 = m.TemplateByte(p)
+					if t17 && ((t18 == 32) && ((c2 == c) || (c2 == 46))) {
+						q = p
+					label:
+						for {
+							t19 = m.ScanFind3(q, 45, 61, 10)
+							q = t19
+							t20 = m.TemplateByte(q)
+							v = t20
+							if v <= 10 {
+								break label
 							}
-							m.EmitTok(44, p, q)
-							m.Ptr = q
-							break label
+							t21 = v == c
+							t22 = m.MmdArrowEnd(q, 0)
+							if t21 && (t22 > q) {
+								if rt.Ld8(m.Mem, int((q-1))) == 46 {
+									q = q - 1
+								}
+								m.EmitTok(44, p, q)
+								m.Ptr = q
+								break label
+							}
+							q = q + 1
+							continue label
 						}
-						q = q + 1
-						continue label
 					}
+					continue next
 				}
-				continue next
 			}
-		}
-		if c == 124 {
-			t23 = m.LexLineByteBefore(lhs)
-			v = t23
-			t24 = m.ScanFind3(m.Ptr, 124, 10, 13)
-			p = t24
-			t25 = rt.Ld8(m.Mem, int(v)+4752) & 1
-			t26 = m.TemplateByte(p)
-			if (t25 & rt.B2u(t26 == 124)) != 0 {
-				m.EmitTok(32, lhs, m.Ptr)
-				m.EmitTok(44, m.Ptr, p)
-				m.Ptr = p + 1
-				m.EmitTok(32, p, m.Ptr)
-				continue next
-			}
-		}
-		if c == 58 {
-			t27 = c2 == 58
-			t28 = m.TemplateByte(lhs + 2)
-			if t27 && (t28 == 58) {
-				m.Ptr = lhs + 3
-				m.EmitTok(25, lhs, m.Ptr)
-				p = m.Ptr
-				m.ScanIdentRun(45)
-				m.EmitTok(55, p, m.Ptr)
-				continue next
-			}
-			m.EmitTok(35, lhs, m.Ptr)
-			if (style | attr) != 0 {
-				continue next
-			}
-			t29 = m.LexSkipSpaceAt(m.Ptr)
-			p = t29
-			m.EmitGap(m.Ptr, p)
-			m.Ptr = p
-			m.ScanToLineEnd()
-			q = p
-		digits:
-			for {
-				if q < m.Ptr {
-					v = rt.Ld8(m.Mem, int(q))
-					t30 = m.LexIsDigit(v)
-					if ((t30 | rt.B2u(v == 46)) | ((rt.Ld8(m.Mem, int(v)+1936) >> 4) & 1)) != 0 {
-						q = q + 1
-						continue digits
-					}
+			if c == 124 {
+				t23 = m.LexLineByteBefore(lhs)
+				v = t23
+				t24 = m.ScanFind3(m.Ptr, 124, 10, 13)
+				p = t24
+				t25 = rt.Ld8(m.Mem, int(v)+4752) & 1
+				t26 = m.TemplateByte(p)
+				if (t25 & rt.B2u(t26 == 124)) != 0 {
+					m.EmitTok(32, lhs, m.Ptr)
+					m.EmitTok(44, m.Ptr, p)
+					m.Ptr = p + 1
+					m.EmitTok(32, p, m.Ptr)
+					continue next
 				}
-				break
 			}
-			m.EmitTok(rt.Sel32((q == m.Ptr), 24, 44), p, m.Ptr)
-			continue next
-		}
-		t31 = c == 91
-		t32 = c2 == 42
-		t33 = m.TemplateByte(lhs + 2)
-		if t31 && (t32 && (t33 == 93)) {
-			m.Ptr = lhs + 3
-			tok = 7
-			goto emit
-		}
-		if (c == 64) && (c2 == 123) {
-			m.Ptr = lhs + 2
-			m.EmitTok(40, lhs, m.Ptr)
-			attr = 1
-			continue next
-		}
-		if (rt.B2u(c == 125) & attr) != 0 {
-			m.EmitTok(40, lhs, m.Ptr)
-			attr = 0
-			continue next
-		}
-		if (rt.B2u(c == 35) & style) != 0 {
-			m.ScanIdentRun(95)
-			tok = 47
-			goto emit
-		}
-		t34 = m.LexIsIdentContinue(c)
-		if t34 != 0 {
-			m.ScanIdentRun(95)
-		words:
-			for {
-				t35 = kind != 3
-				t36 = m.TemplateByte(m.Ptr)
-				t37 = m.TemplateByte(m.Ptr + 1)
-				t38 = m.LexIsIdentContinue(t37)
-				if (rt.B2u(t35) & (rt.B2u(t36 == 45) & t38)) != 0 {
-					m.Ptr = m.Ptr + 1
-					m.ScanIdentRun(95)
-					continue words
-				}
-				break
-			}
-			p = m.Ptr
-			t39 = m.TemplateByte(p)
-			c2 = t39
-			t40 = m.LexIsDigit(c)
-			if t40 != 0 {
-				m.EmitTok(24, lhs, p)
-				continue next
-			}
-			v = 0xffffffff
-			if (rt.Clz32((style | attr)) >> 5) != 0 {
-				if ((p - lhs) == 5) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x656c797473) {
-					t41 = 529
-				} else {
-					t42 = m.LexKeywordValue(lhs, p, 57488, 15, 59)
-					t41 = t42
-				}
-				v = t41
-			}
-			if int32(v) >= int32(0) {
-				m.EmitTok(v&255, lhs, p)
-				if (first & rt.B2u((v>>8) == 1)) != 0 {
-					t43 = m.LexSkipSpaceAt(p)
-					m.Ptr = t43
-					m.EmitGap(p, m.Ptr)
+			if c == 58 {
+				t27 = c2 == 58
+				t28 = m.TemplateByte(lhs + 2)
+				if t27 && (t28 == 58) {
+					m.Ptr = lhs + 3
+					m.EmitTok(25, lhs, m.Ptr)
 					p = m.Ptr
-					m.ScanToLineEnd()
-					m.EmitTok(44, p, m.Ptr)
+					m.ScanIdentRun(45)
+					m.EmitTok(55, p, m.Ptr)
+					continue next
 				}
-				style = style | rt.B2u((v>>8) == 2)
+				m.EmitTok(35, lhs, m.Ptr)
+				if (style | attr) != 0 {
+					continue next
+				}
+				t29 = m.LexSkipSpaceAt(m.Ptr)
+				p = t29
+				m.EmitGap(m.Ptr, p)
+				m.Ptr = p
+				m.ScanToLineEnd()
+				q = p
+			digits:
+				for {
+					if q < m.Ptr {
+						v = rt.Ld8(m.Mem, int(q))
+						t30 = m.LexIsDigit(v)
+						if ((t30 | rt.B2u(v == 46)) | ((rt.Ld8(m.Mem, int(v)+1936) >> 4) & 1)) != 0 {
+							q = q + 1
+							continue digits
+						}
+					}
+					break
+				}
+				m.EmitTok(rt.Sel32((q == m.Ptr), 24, 44), p, m.Ptr)
 				continue next
 			}
-			t44 = (p - lhs) == 2
-			q = rt.Ld16(m.Mem, int(lhs))
-			if t44 && (((q == 17492) || (q == 16980)) || (((q == 21570) || (q == 19538)) || (q == 21068))) {
-				m.EmitTok(6, lhs, p)
-				continue next
+			t31 = c == 91
+			t32 = c2 == 42
+			t33 = m.TemplateByte(lhs + 2)
+			if t31 && (t32 && (t33 == 93)) {
+				m.Ptr = lhs + 3
+				tok = 7
+			} else {
+				if (c == 64) && (c2 == 123) {
+					m.Ptr = lhs + 2
+					m.EmitTok(40, lhs, m.Ptr)
+					attr = 1
+					continue next
+				}
+				if (rt.B2u(c == 125) & attr) != 0 {
+					m.EmitTok(40, lhs, m.Ptr)
+					attr = 0
+					continue next
+				}
+				if (rt.B2u(c == 35) & style) != 0 {
+					m.ScanIdentRun(95)
+					tok = 47
+				} else {
+					t34 = m.LexIsIdentContinue(c)
+					if t34 != 0 {
+						m.ScanIdentRun(95)
+					words:
+						for {
+							t35 = kind != 3
+							t36 = m.TemplateByte(m.Ptr)
+							t37 = m.TemplateByte(m.Ptr + 1)
+							t38 = m.LexIsIdentContinue(t37)
+							if (rt.B2u(t35) & (rt.B2u(t36 == 45) & t38)) != 0 {
+								m.Ptr = m.Ptr + 1
+								m.ScanIdentRun(95)
+								continue words
+							}
+							break
+						}
+						p = m.Ptr
+						t39 = m.TemplateByte(p)
+						c2 = t39
+						t40 = m.LexIsDigit(c)
+						if t40 != 0 {
+							m.EmitTok(24, lhs, p)
+							continue next
+						}
+						v = 0xffffffff
+						if (rt.Clz32((style | attr)) >> 5) != 0 {
+							if ((p - lhs) == 5) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x656c797473) {
+								t41 = 529
+							} else {
+								t42 = m.LexKeywordValue(lhs, p, 57488, 15, 59)
+								t41 = t42
+							}
+							v = t41
+						}
+						if int32(v) >= int32(0) {
+							m.EmitTok(v&255, lhs, p)
+							if (first & rt.B2u((v>>8) == 1)) != 0 {
+								t43 = m.LexSkipSpaceAt(p)
+								m.Ptr = t43
+								m.EmitGap(p, m.Ptr)
+								p = m.Ptr
+								m.ScanToLineEnd()
+								m.EmitTok(44, p, m.Ptr)
+							}
+							style = style | rt.B2u((v>>8) == 2)
+							continue next
+						}
+						t44 = (p - lhs) == 2
+						q = rt.Ld16(m.Mem, int(lhs))
+						if t44 && (((q == 17492) || (q == 16980)) || (((q == 21570) || (q == 19538)) || (q == 21068))) {
+							m.EmitTok(6, lhs, p)
+							continue next
+						}
+						if (rt.B2u(c2 == 58) & (style | attr)) != 0 {
+							m.EmitTok(29, lhs, p)
+							continue next
+						}
+						if kind == 2 {
+							m.EmitTok(rt.Sel32((c2 == 40), 14, 58), lhs, p)
+							continue next
+						}
+						m.EmitTok(58, lhs, p)
+						if (((rt.Ld8(m.Mem, int(c2)+1680) >> 2) & 1) | rt.B2u(c2 == 62)) != 0 {
+							goto shape
+						}
+						continue next
+					}
+					if (kind == 2) || ((c != 91) && (c != 40)) {
+						goto punct
+					}
+					p = lhs
+				shape:
+					q = p
+				open:
+					for {
+						t45 = m.TemplateByte(q)
+						v = t45
+						q = q + 1
+						t46 = m.TemplateByte(q)
+						c = t46
+						if (rt.Ld8(m.Mem, int(c)+1680) & 4) != 0 {
+							continue open
+						}
+						break
+					}
+					if (c == 47) || (c == 92) {
+						q = q + 1
+					}
+					m.EmitTok(32, p, q)
+					m.Ptr = q
+					t47 = m.TemplateByte(q)
+					if t47 == 34 {
+						continue next
+					}
+					t48 = m.ScanFind3(q, rt.Sel32((v == 40), 41, rt.Sel32((v == 123), 125, 93)), 10, 13)
+					p = t48
+					if p > q {
+						c = rt.Ld8(m.Mem, int((p - 1)))
+						if (c == 47) || (c == 92) {
+							p = p - 1
+						}
+					}
+					m.EmitTok(44, q, p)
+					m.Ptr = p
+					t49 = m.TemplateByte(p)
+					c = t49
+					if (c == 47) || (c == 92) {
+						m.Ptr = m.Ptr + 1
+					}
+				loop64:
+					for {
+						t50 = m.TemplateByte(m.Ptr)
+						c = t50
+						if (rt.Clz32((rt.Ld8(m.Mem, int(c)+1680) & 8)) >> 5) != 0 {
+							break loop64
+						}
+						m.Ptr = m.Ptr + 1
+						continue loop64
+					}
+					m.EmitTok(32, p, m.Ptr)
+					continue next
+				punct:
+					tok = rt.Sel32(((c == 44) || (c == 59)), 35, rt.Sel32(((rt.Ld8(m.Mem, int(c)+2192)&1) != 0), 32, rt.Sel32(((rt.Ld8(m.Mem, int(c)+4240)&1) != 0), 25, 0)))
+				}
 			}
-			if (rt.B2u(c2 == 58) & (style | attr)) != 0 {
-				m.EmitTok(29, lhs, p)
-				continue next
-			}
-			if kind == 2 {
-				m.EmitTok(rt.Sel32((c2 == 40), 14, 58), lhs, p)
-				continue next
-			}
-			m.EmitTok(58, lhs, p)
-			if (((rt.Ld8(m.Mem, int(c2)+1680) >> 2) & 1) | rt.B2u(c2 == 62)) != 0 {
-				goto shape
-			}
-			continue next
 		}
-		if (kind == 2) || ((c != 91) && (c != 40)) {
-			goto punct
-		}
-		p = lhs
-	shape:
-		q = p
-	open:
-		for {
-			t45 = m.TemplateByte(q)
-			v = t45
-			q = q + 1
-			t46 = m.TemplateByte(q)
-			c = t46
-			if (rt.Ld8(m.Mem, int(c)+1680) & 4) != 0 {
-				continue open
-			}
-			break
-		}
-		if (c == 47) || (c == 92) {
-			q = q + 1
-		}
-		m.EmitTok(32, p, q)
-		m.Ptr = q
-		t47 = m.TemplateByte(q)
-		if t47 == 34 {
-			continue next
-		}
-		t48 = m.ScanFind3(q, rt.Sel32((v == 40), 41, rt.Sel32((v == 123), 125, 93)), 10, 13)
-		p = t48
-		if p > q {
-			c = rt.Ld8(m.Mem, int((p - 1)))
-			if (c == 47) || (c == 92) {
-				p = p - 1
-			}
-		}
-		m.EmitTok(44, q, p)
-		m.Ptr = p
-		t49 = m.TemplateByte(p)
-		c = t49
-		if (c == 47) || (c == 92) {
-			m.Ptr = m.Ptr + 1
-		}
-	loop64:
-		for {
-			t50 = m.TemplateByte(m.Ptr)
-			c = t50
-			if (rt.Clz32((rt.Ld8(m.Mem, int(c)+1680) & 8)) >> 5) != 0 {
-				break loop64
-			}
-			m.Ptr = m.Ptr + 1
-			continue loop64
-		}
-		m.EmitTok(32, p, m.Ptr)
-		continue next
-	punct:
-		tok = rt.Sel32(((c == 44) || (c == 59)), 35, rt.Sel32(((rt.Ld8(m.Mem, int(c)+2192)&1) != 0), 32, rt.Sel32(((rt.Ld8(m.Mem, int(c)+4240)&1) != 0), 25, 0)))
-		goto emit
 	emit:
 		m.EmitTok(tok, lhs, m.Ptr)
 		continue next
@@ -40972,142 +40467,141 @@ next:
 				}
 			}
 			m.EmitTok(hl, lhs, rhs)
-			goto sig
-		}
-		t25 = m.LexIsDigit(c)
-		if t25 != 0 {
-			if member == 1 {
-			index:
-				for {
-					m.Ptr = m.Ptr + 1
-					t26 = m.TemplateByte(m.Ptr)
-					t27 = m.LexIsDigit(t26)
-					if t27 != 0 {
-						continue index
+		} else {
+			t25 = m.LexIsDigit(c)
+			if t25 != 0 {
+				if member == 1 {
+				index:
+					for {
+						m.Ptr = m.Ptr + 1
+						t26 = m.TemplateByte(m.Ptr)
+						t27 = m.LexIsDigit(t26)
+						if t27 != 0 {
+							continue index
+						}
+						break
 					}
-					break
-				}
-			} else {
-				m.LexScanNumber()
-			}
-			m.EmitTok(24, lhs, m.Ptr)
-			goto sig
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			member = 0
-			if (c == 125) && (str != 0) {
-				m.EmitTok(40, lhs, m.Ptr)
-				t28 = m.MoonbitString(str, 1, m.Ptr)
-				if t28 == 0 {
-					str = 0
-				}
-				continue next
-			}
-			m.EmitTok(32, lhs, m.Ptr)
-			if c == 40 {
-				m.SigParens = m.SigParens + 1
-				if m.SigFnAngle == 0 {
-					if m.SigFnPend != 0 {
-						m.SigMark()
-					}
-					m.SigFnPend = 0
-				}
-				m.SigPattern = 1
-				continue next
-			}
-			m.SigPattern = 0
-			if c == 41 {
-				t29 = m.SigActive()
-				if t29 != 0 {
-					m.SigUnmark()
-				}
-				if m.SigParens != 0 {
-					m.SigParens = m.SigParens - 1
-				}
-				continue next
-			}
-			if c == 91 {
-				m.SigFnAngle = m.SigFnAngle + m.SigFnPend
-			}
-			if (c == 93) && (m.SigFnAngle != 0) {
-				m.SigFnAngle = m.SigFnAngle - 1
-			}
-			if m.SigFnAngle == 0 {
-				m.SigFnPend = m.SigFnPend & rt.B2u(c == 93)
-			}
-			t30 = m.SigActive()
-			if t30 != 0 {
-				if (rt.Ld8(m.Mem, int(c)+1936) & 2) != 0 {
-					m.SigObscure = m.SigObscure + 1
 				} else {
-					if m.SigObscure != 0 {
-						m.SigObscure = m.SigObscure - 1
-					}
+					m.LexScanNumber()
 				}
-			}
-			continue next
-		}
-		if c == 58 {
-			path = rt.B2u(c2 == 58)
-			m.Ptr = (m.Ptr + 1) + path
-			m.EmitTok(35, lhs, m.Ptr)
-			member = path << 1
-			m.SigPattern = 0
-			continue next
-		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			m.SigPattern = rt.B2u(c == 44)
-			goto tok
-		}
-		if c == 46 {
-			if c2 == 46 {
-				m.Ptr = m.Ptr + 2
-				t31 = m.TemplateByte(m.Ptr)
-				c = t31
-				if (c == 60) || (c == 61) {
-					m.Ptr = m.Ptr + 1
-				}
-				m.EmitTok(25, lhs, m.Ptr)
-				member = rt.Sel32(((m.Ptr - lhs) == 2), 3, 0)
+				m.EmitTok(24, lhs, m.Ptr)
 			} else {
-				m.Ptr = m.Ptr + 1
-				m.EmitTok(35, lhs, m.Ptr)
-				member = 1
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					m.Ptr = m.Ptr + 1
+					member = 0
+					if (c == 125) && (str != 0) {
+						m.EmitTok(40, lhs, m.Ptr)
+						t28 = m.MoonbitString(str, 1, m.Ptr)
+						if t28 == 0 {
+							str = 0
+						}
+						continue next
+					}
+					m.EmitTok(32, lhs, m.Ptr)
+					if c == 40 {
+						m.SigParens = m.SigParens + 1
+						if m.SigFnAngle == 0 {
+							if m.SigFnPend != 0 {
+								m.SigMark()
+							}
+							m.SigFnPend = 0
+						}
+						m.SigPattern = 1
+						continue next
+					}
+					m.SigPattern = 0
+					if c == 41 {
+						t29 = m.SigActive()
+						if t29 != 0 {
+							m.SigUnmark()
+						}
+						if m.SigParens != 0 {
+							m.SigParens = m.SigParens - 1
+						}
+						continue next
+					}
+					if c == 91 {
+						m.SigFnAngle = m.SigFnAngle + m.SigFnPend
+					}
+					if (c == 93) && (m.SigFnAngle != 0) {
+						m.SigFnAngle = m.SigFnAngle - 1
+					}
+					if m.SigFnAngle == 0 {
+						m.SigFnPend = m.SigFnPend & rt.B2u(c == 93)
+					}
+					t30 = m.SigActive()
+					if t30 != 0 {
+						if (rt.Ld8(m.Mem, int(c)+1936) & 2) != 0 {
+							m.SigObscure = m.SigObscure + 1
+						} else {
+							if m.SigObscure != 0 {
+								m.SigObscure = m.SigObscure - 1
+							}
+						}
+					}
+					continue next
+				}
+				if c == 58 {
+					path = rt.B2u(c2 == 58)
+					m.Ptr = (m.Ptr + 1) + path
+					m.EmitTok(35, lhs, m.Ptr)
+					member = path << 1
+					m.SigPattern = 0
+					continue next
+				}
+				if (c == 44) || (c == 59) {
+					m.Ptr = m.Ptr + 1
+					m.EmitTok(35, lhs, m.Ptr)
+					m.SigPattern = rt.B2u(c == 44)
+					goto tok
+				}
+				if c == 46 {
+					if c2 == 46 {
+						m.Ptr = m.Ptr + 2
+						t31 = m.TemplateByte(m.Ptr)
+						c = t31
+						if (c == 60) || (c == 61) {
+							m.Ptr = m.Ptr + 1
+						}
+						m.EmitTok(25, lhs, m.Ptr)
+						member = rt.Sel32(((m.Ptr - lhs) == 2), 3, 0)
+					} else {
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(35, lhs, m.Ptr)
+						member = 1
+					}
+					m.SigPattern = 0
+					continue next
+				}
+				if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
+				op:
+					for {
+						m.Ptr = m.Ptr + 1
+						t32 = m.TemplateByte(m.Ptr)
+						c = t32
+						if (rt.Clz32((rt.Ld8(m.Mem, int(c)+2192) & 32)) >> 5) != 0 {
+							break op
+						}
+						if c != 47 {
+							continue op
+						}
+						t33 = m.TemplateByte(m.Ptr + 1)
+						if t33 != 47 {
+							continue op
+						}
+						break
+					}
+					m.EmitTok(25, lhs, m.Ptr)
+					if m.SigFnAngle == 0 {
+						m.SigFnPend = 0
+					}
+				} else {
+					m.Ptr = m.Ptr + 1
+					m.EmitTok(0, lhs, m.Ptr)
+					goto tok
+				}
 			}
-			m.SigPattern = 0
-			continue next
 		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
-		op:
-			for {
-				m.Ptr = m.Ptr + 1
-				t32 = m.TemplateByte(m.Ptr)
-				c = t32
-				if (rt.Clz32((rt.Ld8(m.Mem, int(c)+2192) & 32)) >> 5) != 0 {
-					break op
-				}
-				if c != 47 {
-					continue op
-				}
-				t33 = m.TemplateByte(m.Ptr + 1)
-				if t33 != 47 {
-					continue op
-				}
-				break
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			if m.SigFnAngle == 0 {
-				m.SigFnPend = 0
-			}
-			goto sig
-		}
-		m.Ptr = m.Ptr + 1
-		m.EmitTok(0, lhs, m.Ptr)
-		goto tok
-	sig:
 		m.SigPattern = 0
 	tok:
 		member = 0
@@ -41626,267 +41120,264 @@ next:
 				continue str
 			}
 			tok = 44
-			goto emit
-		}
-		if c == 39 {
-			m.Ptr = m.Ptr + 1
-			if c2 == 92 {
-				t15 = m.NimEscapeEnd(m.Ptr)
-				p = t15
-			} else {
-				t16 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-				p = t16
-			}
-			t17 = m.TemplateByte(p)
-			if (rt.B2u(t17 == 39) & (rt.Clz32((rt.Ld8(m.Mem, int(c2)+4752) & 16)) >> 5)) != 0 {
-				m.EmitTok(44, lhs, m.Ptr)
-				m.EmitTok(rt.Sel32((c2 == 92), 45, 44), m.Ptr, p)
-				m.Ptr = p + 1
-				m.EmitTok(44, p, m.Ptr)
-			} else {
-				m.EmitTok(0, lhs, m.Ptr)
-			}
-			continue next
-		}
-		t18 = m.LexIsDigit(c)
-		if t18 != 0 {
-			m.LexScanNumber()
-			t19 = m.TemplateByte(m.Ptr)
-			t20 = m.TemplateByte(m.Ptr + 1)
-			t21 = m.LexIsIdentStart(t20)
-			if (rt.B2u(t19 == 39) & t21) != 0 {
+		} else {
+			if c == 39 {
 				m.Ptr = m.Ptr + 1
-				m.ScanIdentRun(95)
-			}
-			tok = 24
-			goto emit
-		}
-		if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
-			m.Ptr = m.Ptr + 1
-			m.ScanIdentRun(95)
-			t22 = m.TemplateByte(m.Ptr)
-			if t22 == 34 {
-				p = m.Ptr
-				if (rt.Clz32(rt.B2u(((p-lhs) == 1) && ((c|32) == 114))) >> 5) != 0 {
-					m.EmitTok(14, lhs, p)
-					lhs = p
-				}
-				t23 = m.TemplateByte(p + 1)
-				t24 = m.TemplateByte(p + 2)
-				if (t23 == 34) && (t24 == 34) {
-					m.Ptr = p + 3
-					t25 = m.NimTriple(lhs)
-					triple = t25
+				if c2 == 92 {
+					t15 = m.NimEscapeEnd(m.Ptr)
+					p = t15
 				} else {
+					t16 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+					p = t16
+				}
+				t17 = m.TemplateByte(p)
+				if (rt.B2u(t17 == 39) & (rt.Clz32((rt.Ld8(m.Mem, int(c2)+4752) & 16)) >> 5)) != 0 {
+					m.EmitTok(44, lhs, m.Ptr)
+					m.EmitTok(rt.Sel32((c2 == 92), 45, 44), m.Ptr, p)
 					m.Ptr = p + 1
-					m.NimRawString(lhs)
-				}
-				continue next
-			}
-			g = 0xffffffff
-			if dot == 0 {
-				t26 = m.LexKeywordValue(lhs, m.Ptr, 22816, 31, 105)
-				g = t26
-				if (g == 0xffffffff) && ((m.Ptr - lhs) == 5) {
-					if (rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x6573696172 {
-						g = 18
-					}
-				}
-				if (g == 0xffffffff) && ((m.Ptr - lhs) == 6) {
-					if (rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffff) == 0x74726f707865 {
-						g = 532
-					}
-				}
-			}
-			hl = g & 255
-			if g != 0xffffffff {
-				if (g >> 8) == 1 {
-					afterDecl = 1
-					m.SigFnPend = 1
-					m.SigFnAngle = 0
-				}
-				if (g >> 8) == 2 {
-					import_ = 1
-				}
-				goto classified
-			}
-			nameEnd = m.Ptr
-			hl = 15
-			if decl != 0 {
-				defEnd = m.Ptr
-				m.SigFnPend = 1
-				m.SigFnAngle = 0
-				goto classified
-			}
-			hl = 23
-			if import_ != 0 {
-				import_ = 1
-				goto classified
-			}
-			hl = 1
-			if pragma == 1 {
-				pragma = 2
-				goto classified
-			}
-			t27 = m.TemplateByte(m.Ptr)
-			p = rt.B2u(t27 == 40)
-			if dot != 0 {
-				hl = rt.Sel32((p != 0), 16, 29)
-				goto classified
-			}
-			hl = 59
-			t28 = m.SigActive()
-			if ((t28 & m.SigPattern) & rt.B2u(m.SigObscure == 0)) != 0 {
-				goto classified
-			}
-			if (c - 65) <= 25 {
-				t29 = m.LexIsConstCase(lhs, m.Ptr)
-				hl = rt.Sel32((t29 != 0), 6, 55)
-				goto classified
-			}
-			hl = rt.Sel32((p != 0), 14, 58)
-		classified:
-			m.EmitTok(hl, lhs, m.Ptr)
-			m.SigPattern = 0
-			continue next
-		}
-		if c == 96 {
-			t30 = m.ScanFindSpecial(m.Ptr+1, m.End, 96, 0, 1)
-			p = t30
-			t31 = m.TemplateByte(p)
-			if t31 == 96 {
-				m.Ptr = p + 1
-				m.EmitTok(40, lhs, lhs+1)
-				if decl != 0 {
-					t32 = 15
+					m.EmitTok(44, p, m.Ptr)
 				} else {
-					t33 = m.TemplateByte(m.Ptr)
-					t32 = rt.Sel32((t33 == 40), 14, 58)
-				}
-				m.EmitTok(t32, lhs+1, p)
-				m.EmitTok(40, p, m.Ptr)
-				nameEnd = m.Ptr
-				if decl != 0 {
-					defEnd = m.Ptr
-					m.SigFnPend = 1
-					m.SigFnAngle = 0
+					m.EmitTok(0, lhs, m.Ptr)
 				}
 				continue next
 			}
-			m.Ptr = m.Ptr + 1
-			tok = 0
-			goto emit
-		}
-		t34 = (c == 123) && (c2 == 46)
-		t35 = m.TemplateByte(m.Ptr + 2)
-		if t34 && (t35 != 46) {
-			m.Ptr = m.Ptr + 2
-			m.EmitTok(32, lhs, m.Ptr)
-			pragma = 1
-			continue next
-		}
-		if (pragma != 0) && ((c == 46) && (c2 == 125)) {
-			m.Ptr = m.Ptr + 2
-			m.EmitTok(32, lhs, m.Ptr)
-			pragma = 0
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			if c == 40 {
-				m.SigParens = m.SigParens + 1
-				if m.SigFnAngle == 0 {
-					if m.SigFnPend != 0 {
-						m.SigMark()
-					}
-					m.SigFnPend = 0
+			t18 = m.LexIsDigit(c)
+			if t18 != 0 {
+				m.LexScanNumber()
+				t19 = m.TemplateByte(m.Ptr)
+				t20 = m.TemplateByte(m.Ptr + 1)
+				t21 = m.LexIsIdentStart(t20)
+				if (rt.B2u(t19 == 39) & t21) != 0 {
+					m.Ptr = m.Ptr + 1
+					m.ScanIdentRun(95)
 				}
-				m.SigPattern = 1
+				tok = 24
 			} else {
-				m.SigPattern = 0
-				if c == 41 {
-					t36 = m.SigActive()
-					if t36 != 0 {
-						m.SigUnmark()
-					}
-					if m.SigParens != 0 {
-						m.SigParens = m.SigParens - 1
-					}
-				} else {
-					if m.SigFnPend != 0 {
-						if c == 91 {
-							m.SigFnAngle = m.SigFnAngle + 1
+				if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
+					m.Ptr = m.Ptr + 1
+					m.ScanIdentRun(95)
+					t22 = m.TemplateByte(m.Ptr)
+					if t22 == 34 {
+						p = m.Ptr
+						if (rt.Clz32(rt.B2u(((p-lhs) == 1) && ((c|32) == 114))) >> 5) != 0 {
+							m.EmitTok(14, lhs, p)
+							lhs = p
+						}
+						t23 = m.TemplateByte(p + 1)
+						t24 = m.TemplateByte(p + 2)
+						if (t23 == 34) && (t24 == 34) {
+							m.Ptr = p + 3
+							t25 = m.NimTriple(lhs)
+							triple = t25
 						} else {
-							if c == 93 {
-								m.SigFnAngleDrop(1)
-							} else {
-								m.SigFnPend = 0
+							m.Ptr = p + 1
+							m.NimRawString(lhs)
+						}
+						continue next
+					}
+					g = 0xffffffff
+					if dot == 0 {
+						t26 = m.LexKeywordValue(lhs, m.Ptr, 22816, 31, 105)
+						g = t26
+						if (g == 0xffffffff) && ((m.Ptr - lhs) == 5) {
+							if (rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x6573696172 {
+								g = 18
 							}
 						}
+						if (g == 0xffffffff) && ((m.Ptr - lhs) == 6) {
+							if (rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffff) == 0x74726f707865 {
+								g = 532
+							}
+						}
+					}
+					hl = g & 255
+					if g != 0xffffffff {
+						if (g >> 8) == 1 {
+							afterDecl = 1
+							m.SigFnPend = 1
+							m.SigFnAngle = 0
+						}
+						if (g >> 8) == 2 {
+							import_ = 1
+						}
 					} else {
-						t37 = m.SigActive()
-						if t37 != 0 {
-							if (rt.Ld8(m.Mem, int(c)+1936) & 2) != 0 {
-								m.SigObscure = m.SigObscure + 1
+						nameEnd = m.Ptr
+						hl = 15
+						if decl != 0 {
+							defEnd = m.Ptr
+							m.SigFnPend = 1
+							m.SigFnAngle = 0
+						} else {
+							hl = 23
+							if import_ != 0 {
+								import_ = 1
 							} else {
-								if m.SigObscure != 0 {
-									m.SigObscure = m.SigObscure - 1
+								hl = 1
+								if pragma == 1 {
+									pragma = 2
+								} else {
+									t27 = m.TemplateByte(m.Ptr)
+									p = rt.B2u(t27 == 40)
+									if dot != 0 {
+										hl = rt.Sel32((p != 0), 16, 29)
+									} else {
+										hl = 59
+										t28 = m.SigActive()
+										if ((t28 & m.SigPattern) & rt.B2u(m.SigObscure == 0)) == 0 {
+											if (c - 65) <= 25 {
+												t29 = m.LexIsConstCase(lhs, m.Ptr)
+												hl = rt.Sel32((t29 != 0), 6, 55)
+											} else {
+												hl = rt.Sel32((p != 0), 14, 58)
+											}
+										}
+									}
 								}
 							}
 						}
 					}
+					m.EmitTok(hl, lhs, m.Ptr)
+					m.SigPattern = 0
+					continue next
+				}
+				if c == 96 {
+					t30 = m.ScanFindSpecial(m.Ptr+1, m.End, 96, 0, 1)
+					p = t30
+					t31 = m.TemplateByte(p)
+					if t31 == 96 {
+						m.Ptr = p + 1
+						m.EmitTok(40, lhs, lhs+1)
+						if decl != 0 {
+							t32 = 15
+						} else {
+							t33 = m.TemplateByte(m.Ptr)
+							t32 = rt.Sel32((t33 == 40), 14, 58)
+						}
+						m.EmitTok(t32, lhs+1, p)
+						m.EmitTok(40, p, m.Ptr)
+						nameEnd = m.Ptr
+						if decl != 0 {
+							defEnd = m.Ptr
+							m.SigFnPend = 1
+							m.SigFnAngle = 0
+						}
+						continue next
+					}
+					m.Ptr = m.Ptr + 1
+					tok = 0
+				} else {
+					t34 = (c == 123) && (c2 == 46)
+					t35 = m.TemplateByte(m.Ptr + 2)
+					if t34 && (t35 != 46) {
+						m.Ptr = m.Ptr + 2
+						m.EmitTok(32, lhs, m.Ptr)
+						pragma = 1
+						continue next
+					}
+					if (pragma != 0) && ((c == 46) && (c2 == 125)) {
+						m.Ptr = m.Ptr + 2
+						m.EmitTok(32, lhs, m.Ptr)
+						pragma = 0
+						continue next
+					}
+					if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+						if c == 40 {
+							m.SigParens = m.SigParens + 1
+							if m.SigFnAngle == 0 {
+								if m.SigFnPend != 0 {
+									m.SigMark()
+								}
+								m.SigFnPend = 0
+							}
+							m.SigPattern = 1
+						} else {
+							m.SigPattern = 0
+							if c == 41 {
+								t36 = m.SigActive()
+								if t36 != 0 {
+									m.SigUnmark()
+								}
+								if m.SigParens != 0 {
+									m.SigParens = m.SigParens - 1
+								}
+							} else {
+								if m.SigFnPend != 0 {
+									if c == 91 {
+										m.SigFnAngle = m.SigFnAngle + 1
+									} else {
+										if c == 93 {
+											m.SigFnAngleDrop(1)
+										} else {
+											m.SigFnPend = 0
+										}
+									}
+								} else {
+									t37 = m.SigActive()
+									if t37 != 0 {
+										if (rt.Ld8(m.Mem, int(c)+1936) & 2) != 0 {
+											m.SigObscure = m.SigObscure + 1
+										} else {
+											if m.SigObscure != 0 {
+												m.SigObscure = m.SigObscure - 1
+											}
+										}
+									}
+								}
+							}
+						}
+						if (rt.Ld8(m.Mem, int(c)+1680) & 4) != 0 {
+							depth = depth + 1
+						} else {
+							if depth != 0 {
+								depth = depth - 1
+							}
+						}
+						m.Ptr = m.Ptr + 1
+						tok = 32
+					} else {
+						if (c == 44) || (c == 59) {
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(35, lhs, m.Ptr)
+							m.SigPattern = 1
+							if pragma == 2 {
+								pragma = 1
+							}
+							if import_ != 0 {
+								import_ = rt.Sel32((c == 44), 2, 0)
+							}
+							continue next
+						}
+						if (rt.Ld8(m.Mem, int(c)+4752) & 32) != 0 {
+							m.SigPattern = 0
+							if (rt.B2u((c == 42) && (lhs == nameEnd)) & (rt.B2u(lhs == defEnd) | ((rt.Ld8(m.Mem, int(c2)+4752) >> 6) & 1))) != 0 {
+								m.Ptr = m.Ptr + 1
+								tok = 40
+								goto emit
+							}
+						op:
+							for {
+								m.Ptr = m.Ptr + 1
+								t38 = m.TemplateByte(m.Ptr)
+								p = t38
+								if (rt.Ld8(m.Mem, int(p)+4752) & 32) != 0 {
+									continue op
+								}
+								break
+							}
+							if ((m.Ptr - lhs) == 1) && ((c == 46) || (c == 58)) {
+								m.EmitTok(35, lhs, m.Ptr)
+								afterDot = rt.B2u(c == 46)
+							} else {
+								m.EmitTok(25, lhs, m.Ptr)
+							}
+							continue next
+						}
+						m.Ptr = m.Ptr + 1
+						tok = 0
+					}
 				}
 			}
-			if (rt.Ld8(m.Mem, int(c)+1680) & 4) != 0 {
-				depth = depth + 1
-			} else {
-				if depth != 0 {
-					depth = depth - 1
-				}
-			}
-			m.Ptr = m.Ptr + 1
-			tok = 32
-			goto emit
 		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			m.SigPattern = 1
-			if pragma == 2 {
-				pragma = 1
-			}
-			if import_ != 0 {
-				import_ = rt.Sel32((c == 44), 2, 0)
-			}
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+4752) & 32) != 0 {
-			m.SigPattern = 0
-			if (rt.B2u((c == 42) && (lhs == nameEnd)) & (rt.B2u(lhs == defEnd) | ((rt.Ld8(m.Mem, int(c2)+4752) >> 6) & 1))) != 0 {
-				m.Ptr = m.Ptr + 1
-				tok = 40
-				goto emit
-			}
-		op:
-			for {
-				m.Ptr = m.Ptr + 1
-				t38 = m.TemplateByte(m.Ptr)
-				p = t38
-				if (rt.Ld8(m.Mem, int(p)+4752) & 32) != 0 {
-					continue op
-				}
-				break
-			}
-			if ((m.Ptr - lhs) == 1) && ((c == 46) || (c == 58)) {
-				m.EmitTok(35, lhs, m.Ptr)
-				afterDot = rt.B2u(c == 46)
-			} else {
-				m.EmitTok(25, lhs, m.Ptr)
-			}
-			continue next
-		}
-		m.Ptr = m.Ptr + 1
-		tok = 0
-		goto emit
 	emit:
 		m.EmitTok(tok, lhs, m.Ptr)
 		continue next
@@ -41995,41 +41486,41 @@ scan:
 		c2 = t2
 		if c == 34 {
 			m.Ptr = p + 1
-			goto block4
-		}
-		if c == 92 {
-			t3 = m.LexEscapeEnd(p)
-			e = t3
-			goto escape
-		}
-		if c == 39 {
-			if c2 != 39 {
-				m.Ptr = p + 1
-				continue scan
+		} else {
+			if c == 92 {
+				t3 = m.LexEscapeEnd(p)
+				e = t3
+				goto escape
 			}
-			t4 = m.NixByte(p + 2)
-			c2 = t4
-			if (c2 == 39) || (c2 == 36) {
-				e = p + 3
-			} else {
-				if c2 == 92 {
-					t5 = m.LexEscapeEnd(p + 2)
-					e = t5
-				} else {
-					m.Ptr = p + 2
-					goto block4
+			if c == 39 {
+				if c2 != 39 {
+					m.Ptr = p + 1
+					continue scan
 				}
+				t4 = m.NixByte(p + 2)
+				c2 = t4
+				if (c2 == 39) || (c2 == 36) {
+					e = p + 3
+				} else {
+					if c2 == 92 {
+						t5 = m.LexEscapeEnd(p + 2)
+						e = t5
+					} else {
+						m.Ptr = p + 2
+						goto block4
+					}
+				}
+				goto escape
 			}
-			goto escape
+			if (c2 == 123) && (nested == 0) {
+				m.EmitTok(44, seg, p)
+				m.Ptr = p + 2
+				m.EmitTok(40, p, m.Ptr)
+				return 2
+			}
+			m.Ptr = p + 1
+			continue scan
 		}
-		if (c2 == 123) && (nested == 0) {
-			m.EmitTok(44, seg, p)
-			m.Ptr = p + 2
-			m.EmitTok(40, p, m.Ptr)
-			return 2
-		}
-		m.Ptr = p + 1
-		continue scan
 	block4:
 		m.EmitTok(44, seg, m.Ptr)
 		return 1
@@ -42545,161 +42036,160 @@ next:
 				m.EmitTok(44, lhs, m.Ptr)
 				t8 = m.LexCString(44)
 				strCont = t8
-				goto tail0
-			}
-			t9 = m.LexIsIdentStart(c2)
-			if t9 != 0 {
-				m.Ptr = m.Ptr + 1
-				m.LexScanIdent()
-				t10 = m.ObjcWordHl(lhs+1, m.Ptr, 1, 0)
-				kind = t10
-				m.EmitTok(kind&255, lhs, m.Ptr)
-				expectType = (kind >> 8) & 1
-				propAttrs = (kind >> 9) & 1
-				goto tail0
-			}
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(40, lhs, m.Ptr)
-			goto tail0
-		}
-		if (c == 34) || (c == 39) {
-			t11 = m.LexCString(44)
-			strCont = t11
-			goto tail0
-		}
-		t12 = m.LexIsIdentStart(c)
-		if t12 != 0 {
-			m.LexScanIdent()
-			rhs = m.Ptr
-			t13 = m.ObjcByte(rhs)
-			c2 = t13
-			t14 = m.LexSkipSpaceAt(rhs)
-			p = t14
-			t15 = m.ObjcByte(p)
-			c3 = t15
-			if ((rhs - lhs) == 1) && (((c == 76) || ((c == 117) || (c == 85))) && ((c2 == 34) || (c2 == 39))) {
-				m.EmitTok(44, lhs, rhs)
-				t16 = m.LexCString(44)
-				strCont = t16
-				goto tail0
-			}
-			t17 = m.ObjcWordHl(lhs, rhs, 0, propAttrs)
-			kind = rt.Sel32((member != 0), 0xffffffff, t17)
-			if int32(kind) >= int32(0) {
-				hl = kind
 			} else {
-				if expectType != 0 {
-					hl = 55
-					expectType = 0
+				t9 = m.LexIsIdentStart(c2)
+				if t9 != 0 {
+					m.Ptr = m.Ptr + 1
+					m.LexScanIdent()
+					t10 = m.ObjcWordHl(lhs+1, m.Ptr, 1, 0)
+					kind = t10
+					m.EmitTok(kind&255, lhs, m.Ptr)
+					expectType = (kind >> 8) & 1
+					propAttrs = (kind >> 9) & 1
 				} else {
-					t18 = c2 == 58
-					t19 = m.ObjcByte(rhs + 1)
-					if t18 && (t19 != 58) {
-						hl = rt.Sel32(((declHead & rt.B2u(parens == 0)) != 0), 15, 16)
-						if declHead != 0 {
-							declColon = 1
-						}
+					m.Ptr = m.Ptr + 1
+					m.EmitTok(40, lhs, m.Ptr)
+				}
+			}
+		} else {
+			if (c == 34) || (c == 39) {
+				t11 = m.LexCString(44)
+				strCont = t11
+			} else {
+				t12 = m.LexIsIdentStart(c)
+				if t12 != 0 {
+					m.LexScanIdent()
+					rhs = m.Ptr
+					t13 = m.ObjcByte(rhs)
+					c2 = t13
+					t14 = m.LexSkipSpaceAt(rhs)
+					p = t14
+					t15 = m.ObjcByte(p)
+					c3 = t15
+					if ((rhs - lhs) == 1) && (((c == 76) || ((c == 117) || (c == 85))) && ((c2 == 34) || (c2 == 39))) {
+						m.EmitTok(44, lhs, rhs)
+						t16 = m.LexCString(44)
+						strCont = t16
 					} else {
-						if ((declHead & rt.B2u(parens == 0)) & rt.B2u((declColon == 0) && ((c3 == 59) || (c3 == 123)))) != 0 {
-							hl = 15
+						t17 = m.ObjcWordHl(lhs, rhs, 0, propAttrs)
+						kind = rt.Sel32((member != 0), 0xffffffff, t17)
+						if int32(kind) >= int32(0) {
+							hl = kind
 						} else {
-							t20 = (brackets != 0) && (c3 == 93)
-							t21 = gap < lhs
-							t22 = m.LexIsIdentContinue(prev)
-							if (rt.B2u(t20) & (rt.B2u(t21) & (t22 | rt.B2u((prev == 93) || (prev == 41))))) != 0 {
-								hl = 16
+							if expectType != 0 {
+								hl = 55
+								expectType = 0
 							} else {
-								if member != 0 {
-									hl = rt.Sel32((c3 == 40), 16, 29)
+								t18 = c2 == 58
+								t19 = m.ObjcByte(rhs + 1)
+								if t18 && (t19 != 58) {
+									hl = rt.Sel32(((declHead & rt.B2u(parens == 0)) != 0), 15, 16)
+									if declHead != 0 {
+										declColon = 1
+									}
 								} else {
-									t23 = m.CWordHl(lhs, rhs)
-									hl = t23
+									if ((declHead & rt.B2u(parens == 0)) & rt.B2u((declColon == 0) && ((c3 == 59) || (c3 == 123)))) != 0 {
+										hl = 15
+									} else {
+										t20 = (brackets != 0) && (c3 == 93)
+										t21 = gap < lhs
+										t22 = m.LexIsIdentContinue(prev)
+										if (rt.B2u(t20) & (rt.B2u(t21) & (t22 | rt.B2u((prev == 93) || (prev == 41))))) != 0 {
+											hl = 16
+										} else {
+											if member != 0 {
+												hl = rt.Sel32((c3 == 40), 16, 29)
+											} else {
+												t23 = m.CWordHl(lhs, rhs)
+												hl = t23
+											}
+										}
+									}
+								}
+							}
+						}
+						m.EmitTok(hl, lhs, rhs)
+					}
+				} else {
+					t24 = m.LexIsDigit(c)
+					t25 = c == 46
+					t26 = m.LexIsDigit(c2)
+					if (t24 | (rt.B2u(t25) & t26)) != 0 {
+						m.LexScanHexNumber(0)
+						m.EmitTok(24, lhs, m.Ptr)
+					} else {
+						if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(32, lhs, m.Ptr)
+							if c == 40 {
+								parens = parens + 1
+							}
+							if c == 41 {
+								if parens != 0 {
+									parens = parens - 1
+								}
+								if parens == 0 {
+									propAttrs = 0
+								}
+							}
+							if c == 91 {
+								brackets = brackets + 1
+							}
+							if (c == 93) && (brackets != 0) {
+								brackets = brackets - 1
+							}
+							if (c == 123) || (c == 125) {
+								declHead = 0
+								parens = 0
+								expectType = 0
+							}
+						} else {
+							if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
+								m.Ptr = m.Ptr + 1
+								m.EmitTok(35, lhs, m.Ptr)
+								if c == 59 {
+									declHead = 0
+									expectType = 0
+								}
+							} else {
+								if (c == 46) || ((c == 45) && (c2 == 62)) {
+									m.Ptr = m.Ptr + rt.Sel32((c == 45), 2, 1)
+									m.EmitTok(rt.Sel32((c == 45), 25, 35), lhs, m.Ptr)
+									member = 1
+									continue next
+								}
+								t27 = (c == 45) || (c == 43)
+								t28 = prev == 0
+								t29 = m.LexSkipSpaceAt(m.Ptr + 1)
+								t30 = m.ObjcByte(t29)
+								if t27 && (t28 && (t30 == 40)) {
+									m.Ptr = m.Ptr + 1
+									m.EmitTok(25, lhs, m.Ptr)
+									declHead = 1
+									declColon = 0
+									parens = 0
+								} else {
+									t31 = m.CIsOp(c)
+									if t31 != 0 {
+										m.Ptr = m.Ptr + 1
+										if (rt.B2u(c2 == 61) | (rt.B2u(c == c2) & (rt.Ld8(m.Mem, int(c)+2192) >> 7))) != 0 {
+											m.Ptr = m.Ptr + 1
+											if ((c == 60) || (c == 62)) && (c3 == 61) {
+												m.Ptr = m.Ptr + 1
+											}
+										}
+										m.EmitTok(25, lhs, m.Ptr)
+									} else {
+										m.Ptr = m.Ptr + 1
+										m.EmitTok(0, lhs, m.Ptr)
+									}
 								}
 							}
 						}
 					}
 				}
 			}
-			m.EmitTok(hl, lhs, rhs)
-			goto tail0
 		}
-		t24 = m.LexIsDigit(c)
-		t25 = c == 46
-		t26 = m.LexIsDigit(c2)
-		if (t24 | (rt.B2u(t25) & t26)) != 0 {
-			m.LexScanHexNumber(0)
-			m.EmitTok(24, lhs, m.Ptr)
-			goto tail0
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(32, lhs, m.Ptr)
-			if c == 40 {
-				parens = parens + 1
-			}
-			if c == 41 {
-				if parens != 0 {
-					parens = parens - 1
-				}
-				if parens == 0 {
-					propAttrs = 0
-				}
-			}
-			if c == 91 {
-				brackets = brackets + 1
-			}
-			if (c == 93) && (brackets != 0) {
-				brackets = brackets - 1
-			}
-			if (c == 123) || (c == 125) {
-				declHead = 0
-				parens = 0
-				expectType = 0
-			}
-			goto tail0
-		}
-		if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			if c == 59 {
-				declHead = 0
-				expectType = 0
-			}
-			goto tail0
-		}
-		if (c == 46) || ((c == 45) && (c2 == 62)) {
-			m.Ptr = m.Ptr + rt.Sel32((c == 45), 2, 1)
-			m.EmitTok(rt.Sel32((c == 45), 25, 35), lhs, m.Ptr)
-			member = 1
-			continue next
-		}
-		t27 = (c == 45) || (c == 43)
-		t28 = prev == 0
-		t29 = m.LexSkipSpaceAt(m.Ptr + 1)
-		t30 = m.ObjcByte(t29)
-		if t27 && (t28 && (t30 == 40)) {
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(25, lhs, m.Ptr)
-			declHead = 1
-			declColon = 0
-			parens = 0
-			goto tail0
-		}
-		t31 = m.CIsOp(c)
-		if t31 != 0 {
-			m.Ptr = m.Ptr + 1
-			if (rt.B2u(c2 == 61) | (rt.B2u(c == c2) & (rt.Ld8(m.Mem, int(c)+2192) >> 7))) != 0 {
-				m.Ptr = m.Ptr + 1
-				if ((c == 60) || (c == 62)) && (c3 == 61) {
-					m.Ptr = m.Ptr + 1
-				}
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			goto tail0
-		}
-		m.Ptr = m.Ptr + 1
-		m.EmitTok(0, lhs, m.Ptr)
-	tail0:
 		member = 0
 		continue next
 	}
@@ -42975,236 +42465,235 @@ next:
 		c3 = t1
 		if ((c == 47) && (c2 == 47)) || ((c == 35) && (c2 == 33)) {
 			m.LexLineComment(2, 4)
-			goto block10
-		}
-		if (c == 47) && (c2 == 42) {
-			m.LexNestedBlockComment(10799, 12074, 4)
-			continue next
-		}
-		if c == 34 {
-			if (c2 == 34) && (c3 == 34) {
-				m.OdinTripleString(34)
-			} else {
-				m.LexString(34, 0, 44)
+		} else {
+			if (c == 47) && (c2 == 42) {
+				m.LexNestedBlockComment(10799, 12074, 4)
+				continue next
 			}
-			goto block10
-		}
-		if c == 39 {
-			m.LexString(39, 0, 44)
-			goto block10
-		}
-		if c == 96 {
-			if (c2 == 96) && (c3 == 96) {
-				m.OdinTripleString(96)
-			} else {
-				m.LexRawString(96, 1, 44)
-			}
-			goto block10
-		}
-		if c == 64 {
-			m.Ptr = lhs + 1
-			t2 = m.LexIsIdentStart(c2)
-			if t2 != 0 {
-				m.LexScanIdent()
-				hl = 1
-				goto tok
-			}
-			hl = 40
-			if c2 == 40 {
-				m.EmitTok(1, lhs, m.Ptr)
-				lhs = m.Ptr
-				m.Ptr = lhs + 1
-				hl = 32
-				attrDepth = attrDepth + 1
-			}
-			goto tok
-		}
-		if c == 35 {
-			hl = 1
-			if c2 == 43 {
-				t3 = m.ScanFind3(lhs+2, 10, 13, 47)
-				m.Ptr = t3
-				goto tok
-			}
-			m.Ptr = lhs + 1
-			t4 = m.LexSkipSpaceAt(m.Ptr)
-			p = t4
-			t5 = m.OdinByte(p)
-			t6 = m.LexIsIdentStart(t5)
-			if t6 != 0 {
-				m.Ptr = p
-				m.LexScanIdent()
-				goto tok
-			}
-			hl = 40
-			goto tok
-		}
-		if c == 36 {
-			m.Ptr = lhs + 1
-			hl = 40
-			t7 = m.LexIsIdentStart(c2)
-			if t7 != 0 {
-				m.LexScanIdent()
-				hl = 60
-			}
-			goto tok
-		}
-		if (c == 45) && ((c2 == 45) && (c3 == 45)) {
-			m.Ptr = lhs + 3
-			hl = 17
-			goto tok
-		}
-		t8 = m.LexIsIdentStart(c)
-		if t8 != 0 {
-			m.LexScanIdent()
-			rhs = m.Ptr
-			hl = 1
-			if attrDepth != 0 {
-				goto tok
-			}
-			t9 = m.LexSkipSpaceAt(rhs)
-			p = t9
-			t10 = m.OdinByte(p)
-			c2 = t10
-			t11 = m.OdinByte(p + 1)
-			c3 = t11
-			t12 = m.LexKeywordValue(lhs, rhs, 28416, 31, 77)
-			kind = t12
-			t13 = int32(kind) < int32(0)
-			t14 = m.OdinEndianType(lhs, rhs)
-			if (rt.B2u(t13) & t14) != 0 {
-				kind = 56
-			}
-			decl = 0
-			if (c2 == 58) && (c3 == 58) {
-				t15 = m.OdinDeclKind(p + 2)
-				decl = t15
-			}
-			if int32(kind) >= int32(0) {
-				hl = kind & 255
-				expect = (kind & 65535) >> 8
-				if expect != 3 {
-					expect = 0
+			if c == 34 {
+				if (c2 == 34) && (c3 == 34) {
+					m.OdinTripleString(34)
+				} else {
+					m.LexString(34, 0, 44)
 				}
 			} else {
-				hl = 0
-				if decl != 0 {
-					if decl == 1 {
-						hl = 15
-					}
-					if decl == 2 {
-						hl = 55
-					}
-					if decl == 3 {
-						hl = 6
-					}
-				}
-				if (hl == 0) && (member == 1) {
-					hl = rt.Sel32((c2 == 40), 16, 29)
-				}
-				if (hl == 0) && ((member == 0) && (expect == 3)) {
-					hl = 23
-					expect = 0
-				}
-				t16 = hl == 0
-				t17 = m.LexIsConstCase(lhs, rhs)
-				if (rt.B2u(t16) & t17) != 0 {
-					hl = 6
-				}
-				if (hl == 0) && ((rt.Ld8(m.Mem, int(lhs)) - 65) <= 25) {
-					hl = 55
-				}
-				if (hl == 0) && (c2 == 40) {
-					hl = 14
-				}
-				if hl == 0 {
-					hl = 58
-				}
-			}
-			goto tok
-		}
-		t18 = m.LexIsDigit(c)
-		t19 = c == 46
-		t20 = m.LexIsDigit(c2)
-		if (t18 | (rt.B2u(t19) & t20)) != 0 {
-			m.LexScanNumber()
-			t21 = m.OdinByte(m.Ptr)
-			t22 = m.OdinByte(m.Ptr + 1)
-			if (t21 == 46) && (t22 != 46) {
-				m.Ptr = m.Ptr + 1
-				t23 = m.OdinByte(m.Ptr)
-				if (t23 | 32) == 101 {
-					m.Ptr = m.Ptr + 1
-					t24 = m.OdinByte(m.Ptr)
-					c = t24
-					if (c == 43) || (c == 45) {
-						m.Ptr = m.Ptr + 1
-					}
-				digit:
-					for {
-						t25 = m.OdinByte(m.Ptr)
-						t26 = m.LexIsDigit(t25)
-						if t26 == 0 {
-							break digit
+				if c == 39 {
+					m.LexString(39, 0, 44)
+				} else {
+					if c == 96 {
+						if (c2 == 96) && (c3 == 96) {
+							m.OdinTripleString(96)
+						} else {
+							m.LexRawString(96, 1, 44)
 						}
-						m.Ptr = m.Ptr + 1
-						continue digit
+					} else {
+						if c == 64 {
+							m.Ptr = lhs + 1
+							t2 = m.LexIsIdentStart(c2)
+							if t2 != 0 {
+								m.LexScanIdent()
+								hl = 1
+								goto tok
+							}
+							hl = 40
+							if c2 == 40 {
+								m.EmitTok(1, lhs, m.Ptr)
+								lhs = m.Ptr
+								m.Ptr = lhs + 1
+								hl = 32
+								attrDepth = attrDepth + 1
+							}
+							goto tok
+						}
+						if c == 35 {
+							hl = 1
+							if c2 == 43 {
+								t3 = m.ScanFind3(lhs+2, 10, 13, 47)
+								m.Ptr = t3
+								goto tok
+							}
+							m.Ptr = lhs + 1
+							t4 = m.LexSkipSpaceAt(m.Ptr)
+							p = t4
+							t5 = m.OdinByte(p)
+							t6 = m.LexIsIdentStart(t5)
+							if t6 != 0 {
+								m.Ptr = p
+								m.LexScanIdent()
+								goto tok
+							}
+							hl = 40
+							goto tok
+						}
+						if c == 36 {
+							m.Ptr = lhs + 1
+							hl = 40
+							t7 = m.LexIsIdentStart(c2)
+							if t7 != 0 {
+								m.LexScanIdent()
+								hl = 60
+							}
+							goto tok
+						}
+						if (c == 45) && ((c2 == 45) && (c3 == 45)) {
+							m.Ptr = lhs + 3
+							hl = 17
+							goto tok
+						}
+						t8 = m.LexIsIdentStart(c)
+						if t8 != 0 {
+							m.LexScanIdent()
+							rhs = m.Ptr
+							hl = 1
+							if attrDepth != 0 {
+								goto tok
+							}
+							t9 = m.LexSkipSpaceAt(rhs)
+							p = t9
+							t10 = m.OdinByte(p)
+							c2 = t10
+							t11 = m.OdinByte(p + 1)
+							c3 = t11
+							t12 = m.LexKeywordValue(lhs, rhs, 28416, 31, 77)
+							kind = t12
+							t13 = int32(kind) < int32(0)
+							t14 = m.OdinEndianType(lhs, rhs)
+							if (rt.B2u(t13) & t14) != 0 {
+								kind = 56
+							}
+							decl = 0
+							if (c2 == 58) && (c3 == 58) {
+								t15 = m.OdinDeclKind(p + 2)
+								decl = t15
+							}
+							if int32(kind) >= int32(0) {
+								hl = kind & 255
+								expect = (kind & 65535) >> 8
+								if expect != 3 {
+									expect = 0
+								}
+							} else {
+								hl = 0
+								if decl != 0 {
+									if decl == 1 {
+										hl = 15
+									}
+									if decl == 2 {
+										hl = 55
+									}
+									if decl == 3 {
+										hl = 6
+									}
+								}
+								if (hl == 0) && (member == 1) {
+									hl = rt.Sel32((c2 == 40), 16, 29)
+								}
+								if (hl == 0) && ((member == 0) && (expect == 3)) {
+									hl = 23
+									expect = 0
+								}
+								t16 = hl == 0
+								t17 = m.LexIsConstCase(lhs, rhs)
+								if (rt.B2u(t16) & t17) != 0 {
+									hl = 6
+								}
+								if (hl == 0) && ((rt.Ld8(m.Mem, int(lhs)) - 65) <= 25) {
+									hl = 55
+								}
+								if (hl == 0) && (c2 == 40) {
+									hl = 14
+								}
+								if hl == 0 {
+									hl = 58
+								}
+							}
+							goto tok
+						}
+						t18 = m.LexIsDigit(c)
+						t19 = c == 46
+						t20 = m.LexIsDigit(c2)
+						if (t18 | (rt.B2u(t19) & t20)) != 0 {
+							m.LexScanNumber()
+							t21 = m.OdinByte(m.Ptr)
+							t22 = m.OdinByte(m.Ptr + 1)
+							if (t21 == 46) && (t22 != 46) {
+								m.Ptr = m.Ptr + 1
+								t23 = m.OdinByte(m.Ptr)
+								if (t23 | 32) == 101 {
+									m.Ptr = m.Ptr + 1
+									t24 = m.OdinByte(m.Ptr)
+									c = t24
+									if (c == 43) || (c == 45) {
+										m.Ptr = m.Ptr + 1
+									}
+								digit:
+									for {
+										t25 = m.OdinByte(m.Ptr)
+										t26 = m.LexIsDigit(t25)
+										if t26 == 0 {
+											break digit
+										}
+										m.Ptr = m.Ptr + 1
+										continue digit
+									}
+								}
+							}
+							hl = 24
+							goto tokClear
+						}
+						m.Ptr = lhs + 1
+						if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+							if (c == 40) && (attrDepth > 0) {
+								attrDepth = attrDepth + 1
+							}
+							if c == 41 {
+								if attrDepth > 0 {
+									attrDepth = attrDepth - 1
+								}
+							}
+							hl = 32
+							goto tok
+						}
+						hl = 35
+						if (c == 44) || (c == 59) {
+							goto tokClear
+						}
+						if c == 58 {
+							if c2 == 58 {
+								m.Ptr = lhs + 2
+							}
+							if c2 == 61 {
+								m.Ptr = lhs + 2
+								hl = 25
+							}
+							goto tok
+						}
+						if c == 46 {
+							if c2 == 46 {
+								m.Ptr = lhs + rt.Sel32(((c3 == 60) || (c3 == 61)), 3, 2)
+								hl = 25
+								goto tok
+							}
+							m.EmitTok(hl, lhs, m.Ptr)
+							member = 1
+							continue next
+						}
+						hl = 40
+						if c == 92 {
+							goto tok
+						}
+						hl = 0
+						if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
+							t27 = lhs
+							t28 = m.OdinOpLen(c, c2, c3)
+							m.Ptr = t27 + t28
+							hl = 25
+						}
+						goto tok
 					}
 				}
 			}
-			hl = 24
-			goto tokClear
 		}
-		m.Ptr = lhs + 1
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			if (c == 40) && (attrDepth > 0) {
-				attrDepth = attrDepth + 1
-			}
-			if c == 41 {
-				if attrDepth > 0 {
-					attrDepth = attrDepth - 1
-				}
-			}
-			hl = 32
-			goto tok
-		}
-		hl = 35
-		if (c == 44) || (c == 59) {
-			goto tokClear
-		}
-		if c == 58 {
-			if c2 == 58 {
-				m.Ptr = lhs + 2
-			}
-			if c2 == 61 {
-				m.Ptr = lhs + 2
-				hl = 25
-			}
-			goto tok
-		}
-		if c == 46 {
-			if c2 == 46 {
-				m.Ptr = lhs + rt.Sel32(((c3 == 60) || (c3 == 61)), 3, 2)
-				hl = 25
-				goto tok
-			}
-			m.EmitTok(hl, lhs, m.Ptr)
-			member = 1
-			continue next
-		}
-		hl = 40
-		if c == 92 {
-			goto tok
-		}
-		hl = 0
-		if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
-			t27 = lhs
-			t28 = m.OdinOpLen(c, c2, c3)
-			m.Ptr = t27 + t28
-			hl = 25
-		}
-		goto tok
-	block10:
 		member = 0
 		expect = 0
 		continue next
@@ -43328,31 +42817,30 @@ next:
 					continue next
 				}
 				hl = hl & 255
-				goto classified
+			} else {
+				if c == 36 {
+					hl = 60
+				} else {
+					if define != 0 {
+						hl = 15
+						define = 0
+					} else {
+						if c2 == 40 {
+							hl = 14
+						} else {
+							t12 = depth != 0
+							t13 = c2 == 61
+							t14 = m.TemplateByte(p + 1)
+							if t12 && (t13 && (t14 != 61)) {
+								hl = 59
+							} else {
+								t15 = m.LexIsConstCase(lhs, rhs)
+								hl = rt.Sel32((t15 != 0), 6, 58)
+							}
+						}
+					}
+				}
 			}
-			if c == 36 {
-				hl = 60
-				goto classified
-			}
-			if define != 0 {
-				hl = 15
-				define = 0
-				goto classified
-			}
-			if c2 == 40 {
-				hl = 14
-				goto classified
-			}
-			t12 = depth != 0
-			t13 = c2 == 61
-			t14 = m.TemplateByte(p + 1)
-			if t12 && (t13 && (t14 != 61)) {
-				hl = 59
-				goto classified
-			}
-			t15 = m.LexIsConstCase(lhs, rhs)
-			hl = rt.Sel32((t15 != 0), 6, 58)
-		classified:
 			m.EmitTok(hl, lhs, rhs)
 			continue next
 		}
@@ -44283,197 +43771,197 @@ next:
 			sOpen = 0
 			sFlags = rt.B2u(c != 39)
 			sSecond = 0
-			goto literal
-		}
-		if (rt.B2u(c == 47) & operand) != 0 {
-			m.Ptr = m.Ptr + 1
-			sClose = 47
-			sOpen = 0
-			sFlags = 3
-			sSecond = 0
-			goto literal
-		}
-		if ((c == 36) || (c == 64)) || ((c == 37) || (c == 38)) {
-			p = m.Ptr + 1
-			if (c == 36) && (c2 == 35) {
-				p = p + 1
-			}
-			t21 = m.PerlByte(p)
-			kind = t21
-			t22 = m.LexIsIdentStart(kind)
-			t23 = c == 36
-			t24 = m.LexIsDigit(kind)
-			t25 = t24 | rt.B2u(kind == 123)
-			t26 = m.LexIsSpace(kind)
-			if (t22 | (rt.B2u(t23) & (t25 | rt.B2u((t26 == 0) && ((kind != 0) && (c2 != 35)))))) != 0 {
-				m.Ptr = p
-				t27 = m.LexIsIdentContinue(kind)
-				if t27 != 0 {
-				path:
-					for {
-						m.LexScanIdent()
-						t28 = m.PerlByte(m.Ptr)
-						t29 = m.PerlByte(m.Ptr + 1)
-						t30 = m.PerlByte(m.Ptr + 2)
-						t31 = m.LexIsIdentStart(t30)
-						if (rt.Clz32((rt.B2u(t28 == 58) & (rt.B2u(t29 == 58) & t31))) >> 5) != 0 {
-							break path
-						}
-						m.Ptr = m.Ptr + 2
-						continue path
-					}
-				} else {
-					if kind == 123 {
-						t32 = m.LexFindByte(m.Ptr, 125)
-						m.Ptr = t32
-						if m.Ptr < m.End {
-							m.Ptr = m.Ptr + 1
-						}
-					} else {
-						m.Ptr = m.Ptr + 1
-					}
-				}
-				t33 = m.LexIsIdentStart(kind)
-				hl = rt.Sel32((c == 38), 14, rt.Sel32((t33 == 0), 60, 58))
-				goto valueTok
-			}
-		}
-		t34 = m.LexIsIdentStart(c)
-		if t34 != 0 {
-			m.LexScanIdent()
-			rhs = m.Ptr
-			t35 = m.LexSkipSpaceAt(rhs)
-			p = t35
-			if member != 0 {
-				t36 = 0
+		} else {
+			if (rt.B2u(c == 47) & operand) != 0 {
+				m.Ptr = m.Ptr + 1
+				sClose = 47
+				sOpen = 0
+				sFlags = 3
+				sSecond = 0
 			} else {
-				t37 = m.PerlQuoteKind(lhs, rhs)
-				t36 = t37
-			}
-			kind = t36
-			if kind != 0 {
-				t38 = m.PerlByte(p)
-				sOpen = t38
-				t39 = (sOpen > 32) && (sOpen < 128)
-				t40 = m.LexIsIdentContinue(sOpen)
-				if (rt.B2u(t39) & (rt.Clz32((t40 | rt.B2u(((sOpen == 44) || (sOpen == 59)) || (((sOpen == 61) || (sOpen == 41)) || ((sOpen == 35) && (p > rhs)))))) >> 5)) != 0 {
-					m.Ptr = p + 1
-					t41 = m.PerlCloser(sOpen)
-					sClose = t41
-					if sClose == sOpen {
-						sOpen = 0
+				if ((c == 36) || (c == 64)) || ((c == 37) || (c == 38)) {
+					p = m.Ptr + 1
+					if (c == 36) && (c2 == 35) {
+						p = p + 1
 					}
-					sFlags = rt.Sel32((kind == 1), 0, rt.Sel32((kind >= 3), 3, 1))
-					sSecond = rt.B2u(kind == 4)
-					goto literal
-				}
-			}
-			if member != 0 {
-				t42 = 0xffffffff
-			} else {
-				t43 = m.PerlWordHl(lhs, rhs)
-				t42 = t43
-			}
-			kind = t42
-			if int32(kind) >= int32(0) {
-				hl = kind & 255
-				decl = kind >> 8
-				operand = rt.B2u(hl != 60)
-			} else {
-				t44 = m.PerlByte(p)
-				pc = t44
-				path = rt.B2u(((rhs + 1) < m.End) && (rt.Ld16(m.Mem, int(rhs)) == 14906))
-				operand = 0
-				if decl != 0 {
-					hl = rt.Sel32((decl == 1), 15, 23)
-					if path == 0 {
-						decl = 0
-					}
-				} else {
-					if member == 1 {
-						hl = rt.Sel32((pc == 40), 16, 29)
-					} else {
-						if path != 0 {
-							hl = 23
+					t21 = m.PerlByte(p)
+					kind = t21
+					t22 = m.LexIsIdentStart(kind)
+					t23 = c == 36
+					t24 = m.LexIsDigit(kind)
+					t25 = t24 | rt.B2u(kind == 123)
+					t26 = m.LexIsSpace(kind)
+					if (t22 | (rt.B2u(t23) & (t25 | rt.B2u((t26 == 0) && ((kind != 0) && (c2 != 35)))))) != 0 {
+						m.Ptr = p
+						t27 = m.LexIsIdentContinue(kind)
+						if t27 != 0 {
+						path:
+							for {
+								m.LexScanIdent()
+								t28 = m.PerlByte(m.Ptr)
+								t29 = m.PerlByte(m.Ptr + 1)
+								t30 = m.PerlByte(m.Ptr + 2)
+								t31 = m.LexIsIdentStart(t30)
+								if (rt.Clz32((rt.B2u(t28 == 58) & (rt.B2u(t29 == 58) & t31))) >> 5) != 0 {
+									break path
+								}
+								m.Ptr = m.Ptr + 2
+								continue path
+							}
 						} else {
-							if pc == 40 {
-								hl = 14
-								operand = 1
+							if kind == 123 {
+								t32 = m.LexFindByte(m.Ptr, 125)
+								m.Ptr = t32
+								if m.Ptr < m.End {
+									m.Ptr = m.Ptr + 1
+								}
 							} else {
-								t45 = m.LexIsConstCase(lhs, rhs)
-								if t45 != 0 {
-									hl = 6
+								m.Ptr = m.Ptr + 1
+							}
+						}
+						t33 = m.LexIsIdentStart(kind)
+						hl = rt.Sel32((c == 38), 14, rt.Sel32((t33 == 0), 60, 58))
+						goto valueTok
+					}
+				}
+				t34 = m.LexIsIdentStart(c)
+				if t34 != 0 {
+					m.LexScanIdent()
+					rhs = m.Ptr
+					t35 = m.LexSkipSpaceAt(rhs)
+					p = t35
+					if member != 0 {
+						t36 = 0
+					} else {
+						t37 = m.PerlQuoteKind(lhs, rhs)
+						t36 = t37
+					}
+					kind = t36
+					if kind != 0 {
+						t38 = m.PerlByte(p)
+						sOpen = t38
+						t39 = (sOpen > 32) && (sOpen < 128)
+						t40 = m.LexIsIdentContinue(sOpen)
+						if (rt.B2u(t39) & (rt.Clz32((t40 | rt.B2u(((sOpen == 44) || (sOpen == 59)) || (((sOpen == 61) || (sOpen == 41)) || ((sOpen == 35) && (p > rhs)))))) >> 5)) != 0 {
+							m.Ptr = p + 1
+							t41 = m.PerlCloser(sOpen)
+							sClose = t41
+							if sClose == sOpen {
+								sOpen = 0
+							}
+							sFlags = rt.Sel32((kind == 1), 0, rt.Sel32((kind >= 3), 3, 1))
+							sSecond = rt.B2u(kind == 4)
+							goto literal
+						}
+					}
+					if member != 0 {
+						t42 = 0xffffffff
+					} else {
+						t43 = m.PerlWordHl(lhs, rhs)
+						t42 = t43
+					}
+					kind = t42
+					if int32(kind) >= int32(0) {
+						hl = kind & 255
+						decl = kind >> 8
+						operand = rt.B2u(hl != 60)
+					} else {
+						t44 = m.PerlByte(p)
+						pc = t44
+						path = rt.B2u(((rhs + 1) < m.End) && (rt.Ld16(m.Mem, int(rhs)) == 14906))
+						operand = 0
+						if decl != 0 {
+							hl = rt.Sel32((decl == 1), 15, 23)
+							if path == 0 {
+								decl = 0
+							}
+						} else {
+							if member == 1 {
+								hl = rt.Sel32((pc == 40), 16, 29)
+							} else {
+								if path != 0 {
+									hl = 23
 								} else {
-									if (rt.Ld8(m.Mem, int(lhs)) - 65) <= 25 {
-										hl = rt.Sel32((member == 2), 23, 55)
-									} else {
-										hl = rt.Sel32(((((p + 1) < m.End) && (rt.Ld16(m.Mem, int(p)) == 15933)) || ((pc == 125) && (rt.Ld8(m.Mem, int((lhs-1))) == 123))), 48, 14)
+									if pc == 40 {
+										hl = 14
 										operand = 1
+									} else {
+										t45 = m.LexIsConstCase(lhs, rhs)
+										if t45 != 0 {
+											hl = 6
+										} else {
+											if (rt.Ld8(m.Mem, int(lhs)) - 65) <= 25 {
+												hl = rt.Sel32((member == 2), 23, 55)
+											} else {
+												hl = rt.Sel32(((((p + 1) < m.End) && (rt.Ld16(m.Mem, int(p)) == 15933)) || ((pc == 125) && (rt.Ld8(m.Mem, int((lhs-1))) == 123))), 48, 14)
+												operand = 1
+											}
+										}
 									}
 								}
 							}
 						}
 					}
+					goto tok
 				}
-			}
-			goto tok
-		}
-		t46 = m.LexIsDigit(c)
-		t47 = c == 46
-		t48 = m.LexIsDigit(c2)
-		if (t46 | (rt.B2u(t47) & t48)) != 0 {
-			m.LexScanNumber()
-			hl = 24
-			goto valueTok
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			operand = rt.B2u(((c == 40) || (c == 91)) || (c == 123))
-			decl = 0
-			hl = 32
-			goto tok
-		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + 1
-			decl = 0
-			hl = 35
-			goto opTok
-		}
-		if ((c == 45) && (c2 == 62)) || ((c == 58) && (c2 == 58)) {
-			m.Ptr = m.Ptr + 2
-			m.EmitTok(35, lhs, m.Ptr)
-			member = rt.Sel32((c == 58), 2, 1)
-			operand = 0
-			continue next
-		}
-		if c == 58 {
-			m.Ptr = m.Ptr + 1
-			hl = 35
-			goto opTok
-		}
-		t49 = m.PerlIsOp(c)
-		if t49 != 0 {
-		op:
-			for {
-				t50 = m.PerlByte(m.Ptr)
-				t51 = m.PerlIsOp(t50)
-				if t51 == 0 {
-					break op
+				t46 = m.LexIsDigit(c)
+				t47 = c == 46
+				t48 = m.LexIsDigit(c2)
+				if (t46 | (rt.B2u(t47) & t48)) != 0 {
+					m.LexScanNumber()
+					hl = 24
+					goto valueTok
 				}
-				t52 = m.Ptr > lhs
-				t53 = m.PerlByte(m.Ptr)
-				if (rt.B2u(t52) & (rt.B2u(t53 == 47) & (rt.Clz32(rt.B2u((m.Ptr == (lhs+1)) && (c == 47))) >> 5))) != 0 {
-					break op
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					m.Ptr = m.Ptr + 1
+					operand = rt.B2u(((c == 40) || (c == 91)) || (c == 123))
+					decl = 0
+					hl = 32
+					goto tok
+				}
+				if (c == 44) || (c == 59) {
+					m.Ptr = m.Ptr + 1
+					decl = 0
+					hl = 35
+					goto opTok
+				}
+				if ((c == 45) && (c2 == 62)) || ((c == 58) && (c2 == 58)) {
+					m.Ptr = m.Ptr + 2
+					m.EmitTok(35, lhs, m.Ptr)
+					member = rt.Sel32((c == 58), 2, 1)
+					operand = 0
+					continue next
+				}
+				if c == 58 {
+					m.Ptr = m.Ptr + 1
+					hl = 35
+					goto opTok
+				}
+				t49 = m.PerlIsOp(c)
+				if t49 != 0 {
+				op:
+					for {
+						t50 = m.PerlByte(m.Ptr)
+						t51 = m.PerlIsOp(t50)
+						if t51 == 0 {
+							break op
+						}
+						t52 = m.Ptr > lhs
+						t53 = m.PerlByte(m.Ptr)
+						if (rt.B2u(t52) & (rt.B2u(t53 == 47) & (rt.Clz32(rt.B2u((m.Ptr == (lhs+1)) && (c == 47))) >> 5))) != 0 {
+							break op
+						}
+						m.Ptr = m.Ptr + 1
+						continue op
+					}
+					hl = 25
+					goto opTok
 				}
 				m.Ptr = m.Ptr + 1
-				continue op
+				hl = 0
+				goto opTok
 			}
-			hl = 25
-			goto opTok
 		}
-		m.Ptr = m.Ptr + 1
-		hl = 0
-		goto opTok
 	literal:
 		hl = rt.Sel32(((sFlags & 2) != 0), 46, 44)
 		sActive = 1
@@ -44527,226 +44015,157 @@ func (m *Machine) SqlWordHl(lhs uint32, rhs uint32) uint32 {
 	}
 	w = (rt.Ld64(m.Mem, int(lhs)) | 0x2020202020202020) & (uint64(0xffffffffffffffff) >> (uint64(((8 - n) << 3)) & 63))
 	c = uint32(w) & 255
-	switch c - 97 {
-	case 0:
-		goto byteSwitch40
-	case 1:
-		goto byteSwitch41
-	case 2:
-		goto byteSwitch42
-	case 3:
-		goto byteSwitch43
-	case 4:
-		goto byteSwitch44
-	case 5:
-		goto byteSwitch45
-	case 6:
-		goto byteSwitch46
-	case 7:
-		goto byteSwitch47
-	case 8:
-		goto byteSwitch48
-	case 9:
-		goto byteSwitch49
-	case 10:
-		goto byteSwitch4Default
-	case 11:
-		goto byteSwitch410
-	case 12:
-		goto byteSwitch4Default
-	case 13:
-		goto byteSwitch411
-	case 14:
-		goto byteSwitch412
-	case 15:
-		goto byteSwitch413
-	case 16:
-		goto byteSwitch4Default
-	case 17:
-		goto byteSwitch414
-	case 18:
-		goto byteSwitch415
-	case 19:
-		goto byteSwitch416
-	case 20:
-		goto byteSwitch417
-	case 21:
-		goto byteSwitch418
-	case 22:
-		goto byteSwitch419
-	default:
-		goto byteSwitch4Default
+	switch c {
+	case 'a':
+		if (w == 0x6c6c61) || ((w == 29537) || (w == 0x637361)) {
+			return 17
+		}
+		if w == 0x646e61 {
+			return 21
+		}
+	case 'b':
+		if w == 31074 {
+			return 17
+		}
+		if w == 0x6e656577746562 {
+			return 21
+		}
+		if (w == 0x746e69676962) || ((w == 0x626f6c62) || (w == 0x6e61656c6f6f62)) {
+			return 56
+		}
+	case 'c':
+		if w == 0x657461657263 {
+			return 17
+		}
+		if w == 0x65736163 {
+			return 18
+		}
+		if w == 0x72616863 {
+			return 56
+		}
+	case 'd':
+		if (w == 0x746c7561666564) || ((w == 0x6574656c6564) || ((w == 0x63736564) || (w == 0x74636e6974736964))) {
+			return 17
+		}
+		if (w == 0x65746164) || ((w == 0x6c616d69636564) || (w == 0x656c62756f64)) {
+			return 56
+		}
+	case 'e':
+		if w == 0x646e65 {
+			return 17
+		}
+		if w == 0x737473697865 {
+			return 21
+		}
+		if w == 0x65736c65 {
+			return 18
+		}
+	case 'f':
+		if (w == 0x6e676965726f66) || ((w == 0x6d6f7266) || (w == 0x6c6c7566)) {
+			return 17
+		}
+		if w == 0x65736c6166 {
+			return 3
+		}
+	case 'g':
+		if w == 0x70756f7267 {
+			return 17
+		}
+	case 'h':
+		if w == 0x676e69766168 {
+			return 17
+		}
+	case 'i':
+		if (w == 0x72656e6e69) || ((w == 0x747265736e69) || (w == 0x6f746e69)) {
+			return 17
+		}
+		if (w == 28265) || (w == 29545) {
+			return 21
+		}
+		if w == 0x72656765746e69 {
+			return 56
+		}
+	case 'j':
+		if w == 0x6e696f6a {
+			return 17
+		}
+		if (w == 0x6e6f736a) || (w == 0x626e6f736a) {
+			return 56
+		}
+	case 'l':
+		if (w == 0x7466656c) || (w == 0x74696d696c) {
+			return 17
+		}
+		if w == 0x656b696c {
+			return 21
+		}
+	case 'n':
+		if w == 0x746f6e {
+			return 21
+		}
+		if w == 0x726168636e {
+			return 56
+		}
+		if w == 0x6c6c756e {
+			return 7
+		}
+	case 'o':
+		if (w == 28271) || ((w == 0x726564726f) || (w == 0x726574756f)) {
+			return 17
+		}
+		if w == 29295 {
+			return 21
+		}
+	case 'p':
+		if w == 0x7972616d697270 {
+			return 17
+		}
+	case 'r':
+		if w == 0x7468676972 {
+			return 17
+		}
+		if w == 0x6c616572 {
+			return 56
+		}
+	case 's':
+		if (w == 0x7463656c6573) || (w == 0x746573) {
+			return 17
+		}
+	case 't':
+		if (w == 0x656c626174) || (w == 28532) {
+			return 17
+		}
+		if w == 0x6e656874 {
+			return 18
+		}
+		if w == 0x74786574 {
+			return 56
+		}
+		if w == 0x65757274 {
+			return 3
+		}
+	case 'u':
+		if (w == 0x6e6f696e75) || ((w == 0x657461647075) || (w == 0x676e697375)) {
+			return 17
+		}
+		if w == 0x64697575 {
+			return 56
+		}
+	case 'v':
+		if w == 0x7365756c6176 {
+			return 17
+		}
+		if w == 0x72616863726176 {
+			return 56
+		}
+	case 'w':
+		if (w == 0x6572656877) || (w == 0x68746977) {
+			return 17
+		}
+		if w == 0x6e656877 {
+			return 18
+		}
 	}
-byteSwitch40:
-	if (w == 0x6c6c61) || ((w == 29537) || (w == 0x637361)) {
-		return 17
-	}
-	if w == 0x646e61 {
-		return 21
-	}
-	goto byteSwitch4Default
-byteSwitch41:
-	if w == 31074 {
-		return 17
-	}
-	if w == 0x6e656577746562 {
-		return 21
-	}
-	if (w == 0x746e69676962) || ((w == 0x626f6c62) || (w == 0x6e61656c6f6f62)) {
-		return 56
-	}
-	goto byteSwitch4Default
-byteSwitch42:
-	if w == 0x657461657263 {
-		return 17
-	}
-	if w == 0x65736163 {
-		return 18
-	}
-	if w == 0x72616863 {
-		return 56
-	}
-	goto byteSwitch4Default
-byteSwitch43:
-	if (w == 0x746c7561666564) || ((w == 0x6574656c6564) || ((w == 0x63736564) || (w == 0x74636e6974736964))) {
-		return 17
-	}
-	if (w == 0x65746164) || ((w == 0x6c616d69636564) || (w == 0x656c62756f64)) {
-		return 56
-	}
-	goto byteSwitch4Default
-byteSwitch44:
-	if w == 0x646e65 {
-		return 17
-	}
-	if w == 0x737473697865 {
-		return 21
-	}
-	if w == 0x65736c65 {
-		return 18
-	}
-	goto byteSwitch4Default
-byteSwitch45:
-	if (w == 0x6e676965726f66) || ((w == 0x6d6f7266) || (w == 0x6c6c7566)) {
-		return 17
-	}
-	if w == 0x65736c6166 {
-		return 3
-	}
-	goto byteSwitch4Default
-byteSwitch46:
-	if w == 0x70756f7267 {
-		return 17
-	}
-	goto byteSwitch4Default
-byteSwitch47:
-	if w == 0x676e69766168 {
-		return 17
-	}
-	goto byteSwitch4Default
-byteSwitch48:
-	if (w == 0x72656e6e69) || ((w == 0x747265736e69) || (w == 0x6f746e69)) {
-		return 17
-	}
-	if (w == 28265) || (w == 29545) {
-		return 21
-	}
-	if w == 0x72656765746e69 {
-		return 56
-	}
-	goto byteSwitch4Default
-byteSwitch49:
-	if w == 0x6e696f6a {
-		return 17
-	}
-	if (w == 0x6e6f736a) || (w == 0x626e6f736a) {
-		return 56
-	}
-	goto byteSwitch4Default
-byteSwitch410:
-	if (w == 0x7466656c) || (w == 0x74696d696c) {
-		return 17
-	}
-	if w == 0x656b696c {
-		return 21
-	}
-	goto byteSwitch4Default
-byteSwitch411:
-	if w == 0x746f6e {
-		return 21
-	}
-	if w == 0x726168636e {
-		return 56
-	}
-	if w == 0x6c6c756e {
-		return 7
-	}
-	goto byteSwitch4Default
-byteSwitch412:
-	if (w == 28271) || ((w == 0x726564726f) || (w == 0x726574756f)) {
-		return 17
-	}
-	if w == 29295 {
-		return 21
-	}
-	goto byteSwitch4Default
-byteSwitch413:
-	if w == 0x7972616d697270 {
-		return 17
-	}
-	goto byteSwitch4Default
-byteSwitch414:
-	if w == 0x7468676972 {
-		return 17
-	}
-	if w == 0x6c616572 {
-		return 56
-	}
-	goto byteSwitch4Default
-byteSwitch415:
-	if (w == 0x7463656c6573) || (w == 0x746573) {
-		return 17
-	}
-	goto byteSwitch4Default
-byteSwitch416:
-	if (w == 0x656c626174) || (w == 28532) {
-		return 17
-	}
-	if w == 0x6e656874 {
-		return 18
-	}
-	if w == 0x74786574 {
-		return 56
-	}
-	if w == 0x65757274 {
-		return 3
-	}
-	goto byteSwitch4Default
-byteSwitch417:
-	if (w == 0x6e6f696e75) || ((w == 0x657461647075) || (w == 0x676e697375)) {
-		return 17
-	}
-	if w == 0x64697575 {
-		return 56
-	}
-	goto byteSwitch4Default
-byteSwitch418:
-	if w == 0x7365756c6176 {
-		return 17
-	}
-	if w == 0x72616863726176 {
-		return 56
-	}
-	goto byteSwitch4Default
-byteSwitch419:
-	if (w == 0x6572656877) || (w == 0x68746977) {
-		return 17
-	}
-	if w == 0x6e656877 {
-		return 18
-	}
-	goto byteSwitch4Default
-byteSwitch4Default:
 	return 58
 }
 
@@ -45774,38 +45193,37 @@ scan:
 			if t5 && (t6 && (t7 == 10)) {
 				e = e + 1
 			}
-			goto part
-		}
-		t8 = m.TemplateByte(p + 1)
-		c = t8
-		if c == 40 {
-			m.EmitTok(44, seg, p)
-			m.Ptr = p + 2
-			m.EmitTok(40, p, m.Ptr)
-			return 2
-		}
-		hl = 58
-		if c == 123 {
-			t9 = m.ScanFindSpecial(p+2, m.End, 125, 0, 1)
-			e = t9
-			if (e < m.End) && (rt.Ld8(m.Mem, int(e)) == 125) {
-				e = e + 1
+		} else {
+			t8 = m.TemplateByte(p + 1)
+			c = t8
+			if c == 40 {
+				m.EmitTok(44, seg, p)
+				m.Ptr = p + 2
+				m.EmitTok(40, p, m.Ptr)
+				return 2
 			}
-			goto part
+			hl = 58
+			if c == 123 {
+				t9 = m.ScanFindSpecial(p+2, m.End, 125, 0, 1)
+				e = t9
+				if (e < m.End) && (rt.Ld8(m.Mem, int(e)) == 125) {
+					e = e + 1
+				}
+			} else {
+				t10 = m.LexIsNameStart(c)
+				if t10 != 0 {
+					t11 = m.PsVarEnd(p)
+					e = t11
+				} else {
+					hl = 60
+					e = p + 2
+					if !(((c == 36) || (c == 63)) || (c == 94)) {
+						m.Ptr = p + 1
+						continue scan
+					}
+				}
+			}
 		}
-		t10 = m.LexIsNameStart(c)
-		if t10 != 0 {
-			t11 = m.PsVarEnd(p)
-			e = t11
-			goto part
-		}
-		hl = 60
-		e = p + 2
-		if ((c == 36) || (c == 63)) || (c == 94) {
-			goto part
-		}
-		m.Ptr = p + 1
-		continue scan
 	part:
 		m.EmitTok(44, seg, p)
 		m.EmitTok(hl, p, e)
@@ -45969,263 +45387,261 @@ next:
 			strKind = rt.Sel32((c == 34), 1, 2)
 			seg = m.Ptr
 			hl = 44
-			goto valueTok
-		}
-		if (c == 64) && ((c2 == 34) || (c2 == 39)) {
-			m.Ptr = m.Ptr + 2
-			strKind = rt.Sel32((c2 == 34), 3, 4)
-			seg = m.Ptr
-			hl = 44
-			goto valueTok
-		}
-		if c == 64 {
-			if (c2 == 40) || (c2 == 123) {
-				m.Ptr = m.Ptr + 1
-				cmdPos = 0
-				hl = 40
-				goto tok
-			}
-			t5 = m.LexIsNameStart(c2)
-			if t5 != 0 {
-				t6 = m.PsVarEnd(m.Ptr)
-				m.Ptr = t6
-				cmdPos = 0
-				hl = 58
-				goto tok
-			}
-		}
-		if c == 36 {
-			member = 0
-			cmdPos = 0
-			if c2 == 40 {
+		} else {
+			if (c == 64) && ((c2 == 34) || (c2 == 39)) {
 				m.Ptr = m.Ptr + 2
-				if interp != 0 {
-					interp = interp + 1
-				}
-				cmdPos = 1
-				hl = 40
-				goto tok
-			}
-			if c2 == 123 {
-				t7 = m.ScanFindSpecial(m.Ptr+2, m.End, 125, 0, 1)
-				m.Ptr = t7
-				if (m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 125) {
-					m.Ptr = m.Ptr + 1
-				}
-				hl = 58
-				goto tok
-			}
-			if ((c2 == 36) || (c2 == 63)) || (c2 == 94) {
-				m.Ptr = m.Ptr + 2
-				hl = 60
-				goto tok
-			}
-			t8 = m.LexIsNameStart(c2)
-			if t8 != 0 {
-				t9 = m.PsVarEnd(m.Ptr)
-				m.Ptr = t9
-				t10 = m.PsWordGroup(lhs+1, m.Ptr)
-				g = t10
-				hl = 58
-				if g == 7 {
-					hl = 3
-				}
-				if g == 8 {
-					hl = 7
-				}
-				if (g == 9) || ((c2 == 95) && ((m.Ptr - lhs) == 2)) {
-					hl = 60
-				}
-				goto tok
-			}
-			m.Ptr = m.Ptr + 1
-			hl = 0
-			goto tok
-		}
-		if c == 91 {
-			t11 = m.LexIsNameStart(c2)
-			if t11 != 0 {
-				m.Ptr = m.Ptr + 1
-				m.EmitTok(32, lhs, m.Ptr)
-				lhs = m.Ptr
-				m.ScanIdentRun(46)
-				t12 = m.TemplateByte(m.Ptr)
-				if t12 == 40 {
-					m.EmitTok(1, lhs, m.Ptr)
-					lhs = m.Ptr
-					m.Ptr = m.Ptr + 1
-					m.EmitTok(32, lhs, m.Ptr)
-				} else {
-					m.EmitTok(55, lhs, m.Ptr)
-				}
-				member = 0
-				cmdPos = 0
-				continue next
-			}
-		}
-		if (c == 45) && (((c2 | 32) - 97) <= 25) {
-			m.Ptr = m.Ptr + 1
-			m.ScanIdentRun(95)
-			t13 = m.PsWordGroup(lhs+1, m.Ptr)
-			g = t13
-			hl = rt.Sel32(((g == 6) || (((m.Ptr - lhs) == 2) && ((c2 | 32) == 102))), 21, 59)
-			cmdPos = 0
-			goto tok
-		}
-		if c == 96 {
-			t14 = m.Utf8SpanEnd(m.Ptr+2, m.End)
-			m.Ptr = t14
-			t15 = c2 == 13
-			t16 = m.TemplateByte(m.Ptr)
-			if t15 && (t16 == 10) {
-				m.Ptr = m.Ptr + 1
-			}
-			hl = 45
-			goto tok
-		}
-		t17 = m.LexIsNameStart(c)
-		if t17 != 0 {
-			m.ScanIdentRun(45)
-			rhs = m.Ptr
-			g = rt.Sel32((want < 3), want, 0)
-			t18 = m.PsIsKey(rhs)
-			if t18 != 0 {
-				hl = 29
-				goto valueTok
-			}
-			t19 = m.ScanFindSpecial(lhs, rhs, 45, 0, 0)
-			if t19 < rhs {
-				hl = rt.Sel32((g == 1), 15, 14)
+				strKind = rt.Sel32((c2 == 34), 3, 4)
+				seg = m.Ptr
+				hl = 44
 			} else {
-				if member != 0 {
-					t20 = m.TemplateByte(rhs)
-					hl = rt.Sel32((t20 == 40), 16, 29)
-				} else {
-					if g != 0 {
-						hl = rt.Sel32((g == 1), 15, 55)
-						if g == 2 {
-							expect = 3
-						}
-					} else {
-						t21 = m.PsWordGroup(lhs, rhs)
-						g = t21
-						hl = 0
-						if g == 1 {
-							hl = 18
-						}
-						if g == 2 {
-							hl = 19
-							expect = 1
-						}
-						if g == 3 {
-							hl = 19
-							expect = 2
-						}
-						if g == 4 {
-							hl = 19
-						}
-						if g == 5 {
-							hl = 20
-						}
-						if (g == 6) && ((rhs - lhs) == 2) {
-							hl = 21
-						}
-						t22 = hl == 0
-						t23 = cmdPos
-						t24 = m.TemplateByte(rhs)
-						if (rt.B2u(t22) & (t23 | rt.B2u(t24 == 40))) != 0 {
-							hl = 14
-						}
-					}
-				}
-			}
-			goto valueTok
-		}
-		t25 = m.LexIsDigit(c)
-		t26 = c == 46
-		t27 = m.LexIsDigit(c2)
-		if (t25 | (rt.B2u(t26) & t27)) != 0 {
-			m.LexScanNumber()
-			hl = 24
-			goto valueTok
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			if interp != 0 {
-				if c == 40 {
-					interp = interp + 1
-				}
-				if c == 41 {
-					interp = interp - 1
-					if interp == 0 {
-						strKind = interpKind
-						interpKind = 0
-						seg = m.Ptr
-						member = 0
-						expect = 0
+				if c == 64 {
+					if (c2 == 40) || (c2 == 123) {
+						m.Ptr = m.Ptr + 1
+						cmdPos = 0
 						hl = 40
 						goto tok
 					}
+					t5 = m.LexIsNameStart(c2)
+					if t5 != 0 {
+						t6 = m.PsVarEnd(m.Ptr)
+						m.Ptr = t6
+						cmdPos = 0
+						hl = 58
+						goto tok
+					}
+				}
+				if c == 36 {
+					member = 0
+					cmdPos = 0
+					if c2 == 40 {
+						m.Ptr = m.Ptr + 2
+						if interp != 0 {
+							interp = interp + 1
+						}
+						cmdPos = 1
+						hl = 40
+						goto tok
+					}
+					if c2 == 123 {
+						t7 = m.ScanFindSpecial(m.Ptr+2, m.End, 125, 0, 1)
+						m.Ptr = t7
+						if (m.Ptr < m.End) && (rt.Ld8(m.Mem, int(m.Ptr)) == 125) {
+							m.Ptr = m.Ptr + 1
+						}
+						hl = 58
+						goto tok
+					}
+					if ((c2 == 36) || (c2 == 63)) || (c2 == 94) {
+						m.Ptr = m.Ptr + 2
+						hl = 60
+						goto tok
+					}
+					t8 = m.LexIsNameStart(c2)
+					if t8 != 0 {
+						t9 = m.PsVarEnd(m.Ptr)
+						m.Ptr = t9
+						t10 = m.PsWordGroup(lhs+1, m.Ptr)
+						g = t10
+						hl = 58
+						if g == 7 {
+							hl = 3
+						}
+						if g == 8 {
+							hl = 7
+						}
+						if (g == 9) || ((c2 == 95) && ((m.Ptr - lhs) == 2)) {
+							hl = 60
+						}
+						goto tok
+					}
+					m.Ptr = m.Ptr + 1
+					hl = 0
+					goto tok
+				}
+				if c == 91 {
+					t11 = m.LexIsNameStart(c2)
+					if t11 != 0 {
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(32, lhs, m.Ptr)
+						lhs = m.Ptr
+						m.ScanIdentRun(46)
+						t12 = m.TemplateByte(m.Ptr)
+						if t12 == 40 {
+							m.EmitTok(1, lhs, m.Ptr)
+							lhs = m.Ptr
+							m.Ptr = m.Ptr + 1
+							m.EmitTok(32, lhs, m.Ptr)
+						} else {
+							m.EmitTok(55, lhs, m.Ptr)
+						}
+						member = 0
+						cmdPos = 0
+						continue next
+					}
+				}
+				if (c == 45) && (((c2 | 32) - 97) <= 25) {
+					m.Ptr = m.Ptr + 1
+					m.ScanIdentRun(95)
+					t13 = m.PsWordGroup(lhs+1, m.Ptr)
+					g = t13
+					hl = rt.Sel32(((g == 6) || (((m.Ptr - lhs) == 2) && ((c2 | 32) == 102))), 21, 59)
+					cmdPos = 0
+					goto tok
+				}
+				if c == 96 {
+					t14 = m.Utf8SpanEnd(m.Ptr+2, m.End)
+					m.Ptr = t14
+					t15 = c2 == 13
+					t16 = m.TemplateByte(m.Ptr)
+					if t15 && (t16 == 10) {
+						m.Ptr = m.Ptr + 1
+					}
+					hl = 45
+					goto tok
+				}
+				t17 = m.LexIsNameStart(c)
+				if t17 != 0 {
+					m.ScanIdentRun(45)
+					rhs = m.Ptr
+					g = rt.Sel32((want < 3), want, 0)
+					t18 = m.PsIsKey(rhs)
+					if t18 != 0 {
+						hl = 29
+					} else {
+						t19 = m.ScanFindSpecial(lhs, rhs, 45, 0, 0)
+						if t19 < rhs {
+							hl = rt.Sel32((g == 1), 15, 14)
+						} else {
+							if member != 0 {
+								t20 = m.TemplateByte(rhs)
+								hl = rt.Sel32((t20 == 40), 16, 29)
+							} else {
+								if g != 0 {
+									hl = rt.Sel32((g == 1), 15, 55)
+									if g == 2 {
+										expect = 3
+									}
+								} else {
+									t21 = m.PsWordGroup(lhs, rhs)
+									g = t21
+									hl = 0
+									if g == 1 {
+										hl = 18
+									}
+									if g == 2 {
+										hl = 19
+										expect = 1
+									}
+									if g == 3 {
+										hl = 19
+										expect = 2
+									}
+									if g == 4 {
+										hl = 19
+									}
+									if g == 5 {
+										hl = 20
+									}
+									if (g == 6) && ((rhs - lhs) == 2) {
+										hl = 21
+									}
+									t22 = hl == 0
+									t23 = cmdPos
+									t24 = m.TemplateByte(rhs)
+									if (rt.B2u(t22) & (t23 | rt.B2u(t24 == 40))) != 0 {
+										hl = 14
+									}
+								}
+							}
+						}
+					}
+				} else {
+					t25 = m.LexIsDigit(c)
+					t26 = c == 46
+					t27 = m.LexIsDigit(c2)
+					if (t25 | (rt.B2u(t26) & t27)) != 0 {
+						m.LexScanNumber()
+						hl = 24
+					} else {
+						if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+							m.Ptr = m.Ptr + 1
+							if interp != 0 {
+								if c == 40 {
+									interp = interp + 1
+								}
+								if c == 41 {
+									interp = interp - 1
+									if interp == 0 {
+										strKind = interpKind
+										interpKind = 0
+										seg = m.Ptr
+										member = 0
+										expect = 0
+										hl = 40
+										goto tok
+									}
+								}
+							}
+							member = 0
+							expect = 0
+							cmdPos = rt.B2u((c == 40) || (c == 123))
+							hl = 32
+							goto tok
+						}
+						if (c == 44) || (c == 59) {
+							m.Ptr = m.Ptr + 1
+							member = 0
+							cmdPos = rt.B2u(c == 59)
+							hl = 35
+							goto tok
+						}
+						if (c == 58) && (c2 == 58) {
+							m.Ptr = m.Ptr + 2
+							member = 1
+							hl = 25
+							goto tok
+						}
+						if c == 46 {
+							if c2 == 46 {
+								m.Ptr = m.Ptr + 2
+								hl = 25
+								member = 0
+							} else {
+								m.Ptr = m.Ptr + 1
+								hl = 35
+								t28 = m.LexIsNameStart(c2)
+								member = t28
+							}
+							cmdPos = 0
+							goto tok
+						}
+						t29 = m.PsIsOp(c)
+						if t29 != 0 {
+						op:
+							for {
+								t30 = m.TemplateByte(m.Ptr)
+								t31 = m.PsIsOp(t30)
+								if t31 == 0 {
+									break op
+								}
+								m.Ptr = m.Ptr + 1
+								continue op
+							}
+							member = 0
+							cmdPos = rt.B2u(((c == 124) || (c == 38)) || (c == 61))
+							hl = 25
+							goto tok
+						}
+						t32 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+						m.Ptr = t32
+						if (c == 58) && (want == 3) {
+							expect = 2
+						}
+						hl = 0
+					}
 				}
 			}
-			member = 0
-			expect = 0
-			cmdPos = rt.B2u((c == 40) || (c == 123))
-			hl = 32
-			goto tok
 		}
-		if (c == 44) || (c == 59) {
-			m.Ptr = m.Ptr + 1
-			member = 0
-			cmdPos = rt.B2u(c == 59)
-			hl = 35
-			goto tok
-		}
-		if (c == 58) && (c2 == 58) {
-			m.Ptr = m.Ptr + 2
-			member = 1
-			hl = 25
-			goto tok
-		}
-		if c == 46 {
-			if c2 == 46 {
-				m.Ptr = m.Ptr + 2
-				hl = 25
-				member = 0
-			} else {
-				m.Ptr = m.Ptr + 1
-				hl = 35
-				t28 = m.LexIsNameStart(c2)
-				member = t28
-			}
-			cmdPos = 0
-			goto tok
-		}
-		t29 = m.PsIsOp(c)
-		if t29 != 0 {
-		op:
-			for {
-				t30 = m.TemplateByte(m.Ptr)
-				t31 = m.PsIsOp(t30)
-				if t31 == 0 {
-					break op
-				}
-				m.Ptr = m.Ptr + 1
-				continue op
-			}
-			member = 0
-			cmdPos = rt.B2u(((c == 124) || (c == 38)) || (c == 61))
-			hl = 25
-			goto tok
-		}
-		t32 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-		m.Ptr = t32
-		if (c == 58) && (want == 3) {
-			expect = 2
-		}
-		hl = 0
-		goto valueTok
-	valueTok:
 		member = 0
 		cmdPos = 0
 	tok:
@@ -46326,104 +45742,102 @@ next:
 			m.Ptr = lhs + (1 + rt.B2u(c2 == 64))
 			m.ScanIdentRun(46)
 			hl = 1
-			goto emit
-		}
-		t3 = m.LexIsIdentStart(c)
-		if t3 != 0 {
-			m.LexScanIdent()
-			rhs = m.Ptr
-			t4 = m.LexSkipSpaceAt(rhs)
-			t5 = m.TemplateByte(t4)
-			pc = t5
-			t6 = m.LexKeywordValue(lhs, rhs, 33824, 3, 18)
-			g = t6
-			hl = 58
-			if paren != 0 {
-				if (c - 65) <= 25 {
-					hl = 6
-				} else {
-					hl = 29
-				}
-				if pc == 58 {
-					hl = 59
-				}
-			} else {
-				if block == 0 {
-					if int32(g) >= int32(256) {
-						pending = g >> 8
-						hl = 19
+		} else {
+			t3 = m.LexIsIdentStart(c)
+			if t3 != 0 {
+				m.LexScanIdent()
+				rhs = m.Ptr
+				t4 = m.LexSkipSpaceAt(rhs)
+				t5 = m.TemplateByte(t4)
+				pc = t5
+				t6 = m.LexKeywordValue(lhs, rhs, 33824, 3, 18)
+				g = t6
+				hl = 58
+				if paren != 0 {
+					if (c - 65) <= 25 {
+						hl = 6
 					} else {
-						if pending != 0 {
-							hl = 55
-						}
+						hl = 29
+					}
+					if pc == 58 {
+						hl = 59
 					}
 				} else {
-					if block == 3 {
-						if pc == 61 {
-							hl = 29
+					if block == 0 {
+						if int32(g) >= int32(256) {
+							pending = g >> 8
+							hl = 19
+						} else {
+							if pending != 0 {
+								hl = 55
+							}
 						}
 					} else {
-						if col == 0 {
-							hl = rt.Sel32((block == 1), 29, 6)
+						if block == 3 {
+							if pc == 61 {
+								hl = 29
+							}
 						} else {
-							if col == 1 {
-								hl = rt.Sel32((g == 56), 56, 55)
+							if col == 0 {
+								hl = rt.Sel32((block == 1), 29, 6)
+							} else {
+								if col == 1 {
+									hl = rt.Sel32((g == 56), 56, 55)
+								}
 							}
 						}
 					}
+					col = col + 1
 				}
-				col = col + 1
+				if g == 3 {
+					hl = g
+				}
+				if (pc == 40) && (hl != 56) {
+					hl = 14
+				}
+				m.EmitTok(hl, lhs, rhs)
+				continue next
 			}
-			if g == 3 {
-				hl = g
+			t7 = m.LexIsDigit(c)
+			t8 = c == 45
+			t9 = m.LexIsDigit(c2)
+			if (t7 | (rt.B2u(t8) & t9)) != 0 {
+				m.Ptr = lhs + rt.B2u(c == 45)
+				m.LexScanNumber()
+				hl = 24
+			} else {
+				m.Ptr = lhs + 1
+				if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+					if c == 40 {
+						paren = paren + 1
+					}
+					if (c == 41) && (paren != 0) {
+						paren = paren - 1
+					}
+					if c == 123 {
+						block = pending
+						pending = 0
+					}
+					if c == 125 {
+						block = 0
+						paren = 0
+					}
+					hl = 32
+				} else {
+					if (rt.Ld8(m.Mem, int(c)+2192) & 8) != 0 {
+						hl = 35
+					} else {
+						if (c == 61) || (c == 63) {
+							hl = 25
+						} else {
+							t10 = m.Utf8SpanEnd(m.Ptr, m.End)
+							m.Ptr = t10
+							hl = 0
+						}
+					}
+				}
 			}
-			if (pc == 40) && (hl != 56) {
-				hl = 14
-			}
-			m.EmitTok(hl, lhs, rhs)
-			continue next
 		}
-		t7 = m.LexIsDigit(c)
-		t8 = c == 45
-		t9 = m.LexIsDigit(c2)
-		if (t7 | (rt.B2u(t8) & t9)) != 0 {
-			m.Ptr = lhs + rt.B2u(c == 45)
-			m.LexScanNumber()
-			hl = 24
-			goto emit
-		}
-		m.Ptr = lhs + 1
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			if c == 40 {
-				paren = paren + 1
-			}
-			if (c == 41) && (paren != 0) {
-				paren = paren - 1
-			}
-			if c == 123 {
-				block = pending
-				pending = 0
-			}
-			if c == 125 {
-				block = 0
-				paren = 0
-			}
-			hl = 32
-			goto emit
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 8) != 0 {
-			hl = 35
-			goto emit
-		}
-		if (c == 61) || (c == 63) {
-			hl = 25
-			goto emit
-		}
-		t10 = m.Utf8SpanEnd(m.Ptr, m.End)
-		m.Ptr = t10
-		hl = 0
-		goto emit
-	emit:
 		m.EmitTok(hl, lhs, m.Ptr)
 		continue next
 	}
@@ -47376,36 +46790,35 @@ line:
 		t1 = m.IndentLineEnd(lhs)
 		lineEnd = t1
 		kind = 0
-		if lhs == lineEnd {
-			goto rest
-		}
-		if block != 0 {
-			if indent > (block >> 8) {
-				if (block & 1) != 0 {
-					m.Ptr = lineEnd
-					m.EmitTok(4, lhs, lineEnd)
-				} else {
-					m.PugText(lineEnd)
+		if lhs != lineEnd {
+			if block != 0 {
+				if indent > (block >> 8) {
+					if (block & 1) != 0 {
+						m.Ptr = lineEnd
+						m.EmitTok(4, lhs, lineEnd)
+					} else {
+						m.PugText(lineEnd)
+					}
+					goto rest
 				}
-				goto rest
+				block = 0
 			}
-			block = 0
-		}
-		if tag != 0 {
-			t2 = m.PugAttrs(lineEnd)
-			if t2 != 0 {
-				goto rest
+			if tag != 0 {
+				t2 = m.PugAttrs(lineEnd)
+				if t2 != 0 {
+					goto rest
+				}
+				t3 = m.PugTail(lineEnd, tag&255)
+				kind = t3
+				tag = 0
+			} else {
+				t4 = m.PugLine(lineEnd)
+				kind = t4
 			}
-			t3 = m.PugTail(lineEnd, tag&255)
-			kind = t3
-			tag = 0
-		} else {
-			t4 = m.PugLine(lineEnd)
-			kind = t4
-		}
-		if (kind & 512) != 0 {
-			tag = kind
-			kind = 0
+			if (kind & 512) != 0 {
+				tag = kind
+				kind = 0
+			}
 		}
 	rest:
 		m.EmitTok(0, m.Ptr, lineEnd)
@@ -47875,36 +47288,31 @@ next:
 			hl = 29
 			t28 = (c2 == 61) || (c2 == 43)
 			t29 = m.TemplateByte(p + 1)
-			if (t28 && (t29 == 62)) && (v != 17) {
-				goto classified
+			if !((t28 && (t29 == 62)) && (v != 17)) {
+				if (e - 1) <= 2 {
+					hl = rt.Sel32((e == 2), 15, 55)
+					expect = rt.Sel32((e <= 2), 5, 0)
+				} else {
+					hl = 55
+					if (c - 65) > 25 {
+						if int32(v) >= int32(0) {
+							hl = v & 255
+							expect = v >> 8
+						} else {
+							hl = 14
+							t30 = c2 == 40
+							t31 = m.LexLineByteBefore(lhs)
+							if !(t30 || (t31 == 46)) {
+								hl = 55
+								if c2 != 123 {
+									t32 = m.PuppetAfterArrow(lhs)
+									hl = rt.Sel32((t32 != 0), 6, 0)
+								}
+							}
+						}
+					}
+				}
 			}
-			if (e - 1) <= 2 {
-				hl = rt.Sel32((e == 2), 15, 55)
-				expect = rt.Sel32((e <= 2), 5, 0)
-				goto classified
-			}
-			hl = 55
-			if (c - 65) <= 25 {
-				goto classified
-			}
-			if int32(v) >= int32(0) {
-				hl = v & 255
-				expect = v >> 8
-				goto classified
-			}
-			hl = 14
-			t30 = c2 == 40
-			t31 = m.LexLineByteBefore(lhs)
-			if t30 || (t31 == 46) {
-				goto classified
-			}
-			hl = 55
-			if c2 == 123 {
-				goto classified
-			}
-			t32 = m.PuppetAfterArrow(lhs)
-			hl = rt.Sel32((t32 != 0), 6, 0)
-		classified:
 			m.EmitTok(hl, lhs, rhs)
 			continue next
 		}
@@ -48176,62 +47584,61 @@ next:
 			if d == 7 {
 				hl = rt.Sel32((g == 10), 20, 23)
 				decl = 7
-				goto classified
-			}
-			t12 = (d == 1) || ((d - 8) <= 1)
-			t13 = params != 0
-			t14 = m.LexIsIdentStart(n)
-			if (rt.B2u(t12) | (rt.B2u(t13) & t14)) != 0 {
-				hl = rt.Sel32((g == 11), 56, rt.Sel32((g == 9), 19, 55))
-				decl = rt.Sel32(((n == 46) || (n == 60)), d, rt.Sel32((d == 1), 2, rt.Sel32((d == 8), 8, 0)))
-				goto classified
-			}
-			if params != 0 {
-				hl = 59
-				goto classified
-			}
-			if (d == 2) && (g != 1) {
-				hl = 29
-				bind = rt.B2u(n == 58)
-				goto classified
-			}
-			if (d - 3) <= 1 {
-				hl = 15
-				decl = d + 8
-				goto classified
-			}
-			if (d - 5) <= 1 {
-				hl = 55
-				decl = rt.Sel32((d == 6), 10, 0)
-				bind = rt.B2u(n == 58)
-				goto classified
-			}
-			if enum != 0 {
-				hl = 6
-				goto classified
-			}
-			if n == 58 {
-				bind = 1
-				hl = 29
-				if (rt.Ld16(m.Mem, int(lhs)) == 28271) && ((rt.Ld8(m.Mem, int(lhs)+2) - 65) <= 25) {
-					hl = 14
+			} else {
+				t12 = (d == 1) || ((d - 8) <= 1)
+				t13 = params != 0
+				t14 = m.LexIsIdentStart(n)
+				if (rt.B2u(t12) | (rt.B2u(t13) & t14)) != 0 {
+					hl = rt.Sel32((g == 11), 56, rt.Sel32((g == 9), 19, 55))
+					decl = rt.Sel32(((n == 46) || (n == 60)), d, rt.Sel32((d == 1), 2, rt.Sel32((d == 8), 8, 0)))
+				} else {
+					if params != 0 {
+						hl = 59
+					} else {
+						if (d == 2) && (g != 1) {
+							hl = 29
+							bind = rt.B2u(n == 58)
+						} else {
+							if (d - 3) <= 1 {
+								hl = 15
+								decl = d + 8
+							} else {
+								if (d - 5) <= 1 {
+									hl = 55
+									decl = rt.Sel32((d == 6), 10, 0)
+									bind = rt.B2u(n == 58)
+								} else {
+									if enum != 0 {
+										hl = 6
+									} else {
+										if n == 58 {
+											bind = 1
+											hl = 29
+											if (rt.Ld16(m.Mem, int(lhs)) == 28271) && ((rt.Ld8(m.Mem, int(lhs)+2) - 65) <= 25) {
+												hl = 14
+											}
+											if ((rhs - lhs) == 2) && (rt.Ld16(m.Mem, int(lhs)) == 25705) {
+												hl = 17
+											}
+										} else {
+											if (g - 1) <= 7 {
+												hl = rt.Sel32((g == 8), 17, rt.Sel32((g == 7), 20, 19))
+												decl = rt.Sel32((g == 8), 0, g)
+											} else {
+												if n == 40 {
+													hl = rt.Sel32((atMember != 0), 16, 14)
+												} else {
+													hl = rt.Sel32((upper != 0), 55, rt.Sel32(((atMember|rt.B2u((n == 123) || (n == 46))) != 0), 29, 58))
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
-				if ((rhs - lhs) == 2) && (rt.Ld16(m.Mem, int(lhs)) == 25705) {
-					hl = 17
-				}
-				goto classified
 			}
-			if (g - 1) <= 7 {
-				hl = rt.Sel32((g == 8), 17, rt.Sel32((g == 7), 20, 19))
-				decl = rt.Sel32((g == 8), 0, g)
-				goto classified
-			}
-			if n == 40 {
-				hl = rt.Sel32((atMember != 0), 16, 14)
-				goto classified
-			}
-			hl = rt.Sel32((upper != 0), 55, rt.Sel32(((atMember|rt.B2u((n == 123) || (n == 46))) != 0), 29, 58))
-		classified:
 			m.EmitTok(hl, lhs, rhs)
 			continue next
 		}
@@ -48885,650 +48292,403 @@ func (m *Machine) HlRazor() {
 			resumed = t0
 		}
 	}
-	if resumed != 0 {
-		goto done
-	}
-next:
-	for {
-		if m.Ptr >= m.LiveLimit {
-			if liveRoot != 0 {
-				rt.St32(m.Mem, 98064, streamRoot)
-				rt.St64(m.Mem, 98072, stack)
-				rt.St32(m.Mem, 98080, markup)
-				rt.St32(m.Mem, 98084, await)
-				rt.St32(m.Mem, 98088, xline)
-				rt.St32(m.Mem, 98092, stmt)
-				rt.St32(m.Mem, 98096, enter)
-				rt.St32(m.Mem, 98100, lineMarkup)
-				rt.St32(m.Mem, 98104, resumed)
-				m.LiveSuspended = 1
-				return
-			}
-		}
-		if m.Ptr >= m.End {
-			goto done
-		}
-		lhs = m.Ptr
-		top = rt.Sel32((stack > 1), uint32((stack & 3)), 4)
-		if await != 0 {
-			m.ScanWhitespace()
-			m.EmitGap(lhs, m.Ptr)
-			if m.Ptr >= m.End {
-				continue next
-			}
-			lhs = m.Ptr
-			c = await
-			await = 0
-			if c < 3 {
-				if rt.Ld8(m.Mem, int(lhs)) == 123 {
-					p = lhs
-					q = rt.Sel32((c == 1), 1, 3)
-					goto openBrace
-				}
-				continue next
-			}
-			m.ScanIdentRun(95)
-			p = m.Ptr - lhs
-			m.Ptr = lhs
-			if (((p == 4) && (rt.Ld32(m.Mem, int(lhs)) == 0x65736c65)) || ((p == 7) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffffff) == 0x796c6c616e6966))) || ((p == 5) && (((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x6863746163) || ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x656c696877))) {
-				goto header
-			}
-			continue next
-		}
-		if (markup & 23) == 20 {
-			q = (markup >> 8) & 255
-			t1 = m.ScanFindSpecial(lhs, m.End, q, 0, 1)
-			p = t1
-			t2 = m.TemplateByte(p)
-			if t2 == q {
-				m.RazorCs(p)
-				m.Ptr = p + 1
-				m.EmitTok(44, p, m.Ptr)
-				markup = (markup & 0xffff00e8) | 1
-			} else {
-				t3 = m.MarkdownAfterLine(p)
-				m.RazorCs(t3)
-			}
-			continue next
-		}
-		if (rt.B2u(top <= 1) & (rt.Clz32(((enter | lineMarkup) | markup)) >> 5)) != 0 {
-			if xline != 0 {
-				r = rt.Sel32((xline == 1), 4, 44)
-				if xline == 2 {
-					t4 = m.RazorVerbatimEnd(lhs)
-					p = t4
-					q = 1
-				} else {
-					q = rt.Sel32((xline == 1), 2, 3)
-					t5 = m.TmplFindWord(lhs, rt.Sel64((xline == 1), 12074, 0x222222), q)
-					p = t5
-				}
-				if p < m.End {
-					p = p + q
-					xline = 0
-				} else {
-					p = m.End
-				}
-				m.Ptr = p
-				m.EmitTok(r, lhs, p)
-				continue next
-			}
-			t6 = m.MarkdownLineEnd(lhs)
-			lineEnd = t6
-			saveEnd = m.End
-			m.End = lineEnd
-			p = lhs
-			parens = 0
-			ev = 0
-		scan:
-			for {
-				if p >= m.End {
-					break scan
-				}
-				c = rt.Ld8(m.Mem, int(p))
-				t7 = m.TemplateByte(p + 1)
-				q = t7
-				switch c - 9 {
-				case 0:
-					goto byteSwitch50
-				case 1:
-					goto byteSwitch5Default
-				case 2:
-					goto byteSwitch5Default
-				case 3:
-					goto byteSwitch5Default
-				case 4:
-					goto byteSwitch5Default
-				case 5:
-					goto byteSwitch5Default
-				case 6:
-					goto byteSwitch5Default
-				case 7:
-					goto byteSwitch5Default
-				case 8:
-					goto byteSwitch5Default
-				case 9:
-					goto byteSwitch5Default
-				case 10:
-					goto byteSwitch5Default
-				case 11:
-					goto byteSwitch5Default
-				case 12:
-					goto byteSwitch5Default
-				case 13:
-					goto byteSwitch5Default
-				case 14:
-					goto byteSwitch5Default
-				case 15:
-					goto byteSwitch5Default
-				case 16:
-					goto byteSwitch5Default
-				case 17:
-					goto byteSwitch5Default
-				case 18:
-					goto byteSwitch5Default
-				case 19:
-					goto byteSwitch5Default
-				case 20:
-					goto byteSwitch5Default
-				case 21:
-					goto byteSwitch5Default
-				case 22:
-					goto byteSwitch5Default
-				case 23:
-					goto byteSwitch50
-				case 24:
-					goto byteSwitch5Default
-				case 25:
-					goto byteSwitch52
-				case 26:
-					goto byteSwitch5Default
-				case 27:
-					goto byteSwitch5Default
-				case 28:
-					goto byteSwitch5Default
-				case 29:
-					goto byteSwitch5Default
-				case 30:
-					goto byteSwitch53
-				case 31:
-					goto byteSwitch57
-				case 32:
-					goto byteSwitch58
-				case 33:
-					goto byteSwitch5Default
-				case 34:
-					goto byteSwitch5Default
-				case 35:
-					goto byteSwitch5Default
-				case 36:
-					goto byteSwitch5Default
-				case 37:
-					goto byteSwitch5Default
-				case 38:
-					goto byteSwitch51
-				case 39:
-					goto byteSwitch5Default
-				case 40:
-					goto byteSwitch5Default
-				case 41:
-					goto byteSwitch5Default
-				case 42:
-					goto byteSwitch5Default
-				case 43:
-					goto byteSwitch5Default
-				case 44:
-					goto byteSwitch5Default
-				case 45:
-					goto byteSwitch5Default
-				case 46:
-					goto byteSwitch5Default
-				case 47:
-					goto byteSwitch5Default
-				case 48:
-					goto byteSwitch5Default
-				case 49:
-					goto byteSwitch56
-				case 50:
-					goto byteSwitch56
-				case 51:
-					goto byteSwitch59
-				case 52:
-					goto byteSwitch5Default
-				case 53:
-					goto byteSwitch5Default
-				case 54:
-					goto byteSwitch5Default
-				case 55:
-					goto byteSwitch510
-				case 56:
-					goto byteSwitch5Default
-				case 57:
-					goto byteSwitch5Default
-				case 58:
-					goto byteSwitch5Default
-				case 59:
-					goto byteSwitch5Default
-				case 60:
-					goto byteSwitch5Default
-				case 61:
-					goto byteSwitch5Default
-				case 62:
-					goto byteSwitch5Default
-				case 63:
-					goto byteSwitch5Default
-				case 64:
-					goto byteSwitch5Default
-				case 65:
-					goto byteSwitch5Default
-				case 66:
-					goto byteSwitch5Default
-				case 67:
-					goto byteSwitch5Default
-				case 68:
-					goto byteSwitch5Default
-				case 69:
-					goto byteSwitch5Default
-				case 70:
-					goto byteSwitch5Default
-				case 71:
-					goto byteSwitch5Default
-				case 72:
-					goto byteSwitch5Default
-				case 73:
-					goto byteSwitch5Default
-				case 74:
-					goto byteSwitch5Default
-				case 75:
-					goto byteSwitch5Default
-				case 76:
-					goto byteSwitch5Default
-				case 77:
-					goto byteSwitch5Default
-				case 78:
-					goto byteSwitch5Default
-				case 79:
-					goto byteSwitch5Default
-				case 80:
-					goto byteSwitch5Default
-				case 81:
-					goto byteSwitch5Default
-				case 82:
-					goto byteSwitch5Default
-				case 83:
-					goto byteSwitch5Default
-				case 84:
-					goto byteSwitch5Default
-				case 85:
-					goto byteSwitch5Default
-				case 86:
-					goto byteSwitch5Default
-				case 87:
-					goto byteSwitch5Default
-				case 88:
-					goto byteSwitch5Default
-				case 89:
-					goto byteSwitch5Default
-				case 90:
-					goto byteSwitch5Default
-				case 91:
-					goto byteSwitch5Default
-				case 92:
-					goto byteSwitch5Default
-				case 93:
-					goto byteSwitch5Default
-				case 94:
-					goto byteSwitch5Default
-				case 95:
-					goto byteSwitch5Default
-				case 96:
-					goto byteSwitch5Default
-				case 97:
-					goto byteSwitch5Default
-				case 98:
-					goto byteSwitch5Default
-				case 99:
-					goto byteSwitch5Default
-				case 100:
-					goto byteSwitch5Default
-				case 101:
-					goto byteSwitch5Default
-				case 102:
-					goto byteSwitch5Default
-				case 103:
-					goto byteSwitch5Default
-				case 104:
-					goto byteSwitch5Default
-				case 105:
-					goto byteSwitch5Default
-				case 106:
-					goto byteSwitch5Default
-				case 107:
-					goto byteSwitch5Default
-				case 108:
-					goto byteSwitch5Default
-				case 109:
-					goto byteSwitch5Default
-				case 110:
-					goto byteSwitch5Default
-				case 111:
-					goto byteSwitch5Default
-				case 112:
-					goto byteSwitch5Default
-				case 113:
-					goto byteSwitch5Default
-				case 114:
-					goto byteSwitch54
-				case 115:
-					goto byteSwitch5Default
-				case 116:
-					goto byteSwitch55
-				default:
-					goto byteSwitch5Default
-				}
-			byteSwitch50:
-				m.Ptr = p
-				m.ScanWhitespace()
-				p = m.Ptr
-				continue scan
-			byteSwitch51:
-				if q == 47 {
-					p = m.End
-					continue scan
-				}
-				if q == 42 {
-					t8 = m.TmplFindWord(p+2, 12074, 2)
-					p = t8
-					xline = rt.B2u(p >= m.End)
-					p = p + 2
-					continue scan
-				}
-				goto byteSwitch5Default
-			byteSwitch52:
-				stmt = 0
-				t9 = q == 34
-				t10 = m.TemplateByte(p + 2)
-				if t9 && (t10 == 34) {
-					t11 = m.TmplFindWord(p+3, 0x222222, 3)
-					p = t11
-					if p >= m.End {
-						xline = 3
-					}
-					p = p + 3
-					continue scan
-				}
-				q = rt.Ld8(m.Mem, int((p - 1)))
-				if (p > lhs) && ((q == 64) || ((q == 36) && (((p - 1) > lhs) && (rt.Ld8(m.Mem, int((p-2))) == 64)))) {
-					t12 = m.RazorVerbatimEnd(p + 1)
-					p = t12
-					if p >= m.End {
-						xline = 2
-					}
-					p = p + 1
-					continue scan
-				}
-			loop41:
-				for {
-					t13 = m.ScanFindSpecial(p+1, m.End, 34, 1, 0)
-					p = t13
-					t14 = m.TemplateByte(p)
-					if t14 == 92 {
-						p = p + 1
-						continue loop41
-					}
-					break
-				}
-				p = p + 1
-				continue scan
-			byteSwitch53:
-				stmt = 0
-				q = p + rt.Sel32((q == 92), 3, 2)
-				t15 = q + 1
-				t16 = p + 1
-				t17 = m.TemplateByte(q)
-				p = rt.Sel32((t17 == 39), t15, t16)
-				continue scan
-			byteSwitch54:
-				t18 = m.RazorPush(stack, 0)
-				stack = t18
-				stmt = 1
-				p = p + 1
-				continue scan
-			byteSwitch55:
-				if (stack & 3) == 1 {
-					ev = 1
-					break scan
-				}
-				t19 = m.RazorPop(stack)
-				stack = t19
-				stmt = 1
-				p = p + 1
-				continue scan
-			byteSwitch56:
-				stmt = rt.B2u((parens == 0) && (q != 58))
-				p = p + 1
-				continue scan
-			byteSwitch57:
-				parens = parens + 1
-				goto byteSwitch5Default
-			byteSwitch58:
-				parens = parens - rt.B2u(parens != 0)
-				goto byteSwitch5Default
-			byteSwitch59:
-				if q == 47 {
-					t20 = m.TemplateByte(p + 2)
-					q = t20
-				}
-				if ((stmt & rt.B2u(parens == 0)) & rt.B2u((((q|32)-97) <= 25) || ((q == 95) || (q >= 128)))) != 0 {
-					ev = 2
-					break scan
-				}
-				goto byteSwitch5Default
-			byteSwitch510:
-				if q == 42 {
-					ev = 4
-					break scan
-				}
-				if (rt.B2u(q == 58) & stmt) != 0 {
-					ev = 3
-					break scan
-				}
-				goto byteSwitch5Default
-			byteSwitch5Default:
-				stmt = 0
-				m.Ptr = p + 1
-				m.ScanIdentRun(95)
-				p = m.Ptr
-				continue scan
-			}
-			m.End = saveEnd
-			m.Ptr = lhs
-			if p > lineEnd {
-				p = lineEnd
-			}
-			if ev == 0 {
-				t21 = m.MarkdownAfterLine(p)
-				p = t21
-			}
-			m.RazorCs(p)
-			if ev == 1 {
-				await = 3
-				goto closeBrace
-			}
-			if ev == 2 {
-				enter = 1
-			}
-			if ev == 3 {
-				m.Ptr = p + 2
-				m.EmitTok(18, p, m.Ptr)
-				lineMarkup = 1
-			}
-			if ev == 4 {
-				m.TmplComment(2, 16426, 2)
-			}
-			continue next
-		}
-		saveEnd = m.End
-		t22 = m.MarkdownLineEnd(lhs)
-		t23 = m.MarkdownAfterLine(t22)
-		lineEnd = t23
-		skip = 0
-	markupNext:
+	if resumed == 0 {
+	next:
 		for {
-			if lineMarkup != 0 {
-				m.End = lineEnd
-			}
-			t24 = m.TmplMarkup(markup, (1|(rt.B2u((top == 3) && (enter == 0))<<1))|(((enter|rt.B2u(top == 2))<<3)|(skip<<4)))
-			r = t24
-			m.End = saveEnd
-			markup = r & 0xffffff
-			ev = r >> 24
-			if (lineMarkup & rt.B2u(m.Ptr >= lineEnd)) != 0 {
-				m.TmplCut()
-				lineMarkup = 0
-				markup = 0
-			}
-			if ev == 0 {
-				continue next
-			}
-			if ev >= 3 {
-				if ev == 3 {
-					t25 = m.RazorPush(stack, 2)
-					stack = t25
+			if m.Ptr >= m.LiveLimit {
+				if liveRoot != 0 {
+					rt.St32(m.Mem, 98064, streamRoot)
+					rt.St64(m.Mem, 98072, stack)
+					rt.St32(m.Mem, 98080, markup)
+					rt.St32(m.Mem, 98084, await)
+					rt.St32(m.Mem, 98088, xline)
+					rt.St32(m.Mem, 98092, stmt)
+					rt.St32(m.Mem, 98096, enter)
+					rt.St32(m.Mem, 98100, lineMarkup)
+					rt.St32(m.Mem, 98104, resumed)
+					m.LiveSuspended = 1
+					return
 				}
-				if (ev == 5) && (enter == 0) {
-					t26 = m.RazorPop(stack)
-					stack = t26
-				}
-				enter = 0
-				stmt = 1
-				continue next
 			}
-			if ev == 2 {
-				continue next
+			if m.Ptr >= m.End {
+				goto done
 			}
 			lhs = m.Ptr
-			if rt.Ld8(m.Mem, int(lhs)) == 125 {
-				p = lhs
-				goto closeBrace
-			}
-			t27 = m.TemplateByte(lhs + 1)
-			c = t27
-			t28 = lhs > m.SrcBase
-			t29 = m.MarkdownIsAlnum(rt.Ld8(m.Mem, int((lhs - 1))))
-			if (rt.B2u(t28) & t29) != 0 {
-				goto plain
-			}
-			if c == 64 {
-				m.Ptr = lhs + 2
-				m.EmitTok(45, lhs, m.Ptr)
-				continue next
-			}
-			if c == 42 {
-				m.TmplComment(2, 16426, 2)
-				continue next
-			}
-			if ((markup & 7) - 1) <= 1 {
-				goto plain
-			}
-			if (c == 123) && (markup == 0) {
-				m.Ptr = lhs + 1
-				m.EmitTok(18, lhs, m.Ptr)
-				goto header
-			}
-			if (rt.B2u(c != 40) & (rt.Clz32(rt.B2u((((c|32)-97) <= 25) || ((c == 95) || (c >= 128)))) >> 5)) != 0 {
-				goto plain
-			}
-			m.Ptr = lhs + 1
-			m.EmitTok(18, lhs, m.Ptr)
-			if c == 40 {
-				t30 = m.RazorExprEnd(m.Ptr, 0)
-				p = t30
-			} else {
+			top = rt.Sel32((stack > 1), uint32((stack & 3)), 4)
+			if await != 0 {
+				m.ScanWhitespace()
+				m.EmitGap(lhs, m.Ptr)
+				if m.Ptr >= m.End {
+					continue next
+				}
+				lhs = m.Ptr
+				c = await
+				await = 0
+				if c < 3 {
+					if rt.Ld8(m.Mem, int(lhs)) == 123 {
+						p = lhs
+						q = rt.Sel32((c == 1), 1, 3)
+						goto openBrace
+					}
+					continue next
+				}
 				m.ScanIdentRun(95)
-				p = m.Ptr
-				m.Ptr = lhs + 1
-				t31 = m.LexKeywordLookup(m.Ptr, p, 29568, 3, 29)
-				r = rt.Sel32((markup == 0), t31, 0)
-				if r == 1 {
+				p = m.Ptr - lhs
+				m.Ptr = lhs
+				if (((p == 4) && (rt.Ld32(m.Mem, int(lhs)) == 0x65736c65)) || ((p == 7) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffffff) == 0x796c6c616e6966))) || ((p == 5) && (((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x6863746163) || ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x656c696877))) {
 					goto header
 				}
-				if r == 2 {
-					t32 = m.LexSkipSpaceAt(p)
-					t33 = m.TemplateByte(t32)
-					if t33 == 40 {
-						goto header
+				continue next
+			}
+			if (markup & 23) == 20 {
+				q = (markup >> 8) & 255
+				t1 = m.ScanFindSpecial(lhs, m.End, q, 0, 1)
+				p = t1
+				t2 = m.TemplateByte(p)
+				if t2 == q {
+					m.RazorCs(p)
+					m.Ptr = p + 1
+					m.EmitTok(44, p, m.Ptr)
+					markup = (markup & 0xffff00e8) | 1
+				} else {
+					t3 = m.MarkdownAfterLine(p)
+					m.RazorCs(t3)
+				}
+				continue next
+			}
+			if (rt.B2u(top <= 1) & (rt.Clz32(((enter | lineMarkup) | markup)) >> 5)) != 0 {
+				if xline != 0 {
+					r = rt.Sel32((xline == 1), 4, 44)
+					if xline == 2 {
+						t4 = m.RazorVerbatimEnd(lhs)
+						p = t4
+						q = 1
+					} else {
+						q = rt.Sel32((xline == 1), 2, 3)
+						t5 = m.TmplFindWord(lhs, rt.Sel64((xline == 1), 12074, 0x222222), q)
+						p = t5
 					}
-					t34 = m.MarkdownLineEnd(p)
-					m.RazorCs(t34)
+					if p < m.End {
+						p = p + q
+						xline = 0
+					} else {
+						p = m.End
+					}
+					m.Ptr = p
+					m.EmitTok(r, lhs, p)
 					continue next
 				}
-				if r != 0 {
-					m.EmitTok(17, m.Ptr, p)
-					m.Ptr = p
-					if r == 5 {
-						t35 = m.MarkdownLineEnd(p)
-						m.RazorCs(t35)
+				t6 = m.MarkdownLineEnd(lhs)
+				lineEnd = t6
+				saveEnd = m.End
+				m.End = lineEnd
+				p = lhs
+				parens = 0
+				ev = 0
+			scan:
+				for {
+					if p >= m.End {
+						break scan
+					}
+					c = rt.Ld8(m.Mem, int(p))
+					t7 = m.TemplateByte(p + 1)
+					q = t7
+					switch c {
+					case '\t', ' ':
+						m.Ptr = p
+						m.ScanWhitespace()
+						p = m.Ptr
+						continue scan
+					case '/':
+						if q == 47 {
+							p = m.End
+							continue scan
+						}
+						if q == 42 {
+							t8 = m.TmplFindWord(p+2, 12074, 2)
+							p = t8
+							xline = rt.B2u(p >= m.End)
+							p = p + 2
+							continue scan
+						}
+					case '"':
+						stmt = 0
+						t9 = q == 34
+						t10 = m.TemplateByte(p + 2)
+						if t9 && (t10 == 34) {
+							t11 = m.TmplFindWord(p+3, 0x222222, 3)
+							p = t11
+							if p >= m.End {
+								xline = 3
+							}
+							p = p + 3
+							continue scan
+						}
+						q = rt.Ld8(m.Mem, int((p - 1)))
+						if (p > lhs) && ((q == 64) || ((q == 36) && (((p - 1) > lhs) && (rt.Ld8(m.Mem, int((p-2))) == 64)))) {
+							t12 = m.RazorVerbatimEnd(p + 1)
+							p = t12
+							if p >= m.End {
+								xline = 2
+							}
+							p = p + 1
+							continue scan
+						}
+					loop30:
+						for {
+							t13 = m.ScanFindSpecial(p+1, m.End, 34, 1, 0)
+							p = t13
+							t14 = m.TemplateByte(p)
+							if t14 == 92 {
+								p = p + 1
+								continue loop30
+							}
+							break
+						}
+						p = p + 1
+						continue scan
+					case '\'':
+						stmt = 0
+						q = p + rt.Sel32((q == 92), 3, 2)
+						t15 = q + 1
+						t16 = p + 1
+						t17 = m.TemplateByte(q)
+						p = rt.Sel32((t17 == 39), t15, t16)
+						continue scan
+					case '{':
+						t18 = m.RazorPush(stack, 0)
+						stack = t18
+						stmt = 1
+						p = p + 1
+						continue scan
+					case '}':
+						if (stack & 3) == 1 {
+							ev = 1
+							break scan
+						}
+						t19 = m.RazorPop(stack)
+						stack = t19
+						stmt = 1
+						p = p + 1
+						continue scan
+					case ':', ';':
+						stmt = rt.B2u((parens == 0) && (q != 58))
+						p = p + 1
+						continue scan
+					case '(':
+						parens = parens + 1
+					case ')':
+						parens = parens - rt.B2u(parens != 0)
+					case '<':
+						if q == 47 {
+							t20 = m.TemplateByte(p + 2)
+							q = t20
+						}
+						if ((stmt & rt.B2u(parens == 0)) & rt.B2u((((q|32)-97) <= 25) || ((q == 95) || (q >= 128)))) != 0 {
+							ev = 2
+							break scan
+						}
+					case '@':
+						if q == 42 {
+							ev = 4
+							break scan
+						}
+						if (rt.B2u(q == 58) & stmt) != 0 {
+							ev = 3
+							break scan
+						}
+					}
+					stmt = 0
+					m.Ptr = p + 1
+					m.ScanIdentRun(95)
+					p = m.Ptr
+					continue scan
+				}
+				m.End = saveEnd
+				m.Ptr = lhs
+				if p > lineEnd {
+					p = lineEnd
+				}
+				if ev == 0 {
+					t21 = m.MarkdownAfterLine(p)
+					p = t21
+				}
+				m.RazorCs(p)
+				if ev == 1 {
+					await = 3
+					goto closeBrace
+				}
+				if ev == 2 {
+					enter = 1
+				}
+				if ev == 3 {
+					m.Ptr = p + 2
+					m.EmitTok(18, p, m.Ptr)
+					lineMarkup = 1
+				}
+				if ev == 4 {
+					m.TmplComment(2, 16426, 2)
+				}
+				continue next
+			}
+			saveEnd = m.End
+			t22 = m.MarkdownLineEnd(lhs)
+			t23 = m.MarkdownAfterLine(t22)
+			lineEnd = t23
+			skip = 0
+		markupNext:
+			for {
+				if lineMarkup != 0 {
+					m.End = lineEnd
+				}
+				t24 = m.TmplMarkup(markup, (1|(rt.B2u((top == 3) && (enter == 0))<<1))|(((enter|rt.B2u(top == 2))<<3)|(skip<<4)))
+				r = t24
+				m.End = saveEnd
+				markup = r & 0xffffff
+				ev = r >> 24
+				if (lineMarkup & rt.B2u(m.Ptr >= lineEnd)) != 0 {
+					m.TmplCut()
+					lineMarkup = 0
+					markup = 0
+				}
+				if ev == 0 {
+					continue next
+				}
+				if ev >= 3 {
+					if ev == 3 {
+						t25 = m.RazorPush(stack, 2)
+						stack = t25
+					}
+					if (ev == 5) && (enter == 0) {
+						t26 = m.RazorPop(stack)
+						stack = t26
+					}
+					enter = 0
+					stmt = 1
+					continue next
+				}
+				if ev == 2 {
+					continue next
+				}
+				lhs = m.Ptr
+				if rt.Ld8(m.Mem, int(lhs)) == 125 {
+					p = lhs
+					goto closeBrace
+				}
+				t27 = m.TemplateByte(lhs + 1)
+				c = t27
+				t28 = lhs > m.SrcBase
+				t29 = m.MarkdownIsAlnum(rt.Ld8(m.Mem, int((lhs - 1))))
+				if (rt.B2u(t28) & t29) == 0 {
+					if c == 64 {
+						m.Ptr = lhs + 2
+						m.EmitTok(45, lhs, m.Ptr)
 						continue next
 					}
-					await = rt.Sel32((r == 3), 1, 2)
-					if r == 4 {
-						t36 = m.LexSkipSpaceAt(p)
-						q = t36
-						m.EmitGap(p, q)
-						m.Ptr = q
-						m.ScanIdentRun(95)
-						m.EmitTok(58, q, m.Ptr)
+					if c == 42 {
+						m.TmplComment(2, 16426, 2)
+						continue next
 					}
-					continue next
+					if ((markup & 7) - 1) > 1 {
+						if (c == 123) && (markup == 0) {
+							m.Ptr = lhs + 1
+							m.EmitTok(18, lhs, m.Ptr)
+							goto header
+						}
+						if (rt.B2u(c != 40) & (rt.Clz32(rt.B2u((((c|32)-97) <= 25) || ((c == 95) || (c >= 128)))) >> 5)) == 0 {
+							m.Ptr = lhs + 1
+							m.EmitTok(18, lhs, m.Ptr)
+							if c == 40 {
+								t30 = m.RazorExprEnd(m.Ptr, 0)
+								p = t30
+							} else {
+								m.ScanIdentRun(95)
+								p = m.Ptr
+								m.Ptr = lhs + 1
+								t31 = m.LexKeywordLookup(m.Ptr, p, 29568, 3, 29)
+								r = rt.Sel32((markup == 0), t31, 0)
+								if r == 1 {
+									goto header
+								}
+								if r == 2 {
+									t32 = m.LexSkipSpaceAt(p)
+									t33 = m.TemplateByte(t32)
+									if t33 == 40 {
+										goto header
+									}
+									t34 = m.MarkdownLineEnd(p)
+									m.RazorCs(t34)
+									continue next
+								}
+								if r != 0 {
+									m.EmitTok(17, m.Ptr, p)
+									m.Ptr = p
+									if r == 5 {
+										t35 = m.MarkdownLineEnd(p)
+										m.RazorCs(t35)
+										continue next
+									}
+									await = rt.Sel32((r == 3), 1, 2)
+									if r == 4 {
+										t36 = m.LexSkipSpaceAt(p)
+										q = t36
+										m.EmitGap(p, q)
+										m.Ptr = q
+										m.ScanIdentRun(95)
+										m.EmitTok(58, q, m.Ptr)
+									}
+									continue next
+								}
+								t37 = m.LexSkipSpaceAt(p)
+								q = t37
+								t38 = ((p - m.Ptr) == 5) && ((rt.Ld64(m.Mem, int(m.Ptr)) & 0xffffffffff) == 0x7469617761)
+								t39 = m.TemplateByte(q)
+								t40 = m.LexIsIdentStart(t39)
+								if (rt.B2u(t38) & t40) != 0 {
+									p = q
+								} else {
+									p = m.Ptr
+								}
+								t41 = m.RazorImplicitEnd(p)
+								p = t41
+							}
+							m.RazorCs(p)
+							if (markup & 7) == 3 {
+								markup = markup ^ 2
+							}
+							continue next
+						}
+					}
 				}
-				t37 = m.LexSkipSpaceAt(p)
-				q = t37
-				t38 = ((p - m.Ptr) == 5) && ((rt.Ld64(m.Mem, int(m.Ptr)) & 0xffffffffff) == 0x7469617761)
-				t39 = m.TemplateByte(q)
-				t40 = m.LexIsIdentStart(t39)
-				if (rt.B2u(t38) & t40) != 0 {
-					p = q
-				} else {
-					p = m.Ptr
-				}
-				t41 = m.RazorImplicitEnd(p)
-				p = t41
+				skip = 1
+				continue markupNext
 			}
+		header:
+			t42 = m.RazorExprEnd(m.Ptr, 1)
+			p = t42
 			m.RazorCs(p)
-			if (markup & 7) == 3 {
-				markup = markup ^ 2
+			q = 1
+			t43 = m.TemplateByte(p)
+			if t43 == 123 {
+				goto openBrace
 			}
+			await = 1
 			continue next
-		plain:
-			skip = 1
-			continue markupNext
+		closeBrace:
+			m.Ptr = p + 1
+			m.EmitTok(32, p, m.Ptr)
+			t44 = m.RazorPop(stack)
+			stack = t44
+			continue next
+		openBrace:
+			m.Ptr = p + 1
+			m.EmitTok(32, p, m.Ptr)
+			t45 = m.RazorPush(stack, q)
+			stack = t45
+			stmt = 1
+			lineMarkup = 0
+			continue next
 		}
-	header:
-		t42 = m.RazorExprEnd(m.Ptr, 1)
-		p = t42
-		m.RazorCs(p)
-		q = 1
-		t43 = m.TemplateByte(p)
-		if t43 == 123 {
-			goto openBrace
-		}
-		await = 1
-		continue next
-	closeBrace:
-		m.Ptr = p + 1
-		m.EmitTok(32, p, m.Ptr)
-		t44 = m.RazorPop(stack)
-		stack = t44
-		continue next
-	openBrace:
-		m.Ptr = p + 1
-		m.EmitTok(32, p, m.Ptr)
-		t45 = m.RazorPush(stack, q)
-		stack = t45
-		stmt = 1
-		lineMarkup = 0
-		continue next
 	}
 done:
 	if streamRoot != 0 {
@@ -49719,158 +48879,158 @@ next:
 			} else {
 				m.RdfString(c, 0, lhs)
 			}
-			goto isTerm
-		}
-		if c == 60 {
-			p = m.Ptr
-		iri:
-			for {
-				t5 = m.TemplateByte(p)
-				g = t5
-				if g <= 32 {
-					break iri
-				}
-				if (rt.Ld8(m.Mem, int(g)+5264) & 16) != 0 {
-					break iri
-				}
-				p = p + 1
-				continue iri
-			}
-			if g == 62 {
-				m.Ptr = p + 1
-				m.EmitTok(47, lhs, m.Ptr)
-				if term != 4 {
-					goto isTerm
-				}
-				term = 0
-				continue next
-			}
-		}
-		t6 = (c == 63) || (c == 36)
-		t7 = m.LexIsIdentContinue(c2)
-		if (rt.B2u(t6) & t7) != 0 {
-			m.ScanIdentRun(95)
-			m.EmitTok(58, lhs, m.Ptr)
-			goto isTerm
-		}
-		p = lhs + (rt.B2u(sparql == 0) & (rt.Ld8(m.Mem, int(c)+2448) & 1))
-		t8 = m.TemplateByte(p)
-		g = t8
-		t9 = m.LexIsDigit(g)
-		t10 = g == 46
-		t11 = m.TemplateByte(p + 1)
-		t12 = m.LexIsDigit(t11)
-		if (t9 | (rt.B2u(t10) & t12)) != 0 {
-			m.Ptr = p
-			m.LexScanNumber()
-			m.EmitTok(24, lhs, m.Ptr)
-			goto isTerm
-		}
-		if c == 64 {
-			m.ScanIdentRun(45)
-			p = m.Ptr - lhs
-			if ((p == 7) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffffff) == 0x78696665727040)) || ((p == 5) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x6573616240)) {
-				m.EmitTok(20, lhs, m.Ptr)
-				term = 4
-			} else {
-				m.EmitTok(rt.Sel32((p > 1), 1, 0), lhs, m.Ptr)
-			}
-			continue next
-		}
-		if (c == 94) && (c2 == 94) {
-			m.Ptr = lhs + 2
-			m.EmitTok(25, lhs, m.Ptr)
-			term = 5
-			continue next
-		}
-		if ((c >= 128) || (((c | 32) - 97) <= 25)) || ((c == 95) || (c == 58)) {
-			m.Ptr = lhs
-			m.RdfName(0)
-			rhs = m.Ptr
-			t13 = m.TemplateByte(rhs)
-			if t13 == 58 {
-				m.Ptr = rhs + 1
+		} else {
+			if c == 60 {
 				p = m.Ptr
-				m.RdfName(1)
-				if (c == 95) && ((rhs - lhs) == 1) {
-					m.EmitTok(60, lhs, m.Ptr)
-					goto isTerm
+			iri:
+				for {
+					t5 = m.TemplateByte(p)
+					g = t5
+					if g <= 32 {
+						break iri
+					}
+					if (rt.Ld8(m.Mem, int(g)+5264) & 16) != 0 {
+						break iri
+					}
+					p = p + 1
+					continue iri
 				}
-				m.EmitTok(23, lhs, p)
-				hl = rt.Sel32(((term == 5) || ((rt.Ld8(m.Mem, int(p)) - 65) <= 25)), 55, 6)
-				if term == 1 {
-					hl = 29
+				if g == 62 {
+					m.Ptr = p + 1
+					m.EmitTok(47, lhs, m.Ptr)
+					if term != 4 {
+						goto isTerm
+					}
+					term = 0
+					continue next
 				}
-				t14 = sparql
-				t15 = m.TemplateByte(m.Ptr)
-				if (t14 & rt.B2u(t15 == 40)) != 0 {
-					hl = 14
+			}
+			t6 = (c == 63) || (c == 36)
+			t7 = m.LexIsIdentContinue(c2)
+			if (rt.B2u(t6) & t7) != 0 {
+				m.ScanIdentRun(95)
+				m.EmitTok(58, lhs, m.Ptr)
+			} else {
+				p = lhs + (rt.B2u(sparql == 0) & (rt.Ld8(m.Mem, int(c)+2448) & 1))
+				t8 = m.TemplateByte(p)
+				g = t8
+				t9 = m.LexIsDigit(g)
+				t10 = g == 46
+				t11 = m.TemplateByte(p + 1)
+				t12 = m.LexIsDigit(t11)
+				if (t9 | (rt.B2u(t10) & t12)) != 0 {
+					m.Ptr = p
+					m.LexScanNumber()
+					m.EmitTok(24, lhs, m.Ptr)
+				} else {
+					if c == 64 {
+						m.ScanIdentRun(45)
+						p = m.Ptr - lhs
+						if ((p == 7) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffffff) == 0x78696665727040)) || ((p == 5) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffff) == 0x6573616240)) {
+							m.EmitTok(20, lhs, m.Ptr)
+							term = 4
+						} else {
+							m.EmitTok(rt.Sel32((p > 1), 1, 0), lhs, m.Ptr)
+						}
+						continue next
+					}
+					if (c == 94) && (c2 == 94) {
+						m.Ptr = lhs + 2
+						m.EmitTok(25, lhs, m.Ptr)
+						term = 5
+						continue next
+					}
+					if ((c >= 128) || (((c | 32) - 97) <= 25)) || ((c == 95) || (c == 58)) {
+						m.Ptr = lhs
+						m.RdfName(0)
+						rhs = m.Ptr
+						t13 = m.TemplateByte(rhs)
+						if t13 == 58 {
+							m.Ptr = rhs + 1
+							p = m.Ptr
+							m.RdfName(1)
+							if (c == 95) && ((rhs - lhs) == 1) {
+								m.EmitTok(60, lhs, m.Ptr)
+								goto isTerm
+							}
+							m.EmitTok(23, lhs, p)
+							hl = rt.Sel32(((term == 5) || ((rt.Ld8(m.Mem, int(p)) - 65) <= 25)), 55, 6)
+							if term == 1 {
+								hl = 29
+							}
+							t14 = sparql
+							t15 = m.TemplateByte(m.Ptr)
+							if (t14 & rt.B2u(t15 == 40)) != 0 {
+								hl = 14
+							}
+							m.EmitTok(hl, p, m.Ptr)
+							goto isTerm
+						}
+						if (c == 97) && ((rhs - lhs) == 1) {
+							m.EmitTok(17, lhs, rhs)
+							goto isTerm
+						}
+						t16 = m.LexLowerCopy(lhs, rhs, 1360)
+						t17 = m.LexKeywordValue(1360, 1360+t16, 50960, 15, 55)
+						g = t17
+						if (rt.B2u(int32(g) >= int32(0)) & (sparql | rt.B2u(int32(g) >= int32(256)))) != 0 {
+							hl = g & 255
+							m.EmitTok(hl, lhs, rhs)
+							if hl == 3 {
+								goto isTerm
+							}
+							term = 4
+							continue next
+						}
+						t18 = sparql
+						t19 = m.LexSkipSpaceAt(rhs)
+						t20 = m.TemplateByte(t19)
+						if (t18 & rt.B2u(t20 == 40)) != 0 {
+							m.EmitTok(14, lhs, rhs)
+							goto isTerm
+						}
+						m.EmitTok(0, lhs, rhs)
+						continue next
+					}
+					if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+						m.EmitTok(32, lhs, m.Ptr)
+						if (c == 91) || (c == 40) {
+							nest = (nest << 3) | term
+							term = rt.Sel32(((c == 91) || (term == 1)), 1, 3)
+							continue next
+						}
+						if (c == 93) || (c == 41) {
+							term = nest & 7
+							nest = nest >> 3
+							if term != 4 {
+								goto isTerm
+							}
+						}
+						term = 0
+						continue next
+					}
+					if (rt.Ld8(m.Mem, int(c)+2192) & 8) != 0 {
+						m.EmitTok(35, lhs, m.Ptr)
+						term = rt.Sel32((c == 46), 0, rt.Sel32((c == 59), 1, 2))
+						continue next
+					}
+					if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
+						if (c2 == 61) || ((c2 == c) && ((c == 38) || (c == 124))) {
+							m.Ptr = lhs + 2
+						}
+						m.EmitTok(25, lhs, m.Ptr)
+						if (term == 2) && ((m.Ptr == (lhs + 1)) && ((c == 47) || (c == 124))) {
+							term = 1
+						}
+						continue next
+					}
+					t21 = m.Utf8SpanEnd(m.Ptr, m.End)
+					m.Ptr = t21
+					m.EmitTok(0, lhs, m.Ptr)
+					continue next
 				}
-				m.EmitTok(hl, p, m.Ptr)
-				goto isTerm
 			}
-			if (c == 97) && ((rhs - lhs) == 1) {
-				m.EmitTok(17, lhs, rhs)
-				goto isTerm
-			}
-			t16 = m.LexLowerCopy(lhs, rhs, 1360)
-			t17 = m.LexKeywordValue(1360, 1360+t16, 50960, 15, 55)
-			g = t17
-			if (rt.B2u(int32(g) >= int32(0)) & (sparql | rt.B2u(int32(g) >= int32(256)))) != 0 {
-				hl = g & 255
-				m.EmitTok(hl, lhs, rhs)
-				if hl == 3 {
-					goto isTerm
-				}
-				term = 4
-				continue next
-			}
-			t18 = sparql
-			t19 = m.LexSkipSpaceAt(rhs)
-			t20 = m.TemplateByte(t19)
-			if (t18 & rt.B2u(t20 == 40)) != 0 {
-				m.EmitTok(14, lhs, rhs)
-				goto isTerm
-			}
-			m.EmitTok(0, lhs, rhs)
-			continue next
 		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.EmitTok(32, lhs, m.Ptr)
-			if (c == 91) || (c == 40) {
-				nest = (nest << 3) | term
-				term = rt.Sel32(((c == 91) || (term == 1)), 1, 3)
-				continue next
-			}
-			if (c == 93) || (c == 41) {
-				term = nest & 7
-				nest = nest >> 3
-				if term != 4 {
-					goto isTerm
-				}
-			}
-			term = 0
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 8) != 0 {
-			m.EmitTok(35, lhs, m.Ptr)
-			term = rt.Sel32((c == 46), 0, rt.Sel32((c == 59), 1, 2))
-			continue next
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 32) != 0 {
-			if (c2 == 61) || ((c2 == c) && ((c == 38) || (c == 124))) {
-				m.Ptr = lhs + 2
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			if (term == 2) && ((m.Ptr == (lhs + 1)) && ((c == 47) || (c == 124))) {
-				term = 1
-			}
-			continue next
-		}
-		t21 = m.Utf8SpanEnd(m.Ptr, m.End)
-		m.Ptr = t21
-		m.EmitTok(0, lhs, m.Ptr)
-		continue next
 	isTerm:
 		term = rt.Sel32((term == 4), 4, rt.Sel32((term >= 2), 3, (term+1)))
 		continue next
@@ -49979,51 +49139,46 @@ next:
 			}
 		}
 		hl = 25
-		if (c == 61) || (c == 45) {
-			goto emit
-		}
-		hl = 40
-		if c == 92 {
-			goto emit
-		}
-		hl = 35
-		if (rt.Ld8(m.Mem, int(c)+1680) & 16) != 0 {
-			goto emit
-		}
-		hl = 32
-		if (rt.Ld8(m.Mem, int(c)+2960) & 1) != 0 {
-			goto emit
-		}
-		hl = 0
-		m.Ptr = lhs
-		m.ScanIdentRun(95)
-		n = m.Ptr - lhs
-		if n == 0 {
-			m.Ptr = lhs + 1
-			goto emit
-		}
-		w = (rt.Ld64(m.Mem, int(lhs)) | 0x2020202020) & ((uint64(1) << (uint64((n << 3)) & 63)) - 1)
-		t4 = m.TemplateByte(m.Ptr)
-		c = t4
-		hl = 56
-		if ((n <= 5) && ((c == 58) || (c == 40))) && (((w == 0x64726f7764) || (w == 0x64726f7771)) || (w == 0x786568)) {
-			goto emit
-		}
-		hl = 24
-		p = lhs
-	digits:
-		for {
-			if p >= m.Ptr {
-				goto emit
+		if !((c == 61) || (c == 45)) {
+			hl = 40
+			if c != 92 {
+				hl = 35
+				if (rt.Ld8(m.Mem, int(c)+1680) & 16) == 0 {
+					hl = 32
+					if (rt.Ld8(m.Mem, int(c)+2960) & 1) == 0 {
+						hl = 0
+						m.Ptr = lhs
+						m.ScanIdentRun(95)
+						n = m.Ptr - lhs
+						if n == 0 {
+							m.Ptr = lhs + 1
+						} else {
+							w = (rt.Ld64(m.Mem, int(lhs)) | 0x2020202020) & ((uint64(1) << (uint64((n << 3)) & 63)) - 1)
+							t4 = m.TemplateByte(m.Ptr)
+							c = t4
+							hl = 56
+							if !(((n <= 5) && ((c == 58) || (c == 40))) && (((w == 0x64726f7764) || (w == 0x64726f7771)) || (w == 0x786568))) {
+								hl = 24
+								p = lhs
+							digits:
+								for {
+									if p >= m.Ptr {
+										goto emit
+									}
+									t5 = m.LexIsHex(rt.Ld8(m.Mem, int(p)))
+									if t5 == 0 {
+										break digits
+									}
+									p = p + 1
+									continue digits
+								}
+								hl = 0
+							}
+						}
+					}
+				}
 			}
-			t5 = m.LexIsHex(rt.Ld8(m.Mem, int(p)))
-			if t5 == 0 {
-				break digits
-			}
-			p = p + 1
-			continue digits
 		}
-		hl = 0
 	emit:
 		m.EmitTok(hl, lhs, m.Ptr)
 		continue next
@@ -50113,91 +49268,86 @@ next:
 				break
 			}
 			col = 3
-			goto emit
-		}
-		hl = 24
-		t3 = m.LexIsDigit(c)
-		t4 = (rt.Ld8(m.Mem, int(c)+2448) & 1) | rt.B2u(c == 46)
-		t5 = m.LexIsDigit(c2)
-		if (t3 | (t4 & t5)) != 0 {
-			m.Ptr = lhs + (rt.Ld8(m.Mem, int(c)+2448) & 1)
-			m.LexScanNumber()
-			goto emit
-		}
-		hl = 1
-		if c == 64 {
-			m.ScanIdentRun(95)
-			goto emit
-		}
-		hl = 25
-		if c == 61 {
-			if col == 2 {
-				col = 3
-				if str != 0 {
-					m.EmitTok(hl, lhs, m.Ptr)
-					t6 = m.LexSkipSpaceAt(m.Ptr)
-					lhs = t6
-					m.EmitGap(m.Ptr, lhs)
-					m.Ptr = lhs
-					m.ScanToLineEnd()
-					hl = 44
+		} else {
+			hl = 24
+			t3 = m.LexIsDigit(c)
+			t4 = (rt.Ld8(m.Mem, int(c)+2448) & 1) | rt.B2u(c == 46)
+			t5 = m.LexIsDigit(c2)
+			if (t3 | (t4 & t5)) != 0 {
+				m.Ptr = lhs + (rt.Ld8(m.Mem, int(c)+2448) & 1)
+				m.LexScanNumber()
+			} else {
+				hl = 1
+				if c == 64 {
+					m.ScanIdentRun(95)
+				} else {
+					hl = 25
+					if c == 61 {
+						if col == 2 {
+							col = 3
+							if str != 0 {
+								m.EmitTok(hl, lhs, m.Ptr)
+								t6 = m.LexSkipSpaceAt(m.Ptr)
+								lhs = t6
+								m.EmitGap(m.Ptr, lhs)
+								m.Ptr = lhs
+								m.ScanToLineEnd()
+								hl = 44
+							}
+						}
+					} else {
+						if !((c == 60) || (c == 62)) {
+							hl = 32
+							if (rt.Ld8(m.Mem, int(c)+2192) & 4) == 0 {
+								hl = 35
+								if c != 44 {
+									hl = 0
+									m.Ptr = lhs
+									m.ScanIdentRun(47)
+									n = m.Ptr - lhs
+									if n == 0 {
+										m.Ptr = lhs + 1
+									} else {
+										if col == 0 {
+											t7 = n == 3
+											t8 = m.TemplateByte(m.Ptr)
+											if (t7 && (t8 == 58)) && ((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x47534d) {
+												m.Ptr = m.Ptr + 1
+												hl = 17
+											} else {
+												t9 = m.LexKeywordValue(lhs, m.Ptr, 49296, 7, 18)
+												g = t9
+												str = rt.B2u(int32(g) >= int32(256))
+												hl = rt.Sel32((int32(g) >= int32(0)), 56, 55)
+												col = 1
+											}
+										} else {
+											if col == 1 {
+												col = 3
+												hl = 29
+												t10 = m.LexSkipSpaceAt(m.Ptr)
+												t11 = m.TemplateByte(t10)
+												if t11 == 61 {
+													col = 2
+													hl = 6
+												}
+											} else {
+												if (n - 4) <= 1 {
+													w = (rt.Ld64(m.Mem, int(lhs)) | 0x2020202020) & ((uint64(1) << (uint64((n << 3)) & 63)) - 1)
+													if (w == 0x65757274) || (w == 0x65736c6166) {
+														hl = 3
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
-			goto emit
 		}
-		if (c == 60) || (c == 62) {
-			goto emit
-		}
-		hl = 32
-		if (rt.Ld8(m.Mem, int(c)+2192) & 4) != 0 {
-			goto emit
-		}
-		hl = 35
-		if c == 44 {
-			goto emit
-		}
-		hl = 0
-		m.Ptr = lhs
-		m.ScanIdentRun(47)
-		n = m.Ptr - lhs
-		if n == 0 {
-			m.Ptr = lhs + 1
-			goto emit
-		}
-		if col == 0 {
-			t7 = n == 3
-			t8 = m.TemplateByte(m.Ptr)
-			if (t7 && (t8 == 58)) && ((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x47534d) {
-				m.Ptr = m.Ptr + 1
-				hl = 17
-				goto emit
-			}
-			t9 = m.LexKeywordValue(lhs, m.Ptr, 49296, 7, 18)
-			g = t9
-			str = rt.B2u(int32(g) >= int32(256))
-			hl = rt.Sel32((int32(g) >= int32(0)), 56, 55)
-			col = 1
-			goto emit
-		}
-		if col == 1 {
-			col = 3
-			hl = 29
-			t10 = m.LexSkipSpaceAt(m.Ptr)
-			t11 = m.TemplateByte(t10)
-			if t11 == 61 {
-				col = 2
-				hl = 6
-			}
-			goto emit
-		}
-		if (n - 4) > 1 {
-			goto emit
-		}
-		w = (rt.Ld64(m.Mem, int(lhs)) | 0x2020202020) & ((uint64(1) << (uint64((n << 3)) & 63)) - 1)
-		if (w == 0x65757274) || (w == 0x65736c6166) {
-			hl = 3
-		}
-	emit:
 		m.EmitTok(hl, lhs, m.Ptr)
 		continue next
 	}
@@ -51231,37 +50381,36 @@ next:
 			if attr == 1 {
 				hl = 1
 				attr = 2
-				goto classified
-			}
-			t8 = m.ShaderlabWordHl(lhs, rhs)
-			hl = t8
-			if int32(hl) >= int32(0) {
-				goto classified
-			}
-			hl = 7
-			if (rhs - lhs) <= 4 {
-				n = lhs
-			channel:
-				for {
-					if n >= rhs {
-						goto classified
+			} else {
+				t8 = m.ShaderlabWordHl(lhs, rhs)
+				hl = t8
+				if int32(hl) < int32(0) {
+					hl = 7
+					if (rhs - lhs) <= 4 {
+						n = lhs
+					channel:
+						for {
+							if n >= rhs {
+								goto classified
+							}
+							c = rt.Ld8(m.Mem, int(n))
+							if (rt.Clz32(rt.B2u(((c == 82) || (c == 71)) || ((c == 66) || (c == 65)))) >> 5) != 0 {
+								break channel
+							}
+							n = n + 1
+							continue channel
+						}
 					}
-					c = rt.Ld8(m.Mem, int(n))
-					if (rt.Clz32(rt.B2u(((c == 82) || (c == 71)) || ((c == 66) || (c == 65)))) >> 5) != 0 {
-						break channel
+					t9 = m.LexSkipSpaceAt(rhs)
+					t10 = m.TemplateByte(t9)
+					if t10 == 40 {
+						hl = 29
+					} else {
+						t11 = m.LexIsConstCase(lhs, rhs)
+						hl = rt.Sel32((t11 != 0), 6, 58)
 					}
-					n = n + 1
-					continue channel
 				}
 			}
-			t9 = m.LexSkipSpaceAt(rhs)
-			t10 = m.TemplateByte(t9)
-			if t10 == 40 {
-				hl = 29
-				goto classified
-			}
-			t11 = m.LexIsConstCase(lhs, rhs)
-			hl = rt.Sel32((t11 != 0), 6, 58)
 		classified:
 			m.EmitTok(hl, lhs, rhs)
 			continue next
@@ -53051,62 +52200,62 @@ next:
 			m.Ptr = m.Ptr + 1
 			hl = 44
 			seg = m.Ptr
-			goto tok
-		}
-		if (c == 60) && (c2 == 60) {
-			hdStrip = rt.B2u(c3 == 45)
-			t5 = m.TemplateByte(m.Ptr + 3)
-			t6 = m.LexIsIdentStart(rt.Sel32((hdStrip != 0), t5, c3))
-			if t6 != 0 {
-				m.Ptr = m.Ptr + (2 + hdStrip)
-				hdDelim = m.Ptr
-				m.LexScanIdent()
-				hdLen = ((m.Ptr - hdDelim) << 1) | hdStrip
-				hl = 44
-				goto tok
+		} else {
+			if (c == 60) && (c2 == 60) {
+				hdStrip = rt.B2u(c3 == 45)
+				t5 = m.TemplateByte(m.Ptr + 3)
+				t6 = m.LexIsIdentStart(rt.Sel32((hdStrip != 0), t5, c3))
+				if t6 != 0 {
+					m.Ptr = m.Ptr + (2 + hdStrip)
+					hdDelim = m.Ptr
+					m.LexScanIdent()
+					hdLen = ((m.Ptr - hdDelim) << 1) | hdStrip
+					hl = 44
+					goto tok
+				}
 			}
-		}
-		if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
-			m.ScanIdentRun(45)
-			rhs = m.Ptr
-			t7 = m.LexSkipSpaceAt(rhs)
-			p = t7
-			t8 = m.TemplateByte(p)
-			pc = t8
-			t9 = m.LexKeywordLookup(lhs, rhs, 27200, 7, 28)
-			g = rt.Sel32((member != 0), 0, t9)
-			if g == 1 {
-				hl = 18
-			} else {
-				if g == 2 {
-					hl = 3
+			if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
+				m.ScanIdentRun(45)
+				rhs = m.Ptr
+				t7 = m.LexSkipSpaceAt(rhs)
+				p = t7
+				t8 = m.TemplateByte(p)
+				pc = t8
+				t9 = m.LexKeywordLookup(lhs, rhs, 27200, 7, 28)
+				g = rt.Sel32((member != 0), 0, t9)
+				if g == 1 {
+					hl = 18
 				} else {
-					if g == 3 {
-						hl = 7
+					if g == 2 {
+						hl = 3
 					} else {
-						if (g == 4) && (pc != 61) {
-							hl = 56
+						if g == 3 {
+							hl = 7
 						} else {
-							if (g == 5) && (pc == 46) {
-								hl = 60
+							if (g == 4) && (pc != 61) {
+								hl = 56
 							} else {
-								if member != 0 {
-									hl = 29
+								if (g == 5) && (pc == 46) {
+									hl = 60
 								} else {
-									t10 = pc == 61
-									t11 = m.TemplateByte(p + 1)
-									if t10 && (t11 != 61) {
+									if member != 0 {
 										hl = 29
 									} else {
-										if pc == 40 {
-											hl = 14
+										t10 = pc == 61
+										t11 = m.TemplateByte(p + 1)
+										if t10 && (t11 != 61) {
+											hl = 29
 										} else {
-											hl = 58
-											if atHead != 0 {
-												t12 = (pc == 34) || (pc == 123)
-												t13 = m.LexIsIdentStart(pc)
-												if (rt.B2u(t12) | t13) != 0 {
-													hl = 19
+											if pc == 40 {
+												hl = 14
+											} else {
+												hl = 58
+												if atHead != 0 {
+													t12 = (pc == 34) || (pc == 123)
+													t13 = m.LexIsIdentStart(pc)
+													if (rt.B2u(t12) | t13) != 0 {
+														hl = 19
+													}
 												}
 											}
 										}
@@ -53116,57 +52265,57 @@ next:
 						}
 					}
 				}
-			}
-			goto tok
-		}
-		t14 = m.LexIsDigit(c)
-		t15 = c == 46
-		t16 = m.LexIsDigit(c2)
-		if (t14 | (rt.B2u(t15) & t16)) != 0 {
-			m.LexScanNumber()
-			hl = 24
-			goto tok
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			m.Ptr = m.Ptr + 1
-			if interp != 0 {
-				if c == 123 {
-					interp = interp + 1
-				}
-				if c == 125 {
-					interp = interp - 1
-					if interp == 0 {
-						hl = 40
-						seg = m.Ptr
-						goto tok
+			} else {
+				t14 = m.LexIsDigit(c)
+				t15 = c == 46
+				t16 = m.LexIsDigit(c2)
+				if (t14 | (rt.B2u(t15) & t16)) != 0 {
+					m.LexScanNumber()
+					hl = 24
+				} else {
+					if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+						m.Ptr = m.Ptr + 1
+						if interp != 0 {
+							if c == 123 {
+								interp = interp + 1
+							}
+							if c == 125 {
+								interp = interp - 1
+								if interp == 0 {
+									hl = 40
+									seg = m.Ptr
+									goto tok
+								}
+							}
+						}
+						hl = 32
+					} else {
+						if ((c == 44) || (c == 59)) || (c == 58) {
+							m.Ptr = m.Ptr + 1
+							hl = 35
+						} else {
+							if c == 46 {
+								m.Ptr = m.Ptr + rt.Sel32(((c2 == 46) && (c3 == 46)), 3, 1)
+								hl = rt.Sel32((c2 == 46), 25, 35)
+								member = rt.B2u(c2 != 46)
+								goto emit
+							}
+							t17 = m.TfIsOp(c)
+							if t17 != 0 {
+								m.Ptr = m.Ptr + 1
+								if (c2 == 61) || (((c == 61) && (c2 == 62)) || ((c == c2) && ((c == 38) || (c == 124)))) {
+									m.Ptr = m.Ptr + 1
+								}
+								hl = 25
+							} else {
+								m.Ptr = m.Ptr + 1
+								hl = 0
+							}
+						}
 					}
 				}
 			}
-			hl = 32
-			goto tok
 		}
-		if ((c == 44) || (c == 59)) || (c == 58) {
-			m.Ptr = m.Ptr + 1
-			hl = 35
-			goto tok
-		}
-		if c == 46 {
-			m.Ptr = m.Ptr + rt.Sel32(((c2 == 46) && (c3 == 46)), 3, 1)
-			hl = rt.Sel32((c2 == 46), 25, 35)
-			member = rt.B2u(c2 != 46)
-			goto emit
-		}
-		t17 = m.TfIsOp(c)
-		if t17 != 0 {
-			m.Ptr = m.Ptr + 1
-			if (c2 == 61) || (((c == 61) && (c2 == 62)) || ((c == c2) && ((c == 38) || (c == 124)))) {
-				m.Ptr = m.Ptr + 1
-			}
-			hl = 25
-			goto tok
-		}
-		m.Ptr = m.Ptr + 1
-		hl = 0
 	tok:
 		member = 0
 	emit:
@@ -54190,190 +53339,67 @@ next:
 					continue next
 				}
 			}
-			switch c - 36 {
-			case 0:
-				goto byteSwitch61
-			case 1:
-				goto byteSwitch6Default
-			case 2:
-				goto byteSwitch6Default
-			case 3:
-				goto byteSwitch6Default
-			case 4:
-				goto byteSwitch6Default
-			case 5:
-				goto byteSwitch6Default
-			case 6:
-				goto byteSwitch64
-			case 7:
-				goto byteSwitch6Default
-			case 8:
-				goto byteSwitch6Default
-			case 9:
-				goto byteSwitch6Default
-			case 10:
-				goto byteSwitch6Default
-			case 11:
-				goto byteSwitch6Default
-			case 12:
-				goto byteSwitch6Default
-			case 13:
-				goto byteSwitch6Default
-			case 14:
-				goto byteSwitch6Default
-			case 15:
-				goto byteSwitch6Default
-			case 16:
-				goto byteSwitch6Default
-			case 17:
-				goto byteSwitch6Default
-			case 18:
-				goto byteSwitch6Default
-			case 19:
-				goto byteSwitch6Default
-			case 20:
-				goto byteSwitch6Default
-			case 21:
-				goto byteSwitch6Default
-			case 22:
-				goto byteSwitch6Default
-			case 23:
-				goto byteSwitch6Default
-			case 24:
-				goto byteSwitch65
-			case 25:
-				goto byteSwitch6Default
-			case 26:
-				goto byteSwitch6Default
-			case 27:
-				goto byteSwitch6Default
-			case 28:
-				goto byteSwitch65
-			case 29:
-				goto byteSwitch6Default
-			case 30:
-				goto byteSwitch6Default
-			case 31:
-				goto byteSwitch6Default
-			case 32:
-				goto byteSwitch6Default
-			case 33:
-				goto byteSwitch6Default
-			case 34:
-				goto byteSwitch6Default
-			case 35:
-				goto byteSwitch6Default
-			case 36:
-				goto byteSwitch6Default
-			case 37:
-				goto byteSwitch6Default
-			case 38:
-				goto byteSwitch6Default
-			case 39:
-				goto byteSwitch6Default
-			case 40:
-				goto byteSwitch6Default
-			case 41:
-				goto byteSwitch6Default
-			case 42:
-				goto byteSwitch6Default
-			case 43:
-				goto byteSwitch6Default
-			case 44:
-				goto byteSwitch6Default
-			case 45:
-				goto byteSwitch6Default
-			case 46:
-				goto byteSwitch6Default
-			case 47:
-				goto byteSwitch6Default
-			case 48:
-				goto byteSwitch6Default
-			case 49:
-				goto byteSwitch6Default
-			case 50:
-				goto byteSwitch6Default
-			case 51:
-				goto byteSwitch6Default
-			case 52:
-				goto byteSwitch6Default
-			case 53:
-				goto byteSwitch6Default
-			case 54:
-				goto byteSwitch6Default
-			case 55:
-				goto byteSwitch62
-			case 56:
-				goto byteSwitch60
-			case 57:
-				goto byteSwitch63
-			case 58:
-				goto byteSwitch6Default
-			case 59:
-				goto byteSwitch64
-			default:
-				goto byteSwitch6Default
-			}
-		byteSwitch60:
-			t18 = c2 == 117
-			t19 = m.TemplateByte(lhs + 2)
-			if t18 && (t19 == 123) {
-				t20 = m.LexFindEither(lhs, 125, 10)
-				p = t20
-				t21 = m.TemplateByte(p)
-				if t21 == 125 {
-					m.Ptr = p + 1
+			switch c {
+			case '\\':
+				t18 = c2 == 117
+				t19 = m.TemplateByte(lhs + 2)
+				if t18 && (t19 == 123) {
+					t20 = m.LexFindEither(lhs, 125, 10)
+					p = t20
+					t21 = m.TemplateByte(p)
+					if t21 == 125 {
+						m.Ptr = p + 1
+					}
 				}
-			}
-			if (m.Ptr == (lhs + 1)) && (c2 > 13) {
-				t22 = m.Utf8SpanEnd(lhs+2, m.End)
-				m.Ptr = t22
-			}
-			tok = 45
-			goto emit
-		byteSwitch61:
-			stack = (stack << 3) | 4
-			tok = 32
-			goto emit
-		byteSwitch62:
-			stack = (stack << 3) | 1
-			tok = 0
-			goto emit
-		byteSwitch63:
-			if top == 0 {
-				goto text
-			}
-			stack = stack >> 3
-			v = uint32((stack & 7))
-			tok = rt.Sel32((v <= 1), 0, 32)
-			goto emit
-		byteSwitch64:
-			t23 = m.LexIsIdentContinue(c2)
-			t24 = lhs > m.SrcBase
-			t25 = m.LexIsIdentContinue(rt.Ld8(m.Mem, int((lhs - 1))))
-			if (t23 & (rt.B2u(t24) & t25)) != 0 {
-				goto text
-			}
-			v = rt.Sel32((c == 42), 1, 2)
-			flags = flags ^ v
-			tok = rt.Sel32(((flags & 4) != 0), 54, rt.Sel32((v == 1), 13, 12))
-			goto emit
-		byteSwitch65:
-			m.TypstLabelName()
-			if m.Ptr == (lhs + 1) {
-				goto text
-			}
-			if c == 60 {
-				t26 = m.TemplateByte(m.Ptr)
-				if t26 != 62 {
-					m.Ptr = lhs + 1
+				if (m.Ptr == (lhs + 1)) && (c2 > 13) {
+					t22 = m.Utf8SpanEnd(lhs+2, m.End)
+					m.Ptr = t22
+				}
+				tok = 45
+				goto emit
+			case '$':
+				stack = (stack << 3) | 4
+				tok = 32
+				goto emit
+			case '[':
+				stack = (stack << 3) | 1
+				tok = 0
+				goto emit
+			case ']':
+				if top == 0 {
 					goto text
 				}
-				m.Ptr = m.Ptr + 1
+				stack = stack >> 3
+				v = uint32((stack & 7))
+				tok = rt.Sel32((v <= 1), 0, 32)
+				goto emit
+			case '*', '_':
+				t23 = m.LexIsIdentContinue(c2)
+				t24 = lhs > m.SrcBase
+				t25 = m.LexIsIdentContinue(rt.Ld8(m.Mem, int((lhs - 1))))
+				if (t23 & (rt.B2u(t24) & t25)) != 0 {
+					goto text
+				}
+				v = rt.Sel32((c == 42), 1, 2)
+				flags = flags ^ v
+				tok = rt.Sel32(((flags & 4) != 0), 54, rt.Sel32((v == 1), 13, 12))
+				goto emit
+			case '<', '@':
+				m.TypstLabelName()
+				if m.Ptr == (lhs + 1) {
+					goto text
+				}
+				if c == 60 {
+					t26 = m.TemplateByte(m.Ptr)
+					if t26 != 62 {
+						m.Ptr = lhs + 1
+						goto text
+					}
+					m.Ptr = m.Ptr + 1
+				}
+				tok = 22
+				goto emit
 			}
-			tok = 22
-			goto emit
-		byteSwitch6Default:
 		text:
 			t27 = m.TypstTextEnd(m.Ptr)
 			p = t27
@@ -54420,333 +53446,144 @@ next:
 			if c == 36 {
 				stack = stack >> 3
 				tok = 32
-				goto emit
-			}
-			if c == 92 {
-				if c2 > 13 {
-					t32 = m.Utf8SpanEnd(lhs+2, m.End)
-					m.Ptr = t32
+			} else {
+				if c == 92 {
+					if c2 > 13 {
+						t32 = m.Utf8SpanEnd(lhs+2, m.End)
+						m.Ptr = t32
+					}
+					tok = 45
+				} else {
+					if c == 34 {
+						m.Ptr = lhs
+						m.LexString(34, 1, 44)
+						continue next
+					}
+					v = c | 32
+					if (c >= 128) || ((v - 97) <= 25) {
+						m.Ptr = lhs
+					name:
+						for {
+							m.Ptr = m.Ptr + 1
+							t33 = m.TemplateByte(m.Ptr)
+							v = t33
+							if v == 46 {
+								t34 = m.TemplateByte(m.Ptr + 1)
+								v = t34
+								if ((v | 32) - 97) <= 25 {
+									continue name
+								}
+								v = 46
+							}
+							if (v >= 128) || (((v | 32) - 97) <= 25) {
+								continue name
+							}
+							break
+						}
+						tok = rt.Sel32((m.Ptr == (lhs + 1)), 58, rt.Sel32((v == 40), 14, 6))
+					} else {
+						t35 = m.LexIsDigit(c)
+						if t35 != 0 {
+						digits2:
+							for {
+								t36 = m.TemplateByte(m.Ptr)
+								v = t36
+								t37 = m.LexIsDigit(v)
+								t38 = v == 46
+								t39 = m.TemplateByte(m.Ptr + 1)
+								t40 = m.LexIsDigit(t39)
+								if (t37 | (rt.B2u(t38) & t40)) != 0 {
+									m.Ptr = m.Ptr + 1
+									continue digits2
+								}
+								break
+							}
+							tok = 24
+						} else {
+							tok = rt.Sel32(((rt.Ld8(m.Mem, int(c)+2192) & 1) != 0), 32, rt.Sel32(((c == 44) || (c == 59)), 35, 25))
+						}
+					}
 				}
-				tok = 45
-				goto emit
 			}
-			if c == 34 {
+		} else {
+			switch c {
+			case '"':
+				if atom != 0 {
+					lhs = lhs + 1
+					m.EmitTok(40, lhs-1, lhs)
+				}
 				m.Ptr = lhs
 				m.LexString(34, 1, 44)
 				continue next
-			}
-			v = c | 32
-			if (c >= 128) || ((v - 97) <= 25) {
-				m.Ptr = lhs
-			name:
+			case '$', '(', '[', '{':
+				stack = (stack << 3) | uint64(rt.Sel32((c == 123), 2, rt.Sel32((c == 40), 3, rt.Sel32((c == 91), 1, 4))))
+				tok = 32
+				goto emit
+			case ')', ']', '}':
+			loop67:
 				for {
-					m.Ptr = m.Ptr + 1
-					t33 = m.TemplateByte(m.Ptr)
-					v = t33
-					if v == 46 {
-						t34 = m.TemplateByte(m.Ptr + 1)
-						v = t34
-						if ((v | 32) - 97) <= 25 {
-							continue name
-						}
-						v = 46
-					}
-					if (v >= 128) || (((v | 32) - 97) <= 25) {
-						continue name
+					top = uint32((stack & 7))
+					if top >= 5 {
+						stack = stack >> 3
+						continue loop67
 					}
 					break
 				}
-				tok = rt.Sel32((m.Ptr == (lhs + 1)), 58, rt.Sel32((v == 40), 14, 6))
+				if top == rt.Sel32((c == 125), 2, rt.Sel32((c == 41), 3, 1)) {
+					stack = stack >> 3
+				}
+				tok = 32
 				goto emit
+			case ';':
+				if top == 7 {
+					stack = stack >> 3
+				}
+				tok = 35
+				goto emit
+			case ',', ':':
+				tok = 35
+				goto emit
+			case '.':
+				t41 = m.LexIsDigit(c2)
+				if t41 == 0 {
+					if c2 == 46 {
+						m.Ptr = lhs + 2
+					}
+					tok = rt.Sel32((c2 != 46), 35, 25)
+					goto emit
+				}
 			}
-			t35 = m.LexIsDigit(c)
-			if t35 != 0 {
-			digits2:
-				for {
-					t36 = m.TemplateByte(m.Ptr)
-					v = t36
-					t37 = m.LexIsDigit(v)
-					t38 = v == 46
-					t39 = m.TemplateByte(m.Ptr + 1)
-					t40 = m.LexIsDigit(t39)
-					if (t37 | (rt.B2u(t38) & t40)) != 0 {
+			if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
+				p = m.Ptr - 1
+				q = rt.Sel32((p > m.SrcBase), rt.Ld8(m.Mem, int((p-1))), 0)
+				m.ScanIdentRun(45)
+				t42 = m.LexKeywordValue(p, m.Ptr, 57872, 7, 22)
+				v = t42
+				if int32(v) >= int32(0) {
+					m.EmitTok(v&255, lhs, m.Ptr)
+					if (atom & rt.B2u(v >= 256)) != 0 {
+						stack = stack | 7
+					}
+					continue next
+				}
+				t43 = m.TemplateByte(m.Ptr)
+				c2 = t43
+				tok = rt.Sel32(((c2 == 40) || (c2 == 91)), rt.Sel32((q == 46), 16, 14), rt.Sel32((c2 == 58), 29, rt.Sel32((q == 46), 29, 58)))
+			} else {
+				t44 = m.LexIsDigit(c)
+				if (t44 | rt.B2u(c == 46)) != 0 {
+					m.Ptr = lhs
+					m.LexScanNumber()
+					t45 = m.TemplateByte(m.Ptr)
+					if t45 == 37 {
 						m.Ptr = m.Ptr + 1
-						continue digits2
 					}
-					break
+					tok = 24
+				} else {
+					tok = rt.Sel32((((rt.Ld8(m.Mem, int(c)+2192) >> 5) & 1) != 0), 25, 0)
 				}
-				tok = 24
-				goto emit
 			}
-			tok = rt.Sel32(((rt.Ld8(m.Mem, int(c)+2192) & 1) != 0), 32, rt.Sel32(((c == 44) || (c == 59)), 35, 25))
-			goto emit
 		}
-		switch c - 34 {
-		case 0:
-			goto byteSwitch70
-		case 1:
-			goto byteSwitch7Default
-		case 2:
-			goto byteSwitch71
-		case 3:
-			goto byteSwitch7Default
-		case 4:
-			goto byteSwitch7Default
-		case 5:
-			goto byteSwitch7Default
-		case 6:
-			goto byteSwitch71
-		case 7:
-			goto byteSwitch72
-		case 8:
-			goto byteSwitch7Default
-		case 9:
-			goto byteSwitch7Default
-		case 10:
-			goto byteSwitch74
-		case 11:
-			goto byteSwitch7Default
-		case 12:
-			goto byteSwitch75
-		case 13:
-			goto byteSwitch7Default
-		case 14:
-			goto byteSwitch7Default
-		case 15:
-			goto byteSwitch7Default
-		case 16:
-			goto byteSwitch7Default
-		case 17:
-			goto byteSwitch7Default
-		case 18:
-			goto byteSwitch7Default
-		case 19:
-			goto byteSwitch7Default
-		case 20:
-			goto byteSwitch7Default
-		case 21:
-			goto byteSwitch7Default
-		case 22:
-			goto byteSwitch7Default
-		case 23:
-			goto byteSwitch7Default
-		case 24:
-			goto byteSwitch74
-		case 25:
-			goto byteSwitch73
-		case 26:
-			goto byteSwitch7Default
-		case 27:
-			goto byteSwitch7Default
-		case 28:
-			goto byteSwitch7Default
-		case 29:
-			goto byteSwitch7Default
-		case 30:
-			goto byteSwitch7Default
-		case 31:
-			goto byteSwitch7Default
-		case 32:
-			goto byteSwitch7Default
-		case 33:
-			goto byteSwitch7Default
-		case 34:
-			goto byteSwitch7Default
-		case 35:
-			goto byteSwitch7Default
-		case 36:
-			goto byteSwitch7Default
-		case 37:
-			goto byteSwitch7Default
-		case 38:
-			goto byteSwitch7Default
-		case 39:
-			goto byteSwitch7Default
-		case 40:
-			goto byteSwitch7Default
-		case 41:
-			goto byteSwitch7Default
-		case 42:
-			goto byteSwitch7Default
-		case 43:
-			goto byteSwitch7Default
-		case 44:
-			goto byteSwitch7Default
-		case 45:
-			goto byteSwitch7Default
-		case 46:
-			goto byteSwitch7Default
-		case 47:
-			goto byteSwitch7Default
-		case 48:
-			goto byteSwitch7Default
-		case 49:
-			goto byteSwitch7Default
-		case 50:
-			goto byteSwitch7Default
-		case 51:
-			goto byteSwitch7Default
-		case 52:
-			goto byteSwitch7Default
-		case 53:
-			goto byteSwitch7Default
-		case 54:
-			goto byteSwitch7Default
-		case 55:
-			goto byteSwitch7Default
-		case 56:
-			goto byteSwitch7Default
-		case 57:
-			goto byteSwitch71
-		case 58:
-			goto byteSwitch7Default
-		case 59:
-			goto byteSwitch72
-		case 60:
-			goto byteSwitch7Default
-		case 61:
-			goto byteSwitch7Default
-		case 62:
-			goto byteSwitch7Default
-		case 63:
-			goto byteSwitch7Default
-		case 64:
-			goto byteSwitch7Default
-		case 65:
-			goto byteSwitch7Default
-		case 66:
-			goto byteSwitch7Default
-		case 67:
-			goto byteSwitch7Default
-		case 68:
-			goto byteSwitch7Default
-		case 69:
-			goto byteSwitch7Default
-		case 70:
-			goto byteSwitch7Default
-		case 71:
-			goto byteSwitch7Default
-		case 72:
-			goto byteSwitch7Default
-		case 73:
-			goto byteSwitch7Default
-		case 74:
-			goto byteSwitch7Default
-		case 75:
-			goto byteSwitch7Default
-		case 76:
-			goto byteSwitch7Default
-		case 77:
-			goto byteSwitch7Default
-		case 78:
-			goto byteSwitch7Default
-		case 79:
-			goto byteSwitch7Default
-		case 80:
-			goto byteSwitch7Default
-		case 81:
-			goto byteSwitch7Default
-		case 82:
-			goto byteSwitch7Default
-		case 83:
-			goto byteSwitch7Default
-		case 84:
-			goto byteSwitch7Default
-		case 85:
-			goto byteSwitch7Default
-		case 86:
-			goto byteSwitch7Default
-		case 87:
-			goto byteSwitch7Default
-		case 88:
-			goto byteSwitch7Default
-		case 89:
-			goto byteSwitch71
-		case 90:
-			goto byteSwitch7Default
-		case 91:
-			goto byteSwitch72
-		default:
-			goto byteSwitch7Default
-		}
-	byteSwitch70:
-		if atom != 0 {
-			lhs = lhs + 1
-			m.EmitTok(40, lhs-1, lhs)
-		}
-		m.Ptr = lhs
-		m.LexString(34, 1, 44)
-		continue next
-	byteSwitch71:
-		stack = (stack << 3) | uint64(rt.Sel32((c == 123), 2, rt.Sel32((c == 40), 3, rt.Sel32((c == 91), 1, 4))))
-		tok = 32
-		goto emit
-	byteSwitch72:
-	loop79:
-		for {
-			top = uint32((stack & 7))
-			if top >= 5 {
-				stack = stack >> 3
-				continue loop79
-			}
-			break
-		}
-		if top == rt.Sel32((c == 125), 2, rt.Sel32((c == 41), 3, 1)) {
-			stack = stack >> 3
-		}
-		tok = 32
-		goto emit
-	byteSwitch73:
-		if top == 7 {
-			stack = stack >> 3
-		}
-		tok = 35
-		goto emit
-	byteSwitch74:
-		tok = 35
-		goto emit
-	byteSwitch75:
-		t41 = m.LexIsDigit(c2)
-		if t41 == 0 {
-			if c2 == 46 {
-				m.Ptr = lhs + 2
-			}
-			tok = rt.Sel32((c2 != 46), 35, 25)
-			goto emit
-		}
-		goto byteSwitch7Default
-	byteSwitch7Default:
-		if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 95)) {
-			p = m.Ptr - 1
-			q = rt.Sel32((p > m.SrcBase), rt.Ld8(m.Mem, int((p-1))), 0)
-			m.ScanIdentRun(45)
-			t42 = m.LexKeywordValue(p, m.Ptr, 57872, 7, 22)
-			v = t42
-			if int32(v) >= int32(0) {
-				m.EmitTok(v&255, lhs, m.Ptr)
-				if (atom & rt.B2u(v >= 256)) != 0 {
-					stack = stack | 7
-				}
-				continue next
-			}
-			t43 = m.TemplateByte(m.Ptr)
-			c2 = t43
-			tok = rt.Sel32(((c2 == 40) || (c2 == 91)), rt.Sel32((q == 46), 16, 14), rt.Sel32((c2 == 58), 29, rt.Sel32((q == 46), 29, 58)))
-			goto emit
-		}
-		t44 = m.LexIsDigit(c)
-		if (t44 | rt.B2u(c == 46)) != 0 {
-			m.Ptr = lhs
-			m.LexScanNumber()
-			t45 = m.TemplateByte(m.Ptr)
-			if t45 == 37 {
-				m.Ptr = m.Ptr + 1
-			}
-			tok = 24
-			goto emit
-		}
-		tok = rt.Sel32((((rt.Ld8(m.Mem, int(c)+2192) >> 5) & 1) != 0), 25, 0)
-		goto emit
 	emit:
 		m.EmitTok(tok, lhs, m.Ptr)
 		continue next
@@ -55444,165 +54281,163 @@ next:
 			m.ScanIdentRun(95)
 			hl = 60
 		}
-		if hl != 0 {
-			goto valueTok
-		}
-		t12 = m.LexIsIdentStart(c)
-		if (t12 & rt.B2u(c != 36)) != 0 {
-			v = 0xffffffff
-			if (rt.B2u(c2 == 58) & (rt.B2u((c-97) <= 25) & ((uint32(0x6c0843) >> ((c - 97) & 31)) & 1))) != 0 {
-				t13 = m.TemplateByte(lhs + 2)
-				t14 = m.LexIsIdentContinue(t13)
-				if t14 != 0 {
-					m.Ptr = lhs + 2
-					v = 0xfffffffe
-				}
-			}
-			m.ScanIdentRun(35)
-			t15 = m.TemplateByte(m.Ptr)
-			c2 = t15
-			hl = 58
-			if v == 0xfffffffe {
-				if c == 97 {
-					hl = 59
-				}
-				if c == 118 {
-					hl = 60
-				}
-			} else {
-				t16 = m.LexKeywordValue(lhs, m.Ptr, 32512, 31, 98)
-				v = t16
-				if (rt.Clz32((v & rt.Sel32(((st == 0) || (st == 5)), 256, rt.Sel32((st == 2), 512, rt.Sel32((st == 1), 1024, 0))))) >> 5) != 0 {
-					v = 0xffffffff
-				}
-			}
-			if int32(v) >= int32(0) {
-				hl = v & 255
-				v = v >> 11
-				if st == 1 {
-					v = 2
-				}
-				if (st == 0) || (st == 5) {
-					if c2 == 33 {
-						m.Ptr = m.Ptr + 1
-					}
-					multi = rt.B2u(v == 7)
-					fn = rt.B2u(v == 6)
-					if v >= 6 {
-						v = 1
+		if hl == 0 {
+			t12 = m.LexIsIdentStart(c)
+			if (t12 & rt.B2u(c != 36)) != 0 {
+				v = 0xffffffff
+				if (rt.B2u(c2 == 58) & (rt.B2u((c-97) <= 25) & ((uint32(0x6c0843) >> ((c - 97) & 31)) & 1))) != 0 {
+					t13 = m.TemplateByte(lhs + 2)
+					t14 = m.LexIsIdentContinue(t13)
+					if t14 != 0 {
+						m.Ptr = lhs + 2
+						v = 0xfffffffe
 					}
 				}
-				st = v
-			} else {
-				if c2 == 40 {
-					hl = 14
+				m.ScanIdentRun(35)
+				t15 = m.TemplateByte(m.Ptr)
+				c2 = t15
+				hl = 58
+				if v == 0xfffffffe {
+					if c == 97 {
+						hl = 59
+					}
+					if c == 118 {
+						hl = 60
+					}
+				} else {
+					t16 = m.LexKeywordValue(lhs, m.Ptr, 32512, 31, 98)
+					v = t16
+					if (rt.Clz32((v & rt.Sel32(((st == 0) || (st == 5)), 256, rt.Sel32((st == 2), 512, rt.Sel32((st == 1), 1024, 0))))) >> 5) != 0 {
+						v = 0xffffffff
+					}
 				}
-				if st == 0 {
-					t17 = m.LexSkipSpaceAt(m.Ptr)
-					t18 = m.TemplateByte(t17)
-					v = t18
-					if (rt.Clz32(rt.B2u((v == 61) || ((v == 91) || (v == 46)))) >> 5) != 0 {
+				if int32(v) >= int32(0) {
+					hl = v & 255
+					v = v >> 11
+					if st == 1 {
+						v = 2
+					}
+					if (st == 0) || (st == 5) {
+						if c2 == 33 {
+							m.Ptr = m.Ptr + 1
+						}
+						multi = rt.B2u(v == 7)
+						fn = rt.B2u(v == 6)
+						if v >= 6 {
+							v = 1
+						}
+					}
+					st = v
+				} else {
+					if c2 == 40 {
 						hl = 14
 					}
-				}
-				if st == 4 {
-					hl = 29
-				}
-				if st == 5 {
-					hl = 0
-				}
-				if fn == 2 {
-					t19 = m.LexLineByteBefore(lhs)
-					hl = rt.Sel32((t19 == 58), 55, 59)
-				}
-				if fn == 1 {
-					hl = 15
-					fn = 2
-				}
-				if st < 3 {
-					st = rt.Sel32(((st == 0) && (hl == 14)), 1, 2)
-				}
-			}
-			m.EmitTok(hl, lhs, m.Ptr)
-			continue next
-		}
-		t20 = m.LexIsDigit(c)
-		if t20 != 0 {
-			m.Ptr = lhs
-			m.LexScanNumber()
-			if (st - 1) < 2 {
-				st = 2
-			}
-			hl = 24
-			goto tok
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			hl = 32
-			if st < 3 {
-				st = rt.Sel32((((rt.Ld8(m.Mem, int(c)+1936) >> 6) & 1) != 0), 2, 1)
-			}
-			if (c == 41) && (fn == 2) {
-				fn = 0
-			}
-			goto tok
-		}
-		if c == 44 {
-			hl = 35
-			goto opTok
-		}
-		if (rt.B2u(st == 4) & (rt.B2u(c == 61) | (rt.B2u(c2 == 61) & (rt.Ld8(m.Mem, int(c)+2448) & 1)))) != 0 {
-			if c != 61 {
-				m.Ptr = lhs + 2
-			}
-			m.EmitTok(25, lhs, m.Ptr)
-			lhs = m.Ptr
-		value:
-			for {
-				t21 = m.TemplateByte(m.Ptr)
-				v = t21
-				t22 = v == 0
-				t23 = m.LexIsSpace(v)
-				if (rt.B2u(t22) | t23) != 0 {
-					break value
-				}
-				if v == 124 {
-					break value
-				}
-				m.Ptr = m.Ptr + 1
-				if v == 92 {
-					t24 = m.TemplateByte(m.Ptr)
-					v = t24
-					if (rt.B2u(v != 0) & (rt.Clz32((rt.Ld8(m.Mem, int(v)+1424) & 4)) >> 5)) != 0 {
-						t25 = m.Utf8SpanEnd(m.Ptr+1, m.End)
-						m.Ptr = t25
+					if st == 0 {
+						t17 = m.LexSkipSpaceAt(m.Ptr)
+						t18 = m.TemplateByte(t17)
+						v = t18
+						if (rt.Clz32(rt.B2u((v == 61) || ((v == 91) || (v == 46)))) >> 5) != 0 {
+							hl = 14
+						}
+					}
+					if st == 4 {
+						hl = 29
+					}
+					if st == 5 {
+						hl = 0
+					}
+					if fn == 2 {
+						t19 = m.LexLineByteBefore(lhs)
+						hl = rt.Sel32((t19 == 58), 55, 59)
+					}
+					if fn == 1 {
+						hl = 15
+						fn = 2
+					}
+					if st < 3 {
+						st = rt.Sel32(((st == 0) && (hl == 14)), 1, 2)
 					}
 				}
-				continue value
+				m.EmitTok(hl, lhs, m.Ptr)
+				continue next
 			}
-			t26 = m.TemplateByte(lhs)
-			t27 = m.LexIsDigit(t26)
-			hl = rt.Sel32((t27 != 0), 24, 0)
+			t20 = m.LexIsDigit(c)
+			if t20 != 0 {
+				m.Ptr = lhs
+				m.LexScanNumber()
+				if (st - 1) < 2 {
+					st = 2
+				}
+				hl = 24
+				goto tok
+			}
+			if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+				hl = 32
+				if st < 3 {
+					st = rt.Sel32((((rt.Ld8(m.Mem, int(c)+1936) >> 6) & 1) != 0), 2, 1)
+				}
+				if (c == 41) && (fn == 2) {
+					fn = 0
+				}
+				goto tok
+			}
+			if c == 44 {
+				hl = 35
+				goto opTok
+			}
+			if (rt.B2u(st == 4) & (rt.B2u(c == 61) | (rt.B2u(c2 == 61) & (rt.Ld8(m.Mem, int(c)+2448) & 1)))) != 0 {
+				if c != 61 {
+					m.Ptr = lhs + 2
+				}
+				m.EmitTok(25, lhs, m.Ptr)
+				lhs = m.Ptr
+			value:
+				for {
+					t21 = m.TemplateByte(m.Ptr)
+					v = t21
+					t22 = v == 0
+					t23 = m.LexIsSpace(v)
+					if (rt.B2u(t22) | t23) != 0 {
+						break value
+					}
+					if v == 124 {
+						break value
+					}
+					m.Ptr = m.Ptr + 1
+					if v == 92 {
+						t24 = m.TemplateByte(m.Ptr)
+						v = t24
+						if (rt.B2u(v != 0) & (rt.Clz32((rt.Ld8(m.Mem, int(v)+1424) & 4)) >> 5)) != 0 {
+							t25 = m.Utf8SpanEnd(m.Ptr+1, m.End)
+							m.Ptr = t25
+						}
+					}
+					continue value
+				}
+				t26 = m.TemplateByte(lhs)
+				t27 = m.LexIsDigit(t26)
+				hl = rt.Sel32((t27 != 0), 24, 0)
+				goto tok
+			}
+			if (rt.B2u(c == 46) | ((rt.Ld8(m.Mem, int(c)+1936) >> 7) & rt.B2u(c != 64))) != 0 {
+			op:
+				for {
+					t28 = m.TemplateByte(m.Ptr)
+					v = t28
+					if (rt.Clz32((rt.B2u(v == 46) | ((rt.Ld8(m.Mem, int(v)+1936) >> 7) & rt.B2u(v != 64)))) >> 5) != 0 {
+						break op
+					}
+					m.Ptr = m.Ptr + 1
+					continue op
+				}
+				hl = 25
+				goto opTok
+			}
+			t29 = m.Utf8SpanEnd(m.Ptr, m.End)
+			m.Ptr = t29
+			hl = 0
 			goto tok
 		}
-		if (rt.B2u(c == 46) | ((rt.Ld8(m.Mem, int(c)+1936) >> 7) & rt.B2u(c != 64))) != 0 {
-		op:
-			for {
-				t28 = m.TemplateByte(m.Ptr)
-				v = t28
-				if (rt.Clz32((rt.B2u(v == 46) | ((rt.Ld8(m.Mem, int(v)+1936) >> 7) & rt.B2u(v != 64)))) >> 5) != 0 {
-					break op
-				}
-				m.Ptr = m.Ptr + 1
-				continue op
-			}
-			hl = 25
-			goto opTok
-		}
-		t29 = m.Utf8SpanEnd(m.Ptr, m.End)
-		m.Ptr = t29
-		hl = 0
-		goto tok
-	valueTok:
 		if st < 3 {
 			st = 2
 		}
@@ -55902,10 +54737,10 @@ scan:
 				m.EmitTok(40, m.Ptr, m.Ptr+2)
 				m.Ptr = m.Ptr + 2
 			}
-			goto resync
+		} else {
+			p = p + 1
+			continue scan
 		}
-		p = p + 1
-		continue scan
 	resync:
 		from = m.Ptr
 		p = m.Ptr
@@ -56533,208 +55368,205 @@ next:
 				m.WlDigits()
 			}
 			hl = 24
-			goto emit
-		}
-		if (c == 92) && (c2 == 91) {
-			m.Ptr = lhs + 2
-			m.ScanIdentRun(36)
-			t11 = m.TemplateByte(m.Ptr)
-			if t11 == 93 {
-				m.Ptr = m.Ptr + 1
-			}
-			hl = 47
-			goto emit
-		}
-		if (c == 35) || (c == 37) {
-			m.Ptr = lhs + 1
-			if c2 == c {
+		} else {
+			if (c == 92) && (c2 == 91) {
 				m.Ptr = lhs + 2
-			}
-			m.ScanIdentRun(c)
-			hl = rt.Sel32((c == 35), 59, 60)
-			goto emit
-		}
-		if c == 95 {
-			m.Ptr = lhs + 1
-			if c2 == 95 {
-				m.Ptr = lhs + 2
-				t12 = m.TemplateByte(m.Ptr)
-				if t12 == 95 {
-					m.Ptr = lhs + 3
+				m.ScanIdentRun(36)
+				t11 = m.TemplateByte(m.Ptr)
+				if t11 == 93 {
+					m.Ptr = m.Ptr + 1
 				}
-			}
-			t13 = m.TemplateByte(m.Ptr)
-			t14 = m.TemplateByte(m.Ptr + 1)
-			t15 = m.LexIsDigit(t14)
-			if (t13 == 46) && (t15 == 0) {
-				m.Ptr = m.Ptr + 1
-			}
-			m.EmitTok(59, lhs, m.Ptr)
-			t16 = m.TemplateByte(m.Ptr)
-			c = t16
-			if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 36)) {
-				lhs = m.Ptr
-				m.WlName()
-				m.EmitTok(55, lhs, m.Ptr)
-			}
-			continue next
-		}
-		t17 = m.LexIsIdentStart(rt.Sel32((c == 96), c2, c))
-		if t17 != 0 {
-			m.Ptr = lhs + rt.B2u(c == 96)
-			p = lhs
-		context:
-			for {
-				m.WlName()
-				t18 = m.TemplateByte(m.Ptr)
-				if t18 == 96 {
-					t19 = m.TemplateByte(m.Ptr + 1)
-					t20 = m.LexIsIdentStart(t19)
-					if t20 != 0 {
-						m.Ptr = m.Ptr + 1
-						p = m.Ptr
-						continue context
+				hl = 47
+			} else {
+				if (c == 35) || (c == 37) {
+					m.Ptr = lhs + 1
+					if c2 == c {
+						m.Ptr = lhs + 2
 					}
-				}
-				break
-			}
-			if p > lhs {
-				m.EmitTok(23, lhs, p)
-				lhs = p
-			}
-			rhs = m.Ptr
-			c = rt.Ld8(m.Mem, int(lhs))
-			t21 = m.TemplateByte(rhs)
-			c2 = t21
-			hl = 58
-			t22 = m.TemplateByte(rhs + 1)
-			p = t22
-			if (rt.B2u(c2 == 95) | (rt.B2u(c2 == 58) & (rt.Clz32((rt.Ld8(m.Mem, int(p)+5520) & 4)) >> 5))) != 0 {
-				hl = 59
-				goto classified
-			}
-			if c == 36 {
-				hl = 60
-				goto classified
-			}
-			t23 = m.LexKeywordValue(lhs, rhs, 56688, 15, 67)
-			kind = t23
-			t24 = m.LexSkipSpaceAt(rhs)
-			p = t24
-			t25 = m.TemplateByte(p)
-			c2 = t25
-			t26 = m.TemplateByte(p + 1)
-			q = t26
-			t27 = ((c2 == 91) && (q != 91)) || (c2 == 64)
-			t28 = c2 == 47
-			t29 = q == 64
-			t30 = q == 47
-			t31 = m.TemplateByte(p + 2)
-			call = rt.B2u(t27 || (t28 && (t29 || (t30 && (t31 == 64)))))
-			if int32(kind) >= int32(0) {
-				hl = rt.Sel32(((call & rt.B2u(kind == 56)) != 0), 14, kind)
-				goto classified
-			}
-			q = lhs
-		blank:
-			for {
-				if q <= m.SrcBase {
-					break blank
-				}
-				kind = rt.Ld8(m.Mem, int((q - 1)))
-				if (rt.Clz32((rt.Ld8(m.Mem, int(kind)+1936) & 16)) >> 5) != 0 {
-					break blank
-				}
-				q = q - 1
-				continue blank
-			}
-			if call == 0 {
-				call = rt.B2u((q >= (m.SrcBase + 2)) && (rt.Ld16(m.Mem, int((q-2))) == 12079))
-			}
-			if call != 0 {
-				hl = 14
-				if c2 == 91 {
-					kind = 10
-					if q > m.SrcBase {
-						kind = rt.Ld8(m.Mem, int((q - 1)))
+					m.ScanIdentRun(c)
+					hl = rt.Sel32((c == 35), 59, 60)
+				} else {
+					if c == 95 {
+						m.Ptr = lhs + 1
+						if c2 == 95 {
+							m.Ptr = lhs + 2
+							t12 = m.TemplateByte(m.Ptr)
+							if t12 == 95 {
+								m.Ptr = lhs + 3
+							}
+						}
+						t13 = m.TemplateByte(m.Ptr)
+						t14 = m.TemplateByte(m.Ptr + 1)
+						t15 = m.LexIsDigit(t14)
+						if (t13 == 46) && (t15 == 0) {
+							m.Ptr = m.Ptr + 1
+						}
+						m.EmitTok(59, lhs, m.Ptr)
+						t16 = m.TemplateByte(m.Ptr)
+						c = t16
+						if (c >= 128) || ((((c | 32) - 97) <= 25) || (c == 36)) {
+							lhs = m.Ptr
+							m.WlName()
+							m.EmitTok(55, lhs, m.Ptr)
+						}
+						continue next
 					}
-					if (((rt.Ld8(m.Mem, int(kind)+1424) >> 2) & 1) | rt.B2u((kind == 59) && ((q < (m.SrcBase+2)) || (rt.Ld8(m.Mem, int((q-2))) != 47)))) != 0 {
-						t32 = m.WlIsDefinition(p)
-						if t32 != 0 {
-							hl = 15
+					t17 = m.LexIsIdentStart(rt.Sel32((c == 96), c2, c))
+					if t17 != 0 {
+						m.Ptr = lhs + rt.B2u(c == 96)
+						p = lhs
+					context:
+						for {
+							m.WlName()
+							t18 = m.TemplateByte(m.Ptr)
+							if t18 == 96 {
+								t19 = m.TemplateByte(m.Ptr + 1)
+								t20 = m.LexIsIdentStart(t19)
+								if t20 != 0 {
+									m.Ptr = m.Ptr + 1
+									p = m.Ptr
+									continue context
+								}
+							}
+							break
+						}
+						if p > lhs {
+							m.EmitTok(23, lhs, p)
+							lhs = p
+						}
+						rhs = m.Ptr
+						c = rt.Ld8(m.Mem, int(lhs))
+						t21 = m.TemplateByte(rhs)
+						c2 = t21
+						hl = 58
+						t22 = m.TemplateByte(rhs + 1)
+						p = t22
+						if (rt.B2u(c2 == 95) | (rt.B2u(c2 == 58) & (rt.Clz32((rt.Ld8(m.Mem, int(p)+5520) & 4)) >> 5))) != 0 {
+							hl = 59
+						} else {
+							if c == 36 {
+								hl = 60
+							} else {
+								t23 = m.LexKeywordValue(lhs, rhs, 56688, 15, 67)
+								kind = t23
+								t24 = m.LexSkipSpaceAt(rhs)
+								p = t24
+								t25 = m.TemplateByte(p)
+								c2 = t25
+								t26 = m.TemplateByte(p + 1)
+								q = t26
+								t27 = ((c2 == 91) && (q != 91)) || (c2 == 64)
+								t28 = c2 == 47
+								t29 = q == 64
+								t30 = q == 47
+								t31 = m.TemplateByte(p + 2)
+								call = rt.B2u(t27 || (t28 && (t29 || (t30 && (t31 == 64)))))
+								if int32(kind) >= int32(0) {
+									hl = rt.Sel32(((call & rt.B2u(kind == 56)) != 0), 14, kind)
+								} else {
+									q = lhs
+								blank:
+									for {
+										if q <= m.SrcBase {
+											break blank
+										}
+										kind = rt.Ld8(m.Mem, int((q - 1)))
+										if (rt.Clz32((rt.Ld8(m.Mem, int(kind)+1936) & 16)) >> 5) != 0 {
+											break blank
+										}
+										q = q - 1
+										continue blank
+									}
+									if call == 0 {
+										call = rt.B2u((q >= (m.SrcBase + 2)) && (rt.Ld16(m.Mem, int((q-2))) == 12079))
+									}
+									if call != 0 {
+										hl = 14
+										if c2 == 91 {
+											kind = 10
+											if q > m.SrcBase {
+												kind = rt.Ld8(m.Mem, int((q - 1)))
+											}
+											if (((rt.Ld8(m.Mem, int(kind)+1424) >> 2) & 1) | rt.B2u((kind == 59) && ((q < (m.SrcBase+2)) || (rt.Ld8(m.Mem, int((q-2))) != 47)))) != 0 {
+												t32 = m.WlIsDefinition(p)
+												if t32 != 0 {
+													hl = 15
+												}
+											}
+										}
+									} else {
+										if (c - 65) <= 25 {
+											hl = rt.Sel32((((rhs - lhs) > 1) && (rt.Ld8(m.Mem, int((rhs-1))) == 81)), 14, 6)
+										}
+									}
+								}
+							}
+						}
+						m.EmitTok(hl, lhs, rhs)
+						continue next
+					}
+					m.Ptr = lhs + 1
+					hl = 0
+					if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+						hl = 32
+					}
+					if c == 44 {
+						hl = 35
+					}
+					if c == 59 {
+						hl = 35
+						if c2 == 59 {
+							m.Ptr = lhs + 2
+							hl = 25
 						}
 					}
-				}
-				goto classified
-			}
-			if (c - 65) <= 25 {
-				hl = rt.Sel32((((rhs - lhs) > 1) && (rt.Ld8(m.Mem, int((rhs-1))) == 81)), 14, 6)
-			}
-		classified:
-			m.EmitTok(hl, lhs, rhs)
-			continue next
-		}
-		m.Ptr = lhs + 1
-		hl = 0
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			hl = 32
-		}
-		if c == 44 {
-			hl = 35
-		}
-		if c == 59 {
-			hl = 35
-			if c2 == 59 {
-				m.Ptr = lhs + 2
-				hl = 25
-			}
-		}
-		if (rt.Ld8(m.Mem, int(c)+5520) & 8) != 0 {
-			hl = 25
-			if ((c == 60) && (c2 == 124)) || ((c == 124) && (c2 == 62)) {
-				m.Ptr = lhs + 2
-				hl = 32
-			} else {
-			op:
-				for {
-					if m.Ptr >= m.End {
-						break op
+					if (rt.Ld8(m.Mem, int(c)+5520) & 8) != 0 {
+						hl = 25
+						if ((c == 60) && (c2 == 124)) || ((c == 124) && (c2 == 62)) {
+							m.Ptr = lhs + 2
+							hl = 32
+						} else {
+						op:
+							for {
+								if m.Ptr >= m.End {
+									break op
+								}
+								c2 = rt.Ld8(m.Mem, int(m.Ptr))
+								if (rt.Clz32((rt.Ld8(m.Mem, int(c2)+5520) & 8)) >> 5) != 0 {
+									break op
+								}
+								t33 = c2 == 124
+								t34 = m.TemplateByte(m.Ptr + 1)
+								if t33 && (t34 == 62) {
+									break op
+								}
+								m.Ptr = m.Ptr + 1
+								continue op
+							}
+							t35 = rt.Ld8(m.Mem, int((m.Ptr-1))) == 47
+							t36 = m.TemplateByte(m.Ptr)
+							if t35 && (t36 == 59) {
+								m.Ptr = m.Ptr + 1
+							}
+							if ((m.Ptr - lhs) == 2) && (rt.Ld16(m.Mem, int(lhs)) == 14906) {
+								t37 = m.TemplateByte(m.Ptr)
+								t38 = m.LexIsIdentStart(t37)
+								if t38 != 0 {
+									m.EmitTok(25, lhs, m.Ptr)
+									lhs = m.Ptr
+									m.WlName()
+									hl = 29
+								}
+							}
+						}
 					}
-					c2 = rt.Ld8(m.Mem, int(m.Ptr))
-					if (rt.Clz32((rt.Ld8(m.Mem, int(c2)+5520) & 8)) >> 5) != 0 {
-						break op
-					}
-					t33 = c2 == 124
-					t34 = m.TemplateByte(m.Ptr + 1)
-					if t33 && (t34 == 62) {
-						break op
-					}
-					m.Ptr = m.Ptr + 1
-					continue op
-				}
-				t35 = rt.Ld8(m.Mem, int((m.Ptr-1))) == 47
-				t36 = m.TemplateByte(m.Ptr)
-				if t35 && (t36 == 59) {
-					m.Ptr = m.Ptr + 1
-				}
-				if ((m.Ptr - lhs) == 2) && (rt.Ld16(m.Mem, int(lhs)) == 14906) {
-					t37 = m.TemplateByte(m.Ptr)
-					t38 = m.LexIsIdentStart(t37)
-					if t38 != 0 {
-						m.EmitTok(25, lhs, m.Ptr)
-						lhs = m.Ptr
-						m.WlName()
-						hl = 29
+					if hl == 0 {
+						t39 = m.Utf8SpanEnd(m.Ptr, m.End)
+						m.Ptr = t39
 					}
 				}
 			}
 		}
-		if hl == 0 {
-			t39 = m.Utf8SpanEnd(m.Ptr, m.End)
-			m.Ptr = t39
-		}
-		goto emit
-	emit:
 		m.EmitTok(hl, lhs, m.Ptr)
 		continue next
 	}
@@ -57075,318 +55907,318 @@ next:
 			if (((m.Ptr - lhs) == 7) && ((rt.Ld64(m.Mem, int(lhs)) & 0xffffffffffffff) == 0x74726f706d6940)) || (((m.Ptr - lhs) == 8) && (rt.Ld64(m.Mem, int(lhs)) == 0x74726f706d496340)) {
 				hl = 20
 			}
-			goto tokType
-		}
-		t10 = m.LexIsDigit(c)
-		if t10 != 0 {
-			base = 10
-			if c == 48 {
-				t11 = m.ZigByte(lhs + 1)
-				c = t11
-				if c == 98 {
-					base = 2
-				}
-				if c == 111 {
-					base = 8
-				}
-				if c == 120 {
-					base = 16
-				}
-			}
-			t12 = base != 10
-			t13 = m.ZigByte(lhs + 2)
-			t14 = m.ZigIsDigitForBase(t13, base)
-			if (rt.B2u(t12) & t14) != 0 {
-				t15 = m.ZigScanDigits(lhs+2, base)
-				m.Ptr = t15
-			} else {
+		} else {
+			t10 = m.LexIsDigit(c)
+			if t10 != 0 {
 				base = 10
-				t16 = m.ZigScanDigits(lhs, 10)
-				m.Ptr = t16
-			}
-			t17 = (base == 10) || (base == 16)
-			t18 = m.ZigByte(m.Ptr)
-			t19 = m.ZigByte(m.Ptr + 1)
-			t20 = m.ZigIsDigitForBase(t19, base)
-			if (rt.B2u(t17) & (rt.B2u(t18 == 46) & t20)) != 0 {
-				t21 = m.ZigScanDigits(m.Ptr+1, base)
-				m.Ptr = t21
-			}
-			t22 = m.ZigByte(m.Ptr)
-			c = t22 | 32
-			if ((base == 10) && (c == 101)) || ((base == 16) && (c == 112)) {
-				p = m.Ptr + 1
-				t23 = m.ZigByte(p)
-				q = t23
-				if (q == 43) || (q == 45) {
-					p = p + 1
-				}
-				t24 = m.ZigByte(p)
-				t25 = m.LexIsDigit(t24)
-				if t25 != 0 {
-					t26 = m.ZigScanDigits(p, 10)
-					m.Ptr = t26
-				}
-			}
-			hl = 24
-			goto tokType
-		}
-		t27 = m.ZigIsIdentStart(c)
-		if t27 != 0 {
-			m.Ptr = m.Ptr + 1
-			t28 = m.ZigIdentEnd(m.Ptr)
-			m.Ptr = t28
-			t29 = m.ZigWordHl(lhs, m.Ptr)
-			hl = t29
-			if int32(hl) >= int32(0) {
-				word = hl >> 8
-				hl = hl & 255
-				if word == 1 {
-					expectFunc = 1
-				}
-				if word == 2 {
-					expectVar = 1
-				}
-				if (word == 4) || (word == 5) {
-					wantPayloadParen = 1
-				}
-				if word == 7 {
-					wantBreakLabel = 1
-				}
-				if word == 8 {
-					payloadReady = 1
-				}
-				if (hl == 56) || (hl == 7) {
-					goto tokType
-				}
-				goto tok
-			}
-			t30 = m.LexSkipSpaceAt(m.Ptr)
-			p = t30
-			t31 = m.ZigByte(p)
-			q = t31
-			hl = 58
-			if expectFunc != 0 {
-				hl = 15
-				m.SigFnPend = 1
-			}
-			if expectLabel != 0 {
-				hl = 22
-			}
-			if expectType != 0 {
-				hl = 55
-			}
-			if prevDot != 0 {
-				hl = rt.Sel32((q == 40), 16, 29)
-			}
-			if (hl == 58) && (q == 40) {
-				hl = 14
-			}
-			if (hl == 58) && ((rt.Ld8(m.Mem, int(lhs)) - 65) <= 25) {
-				t32 = m.LexIsConstCase(lhs, m.Ptr)
-				hl = rt.Sel32((t32 != 0), 6, 55)
-			}
-			t33 = expectVar == 0
-			t34 = m.SigActive()
-			if ((rt.B2u(t33) | t34) & rt.B2u(q == 58)) != 0 {
-				t36 = m.LexLineByteBefore(lhs)
-				q = t36
-				t35 = rt.B2u((q != 46) && (q != 91))
-			} else {
-				t35 = 0
-			}
-			if t35 != 0 {
-				t37 = m.LexSkipSpaceAt(p + 1)
-				q = t37
-				base = 0
-				word = 0
-				t38 = parenDepth == 0
-				t39 = m.ZigByte(q)
-				t40 = m.ZigIsIdentStart(t39)
-				if (rt.B2u(t38) & t40) != 0 {
-					t41 = m.ZigIdentEnd(q)
-					p = t41
-					t42 = m.LexKeywordLookup(q, p, 28128, 31, 74)
-					word = t42
-					if word == 15 {
-						base = 1
-						t43 = m.LexSkipSpaceAt(p)
-						q = t43
-						t44 = m.ZigByte(q)
-						t45 = m.ZigIsIdentStart(t44)
-						if t45 != 0 {
-							t46 = m.ZigIdentEnd(q)
-							p = t46
-							t47 = m.LexKeywordLookup(q, p, 28128, 31, 74)
-							word = t47
-						}
+				if c == 48 {
+					t11 = m.ZigByte(lhs + 1)
+					c = t11
+					if c == 98 {
+						base = 2
+					}
+					if c == 111 {
+						base = 8
+					}
+					if c == 120 {
+						base = 16
 					}
 				}
-				t48 = parenDepth == 0
-				t49 = m.ZigByte(q)
-				if t48 && ((t49 == 123) || ((word == 5) || ((base == 0) && (word == 6)))) {
-					hl = 22
-					labelColon = 1
+				t12 = base != 10
+				t13 = m.ZigByte(lhs + 2)
+				t14 = m.ZigIsDigitForBase(t13, base)
+				if (rt.B2u(t12) & t14) != 0 {
+					t15 = m.ZigScanDigits(lhs+2, base)
+					m.Ptr = t15
 				} else {
-					if parenDepth == 0 {
-						hl = 29
-					} else {
-						t50 = m.SigActive()
-						if ((t50 & m.SigPattern) & rt.B2u(m.SigObscure == 0)) != 0 {
-							hl = 59
-						}
+					base = 10
+					t16 = m.ZigScanDigits(lhs, 10)
+					m.Ptr = t16
+				}
+				t17 = (base == 10) || (base == 16)
+				t18 = m.ZigByte(m.Ptr)
+				t19 = m.ZigByte(m.Ptr + 1)
+				t20 = m.ZigIsDigitForBase(t19, base)
+				if (rt.B2u(t17) & (rt.B2u(t18 == 46) & t20)) != 0 {
+					t21 = m.ZigScanDigits(m.Ptr+1, base)
+					m.Ptr = t21
+				}
+				t22 = m.ZigByte(m.Ptr)
+				c = t22 | 32
+				if ((base == 10) && (c == 101)) || ((base == 16) && (c == 112)) {
+					p = m.Ptr + 1
+					t23 = m.ZigByte(p)
+					q = t23
+					if (q == 43) || (q == 45) {
+						p = p + 1
+					}
+					t24 = m.ZigByte(p)
+					t25 = m.LexIsDigit(t24)
+					if t25 != 0 {
+						t26 = m.ZigScanDigits(p, 10)
+						m.Ptr = t26
 					}
 				}
-			}
-			if ((hl == 58) && (expectVar == 0)) && (((m.Ptr - lhs) == 3) && (((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x6e616e) || ((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x666e69))) {
 				hl = 24
-			}
-			expectFunc = 0
-			expectLabel = 0
-			expectVar = 0
-			m.SigPattern = 0
-			goto tokType
-		}
-		if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
-			if c == 40 {
-				parenDepth = parenDepth + 1
-				if wantPayloadParen != 0 {
-					payloadParens = payloadParens | (uint64(1) << (uint64(parenDepth) & 63))
-				}
-				wantPayloadParen = 0
-				expectFunc = 0
-				m.SigParens = m.SigParens + 1
-				if m.SigFnPend != 0 {
-					m.SigMark()
-				}
-				m.SigFnPend = 0
-				m.SigPattern = 1
-			}
-			if (c == 41) && (parenDepth != 0) {
-				payloadReady = uint32(((payloadParens >> (uint64(parenDepth) & 63)) & 1))
-				payloadParens = payloadParens & ((uint64(1) << (uint64(parenDepth) & 63)) ^ 0xffffffffffffffff)
-				parenDepth = parenDepth - 1
-			}
-			if c != 40 {
-				m.SigPattern = 0
-				if c == 41 {
-					t51 = m.SigActive()
-					if t51 != 0 {
-						m.SigUnmark()
+			} else {
+				t27 = m.ZigIsIdentStart(c)
+				if t27 != 0 {
+					m.Ptr = m.Ptr + 1
+					t28 = m.ZigIdentEnd(m.Ptr)
+					m.Ptr = t28
+					t29 = m.ZigWordHl(lhs, m.Ptr)
+					hl = t29
+					if int32(hl) >= int32(0) {
+						word = hl >> 8
+						hl = hl & 255
+						if word == 1 {
+							expectFunc = 1
+						}
+						if word == 2 {
+							expectVar = 1
+						}
+						if (word == 4) || (word == 5) {
+							wantPayloadParen = 1
+						}
+						if word == 7 {
+							wantBreakLabel = 1
+						}
+						if word == 8 {
+							payloadReady = 1
+						}
+						if (hl == 56) || (hl == 7) {
+							goto tokType
+						}
+						goto tok
 					}
-					if m.SigParens > 0 {
-						m.SigParens = m.SigParens - 1
+					t30 = m.LexSkipSpaceAt(m.Ptr)
+					p = t30
+					t31 = m.ZigByte(p)
+					q = t31
+					hl = 58
+					if expectFunc != 0 {
+						hl = 15
+						m.SigFnPend = 1
 					}
-				} else {
-					t52 = m.SigActive()
-					if t52 != 0 {
-						if (c == 91) || (c == 123) {
-							m.SigObscure = m.SigObscure + 1
+					if expectLabel != 0 {
+						hl = 22
+					}
+					if expectType != 0 {
+						hl = 55
+					}
+					if prevDot != 0 {
+						hl = rt.Sel32((q == 40), 16, 29)
+					}
+					if (hl == 58) && (q == 40) {
+						hl = 14
+					}
+					if (hl == 58) && ((rt.Ld8(m.Mem, int(lhs)) - 65) <= 25) {
+						t32 = m.LexIsConstCase(lhs, m.Ptr)
+						hl = rt.Sel32((t32 != 0), 6, 55)
+					}
+					t33 = expectVar == 0
+					t34 = m.SigActive()
+					if ((rt.B2u(t33) | t34) & rt.B2u(q == 58)) != 0 {
+						t36 = m.LexLineByteBefore(lhs)
+						q = t36
+						t35 = rt.B2u((q != 46) && (q != 91))
+					} else {
+						t35 = 0
+					}
+					if t35 != 0 {
+						t37 = m.LexSkipSpaceAt(p + 1)
+						q = t37
+						base = 0
+						word = 0
+						t38 = parenDepth == 0
+						t39 = m.ZigByte(q)
+						t40 = m.ZigIsIdentStart(t39)
+						if (rt.B2u(t38) & t40) != 0 {
+							t41 = m.ZigIdentEnd(q)
+							p = t41
+							t42 = m.LexKeywordLookup(q, p, 28128, 31, 74)
+							word = t42
+							if word == 15 {
+								base = 1
+								t43 = m.LexSkipSpaceAt(p)
+								q = t43
+								t44 = m.ZigByte(q)
+								t45 = m.ZigIsIdentStart(t44)
+								if t45 != 0 {
+									t46 = m.ZigIdentEnd(q)
+									p = t46
+									t47 = m.LexKeywordLookup(q, p, 28128, 31, 74)
+									word = t47
+								}
+							}
+						}
+						t48 = parenDepth == 0
+						t49 = m.ZigByte(q)
+						if t48 && ((t49 == 123) || ((word == 5) || ((base == 0) && (word == 6)))) {
+							hl = 22
+							labelColon = 1
 						} else {
-							if m.SigObscure > 0 {
-								m.SigObscure = m.SigObscure - 1
+							if parenDepth == 0 {
+								hl = 29
+							} else {
+								t50 = m.SigActive()
+								if ((t50 & m.SigPattern) & rt.B2u(m.SigObscure == 0)) != 0 {
+									hl = 59
+								}
 							}
 						}
 					}
-				}
-			}
-			m.Ptr = m.Ptr + 1
-			hl = 32
-			goto tok
-		}
-		if ((c == 61) && (p == 62)) || ((c == 45) && (p == 62)) {
-			m.Ptr = m.Ptr + 2
-			if c == 61 {
-				payloadReady = 1
-			}
-			hl = 35
-			goto tok
-		}
-		if c == 46 {
-			t53 = p == 46
-			t54 = m.ZigByte(m.Ptr + 2)
-			if t53 && (t54 == 46) {
-				m.Ptr = m.Ptr + 3
-				hl = 60
-				goto tok
-			}
-			if (p == 46) || ((p == 42) || (p == 63)) {
-				m.Ptr = m.Ptr + 2
-				hl = 25
-				goto tok
-			}
-			m.Ptr = m.Ptr + 1
-			m.EmitTok(35, lhs, m.Ptr)
-			prevDot = 1
-			m.SigPattern = 0
-			continue next
-		}
-		if (c == 59) || ((c == 44) || (c == 58)) {
-			if c == 58 {
-				if wantBreakLabel != 0 {
-					expectLabel = 1
-					wantBreakLabel = 0
-				} else {
-					if labelColon == 0 {
-						t55 = m.LexSkipSpaceAt(m.Ptr + 1)
-						t56 = m.ZigByte(t55)
-						if t56 != 40 {
-							expectType = 1
-						}
+					if ((hl == 58) && (expectVar == 0)) && (((m.Ptr - lhs) == 3) && (((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x6e616e) || ((rt.Ld32(m.Mem, int(lhs)) & 0xffffff) == 0x666e69))) {
+						hl = 24
 					}
+					expectFunc = 0
+					expectLabel = 0
+					expectVar = 0
+					m.SigPattern = 0
+				} else {
+					if (rt.Ld8(m.Mem, int(c)+2192) & 1) != 0 {
+						if c == 40 {
+							parenDepth = parenDepth + 1
+							if wantPayloadParen != 0 {
+								payloadParens = payloadParens | (uint64(1) << (uint64(parenDepth) & 63))
+							}
+							wantPayloadParen = 0
+							expectFunc = 0
+							m.SigParens = m.SigParens + 1
+							if m.SigFnPend != 0 {
+								m.SigMark()
+							}
+							m.SigFnPend = 0
+							m.SigPattern = 1
+						}
+						if (c == 41) && (parenDepth != 0) {
+							payloadReady = uint32(((payloadParens >> (uint64(parenDepth) & 63)) & 1))
+							payloadParens = payloadParens & ((uint64(1) << (uint64(parenDepth) & 63)) ^ 0xffffffffffffffff)
+							parenDepth = parenDepth - 1
+						}
+						if c != 40 {
+							m.SigPattern = 0
+							if c == 41 {
+								t51 = m.SigActive()
+								if t51 != 0 {
+									m.SigUnmark()
+								}
+								if m.SigParens > 0 {
+									m.SigParens = m.SigParens - 1
+								}
+							} else {
+								t52 = m.SigActive()
+								if t52 != 0 {
+									if (c == 91) || (c == 123) {
+										m.SigObscure = m.SigObscure + 1
+									} else {
+										if m.SigObscure > 0 {
+											m.SigObscure = m.SigObscure - 1
+										}
+									}
+								}
+							}
+						}
+						m.Ptr = m.Ptr + 1
+						hl = 32
+						goto tok
+					}
+					if ((c == 61) && (p == 62)) || ((c == 45) && (p == 62)) {
+						m.Ptr = m.Ptr + 2
+						if c == 61 {
+							payloadReady = 1
+						}
+						hl = 35
+						goto tok
+					}
+					if c == 46 {
+						t53 = p == 46
+						t54 = m.ZigByte(m.Ptr + 2)
+						if t53 && (t54 == 46) {
+							m.Ptr = m.Ptr + 3
+							hl = 60
+							goto tok
+						}
+						if (p == 46) || ((p == 42) || (p == 63)) {
+							m.Ptr = m.Ptr + 2
+							hl = 25
+							goto tok
+						}
+						m.Ptr = m.Ptr + 1
+						m.EmitTok(35, lhs, m.Ptr)
+						prevDot = 1
+						m.SigPattern = 0
+						continue next
+					}
+					if (c == 59) || ((c == 44) || (c == 58)) {
+						if c == 58 {
+							if wantBreakLabel != 0 {
+								expectLabel = 1
+								wantBreakLabel = 0
+							} else {
+								if labelColon == 0 {
+									t55 = m.LexSkipSpaceAt(m.Ptr + 1)
+									t56 = m.ZigByte(t55)
+									if t56 != 40 {
+										expectType = 1
+									}
+								}
+							}
+						}
+						labelColon = 0
+						m.Ptr = m.Ptr + 1
+						m.SigPattern = rt.B2u(c == 44)
+						t57 = c == 59
+						t58 = m.SigActive()
+						if (rt.B2u(t57) & (t58 & rt.B2u(m.SigObscure == 0))) != 0 {
+							m.SigUnmark()
+						}
+						hl = 35
+						goto tok
+					}
+					if (rt.B2u(c == 124) & (payload | (payloadReady & rt.B2u((p != 124) && (p != 61))))) != 0 {
+						m.Ptr = m.Ptr + 1
+						payload = rt.B2u(payload == 0)
+						payloadReady = 0
+						hl = 32
+						goto tok
+					}
+					t59 = m.ZigIsOp(c)
+					if t59 != 0 {
+					op:
+						for {
+							c = rt.Ld8(m.Mem, int(m.Ptr))
+							t60 = m.ZigByte(m.Ptr + 1)
+							p = t60
+							if (((c == 45) || (c == 61)) && (p == 62)) || ((c == 47) && (p == 47)) {
+								break op
+							}
+							t61 = m.ZigByte(m.Ptr + 2)
+							q = t61
+							base = rt.B2u(((c - 42) <= 3) && ((p == 37) || (p == 124)))
+							wide = rt.B2u((p == c) && ((c | 2) == 62))
+							m.Ptr = m.Ptr + ((1 + ((base | wide) | rt.B2u(((p == 61) && ((c != 63) && (c != 126))) || ((p == c) && (((c-42) <= 1) || (c == 124)))))) + ((base | wide) & rt.B2u(q == 61)))
+							if ((wide & rt.B2u(c == 60)) & rt.B2u(q == 124)) != 0 {
+								t62 = m.Ptr
+								t63 = m.ZigByte(m.Ptr + 1)
+								m.Ptr = t62 + (1 + rt.B2u(t63 == 61))
+							}
+							t64 = m.Ptr < m.End
+							t65 = m.ZigIsOp(rt.Ld8(m.Mem, int(m.Ptr)))
+							if (rt.B2u(t64) & t65) != 0 {
+								continue op
+							}
+							break
+						}
+						hl = 25
+						goto tok
+					}
+					m.Ptr = m.Ptr + 1
+					hl = 0
+					goto tok
 				}
 			}
-			labelColon = 0
-			m.Ptr = m.Ptr + 1
-			m.SigPattern = rt.B2u(c == 44)
-			t57 = c == 59
-			t58 = m.SigActive()
-			if (rt.B2u(t57) & (t58 & rt.B2u(m.SigObscure == 0))) != 0 {
-				m.SigUnmark()
-			}
-			hl = 35
-			goto tok
 		}
-		if (rt.B2u(c == 124) & (payload | (payloadReady & rt.B2u((p != 124) && (p != 61))))) != 0 {
-			m.Ptr = m.Ptr + 1
-			payload = rt.B2u(payload == 0)
-			payloadReady = 0
-			hl = 32
-			goto tok
-		}
-		t59 = m.ZigIsOp(c)
-		if t59 != 0 {
-		op:
-			for {
-				c = rt.Ld8(m.Mem, int(m.Ptr))
-				t60 = m.ZigByte(m.Ptr + 1)
-				p = t60
-				if (((c == 45) || (c == 61)) && (p == 62)) || ((c == 47) && (p == 47)) {
-					break op
-				}
-				t61 = m.ZigByte(m.Ptr + 2)
-				q = t61
-				base = rt.B2u(((c - 42) <= 3) && ((p == 37) || (p == 124)))
-				wide = rt.B2u((p == c) && ((c | 2) == 62))
-				m.Ptr = m.Ptr + ((1 + ((base | wide) | rt.B2u(((p == 61) && ((c != 63) && (c != 126))) || ((p == c) && (((c-42) <= 1) || (c == 124)))))) + ((base | wide) & rt.B2u(q == 61)))
-				if ((wide & rt.B2u(c == 60)) & rt.B2u(q == 124)) != 0 {
-					t62 = m.Ptr
-					t63 = m.ZigByte(m.Ptr + 1)
-					m.Ptr = t62 + (1 + rt.B2u(t63 == 61))
-				}
-				t64 = m.Ptr < m.End
-				t65 = m.ZigIsOp(rt.Ld8(m.Mem, int(m.Ptr)))
-				if (rt.B2u(t64) & t65) != 0 {
-					continue op
-				}
-				break
-			}
-			hl = 25
-			goto tok
-		}
-		m.Ptr = m.Ptr + 1
-		hl = 0
-		goto tok
 	tokType:
 		expectType = 0
 	tok:
@@ -57450,23 +56282,22 @@ alias:
 		if record >= stop {
 			break alias
 		}
-		if ((word ^ rt.Ld64(m.Mem, int(record)+1)) & mask) != 0 {
-			goto miss
-		}
-		i = 8
-	chunk:
-		for {
-			if i >= length {
-				break chunk
+		if ((word ^ rt.Ld64(m.Mem, int(record)+1)) & mask) == 0 {
+			i = 8
+		chunk:
+			for {
+				if i >= length {
+					break chunk
+				}
+				rem = length - i
+				if (((rt.Ld64(m.Mem, int((lhs+i))) | 0x2020202020202020) ^ rt.Ld64(m.Mem, int((record+i))+1)) & rt.Sel64((rem >= 8), 0xffffffffffffffff, ((uint64(1)<<(uint64((rem<<3))&63))-1))) != 0 {
+					goto miss
+				}
+				i = i + 8
+				continue chunk
 			}
-			rem = length - i
-			if (((rt.Ld64(m.Mem, int((lhs+i))) | 0x2020202020202020) ^ rt.Ld64(m.Mem, int((record+i))+1)) & rt.Sel64((rem >= 8), 0xffffffffffffffff, ((uint64(1)<<(uint64((rem<<3))&63))-1))) != 0 {
-				goto miss
-			}
-			i = i + 8
-			continue chunk
+			return rt.Ld8(m.Mem, int(record))
 		}
-		return rt.Ld8(m.Mem, int(record))
 	miss:
 		record = record + (length + 1)
 		continue alias

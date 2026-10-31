@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/bits"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,6 +50,8 @@ type label struct {
 	breaks *label
 	// whether a branch breaks out of this loop
 	broken bool
+	// breakStmt, when set, is the statement that leaves this block
+	breakStmt string
 }
 
 type fgen struct {
@@ -624,6 +627,9 @@ func (g *fgen) jump(l *label, v *value) []string {
 	case l.isLoop:
 		l.used = true
 		return []string{"continue " + l.goName}
+	case l.breakStmt != "":
+		l.used = true
+		return []string{l.breakStmt}
 	case l.breaks != nil:
 		l.breaks.used = true
 		l.breaks.broken = true
@@ -660,10 +666,10 @@ func (g *fgen) genInstr(n *wat.Sexpr) {
 	head := n.Head()
 	switch head {
 	case "block", "loop":
-		g.genBlock(n, head == "loop")
+		g.genBlock(n, head == "loop", nil)
 		return
 	case "if":
-		g.genIf(n)
+		g.genIf(n, nil, nil)
 		return
 	case "call_indirect":
 		g.genCallIndirect(n)
@@ -734,11 +740,16 @@ func (g *fgen) newLabel(watName string, isLoop bool, result ValType) *label {
 	return l
 }
 
-func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool) {
+// genBlock writes a block or loop. tail lists outer blocks that end where
+// this one does.
+func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool, tail []*label) {
 	name, result, body := g.blockHeader(n.List[1:])
 	g.spill()
 	if isLoop {
 		g.genLoop(name, result, body, nil)
+		return
+	}
+	if result == "" && byteSwitchRe.MatchString(name) && g.genByteSwitch(name, body) {
 		return
 	}
 	l := g.newLabel(name, false, result)
@@ -753,7 +764,11 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool) {
 	}
 	base := len(g.stack)
 	g.labels = append(g.labels, l)
-	g.genSeq(body)
+	if result == "" {
+		g.genSeqTail(body, append(slices.Clone(tail), l))
+	} else {
+		g.genSeq(body)
+	}
 	g.labels = g.labels[:len(g.labels)-1]
 	fallthroughReachable := !g.unreachable
 	if fallthroughReachable && result != "" {
@@ -773,6 +788,109 @@ func (g *fgen) genBlock(n *wat.Sexpr, isLoop bool) {
 	if result != "" && !g.unreachable {
 		g.push(value{expr: l.resTemp, typ: result, stable: true})
 	}
+}
+
+var byteSwitchRe = regexp.MustCompile(`^\$byteSwitch\d+_default$`)
+
+// genByteSwitch writes the block ladder that the preprocessor expands a
+// byte-switch into as a Go switch on the byte. It reports false for a
+// block of another shape.
+func (g *fgen) genByteSwitch(name string, body []*wat.Sexpr) bool {
+	prefix := strings.TrimSuffix(name, "default")
+	// peel the case blocks: each holds the next one, then its own body and
+	// a branch to the default label
+	var bodies [][]*wat.Sexpr
+	var caseNames []string
+	cur := body
+	var table *wat.Sexpr
+	for {
+		if len(cur) == 0 || !cur[0].IsList {
+			return false
+		}
+		first := cur[0]
+		if first.Head() == "br_table" && len(cur) == 1 {
+			table = first
+			break
+		}
+		if first.Head() != "block" || len(first.List) < 2 || !strings.HasPrefix(first.List[1].Atom, prefix) {
+			return false
+		}
+		rest := cur[1:]
+		if n := len(rest); n == 0 || rest[n-1].Head() != "br" || rest[n-1].List[1].Atom != name {
+			return false
+		}
+		bodies = append(bodies, rest[:len(rest)-1])
+		caseNames = append(caseNames, first.List[1].Atom)
+		cur = first.List[2:]
+	}
+	_, imms, operands := splitInstr(table)
+	if len(operands) != 1 || operands[0].Head() != "i32.sub" {
+		return false
+	}
+	sub := operands[0].List[1:]
+	if len(sub) != 2 || sub[0].Head() != "local.get" || sub[1].Head() != "i32.const" {
+		return false
+	}
+	scrutinee, _ := g.local(sub[0].List[1].Atom)
+	lo := int(parseInt(sub[1].List[1].Atom))
+	values := map[string][]int{}
+	for i, target := range imms[:len(imms)-1] {
+		values[target] = append(values[target], lo+i)
+	}
+	g.spill()
+	l := g.newLabel("", false, "")
+	l.goName = strings.TrimPrefix(strings.TrimSuffix(prefix, "_"), "$")
+	l.watName = name
+	l.breakStmt = "break " + l.goName
+	head := fmt.Sprintf("@@switch%d@@", g.nlabel)
+	g.line("%s", head)
+	g.labels = append(g.labels, l)
+	base := len(g.stack)
+	// cases in source order: innermost block first
+	for k := len(bodies) - 1; k >= 0; k-- {
+		var keys []string
+		for _, v := range values[caseNames[k]] {
+			keys = append(keys, byteLiteral(v))
+		}
+		if len(keys) == 0 {
+			continue
+		}
+		g.line("case %s:", strings.Join(keys, ", "))
+		g.depth++
+		g.genSeqTail(bodies[k], []*label{l})
+		g.stack = g.stack[:base]
+		g.unreachable = false
+		g.depth--
+	}
+	g.labels = g.labels[:len(g.labels)-1]
+	g.line("}")
+	opener := "switch " + scrutinee + " {"
+	if l.used {
+		opener = l.goName + ":\n" + strings.Repeat("\t", g.depth+1) + opener
+	}
+	text := strings.Replace(g.out.String(), head, opener, 1)
+	g.out.Reset()
+	g.out.WriteString(text)
+	return true
+}
+
+// byteLiteral writes a byte as a rune literal when it is printable.
+func byteLiteral(b int) string {
+	switch {
+	case b == '\'':
+		return `'\''`
+	case b == '\\':
+		return `'\\'`
+	case b == '\n':
+		return `'\n'`
+	case b == '\t':
+		return `'\t'`
+	case b == '\r':
+		return `'\r'`
+	case b >= 0x20 && b < 0x7f:
+		return "'" + string(rune(b)) + "'"
+	}
+	return strconv.Itoa(b)
 }
 
 // genLoop writes a WAT loop as a Go for loop: a branch to the loop
@@ -825,35 +943,73 @@ func (g *fgen) genLoop(name string, result ValType, body []*wat.Sexpr, block *la
 	}
 }
 
-func (g *fgen) genIf(n *wat.Sexpr) {
-	name, result, rest := g.blockHeader(n.List[1:])
-	var thenArm, elseArm *wat.Sexpr
-	var cond []*wat.Sexpr
-	for _, part := range rest {
+// genIf writes an if. In tail position, tail lists the blocks whose end is
+// the end of the enclosing sequence, and rest holds the statements after
+// the if. An arm that ends by branching to such a block needs no branch:
+// the other arm takes rest instead. genIf reports whether it used rest.
+func (g *fgen) genIf(n *wat.Sexpr, tail []*label, rest []*wat.Sexpr) bool {
+	name, result, parts := g.blockHeader(n.List[1:])
+	var thenSeq, elseSeq, cond []*wat.Sexpr
+	hasElse := false
+	seenThen := false
+	for _, part := range parts {
 		switch {
-		case part.IsList && part.Head() == "then" && thenArm == nil:
-			thenArm = part
-		case part.IsList && part.Head() == "else" && elseArm == nil:
-			elseArm = part
+		case part.IsList && part.Head() == "then" && !seenThen:
+			thenSeq = part.List[1:]
+			seenThen = true
+		case part.IsList && part.Head() == "else" && !hasElse:
+			elseSeq = part.List[1:]
+			hasElse = true
 		default:
 			cond = append(cond, part)
 		}
 	}
 	g.genSeq(cond)
 	if g.unreachable {
-		return
+		return false
 	}
 	c := g.pop()
 	g.spill()
 	l := g.newLabel(name, false, result)
 	base := len(g.stack)
 	g.labels = append(g.labels, l)
+	defer func() { g.labels = g.labels[:len(g.labels)-1] }()
+
+	if result == "" && len(tail) > 0 {
+		thenJumps := g.endsWithBranch(thenSeq, tail)
+		elseJumps := g.endsWithBranch(elseSeq, tail)
+		if thenJumps || elseJumps {
+			thenBody, elseBody := thenSeq, elseSeq
+			if thenJumps {
+				thenBody = thenSeq[:len(thenSeq)-1]
+			} else {
+				thenBody = append(slices.Clone(thenSeq), rest...)
+			}
+			if elseJumps {
+				elseBody = elseSeq[:len(elseSeq)-1]
+			} else {
+				elseBody = append(slices.Clone(elseSeq), rest...)
+			}
+			armTail := append(slices.Clone(tail), l)
+			g.ifElse(c, thenBody, elseBody, armTail, base)
+			if l.used {
+				g.line("%s:", l.goName)
+			}
+			g.unreachable = false
+			return true
+		}
+	}
+	var armTail []*label
+	if result == "" && len(tail) > 0 && len(rest) == 0 {
+		// the end of the if ends the sequence
+		armTail = append(slices.Clone(tail), l)
+	} else if result == "" {
+		armTail = []*label{l}
+	}
 	g.line("if %s {", trimParens(g.asBool(c)))
 	g.depth++
 	reachable := false
-	if thenArm != nil {
-		g.genSeq(thenArm.List[1:])
-	}
+	g.genSeqTail(thenSeq, armTail)
 	if !g.unreachable {
 		reachable = true
 		if result != "" {
@@ -864,10 +1020,10 @@ func (g *fgen) genIf(n *wat.Sexpr) {
 	g.stack = g.stack[:base]
 	g.unreachable = false
 	g.depth--
-	if elseArm != nil && len(elseArm.List) > 1 {
+	if len(elseSeq) > 0 {
 		g.line("} else {")
 		g.depth++
-		g.genSeq(elseArm.List[1:])
+		g.genSeqTail(elseSeq, armTail)
 		if !g.unreachable {
 			reachable = true
 			if result != "" {
@@ -885,7 +1041,6 @@ func (g *fgen) genIf(n *wat.Sexpr) {
 		reachable = true
 	}
 	g.line("}")
-	g.labels = g.labels[:len(g.labels)-1]
 	if l.used {
 		g.line("%s:", l.goName)
 	}
@@ -893,6 +1048,165 @@ func (g *fgen) genIf(n *wat.Sexpr) {
 	if result != "" && !g.unreachable {
 		g.push(value{expr: l.resTemp, typ: result, stable: true})
 	}
+	return false
+}
+
+// ifElse writes `if c { then } else { else }`, negating c when only the
+// else arm has statements.
+func (g *fgen) ifElse(c value, thenBody, elseBody []*wat.Sexpr, tail []*label, base int) {
+	if len(thenBody) == 0 && len(elseBody) == 0 {
+		return
+	}
+	if len(thenBody) == 0 {
+		thenBody, elseBody = elseBody, nil
+		g.line("if %s {", negate(g.asBool(c)))
+	} else {
+		g.line("if %s {", trimParens(g.asBool(c)))
+	}
+	g.depth++
+	g.genSeqTail(thenBody, tail)
+	g.stack = g.stack[:base]
+	g.unreachable = false
+	g.depth--
+	if len(elseBody) > 0 {
+		g.line("} else {")
+		g.depth++
+		g.genSeqTail(elseBody, tail)
+		g.stack = g.stack[:base]
+		g.unreachable = false
+		g.depth--
+	}
+	g.line("}")
+}
+
+// branchTarget returns the label a br or br_if names.
+func (g *fgen) branchTarget(n *wat.Sexpr) *label {
+	if !n.IsList || (n.Head() != "br" && n.Head() != "br_if") || len(n.List) < 2 || n.List[1].IsList {
+		return nil
+	}
+	l, _ := g.findLabel(n.List[1].Atom)
+	return l
+}
+
+// endsWithBranch reports whether a sequence ends with a plain branch to
+// one of the tail blocks.
+func (g *fgen) endsWithBranch(seq []*wat.Sexpr, tail []*label) bool {
+	if len(seq) == 0 {
+		return false
+	}
+	last := seq[len(seq)-1]
+	return last.Head() == "br" && len(last.List) == 2 && slices.Contains(tail, g.branchTarget(last))
+}
+
+// genSeqTail writes a sequence whose end is the end of the tail blocks, so
+// branches to them need no jump.
+func (g *fgen) genSeqTail(nodes []*wat.Sexpr, tail []*label) {
+	for i, n := range nodes {
+		if g.unreachable {
+			return
+		}
+		rest := nodes[i+1:]
+		if len(tail) > 0 && n.IsList {
+			switch n.Head() {
+			case "br":
+				if len(n.List) == 2 && slices.Contains(tail, g.branchTarget(n)) {
+					return
+				}
+			case "br_if":
+				if len(n.List) == 3 && slices.Contains(tail, g.branchTarget(n)) {
+					g.genInstr(n.List[2])
+					if g.unreachable {
+						return
+					}
+					c := g.pop()
+					if len(rest) == 0 {
+						return
+					}
+					g.spill()
+					base := len(g.stack)
+					g.line("if %s {", negate(g.asBool(c)))
+					g.depth++
+					g.genSeqTail(rest, tail)
+					g.stack = g.stack[:base]
+					g.unreachable = false
+					g.depth--
+					g.line("}")
+					return
+				}
+			case "if":
+				if g.genIf(n, tail, rest) {
+					return
+				}
+				continue
+			case "block":
+				if len(rest) == 0 {
+					g.genBlock(n, false, tail)
+					continue
+				}
+			}
+		}
+		if n.IsList && n.Head() == "if" {
+			g.genIf(n, nil, nil)
+			continue
+		}
+		g.genInstr(n)
+	}
+}
+
+// negate writes the negation of a condition, flipping a comparison.
+func negate(cond string) string {
+	e := trimParens(cond)
+	if op, at := topLevelComparison(e); op != "" {
+		flip := map[string]string{"==": "!=", "!=": "==", "<": ">=", ">=": "<", ">": "<=", "<=": ">"}[op]
+		return e[:at] + flip + e[at+len(op):]
+	}
+	if strings.HasPrefix(e, "!") && trimParens(e[1:]) != e[1:] {
+		return trimParens(e[1:])
+	}
+	if strings.HasPrefix(e, "!") && !strings.ContainsAny(e[1:], " ") {
+		return e[1:]
+	}
+	return "!(" + e + ")"
+}
+
+// topLevelComparison finds the single comparison operator outside
+// parentheses in an expression without top-level && or ||.
+func topLevelComparison(e string) (string, int) {
+	depth := 0
+	op, at := "", -1
+	for i := 0; i < len(e); i++ {
+		switch e[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case '\'':
+			// a rune literal
+			if j := strings.IndexByte(e[i+1:], '\''); j >= 0 {
+				i += j + 1
+			}
+		}
+		if depth != 0 || i+1 >= len(e) {
+			continue
+		}
+		two := e[i : i+2]
+		switch {
+		case two == "&&" || two == "||":
+			return "", -1
+		case two == "==" || two == "!=" || two == "<=" || two == ">=":
+			if op != "" {
+				return "", -1
+			}
+			op, at = two, i
+			i++
+		case (e[i] == '<' || e[i] == '>') && e[i+1] == ' ' && i > 0 && e[i-1] == ' ':
+			if op != "" {
+				return "", -1
+			}
+			op, at = e[i:i+1], i
+		}
+	}
+	return op, at
 }
 
 func (g *fgen) genCallIndirect(n *wat.Sexpr) {

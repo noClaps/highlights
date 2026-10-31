@@ -1578,51 +1578,51 @@ func (m *Machine) LexCEscapeEnd(p uint32) uint32 {
 	if c == 117 {
 		t0 = m.ScanHexRun(e, 4)
 		e = t0
-		goto done
-	}
-	if c == 85 {
-		t1 = m.ScanHexRun(e, 8)
-		e = t1
-		goto done
-	}
-	if c == 120 {
-		t2 = m.ScanHexRun(e, 64)
-		e = t2
-		goto done
-	}
-	if (c == 78) && ((e < m.End) && (rt.Ld8(m.Mem, int(e)) == 123)) {
-		e = e + 1
-	named:
-		for {
-			if e >= m.End {
-				goto done
+	} else {
+		if c == 85 {
+			t1 = m.ScanHexRun(e, 8)
+			e = t1
+		} else {
+			if c == 120 {
+				t2 = m.ScanHexRun(e, 64)
+				e = t2
+			} else {
+				if (c == 78) && ((e < m.End) && (rt.Ld8(m.Mem, int(e)) == 123)) {
+					e = e + 1
+				named:
+					for {
+						if e >= m.End {
+							goto done
+						}
+						c = rt.Ld8(m.Mem, int(e))
+						if ((c == 10) || (c == 13)) || ((c == 34) || ((c == 39) || (c == 92))) {
+							goto done
+						}
+						e = e + 1
+						if c == 125 {
+							goto done
+						}
+						continue named
+					}
+				}
+				if (c - 48) <= 7 {
+				oct:
+					for {
+						if (e >= m.End) || ((e - p) >= 4) {
+							goto done
+						}
+						if (rt.Ld8(m.Mem, int(e)) - 48) > 7 {
+							goto done
+						}
+						e = e + 1
+						continue oct
+					}
+				}
+				t3 = m.LexEscapeEnd(p)
+				e = t3
 			}
-			c = rt.Ld8(m.Mem, int(e))
-			if ((c == 10) || (c == 13)) || ((c == 34) || ((c == 39) || (c == 92))) {
-				goto done
-			}
-			e = e + 1
-			if c == 125 {
-				goto done
-			}
-			continue named
 		}
 	}
-	if (c - 48) <= 7 {
-	oct:
-		for {
-			if (e >= m.End) || ((e - p) >= 4) {
-				goto done
-			}
-			if (rt.Ld8(m.Mem, int(e)) - 48) > 7 {
-				goto done
-			}
-			e = e + 1
-			continue oct
-		}
-	}
-	t3 = m.LexEscapeEnd(p)
-	e = t3
 done:
 	t4 = m.Utf8SpanEnd(e, m.End)
 	return t4
