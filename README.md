@@ -60,6 +60,29 @@ The language comes from the file name (`main.go`, `Dockerfile`), or from
 `-l`; standard input and unknown names are plain text. `-t` picks a bundled
 theme (`-list-themes`) or reads a theme JSON file.
 
+## Performance
+
+On an Apple M2, HTML highlighting runs at about 100–370 MB/s depending on
+the language: 256 KB of Go takes about 2.5 ms, and of Markdown about
+0.7 ms (`go test -bench . .` measures one input per language).
+
+The lexers scan 16 bytes at a time. By default those 16-byte vectors are
+emulated with 64-bit arithmetic. Built with Go's SIMD experiment on arm64,
+they use NEON instead, which makes HTML highlighting 6–25% faster (about
+110–500 MB/s; 2.2 ms for the Go input, 0.53 ms for Markdown):
+
+```sh
+GOEXPERIMENT=simd go install ./cmd/highlights
+GOEXPERIMENT=simd go test ./...
+```
+
+The experiment applies to the whole build, so a program that uses this
+package gets NEON when it is built with `GOEXPERIMENT=simd`. Other
+architectures use the emulation either way; the amd64 and wasm vectors of
+`simd/archsimd` would work too, but are untested here. The command is also
+built with a profile (`cmd/highlights/default.pgo`), which Go applies
+automatically.
+
 ## How the port is built
 
 The lexers are written in WebAssembly Text, in `internal/engine/wat` (the
