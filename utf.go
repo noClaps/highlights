@@ -85,6 +85,12 @@ func (t *utf16Text) byteOffset(u int) int {
 		t.u, t.b = 0, 0
 	}
 	for t.u < u && t.b < len(t.s) {
+		// eight ASCII bytes are eight units
+		if t.u+8 <= u && t.b+8 <= len(t.s) && load64(t.s, t.b)&0x8080808080808080 == 0 {
+			t.u += 8
+			t.b += 8
+			continue
+		}
 		c := t.s[t.b]
 		if c < 0x80 {
 			t.u++
