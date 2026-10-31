@@ -819,6 +819,24 @@ func (g *fgen) genFunc() string {
 	if g.boolFuncs[f.GoName] {
 		results = " bool"
 	}
+	// a function that starts by returning early, as EnsureCap does when the
+	// output has room, is split into that check, small enough for Go to
+	// inline at each call, and the rest, which the check calls
+	goName := f.GoName
+	if cond, ret, rest, ok := g.guard(body, slices.Concat(locals, g.temps)); ok {
+		slow := lowerFirst(f.GoName) + "Slow"
+		var args []string
+		for _, p := range params {
+			args = append(args, strings.Fields(p)[0])
+		}
+		call := fmt.Sprintf("m.%s(%s)", slow, strings.Join(args, ", "))
+		if results != "" {
+			call = "return " + call
+		}
+		fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n\tif %s {\n\t\treturn%s\n\t}\n\t%s\n}\n\n// %s is %s past its first check.\n",
+			f.GoName, combineParams(params), results, cond, ret, call, slow, f.GoName)
+		goName, body = slow, rest
+	}
 	// a parameter the body never reads is blank
 	blanked := slices.Clone(params)
 	for i, p := range params {
@@ -827,7 +845,7 @@ func (g *fgen) genFunc() string {
 			blanked[i] = "_ " + typ
 		}
 	}
-	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", f.GoName, combineParams(blanked), results)
+	fmt.Fprintf(&sb, "func (m *Machine) %s(%s)%s {\n", goName, combineParams(blanked), results)
 	// one declaration per type, in first-use order; variables the body
 	// never mentions are left out, and ones it only assigns are marked
 	// used, as Go requires
@@ -1534,7 +1552,7 @@ func (g *fgen) typeOf(e *expr, types map[string]string) string {
 				return ""
 			case strings.Contains(name, "64"):
 				return "uint64"
-			case strings.HasPrefix(name, "Ld") || strings.HasPrefix(name, "Sel") || name == "B2u":
+			case strings.HasPrefix(name, "Ld") || strings.HasPrefix(name, "Sel") || name == "B2u" || name == "Grow":
 				return "uint32"
 			}
 		}
@@ -1746,6 +1764,25 @@ func lowerFirst(s string) string {
 
 // topCallRe matches a statement that is one method call.
 var topCallRe = regexp.MustCompile(`^m\.(\w+)\(.*\)$`)
+
+// guard returns the condition and result of an early return that opens a
+// body, and the rest of the body, when the condition calls nothing and
+// reads no local, and the rest is more than a few lines.
+func (g *fgen) guard(body string, locals []Local) (cond, ret, rest string, ok bool) {
+	m := guardRe.FindStringSubmatch(body)
+	// a choice in the check would need the select pass the rest gets
+	if m == nil || strings.Count(m[3], "\n") < 3 || methodCallRe.MatchString(m[1]) || selCallRe.MatchString(m[1]+m[2]) {
+		return "", "", "", false
+	}
+	for _, l := range locals {
+		if regexp.MustCompile(`\b` + regexp.QuoteMeta(l.Name) + `\b`).MatchString(m[1] + m[2]) {
+			return "", "", "", false
+		}
+	}
+	return m[1], m[2], m[3], true
+}
+
+var guardRe = regexp.MustCompile(`(?s)^\tif ([^\n]*) \{\n\t\treturn((?: [^\n]*)?)\n\t\}\n(.*)$`)
 
 // mayGrow reports whether a function body can grow memory: itself, or
 // through a call to a function that can.

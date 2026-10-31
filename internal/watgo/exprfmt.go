@@ -88,7 +88,9 @@ func (p *exprParser) binary(minPrec int) (*expr, error) {
 	}
 }
 
-var leafRe = regexp.MustCompile(`^(?:'(?:\\.|[^'\\])'|0x[0-9a-fA-F]+|[0-9]+|[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)`)
+// leafRe matches an operand: a rune literal, a number, a name, or the
+// address of a field such as &m.Mem.
+var leafRe = regexp.MustCompile(`^(?:'(?:\\.|[^'\\])'|0x[0-9a-fA-F]+|[0-9]+|&?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)`)
 
 func (p *exprParser) unary() (*expr, error) {
 	p.space()

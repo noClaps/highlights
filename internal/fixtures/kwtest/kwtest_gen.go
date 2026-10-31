@@ -182,11 +182,16 @@ func (m *Machine) ScanBlockCommentEnd() {
 
 // ScanFindSpecial is $scanFindSpecial.
 func (m *Machine) ScanFindSpecial(p, stop, q uint32, esc, nl bool) uint32 {
-	var mask uint32
-	var w, qv, ev, nv, rv rt.V128
 	if p >= stop {
 		return p
 	}
+	return m.scanFindSpecialSlow(p, stop, q, esc, nl)
+}
+
+// scanFindSpecialSlow is ScanFindSpecial past its first check.
+func (m *Machine) scanFindSpecialSlow(p, stop, q uint32, esc, nl bool) uint32 {
+	var mask uint32
+	var w, qv, ev, nv, rv rt.V128
 	qv = rt.Splat8(q)
 	choice := q
 	if esc {
@@ -223,12 +228,17 @@ func (m *Machine) ScanFindSpecial(p, stop, q uint32, esc, nl bool) uint32 {
 
 // ScanWhitespace is $scanWhitespace.
 func (m *Machine) ScanWhitespace() {
-	var mask uint32
-	var w rt.V128
-	mem := m.Mem
 	if m.Ptr >= m.End {
 		return
 	}
+	m.scanWhitespaceSlow()
+}
+
+// scanWhitespaceSlow is ScanWhitespace past its first check.
+func (m *Machine) scanWhitespaceSlow() {
+	var mask uint32
+	var w rt.V128
+	mem := m.Mem
 	c := uint32(mem[m.Ptr])
 	if !(c == ' ' || c-9 <= 4) {
 		return
@@ -260,11 +270,16 @@ func (m *Machine) ScanWhitespace() {
 
 // ScanIdentRun is $scanIdentRun.
 func (m *Machine) ScanIdentRun(x uint32) {
-	var mask uint32
-	var w rt.V128
 	if m.Ptr >= m.End {
 		return
 	}
+	m.scanIdentRunSlow(x)
+}
+
+// scanIdentRunSlow is ScanIdentRun past its first check.
+func (m *Machine) scanIdentRunSlow(x uint32) {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[m.Ptr:])
 		mask = w.Or(rt.Splat8(32)).Sub8(rt.Splat8(97)).LeU8(rt.Splat8(25)).Or(w).Or(w.Sub8(rt.Splat8(48)).LeU8(rt.Splat8(9)).Or(w.Eq8(rt.Splat8(95)).Or(w.Eq8(rt.Splat8(x))))).Bitmask8() ^ 65535
@@ -284,11 +299,16 @@ func (m *Machine) ScanIdentRun(x uint32) {
 
 // ScanFind3 is $scanFind3.
 func (m *Machine) ScanFind3(p uint32, a, b, c bool) uint32 {
-	var mask uint32
-	var w rt.V128
 	if p >= m.End {
 		return m.End
 	}
+	return m.scanFind3Slow(p, a, b, c)
+}
+
+// scanFind3Slow is ScanFind3 past its first check.
+func (m *Machine) scanFind3Slow(p uint32, a, b, c bool) uint32 {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
 		mask = w.Eq8(rt.Splat8(rt.B2u(a))).Or(w.Eq8(rt.Splat8(rt.B2u(b)))).Or(w.Eq8(rt.Splat8(rt.B2u(c)))).Bitmask8()
@@ -417,11 +437,15 @@ func (m *Machine) EmitFont(style uint32) {
 
 // EnsureCap is $ensureCap.
 func (m *Machine) EnsureCap(n uint32) {
-	var oldPages uint32
 	if m.Out+n <= m.Cap {
 		return
 	}
-	oldPages = rt.Grow(&m.Mem, (((((m.Out + n) + 0x1000f) - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 4))
+	m.ensureCapSlow(n)
+}
+
+// ensureCapSlow is EnsureCap past its first check.
+func (m *Machine) ensureCapSlow(n uint32) {
+	oldPages := rt.Grow(&m.Mem, (m.Out+n+0x1000f-uint32(len(m.Mem)/rt.PageSize)*0x10000)>>16+4)
 	if oldPages == 0xffffffff {
 		panic(rt.Trap("unreachable"))
 	}
@@ -766,6 +790,11 @@ func (m *Machine) EmitTok(hl, lhs, rhs uint32) {
 	if lhs >= rhs {
 		return
 	}
+	m.emitTokSlow(hl, lhs, rhs)
+}
+
+// emitTokSlow is EmitTok past its first check.
+func (m *Machine) emitTokSlow(hl, lhs, rhs uint32) {
 	if m.Tokens {
 		m.RecTok(hl, rhs)
 		return
@@ -786,6 +815,11 @@ func (m *Machine) EmitGap(lhs, rhs uint32) {
 	if lhs >= rhs {
 		return
 	}
+	m.emitGapSlow(lhs, rhs)
+}
+
+// emitGapSlow is EmitGap past its first check.
+func (m *Machine) emitGapSlow(lhs, rhs uint32) {
 	if m.Tokens {
 		if m.Out > binary.LittleEndian.Uint32(m.Mem[6:]) {
 			binary.LittleEndian.PutUint32(m.Mem[m.Out-8:], rhs-m.SrcBase)
@@ -1737,6 +1771,11 @@ func (m *Machine) LineDelimiterEnds(p, trim uint32) bool {
 	if p >= m.End {
 		return true
 	}
+	return m.lineDelimiterEndsSlow(p, trim)
+}
+
+// lineDelimiterEndsSlow is LineDelimiterEnds past its first check.
+func (m *Machine) lineDelimiterEndsSlow(p, trim uint32) bool {
 	c := uint32(m.Mem[p])
 	if c == '\n' || c == '\r' {
 		return true
@@ -2139,11 +2178,16 @@ func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
 
 // LexFindEither is $lexFindEither.
 func (m *Machine) LexFindEither(p uint32, a, b bool) uint32 {
-	var mask uint32
-	var w rt.V128
 	if p >= m.End {
 		return m.End
 	}
+	return m.lexFindEitherSlow(p, a, b)
+}
+
+// lexFindEitherSlow is LexFindEither past its first check.
+func (m *Machine) lexFindEitherSlow(p uint32, a, b bool) uint32 {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
 		mask = w.Eq8(rt.Splat8(rt.B2u(a))).Or(w.Eq8(rt.Splat8(rt.B2u(b)))).Bitmask8()
@@ -2164,10 +2208,15 @@ func (m *Machine) LexFindEither(p uint32, a, b bool) uint32 {
 
 // LexFindByte is $lexFindByte.
 func (m *Machine) LexFindByte(p, a uint32) uint32 {
-	var mask uint32
 	if p >= m.End {
 		return m.End
 	}
+	return m.lexFindByteSlow(p, a)
+}
+
+// lexFindByteSlow is LexFindByte past its first check.
+func (m *Machine) lexFindByteSlow(p, a uint32) uint32 {
+	var mask uint32
 	for {
 		mask = rt.LdV(m.Mem[p:]).Eq8(rt.Splat8(a)).Bitmask8()
 		if mask != 0 {
@@ -2219,11 +2268,16 @@ func (m *Machine) LexGapHasBreak(p uint32, stop bool) bool {
 
 // LexIsConstCase is $lexIsConstCase.
 func (m *Machine) LexIsConstCase(lhs uint32, rhs bool) bool {
-	var c uint32
-	var upper bool
 	if rt.B2u(rhs)-lhs < 2 {
 		return false
 	}
+	return m.lexIsConstCaseSlow(lhs, rhs)
+}
+
+// lexIsConstCaseSlow is LexIsConstCase past its first check.
+func (m *Machine) lexIsConstCaseSlow(lhs uint32, rhs bool) bool {
+	var c uint32
+	var upper bool
 	for {
 		if lhs >= rt.B2u(rhs) {
 			break

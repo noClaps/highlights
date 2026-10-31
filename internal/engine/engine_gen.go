@@ -680,11 +680,16 @@ func (m *Machine) ScanBlockCommentEnd() {
 
 // ScanFindSpecial is $scanFindSpecial.
 func (m *Machine) ScanFindSpecial(p, stop, q, esc, nl uint32) uint32 {
-	var mask uint32
-	var w, qv, ev, nv, rv rt.V128
 	if p >= stop {
 		return p
 	}
+	return m.scanFindSpecialSlow(p, stop, q, esc, nl)
+}
+
+// scanFindSpecialSlow is ScanFindSpecial past its first check.
+func (m *Machine) scanFindSpecialSlow(p, stop, q, esc, nl uint32) uint32 {
+	var mask uint32
+	var w, qv, ev, nv, rv rt.V128
 	qv = rt.Splat8(q)
 	choice := q
 	if esc != 0 {
@@ -721,12 +726,17 @@ func (m *Machine) ScanFindSpecial(p, stop, q, esc, nl uint32) uint32 {
 
 // ScanWhitespace is $scanWhitespace.
 func (m *Machine) ScanWhitespace() {
-	var mask uint32
-	var w rt.V128
-	mem := m.Mem
 	if m.Ptr >= m.End {
 		return
 	}
+	m.scanWhitespaceSlow()
+}
+
+// scanWhitespaceSlow is ScanWhitespace past its first check.
+func (m *Machine) scanWhitespaceSlow() {
+	var mask uint32
+	var w rt.V128
+	mem := m.Mem
 	c := uint32(mem[m.Ptr])
 	if !(c == ' ' || c-9 <= 4) {
 		return
@@ -758,11 +768,16 @@ func (m *Machine) ScanWhitespace() {
 
 // ScanIdentRun is $scanIdentRun.
 func (m *Machine) ScanIdentRun(x uint32) {
-	var mask uint32
-	var w rt.V128
 	if m.Ptr >= m.End {
 		return
 	}
+	m.scanIdentRunSlow(x)
+}
+
+// scanIdentRunSlow is ScanIdentRun past its first check.
+func (m *Machine) scanIdentRunSlow(x uint32) {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[m.Ptr:])
 		mask = w.Or(rt.Splat8(32)).Sub8(rt.Splat8(97)).LeU8(rt.Splat8(25)).Or(w).Or(w.Sub8(rt.Splat8(48)).LeU8(rt.Splat8(9)).Or(w.Eq8(rt.Splat8(95)).Or(w.Eq8(rt.Splat8(x))))).Bitmask8() ^ 65535
@@ -782,11 +797,16 @@ func (m *Machine) ScanIdentRun(x uint32) {
 
 // ScanFind3 is $scanFind3.
 func (m *Machine) ScanFind3(p, a, b, c uint32) uint32 {
-	var mask uint32
-	var w rt.V128
 	if p >= m.End {
 		return m.End
 	}
+	return m.scanFind3Slow(p, a, b, c)
+}
+
+// scanFind3Slow is ScanFind3 past its first check.
+func (m *Machine) scanFind3Slow(p, a, b, c uint32) uint32 {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
 		mask = w.Eq8(rt.Splat8(a)).Or(w.Eq8(rt.Splat8(b))).Or(w.Eq8(rt.Splat8(c))).Bitmask8()
@@ -915,11 +935,15 @@ func (m *Machine) EmitFont(style uint32) {
 
 // EnsureCap is $ensureCap.
 func (m *Machine) EnsureCap(n uint32) {
-	var oldPages uint32
 	if m.Out+n <= m.Cap {
 		return
 	}
-	oldPages = rt.Grow(&m.Mem, (((((m.Out + n) + 0x1000f) - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 4))
+	m.ensureCapSlow(n)
+}
+
+// ensureCapSlow is EnsureCap past its first check.
+func (m *Machine) ensureCapSlow(n uint32) {
+	oldPages := rt.Grow(&m.Mem, (m.Out+n+0x1000f-uint32(len(m.Mem)/rt.PageSize)*0x10000)>>16+4)
 	if oldPages == 0xffffffff {
 		panic(rt.Trap("unreachable"))
 	}
@@ -1264,6 +1288,11 @@ func (m *Machine) EmitTok(hl, lhs, rhs uint32) {
 	if lhs >= rhs {
 		return
 	}
+	m.emitTokSlow(hl, lhs, rhs)
+}
+
+// emitTokSlow is EmitTok past its first check.
+func (m *Machine) emitTokSlow(hl, lhs, rhs uint32) {
 	if m.Tokens {
 		m.RecTok(hl, rhs)
 		return
@@ -1284,6 +1313,11 @@ func (m *Machine) EmitGap(lhs, rhs uint32) {
 	if lhs >= rhs {
 		return
 	}
+	m.emitGapSlow(lhs, rhs)
+}
+
+// emitGapSlow is EmitGap past its first check.
+func (m *Machine) emitGapSlow(lhs, rhs uint32) {
 	if m.Tokens {
 		if m.Out > binary.LittleEndian.Uint32(m.Mem[6:]) {
 			binary.LittleEndian.PutUint32(m.Mem[m.Out-8:], rhs-m.SrcBase)
@@ -2235,6 +2269,11 @@ func (m *Machine) LineDelimiterEnds(p, trim uint32) bool {
 	if p >= m.End {
 		return true
 	}
+	return m.lineDelimiterEndsSlow(p, trim)
+}
+
+// lineDelimiterEndsSlow is LineDelimiterEnds past its first check.
+func (m *Machine) lineDelimiterEndsSlow(p, trim uint32) bool {
 	c := uint32(m.Mem[p])
 	if c == '\n' || c == '\r' {
 		return true
@@ -2637,11 +2676,16 @@ func (m *Machine) LexLowerCopy(lhs, rhs, dst uint32) uint32 {
 
 // LexFindEither is $lexFindEither.
 func (m *Machine) LexFindEither(p, a, b uint32) uint32 {
-	var mask uint32
-	var w rt.V128
 	if p >= m.End {
 		return m.End
 	}
+	return m.lexFindEitherSlow(p, a, b)
+}
+
+// lexFindEitherSlow is LexFindEither past its first check.
+func (m *Machine) lexFindEitherSlow(p, a, b uint32) uint32 {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
 		mask = w.Eq8(rt.Splat8(a)).Or(w.Eq8(rt.Splat8(b))).Bitmask8()
@@ -2662,10 +2706,15 @@ func (m *Machine) LexFindEither(p, a, b uint32) uint32 {
 
 // LexFindByte is $lexFindByte.
 func (m *Machine) LexFindByte(p, a uint32) uint32 {
-	var mask uint32
 	if p >= m.End {
 		return m.End
 	}
+	return m.lexFindByteSlow(p, a)
+}
+
+// lexFindByteSlow is LexFindByte past its first check.
+func (m *Machine) lexFindByteSlow(p, a uint32) uint32 {
+	var mask uint32
 	for {
 		mask = rt.LdV(m.Mem[p:]).Eq8(rt.Splat8(a)).Bitmask8()
 		if mask != 0 {
@@ -2717,11 +2766,16 @@ func (m *Machine) LexGapHasBreak(p, stop uint32) bool {
 
 // LexIsConstCase is $lexIsConstCase.
 func (m *Machine) LexIsConstCase(lhs, rhs uint32) bool {
-	var c uint32
-	var upper bool
 	if rhs-lhs < 2 {
 		return false
 	}
+	return m.lexIsConstCaseSlow(lhs, rhs)
+}
+
+// lexIsConstCaseSlow is LexIsConstCase past its first check.
+func (m *Machine) lexIsConstCaseSlow(lhs, rhs uint32) bool {
+	var c uint32
+	var upper bool
 	for {
 		if lhs >= rhs {
 			break
@@ -3049,11 +3103,16 @@ scan:
 
 // CSSDecideAtEnd is $cssDecideAtEnd.
 func (m *Machine) CSSDecideAtEnd(depth, colon, stop uint32) bool {
-	var c uint32
-	mem := m.Mem
 	if colon == 0 {
 		return true
 	}
+	return m.cSSDecideAtEndSlow(depth, colon, stop)
+}
+
+// cSSDecideAtEndSlow is CSSDecideAtEnd past its first check.
+func (m *Machine) cSSDecideAtEndSlow(depth, colon, stop uint32) bool {
+	var c uint32
+	mem := m.Mem
 	if colon == 1 {
 		return false
 	}
@@ -4821,10 +4880,15 @@ func (m *Machine) HTMLLangName(kind, lhs, rhs uint32) uint32 {
 
 // HTMLLangValue is $htmlLangValue.
 func (m *Machine) HTMLLangValue(kind, lhs, rhs uint32) uint32 {
-	mem := m.Mem
 	if kind&64 == 0 {
 		return kind
 	}
+	return m.hTMLLangValueSlow(kind, lhs, rhs)
+}
+
+// hTMLLangValueSlow is HTMLLangValue past its first check.
+func (m *Machine) hTMLLangValueSlow(kind, lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	kind &= 63
 	w := binary.LittleEndian.Uint32(mem[lhs:]) | 0x20202020
 	if rhs-lhs == 6 && w == 0x6c797473 && uint32(binary.LittleEndian.Uint16(mem[lhs+4:]))|8224 == 29557 {
@@ -5123,6 +5187,11 @@ func (m *Machine) BraceHTMLRange(from, to uint32, astro bool) {
 	if from >= to {
 		return
 	}
+	m.braceHTMLRangeSlow(from, to, astro)
+}
+
+// braceHTMLRangeSlow is BraceHTMLRange past its first check.
+func (m *Machine) braceHTMLRangeSlow(from, to uint32, astro bool) {
 	save := m.End
 	m.End = to
 	m.Ptr = from
@@ -5764,6 +5833,11 @@ func (m *Machine) TernaryCount() uint32 {
 	if m.BrkSp == 0 {
 		return m.TernaryTop
 	}
+	return m.ternaryCountSlow()
+}
+
+// ternaryCountSlow is TernaryCount past its first check.
+func (m *Machine) ternaryCountSlow() uint32 {
 	if m.BrkSp > 1024 {
 		return 0
 	}
@@ -6019,6 +6093,11 @@ func (m *Machine) RxAllowedAfter(t uint32) uint32 {
 	if t == LexStringLiteral {
 		return m.NlBefore & rt.B2u(m.AfterModuleSpecifier())
 	}
+	return m.rxAllowedAfterSlow(t)
+}
+
+// rxAllowedAfterSlow is RxAllowedAfter past its first check.
+func (m *Machine) rxAllowedAfterSlow(t uint32) uint32 {
 	if t == LexRParen {
 		return m.RxCloser
 	}
@@ -6050,6 +6129,11 @@ func (m *Machine) JsxCanStart(t uint32) uint32 {
 	if t == LexStringLiteral {
 		return 0
 	}
+	return m.jsxCanStartSlow(t)
+}
+
+// jsxCanStartSlow is JsxCanStart past its first check.
+func (m *Machine) jsxCanStartSlow(t uint32) uint32 {
 	if t == LexQuestionMark {
 		if m.TernaryCount() == 0 && m.BrkSp <= 1024 {
 			return 0
@@ -6687,11 +6771,16 @@ func (m *Machine) NextToken() uint32 {
 }
 
 // TsxExpressionEnd is $tsxExpressionEnd.
-func (m *Machine) TsxExpressionEnd(from, _ uint32) uint32 {
-	var to, t, mode, jsxValidate, jsxEmitName uint32
+func (m *Machine) TsxExpressionEnd(from, body uint32) uint32 {
 	if from >= m.End {
 		return m.End
 	}
+	return m.tsxExpressionEndSlow(from, body)
+}
+
+// tsxExpressionEndSlow is TsxExpressionEnd past its first check.
+func (m *Machine) tsxExpressionEndSlow(from, _ uint32) uint32 {
+	var to, t, mode, jsxValidate, jsxEmitName uint32
 	save := m.Ptr
 	m.EcmaFeatures = 3
 	m.Ptr = from
@@ -7185,10 +7274,15 @@ func (m *Machine) JsxSpaceEndAt(p uint32) uint32 {
 
 // JsxValidate is $jsxValidate.
 func (m *Machine) JsxValidate(p uint32) bool {
-	mem := m.Mem
 	if p >= m.End {
 		return false
 	}
+	return m.jsxValidateSlow(p)
+}
+
+// jsxValidateSlow is JsxValidate past its first check.
+func (m *Machine) jsxValidateSlow(p uint32) bool {
+	mem := m.Mem
 	c := uint32(mem[p])
 	if c == '>' {
 		return true
@@ -7740,6 +7834,11 @@ func (m *Machine) TsTypeSlot(prev, next, lhs uint32) bool {
 	if prev == LexCtxwordKeyof || prev == LexCtxwordInfer || prev == LexCtxwordIs || prev == LexCtxwordAs || prev == LexCtxwordSatisfies {
 		return true
 	}
+	return m.tsTypeSlotSlow(prev, next, lhs)
+}
+
+// tsTypeSlotSlow is TsTypeSlot past its first check.
+func (m *Machine) tsTypeSlotSlow(prev, next, lhs uint32) bool {
 	if m.NlBefore != 0 {
 		next = LexEOF
 	}
@@ -7791,6 +7890,11 @@ func (m *Machine) SigStep(prev, t, next, lhs, rhs uint32) {
 	if m.SigFnPend|m.SigMask|uint32(m.Mem[t+38656])&32 == 0 {
 		return
 	}
+	m.sigStepSlow(prev, t, next, lhs, rhs)
+}
+
+// sigStepSlow is SigStep past its first check.
+func (m *Machine) sigStepSlow(prev, t, next, lhs, rhs uint32) {
 	if t == LexLParen {
 		m.SigParens++
 		if m.SigFnAngle == 0 {
@@ -7892,6 +7996,11 @@ func (m *Machine) CtxwordHl(prev, t, next uint32) uint32 {
 	if t == LexCtxwordType && m.EcmaImport == 0 && m.NlBefore&1 != 0 {
 		return 0xffffffff
 	}
+	return m.ctxwordHlSlow(prev, t, next)
+}
+
+// ctxwordHlSlow is CtxwordHl past its first check.
+func (m *Machine) ctxwordHlSlow(prev, t, next uint32) uint32 {
 	if next == LexEOF && m.NlBefore&1 != 0 {
 		if t == LexCtxwordFrom && m.EcmaImport&1 != 0 && (prev == LexIdentifier || prev == LexCtxwordFrom || prev == LexCtxwordType || prev == LexRBrace || prev == LexAsterisk) {
 			return TokenKeywordImport
@@ -8285,11 +8394,16 @@ func (m *Machine) TsrxRawClose(p, kind uint32) bool {
 
 // TsrxContentFind is $tsrxContentFind.
 func (m *Machine) TsrxContentFind(p uint32) uint32 {
-	var mask uint32
-	var w rt.V128
 	if p >= m.End {
 		return m.End
 	}
+	return m.tsrxContentFindSlow(p)
+}
+
+// tsrxContentFindSlow is TsrxContentFind past its first check.
+func (m *Machine) tsrxContentFindSlow(p uint32) uint32 {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
 		mask = w.Eq8(rt.Splat8(60)).Or(w.Eq8(rt.Splat8(123))).Or(w.Eq8(rt.Splat8(38)).Or(w.Eq8(rt.Splat8(64)))).Or(w.Eq8(rt.Splat8(47)).Or(w.Eq8(rt.Splat8(10)))).Bitmask8()
@@ -8987,10 +9101,15 @@ func (m *Machine) YamlStreamResume() bool {
 
 // YamlColonEnds is $yamlColonEnds.
 func (m *Machine) YamlColonEnds(p, flow uint32) bool {
-	mem := m.Mem
 	if p >= m.End {
 		return false
 	}
+	return m.yamlColonEndsSlow(p, flow)
+}
+
+// yamlColonEndsSlow is YamlColonEnds past its first check.
+func (m *Machine) yamlColonEndsSlow(p, flow uint32) bool {
+	mem := m.Mem
 	if mem[p] != ':' {
 		return false
 	}
@@ -9989,6 +10108,11 @@ func (m *Machine) MarkdownImageLink(lhs, lineEnd, alt uint32) uint32 {
 	if lhs+3 >= lineEnd || uint32(binary.LittleEndian.Uint16(m.Mem[lhs+1:])) != 23329 {
 		return 0
 	}
+	return m.markdownImageLinkSlow(lhs, lineEnd, alt)
+}
+
+// markdownImageLinkSlow is MarkdownImageLink past its first check.
+func (m *Machine) markdownImageLinkSlow(lhs, lineEnd, alt uint32) uint32 {
 	if m.ScanFindSpecial(lhs+3, alt, 91, 0, 0) < alt {
 		return 0
 	}
@@ -10026,11 +10150,16 @@ func (m *Machine) MarkdownLinkTail(closer, rhs uint32) {
 
 // MarkdownFindEither is $markdownFindEither.
 func (m *Machine) MarkdownFindEither(p, stop, c uint32) uint32 {
-	var mask uint32
-	var w rt.V128
 	if p >= stop {
 		return stop
 	}
+	return m.markdownFindEitherSlow(p, stop, c)
+}
+
+// markdownFindEitherSlow is MarkdownFindEither past its first check.
+func (m *Machine) markdownFindEitherSlow(p, stop, c uint32) uint32 {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
 		mask = w.Eq8(rt.Splat8(c)).Or(w.Eq8(rt.Splat8(96))).Bitmask8()
@@ -12092,6 +12221,11 @@ func (m *Machine) ApplescriptWord(n uint32) uint32 {
 	if n > 7 {
 		return 0xffffffff
 	}
+	return m.applescriptWordSlow(n)
+}
+
+// applescriptWordSlow is ApplescriptWord past its first check.
+func (m *Machine) applescriptWordSlow(n uint32) uint32 {
 	w := binary.LittleEndian.Uint64(m.Mem[1360:]) & (uint64(1)<<(uint64(n<<3)&63) - 1)
 	if w == 0x6572656877 || w == 0x65736f6877 {
 		return TokenKeyword
@@ -12440,11 +12574,16 @@ func (m *Machine) RstLinkSuffix(p, stop uint32) uint32 {
 
 // RstPlainEnd is $rstPlainEnd.
 func (m *Machine) RstPlainEnd(p, stop, a, b, c uint32) uint32 {
-	var mask uint32
-	var w, va, vb, vc rt.V128
 	if p >= stop {
 		return stop
 	}
+	return m.rstPlainEndSlow(p, stop, a, b, c)
+}
+
+// rstPlainEndSlow is RstPlainEnd past its first check.
+func (m *Machine) rstPlainEndSlow(p, stop, a, b, c uint32) uint32 {
+	var mask uint32
+	var w, va, vb, vc rt.V128
 	va = rt.Splat8(a)
 	vb = rt.Splat8(b)
 	vc = rt.Splat8(c)
@@ -13676,6 +13815,11 @@ func (m *Machine) BashWordHl(group uint32) uint32 {
 	if group == 0 {
 		return TokenVariable
 	}
+	return m.bashWordHlSlow(group)
+}
+
+// bashWordHlSlow is BashWordHl past its first check.
+func (m *Machine) bashWordHlSlow(group uint32) uint32 {
 	if group <= 6 {
 		return TokenKeywordControl
 	}
@@ -13924,10 +14068,15 @@ func (m *Machine) BashIsOp(c uint32) bool {
 
 // BashIsArrayOpen is $bashIsArrayOpen.
 func (m *Machine) BashIsArrayOpen(p uint32) bool {
-	mem := m.Mem
 	if m.BashArith != 0 || p < m.SrcBase+2 {
 		return false
 	}
+	return m.bashIsArrayOpenSlow(p)
+}
+
+// bashIsArrayOpenSlow is BashIsArrayOpen past its first check.
+func (m *Machine) bashIsArrayOpenSlow(p uint32) bool {
+	mem := m.Mem
 	if mem[p-1] != '=' {
 		return false
 	}
@@ -15110,10 +15259,15 @@ func (m *Machine) HlBicep() {
 
 // PhpIsOpen is $phpIsOpen.
 func (m *Machine) PhpIsOpen(p uint32) bool {
-	mem := m.Mem
 	if p+3 > m.End {
 		return false
 	}
+	return m.phpIsOpenSlow(p)
+}
+
+// phpIsOpenSlow is PhpIsOpen past its first check.
+func (m *Machine) phpIsOpenSlow(p uint32) bool {
+	mem := m.Mem
 	if uint32(binary.LittleEndian.Uint16(mem[p:])) != 16188 {
 		return false
 	}
@@ -15294,11 +15448,16 @@ func (m *Machine) PhpBlanksAt(p uint32) uint32 {
 
 // PhpBytesEq is $phpBytesEq.
 func (m *Machine) PhpBytesEq(a, b, n uint32) bool {
-	var mask uint64
-	mem := m.Mem
 	if a+n > m.End {
 		return false
 	}
+	return m.phpBytesEqSlow(a, b, n)
+}
+
+// phpBytesEqSlow is PhpBytesEq past its first check.
+func (m *Machine) phpBytesEqSlow(a, b, n uint32) bool {
+	var mask uint64
+	mem := m.Mem
 	if n == 0 {
 		return true
 	}
@@ -15697,10 +15856,15 @@ func (m *Machine) PhpStreamResume() bool {
 
 // PhpLooksLikeMarkup is $phpLooksLikeMarkup.
 func (m *Machine) PhpLooksLikeMarkup(p uint32) bool {
-	mem := m.Mem
 	if p+1 >= m.End {
 		return false
 	}
+	return m.phpLooksLikeMarkupSlow(p)
+}
+
+// phpLooksLikeMarkupSlow is PhpLooksLikeMarkup past its first check.
+func (m *Machine) phpLooksLikeMarkupSlow(p uint32) bool {
+	mem := m.Mem
 	if mem[p] != '<' {
 		return false
 	}
@@ -15801,11 +15965,16 @@ func (m *Machine) HlPhp() {
 
 // TmplFind4 is $tmplFind4.
 func (m *Machine) TmplFind4(p, a, b, c, d uint32) uint32 {
-	var mask uint32
-	var w rt.V128
 	if p >= m.End {
 		return m.End
 	}
+	return m.tmplFind4Slow(p, a, b, c, d)
+}
+
+// tmplFind4Slow is TmplFind4 past its first check.
+func (m *Machine) tmplFind4Slow(p, a, b, c, d uint32) uint32 {
+	var mask uint32
+	var w rt.V128
 	for {
 		w = rt.LdV(m.Mem[p:])
 		mask = w.Eq8(rt.Splat8(a)).Or(w.Eq8(rt.Splat8(b))).Or(w.Eq8(rt.Splat8(c)).Or(w.Eq8(rt.Splat8(d)))).Bitmask8()
@@ -16446,10 +16615,15 @@ next:
 
 // CWordHl is $cWordHl.
 func (m *Machine) CWordHl(lhs, rhs uint32) uint32 {
-	mem := m.Mem
-	if rhs-lhs == 8 && binary.LittleEndian.Uint64(mem[lhs:]) == 0x65756e69746e6f63 {
+	if rhs-lhs == 8 && binary.LittleEndian.Uint64(m.Mem[lhs:]) == 0x65756e69746e6f63 {
 		return TokenKeywordControl
 	}
+	return m.cWordHlSlow(lhs, rhs)
+}
+
+// cWordHlSlow is CWordHl past its first check.
+func (m *Machine) cWordHlSlow(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	g := m.LexKeywordValue(lhs, rhs, 14496, 15, 54)
 	if g != 0xffffffff {
 		return g
@@ -17238,10 +17412,15 @@ func (m *Machine) CmakeCommandGroup(lhs, rhs uint32) uint32 {
 
 // CmakeIsCondition is $cmakeIsCondition.
 func (m *Machine) CmakeIsCondition(n uint32) bool {
-	mem := m.Mem
 	if n == 2 {
-		return uint32(binary.LittleEndian.Uint16(mem[1360:])) == 26217
+		return uint32(binary.LittleEndian.Uint16(m.Mem[1360:])) == 26217
 	}
+	return m.cmakeIsConditionSlow(n)
+}
+
+// cmakeIsConditionSlow is CmakeIsCondition past its first check.
+func (m *Machine) cmakeIsConditionSlow(n uint32) bool {
+	mem := m.Mem
 	if n == 5 {
 		return binary.LittleEndian.Uint32(mem[1360:]) == 0x6c696877 && mem[1364] == 'e'
 	}
@@ -18923,6 +19102,11 @@ func (m *Machine) CppStringKind(p, c, n, c3 uint32) uint32 {
 	if c == '"' || c == '\'' {
 		return 1
 	}
+	return m.cppStringKindSlow(p, c, n, c3)
+}
+
+// cppStringKindSlow is CppStringKind past its first check.
+func (m *Machine) cppStringKindSlow(p, c, n, c3 uint32) uint32 {
 	if c == 'R' && n == 34 {
 		return 258
 	}
@@ -19522,6 +19706,11 @@ func (m *Machine) CsStringPrefix(c, c2, c3 uint32) uint32 {
 	if c == '"' {
 		return 256
 	}
+	return m.csStringPrefixSlow(c, c2, c3)
+}
+
+// csStringPrefixSlow is CsStringPrefix past its first check.
+func (m *Machine) csStringPrefixSlow(c, c2, c3 uint32) uint32 {
 	flags := rt.B2u(c == '$') | rt.B2u(c == '@')<<1
 	if flags == 0 {
 		return 0
@@ -20620,6 +20809,11 @@ func (m *Machine) DartWordHl(g uint32) uint32 {
 	if g == 0 {
 		return 0xffffffff
 	}
+	return m.dartWordHlSlow(g)
+}
+
+// dartWordHlSlow is DartWordHl past its first check.
+func (m *Machine) dartWordHlSlow(g uint32) uint32 {
 	if g == 1 {
 		return TokenKeywordControl
 	}
@@ -22118,6 +22312,11 @@ func (m *Machine) ExCloser(open uint32) uint32 {
 	if open == '(' {
 		return 41
 	}
+	return m.exCloserSlow(open)
+}
+
+// exCloserSlow is ExCloser past its first check.
+func (m *Machine) exCloserSlow(open uint32) uint32 {
 	if open == '[' {
 		return 93
 	}
@@ -22858,6 +23057,11 @@ func (m *Machine) RubyCloser(open uint32) uint32 {
 	if open == '(' {
 		return 41
 	}
+	return m.rubyCloserSlow(open)
+}
+
+// rubyCloserSlow is RubyCloser past its first check.
+func (m *Machine) rubyCloserSlow(open uint32) uint32 {
 	if open == '[' {
 		return 93
 	}
@@ -23002,6 +23206,11 @@ func (m *Machine) RubyPercentKind(c uint32) uint32 {
 	if uint32(m.Mem[c+3472])&16 != 0 {
 		return 1
 	}
+	return m.rubyPercentKindSlow(c)
+}
+
+// rubyPercentKindSlow is RubyPercentKind past its first check.
+func (m *Machine) rubyPercentKindSlow(c uint32) uint32 {
 	if c == 'q' || c == 'w' || c == 'i' || c == 's' {
 		return 2
 	}
@@ -24453,10 +24662,15 @@ func (m *Machine) HlFish() {
 
 // FortranWordHl is $fortranWordHl.
 func (m *Machine) FortranWordHl(lhs, rhs uint32) uint32 {
-	mem := m.Mem
-	if rhs-lhs == 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x6572656877 {
+	if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
 		return TokenKeywordControl
 	}
+	return m.fortranWordHlSlow(lhs, rhs)
+}
+
+// fortranWordHlSlow is FortranWordHl past its first check.
+func (m *Machine) fortranWordHlSlow(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	if rhs-lhs == 7 && (binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x65726975716e69 || binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x656c6966646e65) {
 		return TokenFunction
 	}
@@ -24780,10 +24994,15 @@ func (m *Machine) MlWordHl(lhs, rhs uint32) uint32 {
 
 // MlIsCharLiteral is $mlIsCharLiteral.
 func (m *Machine) MlIsCharLiteral(p uint32) bool {
-	mem := m.Mem
 	if p+1 >= m.End {
 		return false
 	}
+	return m.mlIsCharLiteralSlow(p)
+}
+
+// mlIsCharLiteralSlow is MlIsCharLiteral past its first check.
+func (m *Machine) mlIsCharLiteralSlow(p uint32) bool {
+	mem := m.Mem
 	if mem[p+1] == '\\' {
 		return true
 	}
@@ -25893,6 +26112,11 @@ func (m *Machine) PyStreamResume() bool {
 	if m.StreamMode != 10 {
 		return false
 	}
+	return m.pyStreamResumeSlow()
+}
+
+// pyStreamResumeSlow is PyStreamResume past its first check.
+func (m *Machine) pyStreamResumeSlow() bool {
 	flags := m.StreamB
 	status := m.PyStringBody(m.StreamA, flags&1 != 0, flags&2 != 0, (flags>>2)&1, (flags>>2)&1, 0, m.Ptr, m.StreamC)
 	m.StreamC = status >> 2
@@ -28025,6 +28249,11 @@ func (m *Machine) GroqStarIsEverything(p, operand, lineStart uint32) bool {
 	if operand == 0 {
 		return true
 	}
+	return m.groqStarIsEverythingSlow(p, operand, lineStart)
+}
+
+// groqStarIsEverythingSlow is GroqStarIsEverything past its first check.
+func (m *Machine) groqStarIsEverythingSlow(p, _, lineStart uint32) bool {
 	if lineStart == 0 {
 		return false
 	}
@@ -28650,6 +28879,11 @@ func (m *Machine) IndentAfterBreak(p uint32) uint32 {
 	if p >= m.End {
 		return p
 	}
+	return m.indentAfterBreakSlow(p)
+}
+
+// indentAfterBreakSlow is IndentAfterBreak past its first check.
+func (m *Machine) indentAfterBreakSlow(p uint32) uint32 {
 	if m.Mem[p] == '\r' && m.TemplateByte(p+1) == '\n' {
 		return p + 2
 	}
@@ -29777,10 +30011,15 @@ func (m *Machine) HlHandlebars() {
 
 // HsIsCharLiteral is $hsIsCharLiteral.
 func (m *Machine) HsIsCharLiteral(p uint32) bool {
-	mem := m.Mem
 	if p+1 >= m.End {
 		return false
 	}
+	return m.hsIsCharLiteralSlow(p)
+}
+
+// hsIsCharLiteralSlow is HsIsCharLiteral past its first check.
+func (m *Machine) hsIsCharLiteralSlow(p uint32) bool {
+	mem := m.Mem
 	c := uint32(mem[p+1])
 	if c == '\\' {
 		return true
@@ -31118,6 +31357,11 @@ func (m *Machine) HTTPVersion(rhs uint32) bool {
 	if m.Ptr+5 > rhs || binary.LittleEndian.Uint32(m.Mem[m.Ptr:]) != 0x50545448 || m.Mem[m.Ptr+4] != '/' {
 		return false
 	}
+	return m.hTTPVersionSlow(rhs)
+}
+
+// hTTPVersionSlow is HTTPVersion past its first check.
+func (m *Machine) hTTPVersionSlow(rhs uint32) bool {
 	p := m.Ptr + 4
 	m.EmitTok(TokenKeyword, m.Ptr, p)
 	m.Ptr = p + 1
@@ -32165,6 +32409,11 @@ func (m *Machine) JustExpectHl(e uint32) uint32 {
 	if e == 2 {
 		return TokenFunctionDefinition
 	}
+	return m.justExpectHlSlow(e)
+}
+
+// justExpectHlSlow is JustExpectHl past its first check.
+func (m *Machine) justExpectHlSlow(e uint32) uint32 {
 	if e == 3 {
 		return TokenProperty
 	}
@@ -34497,6 +34746,11 @@ func (m *Machine) LeanIsLetter(c uint32) bool {
 	if (c|32)-97 <= 25 || c == '_' {
 		return true
 	}
+	return m.leanIsLetterSlow(c)
+}
+
+// leanIsLetterSlow is LeanIsLetter past its first check.
+func (m *Machine) leanIsLetterSlow(c uint32) bool {
 	if c-192 <= 191 && c != 215 && c != 247 {
 		return true
 	}
@@ -34525,10 +34779,15 @@ func (m *Machine) LeanIsRest(c uint32) bool {
 
 // LeanWordKind is $leanWordKind.
 func (m *Machine) LeanWordKind(lhs, rhs uint32) uint32 {
-	mem := m.Mem
-	if rhs-lhs == 5 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffff == 0x6572656877 {
+	if rhs-lhs == 5 && binary.LittleEndian.Uint64(m.Mem[lhs:])&0xffffffffff == 0x6572656877 {
 		return TokenKeywordDeclaration
 	}
+	return m.leanWordKindSlow(lhs, rhs)
+}
+
+// leanWordKindSlow is LeanWordKind past its first check.
+func (m *Machine) leanWordKindSlow(lhs, rhs uint32) uint32 {
+	mem := m.Mem
 	if rhs-lhs == 7 && binary.LittleEndian.Uint64(mem[lhs:])&0xffffffffffffff == 0x6564756c657270 {
 		return TokenKeyword
 	}
@@ -34543,6 +34802,11 @@ func (m *Machine) LeanNameKind(expect uint32) uint32 {
 	if expect == 1 {
 		return TokenFunctionDefinition
 	}
+	return m.leanNameKindSlow(expect)
+}
+
+// leanNameKindSlow is LeanNameKind past its first check.
+func (m *Machine) leanNameKindSlow(expect uint32) uint32 {
 	if expect == 2 {
 		return TokenType
 	}
@@ -34937,6 +35201,11 @@ func (m *Machine) LispBindClose(bl uint32) uint32 {
 	if bl&3 == 0 {
 		return 0
 	}
+	return m.lispBindCloseSlow(bl)
+}
+
+// lispBindCloseSlow is LispBindClose past its first check.
+func (m *Machine) lispBindCloseSlow(bl uint32) uint32 {
 	depth := bl>>8 - 1
 	if depth == 0 {
 		return 0
@@ -37204,6 +37473,11 @@ func (m *Machine) MdxMarkdownRange(from, to uint32) {
 	if from >= to {
 		return
 	}
+	m.mdxMarkdownRangeSlow(from, to)
+}
+
+// mdxMarkdownRangeSlow is MdxMarkdownRange past its first check.
+func (m *Machine) mdxMarkdownRangeSlow(from, to uint32) {
 	save := m.End
 	m.End = to
 	m.Ptr = from
@@ -37289,6 +37563,11 @@ func (m *Machine) MdxCommentEnd(p uint32) uint32 {
 	if p+1 >= m.End {
 		return p
 	}
+	return m.mdxCommentEndSlow(p)
+}
+
+// mdxCommentEndSlow is MdxCommentEnd past its first check.
+func (m *Machine) mdxCommentEndSlow(p uint32) uint32 {
 	c := uint32(m.Mem[p+1])
 	if c != '*' && c != '/' {
 		return p
@@ -37447,10 +37726,15 @@ prefix:
 
 // MdxEsmStart is $mdxEsmStart.
 func (m *Machine) MdxEsmStart(p uint32) bool {
-	mem := m.Mem
 	if p+7 > m.End {
 		return false
 	}
+	return m.mdxEsmStartSlow(p)
+}
+
+// mdxEsmStartSlow is MdxEsmStart past its first check.
+func (m *Machine) mdxEsmStartSlow(p uint32) bool {
+	mem := m.Mem
 	word := binary.LittleEndian.Uint32(mem[p:])
 	if !((word == 0x6f706d69 && uint32(binary.LittleEndian.Uint16(mem[p+4:])) == 29810) || (word == 0x6f707865 && uint32(binary.LittleEndian.Uint16(mem[p+4:])) == 29810)) {
 		return false
@@ -40003,11 +40287,16 @@ func (m *Machine) OdinByte(p uint32) uint32 {
 
 // OdinEndianType is $odinEndianType.
 func (m *Machine) OdinEndianType(lhs, rhs uint32) bool {
-	var width uint32
-	mem := m.Mem
 	if rhs-lhs < 5 {
 		return false
 	}
+	return m.odinEndianTypeSlow(lhs, rhs)
+}
+
+// odinEndianTypeSlow is OdinEndianType past its first check.
+func (m *Machine) odinEndianTypeSlow(lhs, rhs uint32) bool {
+	var width uint32
+	mem := m.Mem
 	c := uint32(binary.LittleEndian.Uint16(mem[rhs-2:]))
 	if !(c == 25964 || c == 25954) {
 		return false
@@ -41086,6 +41375,11 @@ func (m *Machine) PerlCloser(open uint32) uint32 {
 	if open == '(' {
 		return 41
 	}
+	return m.perlCloserSlow(open)
+}
+
+// perlCloserSlow is PerlCloser past its first check.
+func (m *Machine) perlCloserSlow(open uint32) uint32 {
 	if open == '[' {
 		return 93
 	}
@@ -47963,10 +48257,15 @@ func (m *Machine) StataTwoBreaks(p, stop uint32) bool {
 
 // StataIsFactorOp is $stataIsFactorOp.
 func (m *Machine) StataIsFactorOp(lhs, rhs uint32) bool {
-	mem := m.Mem
 	if rhs-lhs > 3 {
 		return false
 	}
+	return m.stataIsFactorOpSlow(lhs, rhs)
+}
+
+// stataIsFactorOpSlow is StataIsFactorOp past its first check.
+func (m *Machine) stataIsFactorOpSlow(lhs, rhs uint32) bool {
+	mem := m.Mem
 	c := uint32(mem[lhs]) | 32
 	if uint32(mem[c+5264])&64 == 0 {
 		return false
@@ -51454,6 +51753,11 @@ func (m *Machine) VueHTMLRange(from, to uint32) {
 	if from >= to {
 		return
 	}
+	m.vueHTMLRangeSlow(from, to)
+}
+
+// vueHTMLRangeSlow is VueHTMLRange past its first check.
+func (m *Machine) vueHTMLRangeSlow(from, to uint32) {
 	save := m.End
 	m.End = to
 	m.Ptr = from
@@ -51467,6 +51771,11 @@ func (m *Machine) VueTsxRange(from, to uint32) {
 	if from >= to {
 		return
 	}
+	m.vueTsxRangeSlow(from, to)
+}
+
+// vueTsxRangeSlow is VueTsxRange past its first check.
+func (m *Machine) vueTsxRangeSlow(from, to uint32) {
 	save := m.End
 	m.End = to
 	m.Ptr = from
@@ -53130,6 +53439,11 @@ func (m *Machine) StreamResumeLang(lang uint32) bool {
 	if m.StreamRegionKind == 29 {
 		return m.HTTPStreamResume()
 	}
+	return m.streamResumeLangSlow(lang)
+}
+
+// streamResumeLangSlow is StreamResumeLang past its first check.
+func (m *Machine) streamResumeLangSlow(lang uint32) bool {
 	if m.StreamRegionKind-38 <= 1 {
 		return m.ShaderlabStreamResume()
 	}
@@ -53181,7 +53495,7 @@ func (m *Machine) LvGrowTo(addr uint32) {
 	var oldPages uint32
 	need := addr + 16
 	if need > uint32(len(m.Mem)/rt.PageSize)*0x10000 {
-		oldPages = rt.Grow(&m.Mem, (((need - (uint32(len(m.Mem)/rt.PageSize) * 0x10000)) >> 16) + 1))
+		oldPages = rt.Grow(&m.Mem, (need-uint32(len(m.Mem)/rt.PageSize)*0x10000)>>16+1)
 		if oldPages == 0xffffffff {
 			panic(rt.Trap("unreachable"))
 		}
@@ -53193,6 +53507,11 @@ func (m *Machine) LvClassOf(size uint32) uint32 {
 	if size <= 64 {
 		return size >> 3
 	}
+	return m.lvClassOfSlow(size)
+}
+
+// lvClassOfSlow is LvClassOf past its first check.
+func (m *Machine) lvClassOfSlow(size uint32) uint32 {
 	p := uint32(bits.Len32(size - 1))
 	if p >= 17 {
 		return 31
@@ -53281,10 +53600,15 @@ func (m *Machine) LvAlloc(length uint32) uint32 {
 
 // LvFree is $lvFree.
 func (m *Machine) LvFree(body uint32) {
-	mem := m.Mem
 	if body == 0 {
 		return
 	}
+	m.lvFreeSlow(body)
+}
+
+// lvFreeSlow is LvFree past its first check.
+func (m *Machine) lvFreeSlow(body uint32) {
+	mem := m.Mem
 	hdr := body - 8
 	total := binary.LittleEndian.Uint32(mem[hdr:]) & 0xfffffffe
 	idx := m.LvClassOf(total)
@@ -53318,6 +53642,11 @@ func (m *Machine) LvHeapInit() {
 	if m.LvHeapEnd != 0 {
 		return
 	}
+	m.lvHeapInitSlow()
+}
+
+// lvHeapInitSlow is LvHeapInit past its first check.
+func (m *Machine) lvHeapInitSlow() {
 	m.LvHeapEnd = 0x18110
 	m.LvHeapCeil = 0x18110
 	m.LvHeapLive = 0
@@ -53350,11 +53679,16 @@ func (m *Machine) LvHash(ptr, length uint32) uint64 {
 
 // LvBytesEq is $lvBytesEq.
 func (m *Machine) LvBytesEq(a, b, length uint32) bool {
-	var different rt.V128
-	mem := m.Mem
 	if length == 0 {
 		return true
 	}
+	return m.lvBytesEqSlow(a, b, length)
+}
+
+// lvBytesEqSlow is LvBytesEq past its first check.
+func (m *Machine) lvBytesEqSlow(a, b, length uint32) bool {
+	var different rt.V128
+	mem := m.Mem
 	for {
 		different = rt.LdV(mem[a:]).Ne8(rt.LdV(mem[b:]))
 		if different.AnyTrue() {
@@ -53476,10 +53810,15 @@ func (m *Machine) LvIntern(ptr, length uint32) uint32 {
 
 // LvRelease is $lvRelease.
 func (m *Machine) LvRelease(id uint32) {
-	mem := m.Mem
 	if id == 0 || id == 0xffffffff {
 		return
 	}
+	m.lvReleaseSlow(id)
+}
+
+// lvReleaseSlow is LvRelease past its first check.
+func (m *Machine) lvReleaseSlow(id uint32) {
+	mem := m.Mem
 	slotAddr := m.LvIDTab + id<<2
 	node := binary.LittleEndian.Uint32(mem[slotAddr:])
 	binary.LittleEndian.PutUint32(mem[node+4:], binary.LittleEndian.Uint32(mem[node+4:])-1)
@@ -53797,11 +54136,16 @@ func (m *Machine) LvSlot(i uint32) uint32 {
 
 // LvMoveGap is $lvMoveGap.
 func (m *Machine) LvMoveGap(to uint32) {
-	var dst, src, dst2, src2 uint32
-	mem := m.Mem
 	if to == m.LvGapAt {
 		return
 	}
+	m.lvMoveGapSlow(to)
+}
+
+// lvMoveGapSlow is LvMoveGap past its first check.
+func (m *Machine) lvMoveGapSlow(to uint32) {
+	var dst, src, dst2, src2 uint32
+	mem := m.Mem
 	gapLen := m.LvLineCap - m.LvLineCount
 	if to < m.LvGapAt {
 		dst = m.LvLineTab + (to+gapLen)<<5
@@ -53820,6 +54164,11 @@ func (m *Machine) LvEnsureLines(extra uint32) {
 	if m.LvLineCount+extra <= m.LvLineCap {
 		return
 	}
+	m.lvEnsureLinesSlow(extra)
+}
+
+// lvEnsureLinesSlow is LvEnsureLines past its first check.
+func (m *Machine) lvEnsureLinesSlow(extra uint32) {
 	newCap := m.LvLineCap << 1
 	if newCap < m.LvLineCount+extra+64 {
 		newCap = m.LvLineCount + extra + 64
@@ -54479,10 +54828,15 @@ func (m *Machine) LvAbsorbChange(idx uint32) {
 
 // LvCloseRange is $lvCloseRange.
 func (m *Machine) LvCloseRange(through uint32) {
-	mem := m.Mem
 	if through <= m.LvDirtyTo {
 		return
 	}
+	m.lvCloseRangeSlow(through)
+}
+
+// lvCloseRangeSlow is LvCloseRange past its first check.
+func (m *Machine) lvCloseRangeSlow(through uint32) {
+	mem := m.Mem
 	e := 0x14004 + m.LvChangeIdx<<4
 	binary.LittleEndian.PutUint32(mem[e+4:], binary.LittleEndian.Uint32(mem[e+4:])+(through-m.LvDirtyTo))
 	binary.LittleEndian.PutUint32(mem[e+12:], through)
@@ -54607,11 +54961,16 @@ func (m *Machine) LvCompact() {
 
 // LvAddPend is $lvAddPend.
 func (m *Machine) LvAddPend(a, b, shift, ranges, rangeCount uint32) uint32 {
-	var slot uint32
-	mem := m.Mem
 	if a >= b {
 		return rangeCount
 	}
+	return m.lvAddPendSlow(a, b, shift, ranges, rangeCount)
+}
+
+// lvAddPendSlow is LvAddPend past its first check.
+func (m *Machine) lvAddPendSlow(a, b, shift, ranges, rangeCount uint32) uint32 {
+	var slot uint32
+	mem := m.Mem
 	if m.LvAddChange(a, b, a+shift, b+shift) {
 		slot = ranges + rangeCount<<3
 		binary.LittleEndian.PutUint32(mem[slot:], a+shift)
@@ -54759,10 +55118,15 @@ func (m *Machine) LiveApplyEdits(staged, undelivered uint32) {
 
 // LiveRun is (export "liveRun").
 func (m *Machine) LiveRun(budget, end, work uint32) uint32 {
-	var i, slot, oldID, newID, next uint32
 	if !m.LvPhase {
 		return 0
 	}
+	return m.liveRunSlow(budget, end, work)
+}
+
+// liveRunSlow is LiveRun past its first check.
+func (m *Machine) liveRunSlow(budget, end, work uint32) uint32 {
+	var i, slot, oldID, newID, next uint32
 	for {
 		if end != 0 && m.LvCursor >= end {
 			return 1
@@ -54863,6 +55227,11 @@ func (m *Machine) LiveStats(k uint32) uint32 {
 	if k == 0 {
 		return m.LvRetok
 	}
+	return m.liveStatsSlow(k)
+}
+
+// liveStatsSlow is LiveStats past its first check.
+func (m *Machine) liveStatsSlow(k uint32) uint32 {
 	if k == 1 {
 		return m.LvStateCount
 	}
