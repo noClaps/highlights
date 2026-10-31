@@ -49,6 +49,9 @@ type value struct {
 	// shrOf and shrBy are set for x >> k with a constant k
 	shrOf *value
 	shrBy uint64
+	// bitOp, lhs and rhs are set for x & y, x | y and x ^ y
+	bitOp    string
+	lhs, rhs *value
 	// call is set for a call's result temporary: the statement that
 	// assigned it
 	call string
@@ -3259,12 +3262,14 @@ func (g *fgen) binary(op binOp, a, b value) value {
 			c, x = b, a
 		}
 		return value{expr: "(" + g.asValue(a) + " & " + g.asValue(b) + ")", typ: I32, stable: stable, flag: true,
-			cond: "(" + g.asBool(c) + " && " + g.asValue(x) + "&1 != 0)"}
+			cond: "(" + g.asBool(c) + " && " + g.bit0(x) + ")"}
 	}
 	// x>>k & 1 is bit k of x, tested as x&(1<<k) != 0
 	if op.goOp == "&" && b.isConst && b.c == 1 && !a.isBool {
 		r := value{expr: "(" + g.asValue(a) + " & 1)", typ: op.typ, stable: stable, flag: true}
 		switch {
+		case a.bitOp != "":
+			r.cond = g.bit0(a)
 		case a.shrOf != nil:
 			x := a.shrOf.expr
 			if a.shrOf.byteExpr != "" && a.shrBy < 8 {
@@ -3287,7 +3292,7 @@ func (g *fgen) binary(op binOp, a, b value) value {
 	av, bv := g.asValue(a), g.asValue(b)
 	if op.goOp == "|" && (a.isBool || b.isBool || a.cond != "" || b.cond != "") {
 		// a number from or-ing conditions tests as their ||
-		return value{expr: "(" + av + " | " + bv + ")", typ: op.typ, stable: stable, cond: "(" + g.asBool(a) + " || " + g.asBool(b) + ")"}
+		return value{expr: "(" + av + " | " + bv + ")", typ: op.typ, stable: stable, cond: "(" + g.asBool(a) + " || " + g.asBool(b) + ")", bitOp: "|", lhs: &a, rhs: &b}
 	}
 	if op.isCmp && op.typ == I32 {
 		// a byte compared with a printable constant reads as a rune literal
@@ -3365,7 +3370,35 @@ func (g *fgen) binary(op binOp, a, b value) value {
 	}
 	// and, or and xor of 0-or-1 numbers are 0 or 1
 	flag := (op.goOp == "&" || op.goOp == "|" || op.goOp == "^") && zeroOrOne(a) && zeroOrOne(b)
-	return value{expr: fmt.Sprintf("(%s %s %s)", av, op.goOp, bv), typ: op.typ, stable: stable, flag: flag}
+	r := value{expr: fmt.Sprintf("(%s %s %s)", av, op.goOp, bv), typ: op.typ, stable: stable, flag: flag}
+	if op.typ == I32 && (op.goOp == "&" || op.goOp == "|" || op.goOp == "^") {
+		r.bitOp, r.lhs, r.rhs = op.goOp, &a, &b
+	}
+	return r
+}
+
+// bit0 writes the condition that bit 0 of v is set: the condition itself
+// for a 0-or-1 value, and for and/or/xor the same of their operands' bits.
+func (g *fgen) bit0(v value) string {
+	switch {
+	case zeroOrOne(v):
+		return g.asBool(v)
+	case v.bitOp == "|":
+		return "(" + g.bit0(*v.lhs) + " || " + g.bit0(*v.rhs) + ")"
+	case v.bitOp == "&":
+		return "(" + g.bit0(*v.lhs) + " && " + g.bit0(*v.rhs) + ")"
+	case v.bitOp == "^":
+		return "(" + g.bit0(*v.lhs) + " != " + g.bit0(*v.rhs) + ")"
+	case v.isConst:
+		return strconv.FormatBool(v.c&1 != 0)
+	case v.shrOf != nil:
+		x := v.shrOf.expr
+		if v.shrOf.byteExpr != "" && v.shrBy < 8 {
+			x = v.shrOf.byteExpr
+		}
+		return fmt.Sprintf("(%s&%d != 0)", x, uint64(1)<<v.shrBy)
+	}
+	return "(" + v.expr + "&1 != 0)"
 }
 
 func (g *fgen) local(ref string) (string, ValType) {

@@ -11110,7 +11110,7 @@ func (m *Machine) HlJavaImpl() {
 				m.Ptr++
 				if c == '-' && c2 == '>' {
 					m.Ptr++
-				} else if c2 == '=' || (c == c2 && (uint32(m.Mem[c+2192])>>7)&1 != 0) {
+				} else if c2 == '=' || (c == c2 && m.Mem[c+2192]&128 != 0) {
 					m.Ptr++
 					if c == '>' && (c3 == '>' || c3 == '=') {
 						m.Ptr++
@@ -13521,7 +13521,7 @@ func (m *Machine) HlBash() {
 		} else {
 			c2 = 0
 		}
-		if c == '#' && (cmd|joined|rt.B2u(gap < m.Ptr))&1 != 0 {
+		if c == '#' && (cmd&1 != 0 || joined&1 != 0 || gap < m.Ptr) {
 			m.LexLineComment(1, TokenComment)
 			continue
 		}
@@ -13701,7 +13701,7 @@ func (m *Machine) HlBash() {
 						}
 						if c == '(' {
 							flow &= 0xfffffff7
-							if c2 == '(' && (p|rt.B2u(flow&4 != 0))&1 != 0 {
+							if c2 == '(' && (p&1 != 0 || flow&4 != 0) {
 								m.Ptr++
 								m.BashArith++
 								flow &= 0xfffffffb
@@ -15974,7 +15974,7 @@ func (m *Machine) HlC() {
 		}
 		if m.CIsOp(c) {
 			m.Ptr++
-			if c2 == '=' || (c == c2 && (uint32(m.Mem[c+2192])>>7)&1 != 0) || (c == '-' && c2 == '>') {
+			if c2 == '=' || (c == c2 && m.Mem[c+2192]&128 != 0) || (c == '-' && c2 == '>') {
 				m.Ptr++
 				if (c == '<' || c == '>') && c3 == '=' {
 					m.Ptr++
@@ -20934,7 +20934,7 @@ func (m *Machine) HlDockerfile() {
 				m.Ptr += 2
 				m.ScanIdentRun(45)
 				m.EmitTok(TokenVariableParameter, lhs, m.Ptr)
-				if m.TemplateByte(m.Ptr) == '=' && (cmdHead|rt.B2u(inst != 2))&1 != 0 {
+				if m.TemplateByte(m.Ptr) == '=' && (cmdHead&1 != 0 || inst != 2) {
 					lhs = m.Ptr
 					m.Ptr++
 					for {
@@ -22340,7 +22340,7 @@ func (m *Machine) HlRuby() {
 			} else {
 				lexHeredocArgument = 0
 			}
-			if t1 && (t2|lexHeredocArgument)&1 != 0 {
+			if t1 && (t2&1 != 0 || lexHeredocArgument&1 != 0) {
 				if kind == 34 || kind == 39 {
 					hdDelim = p + 1
 					m.Ptr = m.LexFindByte(hdDelim, kind)
@@ -23386,7 +23386,7 @@ func (m *Machine) HlFish() {
 		lhs = m.Ptr
 		c = uint32(m.Mem[lhs])
 		c2 = m.TemplateByte(lhs + 1)
-		if c == '#' && (cmd|rt.B2u(lhs == m.SrcBase)|rt.B2u(m.LexIsSpace(uint32(m.Mem[lhs-1]))))&1 != 0 {
+		if c == '#' && (cmd&1 != 0 || lhs == m.SrcBase || m.LexIsSpace(uint32(m.Mem[lhs-1]))) {
 			m.LexLineComment(1, TokenComment)
 			continue
 		}
@@ -23680,7 +23680,7 @@ func (m *Machine) HlFortranImpl() {
 			}
 			continue
 		}
-		if m.LexIsSpace(c) && (rt.B2u(quote == 0)|continued)&1 != 0 {
+		if m.LexIsSpace(c) && (quote == 0 || continued&1 != 0) {
 			m.Ptr = m.LexSkipSpaceAt(lhs)
 			if m.Ptr == lhs {
 				m.Ptr = lhs + 1
@@ -23688,7 +23688,7 @@ func (m *Machine) HlFortranImpl() {
 			m.EmitGap(lhs, m.Ptr)
 			continue
 		}
-		if c == '!' && (rt.B2u(quote == 0)|continued)&1 != 0 {
+		if c == '!' && (quote == 0 || continued&1 != 0) {
 			m.LexLineComment(1, rt.Sel32(c2 == '$', TokenPreproc, TokenComment))
 			continue
 		}
@@ -25944,7 +25944,7 @@ func (m *Machine) HlGlslImpl(godot uint32) {
 			m.Ptr++
 			if m.Ptr < m.End {
 				n = uint32(m.Mem[m.Ptr])
-				if n == 61 || (n == c && (uint32(m.Mem[c+2192])>>7)&1 != 0) {
+				if n == 61 || (n == c && m.Mem[c+2192]&128 != 0) {
 					m.Ptr++
 					if (c == '<' || c == '>') && m.Ptr < m.End && m.Mem[m.Ptr] == '=' {
 						m.Ptr++
@@ -26767,7 +26767,7 @@ func (m *Machine) HlGo() {
 			}
 			if m.GoIsOp(c) {
 				m.Ptr++
-				if c2 == '=' || (c == c2 && (uint32(m.Mem[c+2192])>>7)&1 != 0) {
+				if c2 == '=' || (c == c2 && m.Mem[c+2192]&128 != 0) {
 					m.Ptr++
 					if (c == '<' || c == '>') && c3 == '=' {
 						m.Ptr++
@@ -27516,7 +27516,7 @@ func (m *Machine) HlGroovy() {
 					}
 				case m.TemplateByte(rhs) == ':' && m.TemplateByte(rhs+1) != ':':
 					hl = TokenProperty
-				case prevType == 0 && (rt.B2u(m.LexIsIdentStart(pc) || m.LexIsDigit(pc))|uint32(m.Mem[pc+3984])>>7)&1 != 0 && stmtHead&1 != 0:
+				case prevType == 0 && (m.LexIsIdentStart(pc) || m.LexIsDigit(pc) || m.Mem[pc+3984]&128 != 0) && stmtHead&1 != 0:
 					hl = TokenFunction
 				default:
 					hl = TokenVariable
@@ -29632,7 +29632,7 @@ func (m *Machine) HlHlsl() {
 		}
 		if m.HlslIsOp(c) {
 			m.Ptr++
-			if c2 == '=' || (c == c2 && (uint32(m.Mem[c+2192])>>7)&1 != 0) {
+			if c2 == '=' || (c == c2 && m.Mem[c+2192]&128 != 0) {
 				m.Ptr++
 				if (c == '<' || c == '>') && m.TemplateByte(m.Ptr) == '=' {
 					m.Ptr++
@@ -30074,7 +30074,7 @@ func (m *Machine) HTTPBody(info uint32, resume bool) {
 	m.End = stop
 	m.StreamDepth = 0
 	m.StreamReset = rt.B2u(!resume)
-	if resume && (info>>2)&1 != 0 {
+	if resume && info&4 != 0 {
 		m.StreamRegionKind = 10
 	} else {
 		m.StreamRegionKind = 0
@@ -30205,7 +30205,7 @@ func (m *Machine) HlHTTP() {
 		lhs = m.Ptr
 		c = uint32(m.Mem[lhs])
 		p = rt.B2u(lhs+3 <= m.End && uint32(binary.LittleEndian.Uint16(m.Mem[lhs+1:])) == 8995)
-		if c == '#' && (p|rt.B2u(state != 2))&1 != 0 {
+		if c == '#' && (p&1 != 0 || state != 2) {
 			if p != 0 {
 				state = 0
 				typ = 0
@@ -31334,7 +31334,7 @@ func (m *Machine) HlJust() {
 				cmdHead = 0
 				continue
 			}
-			if c == '#' && (cmdHead|rt.B2u(m.LexIsSpace(uint32(m.Mem[lhs-1]))))&1 != 0 {
+			if c == '#' && (cmdHead&1 != 0 || m.LexIsSpace(uint32(m.Mem[lhs-1]))) {
 				m.LexLineComment(1, TokenComment)
 				continue
 			}
@@ -32690,7 +32690,7 @@ func (m *Machine) HlKotlin() {
 						}
 						expect = 0
 					}
-				case c2 == '(' || (c2 == '{' && (member|rt.B2u(c-65 > 25))&1 != 0):
+				case c2 == '(' || (c2 == '{' && (member&1 != 0 || c-65 > 25)):
 					if member != 0 {
 						hl = TokenFunctionMethod
 					} else {
@@ -36703,7 +36703,7 @@ func (m *Machine) HlMermaid() {
 							m.EmitTok(TokenConstant, lhs, p)
 							continue
 						}
-						if c2 == ':' && (style|attr)&1 != 0 {
+						if c2 == ':' && (style&1 != 0 || attr&1 != 0) {
 							m.EmitTok(TokenProperty, lhs, p)
 							continue
 						}
@@ -38535,7 +38535,7 @@ func (m *Machine) HlObjc() {
 				parens = 0
 			case m.CIsOp(c):
 				m.Ptr++
-				if c2 == '=' || (c == c2 && (uint32(m.Mem[c+2192])>>7)&1 != 0) {
+				if c2 == '=' || (c == c2 && m.Mem[c+2192]&128 != 0) {
 					m.Ptr++
 					if (c == '<' || c == '>') && c3 == '=' {
 						m.Ptr++
@@ -39959,7 +39959,7 @@ func (m *Machine) HlPerl() {
 			} else {
 				lexHeredocArgument = 0
 			}
-			if t1 && (t2|lexHeredocArgument)&1 != 0 {
+			if t1 && (t2&1 != 0 || lexHeredocArgument&1 != 0) {
 				if kind == 34 || kind == 39 {
 					hdDelim = p + 1
 					m.Ptr = m.LexFindByte(hdDelim, kind)
@@ -41638,7 +41638,7 @@ func (m *Machine) HlPowershell() {
 					if g == 6 && rhs-lhs == 2 {
 						hl = TokenKeywordOperator
 					}
-					if hl == TokenNone && (cmdPos|rt.B2u(m.TemplateByte(rhs) == '('))&1 != 0 {
+					if hl == TokenNone && (cmdPos&1 != 0 || m.TemplateByte(rhs) == '(') {
 						hl = TokenFunction
 					}
 				}
@@ -44736,7 +44736,7 @@ func (m *Machine) HlRdfImpl(sparql uint32) {
 						}
 						lexLowerCopy = m.LexLowerCopy(lhs, rhs, 1360)
 						g = m.LexKeywordValue(1360, 1360+lexLowerCopy, 50960, 15, 55)
-						if int32(g) >= 0 && (sparql|rt.B2u(int32(g) >= 256))&1 != 0 {
+						if int32(g) >= 0 && (sparql&1 != 0 || int32(g) >= 256) {
 							hl = g & 255
 							m.EmitTok(hl, lhs, rhs)
 							if hl == TokenBoolean {
@@ -48143,7 +48143,7 @@ func (m *Machine) HlToml() {
 			}
 			continue
 		}
-		if m.TomlIsBareKey(c) && (key|header)&1 != 0 {
+		if m.TomlIsBareKey(c) && (key&1 != 0 || header&1 != 0) {
 			m.Ptr = m.TomlBareKeyEnd(m.Ptr)
 			m.EmitTok(TokenProperty, lhs, m.Ptr)
 			continue
@@ -49665,10 +49665,10 @@ func (m *Machine) HlViml() {
 				m.EmitTok(hl, lhs, m.Ptr)
 				continue
 			}
-			if c == '.' || (c != '@' && (uint32(m.Mem[c+1936])>>7)&1 != 0) {
+			if c == '.' || (c != '@' && m.Mem[c+1936]&128 != 0) {
 				for {
 					v = m.TemplateByte(m.Ptr)
-					if !(v == 46 || (v != 64 && (uint32(m.Mem[v+1936])>>7)&1 != 0)) {
+					if !(v == 46 || (v != 64 && m.Mem[v+1936]&128 != 0)) {
 						break
 					}
 					m.Ptr++
@@ -50319,7 +50319,7 @@ func (m *Machine) HlWgsl() {
 			m.Ptr++
 			if c == '-' && c2 == '>' {
 				m.Ptr++
-			} else if c2 == '=' || (c == c2 && (uint32(m.Mem[c+2192])>>7)&1 != 0) {
+			} else if c2 == '=' || (c == c2 && m.Mem[c+2192]&128 != 0) {
 				m.Ptr++
 				if (c == '<' || c == '>') && m.WgslByte(m.Ptr) == '=' {
 					m.Ptr++
@@ -50905,7 +50905,7 @@ func (m *Machine) HlZig() {
 		if c != ':' && labelColon&1 != 0 {
 			labelColon = 0
 		}
-		if !(m.ZigIsIdentStart(c) || (c == '@' && p == 34)) && (expectFunc|expectLabel)&1 != 0 {
+		if !(m.ZigIsIdentStart(c) || (c == '@' && p == 34)) && (expectFunc&1 != 0 || expectLabel&1 != 0) {
 			expectFunc = 0
 			expectLabel = 0
 		}
@@ -51195,7 +51195,7 @@ func (m *Machine) HlZig() {
 				prevDot = 0
 				continue
 			}
-			if c == '|' && (payload|payloadReady&rt.B2u(p != 124 && p != 61))&1 != 0 {
+			if c == '|' && (payload&1 != 0 || (p != 124 && p != 61 && payloadReady&1 != 0)) {
 				m.Ptr++
 				payload = rt.B2u(payload == 0)
 				payloadReady = 0
