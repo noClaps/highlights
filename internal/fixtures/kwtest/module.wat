@@ -1,6 +1,6 @@
 (module
-  ;; the keyword-table fixture of vendor/pierre-highlights/test/wasm_test.ts
-  (import "../../../vendor/pierre-highlights/src/common.wat")
+  ;; the keyword-table fixture of tools/record/ts/test/wasm_test.ts
+  (import "../../engine/wat/common.wat")
   (keyword-table $Test $mem.laterWordsFree $mem.languageNames
     (group 2 "ab")
     (group 3 "abc")

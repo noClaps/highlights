@@ -1,4 +1,4 @@
-"""Copy the vendored package and instrument it for recording."""
+"""Copy the assembled TypeScript package and instrument it for recording."""
 import os
 import re
 import shutil

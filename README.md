@@ -2,7 +2,7 @@
 
 A Go port of
 [`@pierre/highlights`](https://github.com/pierrecomputer/pierre/tree/main/packages/highlights)
-(vendored in [`vendor/pierre-highlights`](vendor/pierre-highlights/README.md)), a
+0.3.0, a
 syntax highlighter with 151 built-in languages and Zed-compatible themes. It
 produces HTML or Shiki-compatible themed tokens from complete input, input
 chunks, or document edits.
@@ -44,8 +44,10 @@ lock, so the callback may call any method.
 
 ## How the port is built
 
-The lexers are written in WebAssembly Text in the vendored package. Rather
-than run Wasm, the Go port translates the WAT to Go:
+The lexers are written in WebAssembly Text, in `internal/engine/wat` (the
+`src` directory of the original package; its
+[architecture notes](https://github.com/pierrecomputer/pierre/blob/main/packages/highlights/ARCHITECTURE.md)
+describe them). Rather than run Wasm, the Go port translates the WAT to Go:
 
 - `internal/wat` ports the WAT preprocessor (`transformWat` in
   `scripts/build.ts`); its output is byte-identical to the TypeScript one.
@@ -54,7 +56,8 @@ than run Wasm, the Go port translates the WAT to Go:
   `internal/wasmrt` holds the runtime helpers, including 128-bit vectors.
 - `internal/engine` is the generated engine (`go generate ./internal/engine`
   regenerates it and `tables_gen.go`).
-- The root package ports the TypeScript host in `lib/`.
+- The root package ports the TypeScript host, whose original is in
+  `tools/record/ts/lib`.
 
 ## Tests
 
@@ -67,8 +70,10 @@ than run Wasm, the Go port translates the WAT to Go:
   the TypeScript helpers share some instances between files. See
   [`testdata/golden/README.md`](testdata/golden/README.md).
 
+  The original TypeScript suite, host, and build script are kept in
+  `tools/record/ts` so the recordings can be regenerated.
   `bundled themes: matches Shiki and Pierre catalogs` reads the Pierre theme
-  package beside the vendored one; the recorder supplies it from
+  package beside the original one; the recorder supplies it from
   `themes/testdata`, and `themes/catalog_test.go` ports its checks. A few
   dozen calls that pass values Go's types cannot express (a number as a
   theme, `Infinity` as a line) are skipped and counted in the test log.
@@ -77,3 +82,8 @@ than run Wasm, the Go port translates the WAT to Go:
   from five language tests, plus unit tests of the runtime helpers. Checks
   of the Binaryen optimizer and of zero-copy JavaScript views have no Go
   counterpart.
+
+## License
+
+Apache-2.0, as the original package. See [`LICENSE.md`](LICENSE.md) and the
+third-party theme notices in [`NOTICE.md`](NOTICE.md).

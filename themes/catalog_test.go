@@ -1,7 +1,7 @@
 package themes_test
 
 // Port of "bundled themes: matches Shiki and Pierre catalogs and metadata"
-// in vendor/pierre-highlights/test/theme_test.ts. The catalogs it reads
+// in tools/record/ts/test/theme_test.ts. The catalogs it reads
 // from outside the package are in testdata.
 
 import (

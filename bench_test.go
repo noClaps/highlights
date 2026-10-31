@@ -7,7 +7,7 @@ import (
 )
 
 func BenchmarkCodeToHTML(b *testing.B) {
-	data, err := os.ReadFile("vendor/pierre-highlights/lib/live.ts")
+	data, err := os.ReadFile("tools/record/ts/lib/live.ts")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func BenchmarkCodeToHTML(b *testing.B) {
 }
 
 func BenchmarkCodeToTokens(b *testing.B) {
-	data, err := os.ReadFile("vendor/pierre-highlights/lib/live.ts")
+	data, err := os.ReadFile("tools/record/ts/lib/live.ts")
 	if err != nil {
 		b.Fatal(err)
 	}

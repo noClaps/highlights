@@ -1,6 +1,6 @@
 package highlights
 
-// Ports of vendor/pierre-highlights/test/memory_test.ts. The golden replay
+// Ports of tools/record/ts/test/memory_test.ts. The golden replay
 // checks the outputs of these tests; this file checks memory capacity,
 // which the replay cannot see.
 

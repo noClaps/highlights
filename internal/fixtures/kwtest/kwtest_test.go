@@ -1,7 +1,7 @@
 package kwtest
 
 // Ports of the keyword and lowercase tests in
-// vendor/pierre-highlights/test/wasm_test.ts.
+// tools/record/ts/test/wasm_test.ts.
 
 import (
 	"bytes"

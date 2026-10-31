@@ -1,6 +1,6 @@
 package wat
 
-// Ports of the preprocessor tests in vendor/pierre-highlights/test/wasm_test.ts.
+// Ports of the preprocessor tests in tools/record/ts/test/wasm_test.ts.
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 
 func srcDir() string {
 	_, file, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(file), "..", "..", "vendor", "pierre-highlights")
+	return filepath.Join(filepath.Dir(file), "..", "engine", "wat")
 }
 
 // synthetic builds a module with just enough of the stream machinery for a
@@ -68,7 +68,7 @@ func enumOf(t *testing.T, r *Transformed, name string) map[string]int {
 
 func fullModule(t *testing.T) *Transformed {
 	t.Helper()
-	r, err := TransformFile(filepath.Join(srcDir(), "src", "highlights.wat"))
+	r, err := TransformFile(filepath.Join(srcDir(), "highlights.wat"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,6 @@
 // Command genengine translates a WAT module into a Go package.
 //
-//	genengine -src vendor/pierre-highlights/src/highlights.wat -out internal/engine -pkg engine
+//	genengine -src internal/engine/wat/highlights.wat -out internal/engine -pkg engine
 package main
 
 import (

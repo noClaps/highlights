@@ -1,6 +1,6 @@
 # Theme catalogs
 
-`theme_test.ts` in the vendored package checks the bundled themes against
+`tools/record/ts/test/theme_test.ts` checks the bundled themes against
 two catalogs outside the package:
 
 - `shiki-themes.json`: Shiki's `bundledThemesInfo` (id, display name, type),

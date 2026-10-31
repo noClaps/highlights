@@ -1,6 +1,6 @@
 package highlights_test
 
-// Ports of the engine tests in vendor/pierre-highlights/test/wasm_test.ts.
+// Ports of the engine tests in tools/record/ts/test/wasm_test.ts.
 
 import (
 	"testing"
